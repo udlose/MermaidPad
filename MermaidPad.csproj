@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<ApplicationManifest Condition="'$(TargetOS)'=='windows'">Platforms/Windows/app.manifest</ApplicationManifest>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+		<UseAvalonia>true</UseAvalonia>
+		<ApplicationIcon>Assets/avalonia-logo.ico</ApplicationIcon>
+		<AssemblyTitle>MermaidPad</AssemblyTitle>
+		<AssemblyDescription>Live Mermaid Diagram Editor</AssemblyDescription>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+
+		<!-- Windows-specific -->
+		<ApplicationManifest Condition="'$(TargetOS)'=='windows'">
+			Platforms/Windows/app.manifest
+		</ApplicationManifest>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Core UI stack -->
+		<PackageReference Include="Avalonia" Version="11.3.2" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.2" />
+
+		<!-- Editor + syntax highlighting (latest stable = 11.3.0) -->
+		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
+		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
+
+		<!-- MVVM & grammar libraries -->
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="TextMateSharp" Version="1.0.70" />
+		<PackageReference Include="TextMateSharp.Grammars" Version="1.0.70" />
+
+		<!-- Patched Uri library — compile-only -->
+		<PackageReference Include="System.Private.Uri" Version="4.3.2" ExcludeAssets="runtime;native;contentfiles;analyzers" />
+		<PackageReference Include="WebViewControl-Avalonia" Version="3.120.10" ExcludeAssets="build;buildTransitive" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\**" />
+		<AvaloniaResource Include="Resources\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Assets\" />
+	</ItemGroup>
+
+</Project>

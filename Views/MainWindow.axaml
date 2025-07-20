@@ -1,0 +1,183 @@
+﻿<Window
+    x:Class="MermaidPad.Views.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+    xmlns:webview="clr-namespace:WebViewControl;assembly=WebViewControl.Avalonia"
+    xmlns:mainWindow="clr-namespace:MermaidPad.ViewModels.MainWindow"
+    xmlns:views="clr-namespace:MermaidPad.Views"
+    Title="MermaidPad – Live Mermaid Diagram Editor"
+    Width="1400" Height="900"
+    MinWidth="800" MinHeight="600"
+    x:DataType="mainWindow:MainWindowViewModel"
+    Icon="/Assets/avalonia-logo.ico">
+
+  <Design.DataContext>
+    <mainWindow:MainWindowViewModel />
+  </Design.DataContext>
+
+  <DockPanel>
+    <!--  Toolbar  -->
+    <ToolBar DockPanel.Dock="Top">
+      <Button Classes="toolbar" Command="{Binding RenderCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="🔄" />
+          <TextBlock FontSize="12" Text="Render" />
+        </StackPanel>
+      </Button>
+
+      <Button Classes="toolbar" Command="{Binding ClearCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="🗑️" />
+          <TextBlock FontSize="12" Text="Clear" />
+        </StackPanel>
+      </Button>
+
+      <Separator Margin="5,0" Background="#4A5568" />
+
+      <Button Classes="toolbar" Command="{Binding SaveCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="💾" />
+          <TextBlock FontSize="12" Text="Save" />
+        </StackPanel>
+      </Button>
+
+      <Button Classes="toolbar" Command="{Binding LoadCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="📁" />
+          <TextBlock FontSize="12" Text="Load" />
+        </StackPanel>
+      </Button>
+
+      <Separator Margin="5,0" Background="#4A5568" />
+
+      <!--  Sample Diagrams Menu  -->
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="SamplesButton" Classes="toolbar">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock
+              Margin="0,0,5,0"
+              FontSize="14"
+              Text="📋" />
+            <TextBlock FontSize="12" Text="Samples" />
+          </StackPanel>
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem
+                Command="{Binding InsertSampleCommand}"
+                CommandParameter="flowchart"
+                Header="Flowchart" />
+              <MenuItem
+                Command="{Binding InsertSampleCommand}"
+                CommandParameter="sequence"
+                Header="Sequence Diagram" />
+              <MenuItem
+                Command="{Binding InsertSampleCommand}"
+                CommandParameter="class"
+                Header="Class Diagram" />
+              <MenuItem
+                Command="{Binding InsertSampleCommand}"
+                CommandParameter="gantt"
+                Header="Gantt Chart" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </StackPanel>
+
+      <Separator Margin="5,0" Background="#4A5568" />
+
+      <Button Classes="toolbar" Command="{Binding ExportCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="📤" />
+          <TextBlock FontSize="12" Text="Export" />
+        </StackPanel>
+      </Button>
+
+      <Separator Margin="5,0" Background="#4A5568" />
+
+      <Button Classes="toolbar" Command="{Binding CloseCommand}">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock
+            Margin="0,0,5,0"
+            FontSize="14"
+            Text="❌" />
+          <TextBlock FontSize="12" Text="Close" />
+        </StackPanel>
+      </Button>
+    </ToolBar>
+
+    <!--  Status Bar  -->
+    <StatusBar Background="#2D3748" DockPanel.Dock="Bottom">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Classes="{Binding HasError, Converter={x:Static views:BoolToClassConverter.Instance}, ConverterParameter='error|status'}" Text="{Binding StatusMessage}" />
+        <TextBlock
+          Margin="10,0"
+          Classes="status"
+          IsVisible="{Binding IsProcessing}"
+          Text=" • " />
+        <TextBlock
+          Classes="status"
+          IsVisible="{Binding IsProcessing}"
+          Text="Processing..." />
+      </StackPanel>
+    </StatusBar>
+
+    <!--  Main Content - Split Panel  -->
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="5" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!--  Left Panel - Text Editor  -->
+      <DockPanel Grid.Column="0" Background="#1A202C">
+        <TextBlock
+          Classes="header"
+          DockPanel.Dock="Top"
+          Text="Mermaid Source" />
+        <avaloniaEdit:TextEditor
+          Name="MermaidEditor"
+          Margin="10,0,10,10"
+          Background="#1A202C"
+          FontFamily="Consolas,Monaco,Menlo,monospace"
+          FontSize="14"
+          Foreground="#E2E8F0"
+          LineNumbersForeground="#718096"
+          ShowLineNumbers="True"
+          Text="{Binding MermaidSource}"
+          WordWrap="True" />
+      </DockPanel>
+
+      <!--  Splitter  -->
+      <GridSplitter Grid.Column="1" />
+
+      <!--  Right Panel - Live Preview  -->
+      <DockPanel Grid.Column="2" Background="#2D3748">
+        <TextBlock
+          Classes="header"
+          DockPanel.Dock="Top"
+          Text="Live Preview" />
+        <webview:WebView
+          Name="PreviewWebView"
+          Margin="10,0,10,10"
+          Address="{Binding PreviewUrl}" />
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</Window>

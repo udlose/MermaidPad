@@ -1,0 +1,54 @@
+﻿<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MermaidPad.App"
+             RequestedThemeVariant="Dark">
+    
+    <Application.DataTemplates>
+        <!-- Add any DataTemplates here -->
+    </Application.DataTemplates>
+
+    <Application.Styles>
+        <FluentTheme />
+        
+        <!-- Custom Styles -->
+        <Style Selector="ToolBar">
+            <Setter Property="Background" Value="#2D3748" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+        </Style>
+        
+        <Style Selector="Button.toolbar">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="2" />
+        </Style>
+        
+        <Style Selector="Button.toolbar:pointerover">
+            <Setter Property="Background" Value="#4A5568" />
+        </Style>
+        
+        <Style Selector="TextBlock.header">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="10,5" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+        </Style>
+        
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="#4A5568" />
+        </Style>
+        
+        <Style Selector="TextBlock.status">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="10,5" />
+            <Setter Property="Foreground" Value="#A0AEC0" />
+        </Style>
+        
+        <Style Selector="TextBlock.error">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="10,5" />
+            <Setter Property="Foreground" Value="#F56565" />
+        </Style>
+    </Application.Styles>
+</Application>

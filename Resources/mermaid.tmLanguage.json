@@ -1,0 +1,77 @@
+﻿{
+  "name": "Mermaid",
+  "scopeName": "source.mermaid",
+  "fileTypes": [ "mmd", "mermaid" ],
+  "patterns": [
+    {
+      "name": "keyword.control.diagram.mermaid",
+      "match": "\\b(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|pie|gantt|gitGraph|erDiagram|journey|quadrantChart|requirement|sankey|xychart|mindmap|timeline|zenuml|architecture|packet|block|flow|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\\b"
+    },
+    {
+      "name": "keyword.direction.mermaid",
+      "match": "\\b(TD|TB|BT|RL|LR)\\b"
+    },
+    {
+      "name": "keyword.operator.arrow.mermaid",
+      "match": "(-->|->|===|==|-.->|-.|\\.\\.|\\|\\||\\||<\\|--|<\\|--\\||\\|--\\||\\|--\\|>|o--o|<-->|<->|<--->|<->|\\*--\\*|\\*--\\||\\|--\\*|x--x|x--\\||\\|--x)"
+    },
+    {
+      "name": "entity.name.node.mermaid",
+      "match": "\\b([A-Za-z0-9_][A-Za-z0-9_\\-]*)\\b(?=\\s*[\\[\\(\\{\\>])"
+    },
+    {
+      "name": "string.quoted.double.mermaid",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mermaid",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "string.quoted.single.mermaid",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.mermaid",
+          "match": "\\\\."
+        }
+      ]
+    },
+    {
+      "name": "markup.bold.mermaid",
+      "match": "\\b(style|class|classDef|click|linkStyle|fill|stroke|stroke-width|stroke-dasharray|color)\\b"
+    },
+    {
+      "name": "constant.numeric.mermaid",
+      "match": "\\b\\d+(\\.\\d+)?\\b"
+    },
+    {
+      "name": "constant.language.boolean.mermaid",
+      "match": "\\b(true|false|yes|no|on|off)\\b"
+    },
+    {
+      "name": "variable.parameter.mermaid",
+      "match": "\\b(participant|actor|note|loop|opt|alt|else|par|and|critical|break|rect|activate|deactivate|autonumber|title|dateFormat|axisFormat|section|click|callback|href|target|class|classDef|style|fill|stroke|stroke-width|stroke-dasharray|color)\\b"
+    },
+    {
+      "name": "comment.line.mermaid",
+      "match": "%%.*$"
+    },
+    {
+      "name": "punctuation.definition.block.mermaid",
+      "match": "[\\[\\]\\(\\)\\{\\}\\<\\>]"
+    },
+    {
+      "name": "keyword.operator.logical.mermaid",
+      "match": "\\b(and|or|not)\\b"
+    },
+    {
+      "name": "support.type.property-name.mermaid",
+      "match": "\\b(subgraph|end|direction|theme|config|wrap|init)\\b"
+    }
+  ]
+}
