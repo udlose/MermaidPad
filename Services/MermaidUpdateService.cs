@@ -55,6 +55,7 @@ public sealed class MermaidUpdateService
         const string jsUrl = "https://unpkg.com/mermaid/dist/mermaid.min.js";
         //const string cssUrl = "https://unpkg.com/mermaid/dist/mermaid.css";
 
+        //const string jsUrl = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js";
         //const string jsUrl = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.9.0/mermaid.min.js";
         //TODO add CSS? const string cssUrl = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.9.0/mermaid.css";
         //Debug.WriteLine($"Latest Mermaid version: {version}, JS URL: {jsUrl}, CSS URL: {cssUrl}");
