@@ -27,6 +27,7 @@
           }, document.getElementById('output'));
       } catch (e) {
           document.getElementById('output').innerHTML = '<div class="error">' + e.message + '</div>';
+          console.log(e.message);
       }
   };
 </script>
