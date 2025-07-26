@@ -1,0 +1,131 @@
+﻿// flowchart
+graph TD
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great! 🎉]
+    B -->|No| D[Debug 🔍]
+    C --> E[Deploy 🚀]
+    D --> B
+    
+    style A fill:#e1f5fe
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#f3e5f5
+
+// flowchart
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E
+
+// sequence
+sequenceDiagram
+    participant User
+    participant System
+    User->>System: Request data
+    System-->>User: Send data
+    User->>System: Process data
+    System-->>User: Confirmation
+    User->>System: Logout
+
+sequenceDiagram
+    participant A as Alice
+    participant B as Bob
+    A->>B: Hello Bob, how are you?
+    B-->>A: Great!
+    A-)B: See you later!
+
+// class
+classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +String breed
+        +bark()
+    }
+    Animal <|-- Dog
+    class Cat {
+        +String color
+        +meow()
+    }
+    Animal <|-- Cat
+    class Bird {
+        +String species
+        +fly()
+    }
+    Animal <|-- Bird
+    class Fish {
+        +String type
+        +swim()
+    }
+    Animal <|-- Fish
+    class Reptile {
+        +String habitat
+        +crawl()
+    }
+    Animal <|-- Reptile
+    class Insect {
+        +String wingspan
+        +buzz()
+    }
+    Animal <|-- Insect
+
+// classDiagram
+classDiagram
+    class User {
+        +String name
+        +String email
+        +login()
+        +logout()
+    }
+    class System {
+        +String systemName
+        +initialize()
+        +shutdown()
+    }
+    User --> System : interacts with
+
+// stateDiagram
+stateDiagram
+    [*] --> Idle
+    Idle --> Processing : start
+    Processing --> Completed : finish
+    Processing --> Error : fail
+    Completed --> Idle : reset
+    Error --> Idle : reset
+
+// gantt
+gantt
+    title Project Timeline
+    dateFormat  YYYY-MM-DD
+    section Planning
+    Task 1 :a1, 2023-10-01, 30d
+    Task 2 :after a1, 20d
+    section Development
+    Task 3 :2023-11-01, 40d
+    Task 4 :after a3, 30d
+    section Testing
+    Task 5 :2024-01-01, 20d
+    Task 6 :after a5, 15d
+
+gantt
+    title Project Timeline
+    dateFormat  YYYY-MM-DD
+    section Planning
+    Research           :a1, 2024-01-01, 30d
+    Design            :a2, after a1, 20d
+    section Development
+    Implementation    :a3, after a2, 45d
+    Testing          :a4, after a3, 15d
+
+// pie
+pie
+    title Browser Usage
+    "Chrome": 45
+    "Firefox": 30
+    "Safari": 15
+    "Others": 10

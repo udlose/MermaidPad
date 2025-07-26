@@ -1,0 +1,126 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<!--<TargetFrameworks>net9.0-windows10.0.22621;net9.0</TargetFrameworks>-->
+		<!--<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.22621.0</TargetFrameworks>-->
+		<!--<TargetFrameworks>net9.0-windows10.0.22621</TargetFrameworks>-->
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<RootNamespace>MermaidPad</RootNamespace>
+		<AssemblyName>MermaidPad</AssemblyName>
+		<UseAvalonia>true</UseAvalonia>
+		<ApplicationIcon>Assets/avalonia-logo.ico</ApplicationIcon>
+		<AssemblyTitle>MermaidPad</AssemblyTitle>
+		<AssemblyDescription>Live Mermaid Diagram Editor</AssemblyDescription>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<!--<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>-->
+		<Platforms>AnyCPU</Platforms>
+		<EnableDefaultItems>true</EnableDefaultItems>
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+		<LangVersion>preview</LangVersion>
+		<Configurations>Debug;Release</Configurations>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<!-- Windows-specific -->
+		<ApplicationManifest Condition="'$(TargetOS)'=='windows'">Platforms/Windows/app.manifest</ApplicationManifest>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.22621'">
+		<UseWindowsForms>false</UseWindowsForms>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
+		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
+		<PackageReference Include="Avalonia" Version="11.3.2" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
+		<PackageReference Include="Avalonia.ReactiveUI" Version="11.3.2" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
+		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
+		<PackageReference Include="System.Text.Json" Version="9.0.7" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
+		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
+		<PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
+		<PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
+		<PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
+		<!--        This line important \/-->
+		<AvaloniaXaml Remove="**\*.axaml" />
+		<!--        This line important /\-->
+	</ItemGroup>
+	<ItemGroup>
+		<Folder Include="Assets\" />
+		<AvaloniaResource Include="Assets\**" />
+		<AdditionalFiles Include="**\*.xaml" />
+		<AdditionalFiles Include="**\*.axaml" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Update="Assets\*.html">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Assets\*.js">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<!--<ItemGroup>
+		<AvaloniaResource Include="App.axaml" />
+		<AvaloniaResource Include="App.axaml" />
+	</ItemGroup>-->
+	<ItemGroup>
+		<!--<Compile Update="**\*.xaml.cs">
+			<DependentUpon>%(Filename)</DependentUpon>
+		</Compile>
+		<Compile Update="**\*.axaml.cs">
+			<DependentUpon>%(Filename)</DependentUpon>
+		</Compile>-->
+		<Compile Update="App.axaml.cs">
+			<DependentUpon>App.axaml</DependentUpon>
+		</Compile>
+		<Compile Update="Views\MainWindow.axaml.cs">
+			<DependentUpon>MainWindow.axaml</DependentUpon>
+		</Compile>
+		<None Remove="**\*.xaml" />
+		<AvaloniaResource Include="**\*.xaml">
+			<SubType>Designer</SubType>
+		</AvaloniaResource>
+		<AvaloniaResource Include="**\*.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaResource>
+	</ItemGroup>
+	<!--<ItemGroup>
+	  <AdditionalFiles Remove="Views\MainWindow.axaml" />
+	</ItemGroup>-->
+
+
+	<ItemGroup>
+		<AvaloniaResource Include="**\*.xaml" />
+		<!-- Note this AdditionalFiles directive. -->
+		<AdditionalFiles Include="**\*.xaml" SourceItemGroup="AvaloniaXaml" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <AdditionalFiles Remove="App.axaml" />
+	  <AdditionalFiles Remove="Views\MainWindow.axaml" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <AvaloniaResource Remove="Views\MainWindow.axaml" />
+	</ItemGroup>
+
+
+	<ItemGroup>
+	  <AvaloniaXaml Include="Views\MainWindow.axaml" />
+	</ItemGroup>
+
+</Project>
