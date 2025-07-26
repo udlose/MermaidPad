@@ -3,7 +3,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using MermaidPad.Infrastructure;
-using MermaidPad.ViewModels;
 using MermaidPad.Views;
 
 namespace MermaidPad;
@@ -25,17 +24,11 @@ public partial class App : Application
             // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel(Services)
-            };
+            desktop.MainWindow = new MainWindow();      // Set the main window for desktop applications
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
-            singleViewPlatform.MainView = new MainWindow
-            {
-                DataContext = new MainViewModel(Services)
-            };
+            singleViewPlatform.MainView = new MainWindow(); // Set the main view for single view applications
         }
 
         base.OnFrameworkInitializationCompleted();
