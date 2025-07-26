@@ -14,6 +14,8 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
+    private readonly IDebounceDispatcher _editorDebouncer;
+
 
     public MainWindow()
     {
@@ -23,7 +25,7 @@ public partial class MainWindow : Window
         Editor.GotFocus += (_, __) => Debug.WriteLine("GotFocus");
 
         IServiceProvider sp = App.Services;
-
+        _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         DataContext = _vm;
@@ -36,25 +38,43 @@ public partial class MainWindow : Window
             string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
             await InitializeWebViewAsync(assets);
             await _vm.CheckForMermaidUpdatesAsync();
+
+            // Ensure command state is updated after UI is loaded
+            _vm.RenderCommand.NotifyCanExecuteChanged();
+            _vm.ClearCommand.NotifyCanExecuteChanged();
+
+
+
+
+            //TODO add a setting to enable/disable live preview
+            //_vm.LivePreviewEnabled = settingsService.Settings.LivePreviewEnabled;
         };
 
         this.Closing += OnClosing;
 
-        Editor.Text = _vm.DiagramText ?? "";
+        Editor.Text = _vm.DiagramText;
 
         Editor.TextChanged += (_, __) =>
         {
-            if (_vm.DiagramText != Editor.Text)
+            // Debounce to avoid excessive updates
+            _editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
             {
-                _vm.DiagramText = Editor.Text;
-            }
+                if (_vm.DiagramText != Editor.Text)
+                {
+                    _vm.DiagramText = Editor.Text;
+                }
+            });
         };
 
         _vm.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(_vm.DiagramText) && Editor.Text != _vm.DiagramText)
             {
-                Editor.Text = _vm.DiagramText ?? "";
+                // Debounce to avoid excessive updates
+                _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+                {
+                    Editor.Text = _vm.DiagramText;
+                });
             }
         };
 
