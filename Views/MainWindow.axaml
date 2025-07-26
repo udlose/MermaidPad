@@ -1,0 +1,64 @@
+<Window
+  x:Class="MermaidPad.Views.MainWindow"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+  Title="MermaidPad (.NET 9)"
+  Width="1200"
+  Height="800"
+  Icon="/Assets/avalonia-logo.ico">
+
+  <DockPanel>
+    <StackPanel
+      Margin="6"
+      DockPanel.Dock="Top"
+      Orientation="Horizontal"
+      Spacing="6">
+      <Button
+        Width="90"
+        Command="{Binding vm.RenderCommand}"
+        Content="Render" />
+      <Button
+        Width="80"
+        Command="{Binding ClearCommand}"
+        Content="Clear" />
+      <Button
+        Width="80"
+        Click="OnCloseClick"
+        Content="Close" />
+      <CheckBox
+        Margin="12,0,0,0"
+        Content="Live Preview"
+        IsChecked="{Binding LivePreviewEnabled}" />
+      <TextBlock Margin="20,0,4,0" Text="Bundled:" />
+      <TextBlock Text="{Binding BundledMermaidVersion}" />
+      <TextBlock Margin="12,0,4,0" Text="Latest:" />
+      <TextBlock Text="{Binding LatestMermaidVersion}" />
+    </StackPanel>
+    <Grid ColumnDefinitions="*,5,*">
+      <edit:TextEditor
+        x:Name="Editor"
+        Grid.Column="0"
+        Background="#1E1E1E"
+        FontFamily="Consolas"
+        Foreground="#FFF0F0F0"
+        HorizontalScrollBarVisibility="Auto"
+        ShowLineNumbers="True"
+        VerticalScrollBarVisibility="Auto" />
+      <GridSplitter Grid.Column="1" />
+      <!--<edit:TextEditor
+		  x:Name="Editor"
+		  Grid.Column="0"
+		  Background="#1E1E1E"
+		  FontFamily="Consolas"
+		  Foreground="#FFF0F0F0"
+		  HorizontalScrollBarVisibility="Auto"
+		  ShowLineNumbers="True"
+		  SyntaxHighlighting="Mermaid"
+		  VerticalScrollBarVisibility="Auto" />-->
+      <wv:WebView x:Name="Preview" Grid.Column="2" />
+    </Grid>
+  </DockPanel>
+</Window>
