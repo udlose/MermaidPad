@@ -6,7 +6,7 @@ namespace MermaidPad.Services;
 
 public sealed class SettingsService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true
@@ -34,10 +34,28 @@ public sealed class SettingsService
     {
         try
         {
-            if (File.Exists(_settingsPath))
+            // Validate that the settings path is within the expected config directory
+            string configDir = GetConfigDirectory();
+            string fullSettingsPath = Path.GetFullPath(_settingsPath);
+            string fullConfigDir = Path.GetFullPath(configDir);
+
+            if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
             {
-                string json = File.ReadAllText(_settingsPath);
-                return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+                Debug.WriteLine("Settings path validation failed.");
+                return new AppSettings();
+            }
+
+            // Additional validation: ensure the file name is exactly "settings.json"
+            if (Path.GetFileName(fullSettingsPath) != "settings.json")
+            {
+                Debug.WriteLine("Settings file name validation failed on save.");
+                return new AppSettings();
+            }
+
+            if (File.Exists(fullSettingsPath))
+            {
+                string json = File.ReadAllText(fullSettingsPath);
+                return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
             }
         }
         catch (Exception ex)
@@ -51,8 +69,27 @@ public sealed class SettingsService
     {
         try
         {
-            string json = JsonSerializer.Serialize(Settings, JsonOptions);
-            File.WriteAllText(_settingsPath, json);
+            // Validate that the settings path is within the expected config directory
+            string configDir = GetConfigDirectory();
+            string fullSettingsPath = Path.GetFullPath(_settingsPath);
+            string fullConfigDir = Path.GetFullPath(configDir);
+
+            if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.WriteLine("Settings path validation failed on save.");
+                return;
+            }
+
+            // Additional validation: ensure the file name is exactly "settings.json"
+            if (Path.GetFileName(fullSettingsPath) != "settings.json")
+            {
+                Debug.WriteLine("Settings file name validation failed on save.");
+                return;
+            }
+
+            // Serialize and save the settings
+            string json = JsonSerializer.Serialize(Settings, _jsonOptions);
+            File.WriteAllText(fullSettingsPath, json);
         }
         catch (Exception ex)
         {
