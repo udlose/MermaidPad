@@ -89,7 +89,15 @@ public sealed class SettingsService
 
             // Serialize and save the settings
             string json = JsonSerializer.Serialize(Settings, _jsonOptions);
-            File.WriteAllText(fullSettingsPath, json);
+
+            // Use FileStream for better performance on large files
+            using FileStream fs = new(fullSettingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using StreamWriter writer = new(fs);
+            writer.Write(json);
+            writer.Flush();
+            fs.Flush();
+
+            //File.WriteAllText(fullSettingsPath, json);
         }
         catch (Exception ex)
         {
