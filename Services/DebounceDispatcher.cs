@@ -9,6 +9,8 @@ public interface IDebounceDispatcher
 
 public sealed class DebounceDispatcher : IDebounceDispatcher
 {
+    public const int DefaultDebounceMilliseconds = 500;
+
     private readonly Lock _gate = new Lock();
     private readonly Dictionary<string, CancellationTokenSource> _tokens = new Dictionary<string, CancellationTokenSource>();
 

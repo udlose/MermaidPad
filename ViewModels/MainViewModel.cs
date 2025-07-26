@@ -14,7 +14,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
-    private readonly IDebounceDispatcher _debouncer;
+    private readonly IDebounceDispatcher _editorDebouncer;
 
     [ObservableProperty]
     public partial string DiagramText { get; set; } = string.Empty;
@@ -36,7 +36,7 @@ public partial class MainViewModel : ViewModelBase
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
-        _debouncer = services.GetRequiredService<IDebounceDispatcher>();
+        _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
 
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
@@ -72,7 +72,7 @@ public partial class MainViewModel : ViewModelBase
     {
         if (LivePreviewEnabled)
         {
-            _debouncer.Debounce("render", TimeSpan.FromMilliseconds(500), () =>
+            _editorDebouncer.Debounce("render", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
             {
                 try
                 {
@@ -103,7 +103,7 @@ public partial class MainViewModel : ViewModelBase
         }
         else
         {
-            _debouncer.Cancel("render");
+            _editorDebouncer.Cancel("render");
         }
     }
 
