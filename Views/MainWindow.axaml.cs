@@ -16,7 +16,6 @@ public partial class MainWindow : Window
     private readonly MermaidRenderer _renderer;
     private readonly IDebounceDispatcher _editorDebouncer;
 
-
     public MainWindow()
     {
         InitializeComponent();
@@ -36,8 +35,12 @@ public partial class MainWindow : Window
         this.Opened += async (_, _) =>
         {
             string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
-            await InitializeWebViewAsync(assets);
+            //await InitializeWebViewAsync(assets);
             await _vm.CheckForMermaidUpdatesAsync();
+
+            // Ensure Editor and ViewModel are in sync
+            _vm.DiagramText = Editor.Text;
+            await InitializeWebViewAsync(assets);
 
             // Ensure command state is updated after UI is loaded
             _vm.RenderCommand.NotifyCanExecuteChanged();
