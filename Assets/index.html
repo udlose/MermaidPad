@@ -9,6 +9,7 @@
   .error { color:#ff6f6f; white-space:pre; font-family:Consolas,monospace; }
 </style>
 <script src="mermaid.min.js"></script>
+<!--
 <script>
   // Provide JS bridge functions
   function clearOutput() {
@@ -30,6 +31,39 @@
           console.log(e.message);
       }
   };
+</script>-->
+<script>
+    // Initialize Mermaid once
+    window.addEventListener('DOMContentLoaded', function () {
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+            document.getElementById('output').innerHTML = 'Mermaid library loaded!';
+        } else {
+            document.getElementById('output').innerHTML =
+                '<div class="error">Mermaid library failed to load.</div>';
+        }
+    });
+
+    function clearOutput() {
+        document.getElementById('output').innerHTML = '';
+    }
+
+    window.renderMermaid = (source) => {
+        if (typeof mermaid === 'undefined') {
+            document.getElementById('output').innerHTML =
+                '<div class="error">Mermaid library is not loaded.</div>';
+            return;
+        }
+        try {
+            const id = 'mermaid-svg-' + Date.now();
+            mermaid.render(id, source, (svgCode) => {
+                document.getElementById('output').innerHTML = svgCode;
+            }, document.getElementById('output'));
+        } catch (e) {
+            document.getElementById('output').innerHTML =
+                '<div class="error">' + e.message + '</div>';
+        }
+    };
 </script>
 </head>
 <body>
