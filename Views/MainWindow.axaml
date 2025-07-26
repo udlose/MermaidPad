@@ -46,6 +46,7 @@
 		Foreground="#FFF0F0F0"
 		HorizontalScrollBarVisibility="Auto"
 		ShowLineNumbers="True"
+		SyntaxHighlighting="Mermaid"
 		VerticalScrollBarVisibility="Auto" />
 	  <GridSplitter Grid.Column="1" />
 	  <!--<edit:TextEditor
