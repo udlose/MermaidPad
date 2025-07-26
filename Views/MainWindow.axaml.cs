@@ -20,9 +20,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        Editor.PointerPressed += (_, __) => Debug.WriteLine("PointerPressed");
-        Editor.GotFocus += (_, __) => Debug.WriteLine("GotFocus");
-
         IServiceProvider sp = App.Services;
         _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
