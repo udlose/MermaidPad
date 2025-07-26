@@ -89,6 +89,8 @@ public sealed class SettingsService
 
             // Serialize and save the settings
             string json = JsonSerializer.Serialize(Settings, _jsonOptions);
+            Debug.WriteLine($"Saving settings to: {fullSettingsPath}");
+            Debug.WriteLine($"Settings JSON: {json}");
 
             // Use FileStream for better performance on large files
             using FileStream fs = new(fullSettingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
