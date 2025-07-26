@@ -49,7 +49,11 @@ public partial class MainViewModel : ViewModelBase
         await _renderer.RenderAsync(DiagramText);
     }
 
-    private bool CanRender() => !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanRender()
+    {
+        Debug.WriteLine($"CanRender: {!string.IsNullOrWhiteSpace(DiagramText)}");
+        return !string.IsNullOrWhiteSpace(DiagramText);
+    }
 
     [RelayCommand(CanExecute = nameof(CanClear))]
     private async Task ClearAsync()
@@ -59,7 +63,11 @@ public partial class MainViewModel : ViewModelBase
         await _renderer.RenderAsync(string.Empty);
     }
 
-    private bool CanClear() => !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanClear()
+    {
+        Debug.WriteLine($"CanClear: {!string.IsNullOrWhiteSpace(DiagramText)}");
+        return !string.IsNullOrWhiteSpace(DiagramText);
+    }
 
     /// <summary>
     /// Handles changes to the diagram text and triggers rendering if live preview is enabled.
@@ -94,7 +102,10 @@ public partial class MainViewModel : ViewModelBase
     {
         if (value)
         {
-            //TODO
+            if (string.IsNullOrWhiteSpace(DiagramText))
+            {
+                return;
+            }
             _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: ex =>
             {
                 LastError = $"Failed to render diagram: {ex.Message}";
