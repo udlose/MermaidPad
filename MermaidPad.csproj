@@ -2,9 +2,6 @@
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
-		<!--<TargetFrameworks>net9.0-windows10.0.22621;net9.0</TargetFrameworks>-->
-		<!--<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.22621.0</TargetFrameworks>-->
-		<!--<TargetFrameworks>net9.0-windows10.0.22621</TargetFrameworks>-->
 		<TargetFramework>net9.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
@@ -71,10 +68,6 @@
 		</None>
 	</ItemGroup>
 
-	<!--<ItemGroup>
-		<AvaloniaResource Include="App.axaml" />
-		<AvaloniaResource Include="App.axaml" />
-	</ItemGroup>-->
 	<ItemGroup>
 		<!--<Compile Update="**\*.xaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
@@ -96,10 +89,6 @@
 			<SubType>Designer</SubType>
 		</AvaloniaResource>
 	</ItemGroup>
-	<!--<ItemGroup>
-	  <AdditionalFiles Remove="Views\MainWindow.axaml" />
-	</ItemGroup>-->
-
 
 	<ItemGroup>
 		<AvaloniaResource Include="**\*.xaml" />

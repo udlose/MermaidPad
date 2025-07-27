@@ -60,7 +60,6 @@
   <!-- The following dependency is required to enable themes for Windows common controls and dialogs
 	   (Windows XP and later). Uncomment the dependency element to enable it. -->
   <!-- Enable themes for Windows common controls and dialogs (Windows XP and later) -->
-  <!--
   <dependency>
 	<dependentAssembly>
 	  <assemblyIdentity
@@ -73,18 +72,4 @@
 		/>
 	</dependentAssembly>
   </dependency>
-  -->
-	<dependency>
-		<dependentAssembly>
-			<assemblyIdentity
-				type="win32"
-				name="Microsoft.Windows.Common-Controls"
-				version="6.0.0.0"
-				processorArchitecture="*"
-				publicKeyToken="6595b64144ccf1df"
-				language="*"
-		/>
-		</dependentAssembly>
-	</dependency>
-
 </assembly>
