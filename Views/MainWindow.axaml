@@ -37,18 +37,19 @@
 	  <TextBlock Margin="12,0,4,0" Text="Latest:" />
 	  <TextBlock Text="{Binding LatestMermaidVersion}" />
 	</StackPanel>
-	<Grid ColumnDefinitions="*,5,*">
+	<Grid ColumnDefinitions="*,4,*">
 	  <edit:TextEditor
 		x:Name="Editor"
 		Grid.Column="0"
-		Background="#1E1E1E"
 		FontFamily="Consolas"
-		Foreground="#FFF0F0F0"
 		HorizontalScrollBarVisibility="Auto"
 		ShowLineNumbers="True"
 		SyntaxHighlighting="Mermaid"
 		VerticalScrollBarVisibility="Auto" />
-	  <GridSplitter Grid.Column="1" />
+	  <GridSplitter
+		Grid.Column="1"
+		Width="4"
+		Background="Gray" />
 	  <!--<edit:TextEditor
 		  x:Name="Editor"
 		  Grid.Column="0"
