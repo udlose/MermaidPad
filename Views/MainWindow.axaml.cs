@@ -13,14 +13,13 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
-    private readonly IDebounceDispatcher _editorDebouncer;
 
     public MainWindow()
     {
         InitializeComponent();
 
         IServiceProvider sp = App.Services;
-        _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
+        IDebounceDispatcher editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         DataContext = _vm;
@@ -46,7 +45,7 @@ public partial class MainWindow : Window
         Editor.TextChanged += (_, __) =>
         {
             // Debounce to avoid excessive updates
-            _editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+            editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
             {
                 if (_vm.DiagramText != Editor.Text)
                 {
@@ -60,7 +59,7 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(_vm.DiagramText) && Editor.Text != _vm.DiagramText)
             {
                 // Debounce to avoid excessive updates
-                _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+                editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
                 {
                     Editor.Text = _vm.DiagramText;
                 });
