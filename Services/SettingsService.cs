@@ -54,8 +54,34 @@ public sealed class SettingsService
 
             if (File.Exists(fullSettingsPath))
             {
-                string json = File.ReadAllText(fullSettingsPath);
-                return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+                // Extra validation: ensure the file is not a symlink or reparse point
+                FileInfo fileInfo = new FileInfo(fullSettingsPath);
+                if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    Debug.WriteLine("Settings file is a reparse point (symlink/junction), aborting read.");
+                    return new AppSettings();
+                }
+
+                // SEC0112 fix: Use a whitelist approach to validate the file path before opening
+                // Only allow reading if the path is exactly the expected settings.json in the config directory
+                string expectedSettingsPath = Path.Combine(fullConfigDir, "settings.json");
+                if (string.Equals(fullSettingsPath, expectedSettingsPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    string json;
+
+                    // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+                    using (FileStream fs = File.OpenRead(expectedSettingsPath))
+                    using (StreamReader reader = new StreamReader(fs))
+                    {
+                        json = reader.ReadToEnd();
+                    }
+                    return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+                }
+                else
+                {
+                    Debug.WriteLine("Settings file path is not the expected config file, aborting read.");
+                    return new AppSettings();
+                }
             }
         }
         catch (Exception ex)
@@ -97,9 +123,6 @@ public sealed class SettingsService
             using StreamWriter writer = new(fs);
             writer.Write(json);
             writer.Flush();
-            fs.Flush();
-
-            //File.WriteAllText(fullSettingsPath, json);
         }
         catch (Exception ex)
         {
