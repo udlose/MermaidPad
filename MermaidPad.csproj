@@ -110,7 +110,7 @@
 
 
 	<ItemGroup>
-	  <AvaloniaXaml Include="Views\MainWindow.axaml" />
+	  <None Include=".github\workflows\release-on-merge.yml" />
 	</ItemGroup>
 
 </Project>
