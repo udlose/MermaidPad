@@ -23,7 +23,7 @@ public partial class MainViewModel : ViewModelBase
     public partial string? LastError { get; set; }
 
     [ObservableProperty]
-    public partial string BundledMermaidVersion { get; set; } = "UNKNOWN";
+    public partial string BundledMermaidVersion { get; set; } = "11.9.0";
 
     [ObservableProperty]
     public partial string? LatestMermaidVersion { get; set; }
