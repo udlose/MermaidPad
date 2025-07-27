@@ -6,18 +6,18 @@ namespace MermaidPad.Services;
 
 public sealed class MermaidUpdateService
 {
+    private string AssetDir { get; }
     private readonly AppSettings _settings;
-    private readonly string _assetDir;
-    private static readonly HttpClient _http = new();
+    private static readonly HttpClient _http = new HttpClient();
 
     public MermaidUpdateService(AppSettings settings, string assetDir)
     {
         _settings = settings;
-        _assetDir = assetDir;
+        AssetDir = assetDir;
     }
 
     //TODO is this cross-platform?
-    public string BundledMermaidPath => Path.Combine(_assetDir, "mermaid.min.js");
+    public string BundledMermaidPath => Path.Combine(AssetDir, "mermaid.min.js");
 
     public async Task CheckAndUpdateAsync()
     {
