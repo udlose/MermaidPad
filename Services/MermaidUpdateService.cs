@@ -16,7 +16,6 @@ public sealed class MermaidUpdateService
         AssetDir = assetDir;
     }
 
-    //TODO is this cross-platform?
     public string BundledMermaidPath => Path.Combine(AssetDir, "mermaid.min.js");
 
     public async Task CheckAndUpdateAsync()
