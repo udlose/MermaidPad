@@ -24,20 +24,7 @@ public partial class MainWindow : Window
         _vm = sp.GetRequiredService<MainViewModel>();
         DataContext = _vm;
 
-        this.Opened += async (_, _) =>
-        {
-            string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
-            await _vm.CheckForMermaidUpdatesAsync();
-
-            // Ensure Editor and ViewModel are in sync
-            _vm.DiagramText = Editor.Text;
-            await InitializeWebViewAsync(assets);
-
-            // Ensure command state is updated after UI is loaded
-            _vm.RenderCommand.NotifyCanExecuteChanged();
-            _vm.ClearCommand.NotifyCanExecuteChanged();
-        };
-
+        this.Opened += async (_, _) => await OnOpenedAsync();
         this.Closing += OnClosing;
 
         Editor.Text = _vm.DiagramText;
@@ -71,6 +58,20 @@ public partial class MainWindow : Window
 
         // Optional: ensure selection is visible too
         Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+    }
+
+    private async Task OnOpenedAsync()
+    {
+        string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
+        await _vm.CheckForMermaidUpdatesAsync();
+
+        // Ensure Editor and ViewModel are in sync
+        _vm.DiagramText = Editor.Text;
+        await InitializeWebViewAsync(assets);
+
+        // Ensure command state is updated after UI is loaded
+        _vm.RenderCommand.NotifyCanExecuteChanged();
+        _vm.ClearCommand.NotifyCanExecuteChanged();
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
