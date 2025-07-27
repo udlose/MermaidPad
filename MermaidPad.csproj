@@ -13,7 +13,7 @@
 		<AssemblyTitle>MermaidPad</AssemblyTitle>
 		<AssemblyDescription>Live Mermaid Diagram Editor</AssemblyDescription>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
-		<!--<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>-->
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<Platforms>AnyCPU</Platforms>
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
@@ -90,6 +90,7 @@
 		</AvaloniaResource>
 	</ItemGroup>
 
+	
 	<ItemGroup>
 		<AvaloniaResource Include="**\*.xaml" />
 		<!-- Note this AdditionalFiles directive. -->
