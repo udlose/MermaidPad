@@ -48,17 +48,13 @@ public sealed class MermaidUpdateService
 
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
+        const string mermaidUrlPrefix = "https://unpkg.com/mermaid";
+
         // unpkg exposes package.json
-        string pkgJson = await _http.GetStringAsync("https://unpkg.com/mermaid/package.json");
+        string pkgJson = await _http.GetStringAsync($"{mermaidUrlPrefix}/package.json");
         using JsonDocument doc = JsonDocument.Parse(pkgJson);
         string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
-        const string jsUrl = "https://unpkg.com/mermaid/dist/mermaid.min.js";
-        //const string cssUrl = "https://unpkg.com/mermaid/dist/mermaid.css";
-
-        //const string jsUrl = "https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js";
-        //const string jsUrl = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.9.0/mermaid.min.js";
-        //TODO add CSS? const string cssUrl = "https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.9.0/mermaid.css";
-        //Debug.WriteLine($"Latest Mermaid version: {version}, JS URL: {jsUrl}, CSS URL: {cssUrl}");
+        const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
         Debug.WriteLine($"Latest Mermaid version: {version}, JS URL: {jsUrl}");
         _settings.LatestCheckedMermaidVersion = jsUrl;
         return (version, jsUrl);
