@@ -39,12 +39,19 @@
 
         let currentTheme = getSystemTheme();
 
+        // Wait for both DOMContentLoaded and Mermaid to be available
+        function initializeMermaidIfReady() {
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                if (window.mermaid) {
+                    applyTheme(currentTheme);
+                    mermaid.initialize({ startOnLoad: false, theme: currentTheme });
+                }
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             applyTheme(currentTheme);
-
-            if (window.mermaid) {
-                mermaid.initialize({ startOnLoad: false, theme: currentTheme });
-            }
+            initializeMermaidIfReady();
 
             // Listen for theme changes
             if (window.matchMedia) {
@@ -58,13 +65,24 @@
             }
         });
 
+        // Also try to initialize when Mermaid loads
+        window.addEventListener('load', initializeMermaidIfReady);
+
         window.renderMermaid = source => {
             window.lastMermaidSource = source; // Save for re-rendering on theme change
             const output = document.getElementById('output');
             if (!window.mermaid) {
+                // Retry a few times before showing error
+                let retries = window._mermaidRetries || 0;
+                if (retries < 10) {
+                    window._mermaidRetries = retries + 1;
+                    setTimeout(() => window.renderMermaid(source), 100);
+                    return;
+                }
                 output.innerHTML = '<div class="error">Mermaid library is not loaded.</div>';
                 return;
             }
+            window._mermaidRetries = 0;
             const id = `mermaid-svg-${Date.now()}`;
             mermaid.render(id, source)
                 .then(result => {
