@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using MermaidPad.Services;
 using MermaidPad.Services.Platforms;
@@ -26,13 +25,9 @@ public partial class MainWindow : Window
         _vm = sp.GetRequiredService<MainViewModel>();
         DataContext = _vm;
 
-        SettingsService settingsService = sp.GetRequiredService<SettingsService>();
-        _vm.DiagramText = settingsService.Settings.LastDiagram ?? SampleText();
-
         this.Opened += async (_, _) =>
         {
             string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
-            //await InitializeWebViewAsync(assets);
             await _vm.CheckForMermaidUpdatesAsync();
 
             // Ensure Editor and ViewModel are in sync
@@ -42,12 +37,6 @@ public partial class MainWindow : Window
             // Ensure command state is updated after UI is loaded
             _vm.RenderCommand.NotifyCanExecuteChanged();
             _vm.ClearCommand.NotifyCanExecuteChanged();
-
-
-
-
-            //TODO add a setting to enable/disable live preview
-            //_vm.LivePreviewEnabled = settingsService.Settings.LivePreviewEnabled;
         };
 
         this.Closing += OnClosing;
@@ -110,15 +99,6 @@ public partial class MainWindow : Window
             Debug.WriteLine($"WebView init failed: {ex}");
         }
     }
-
-    private static string SampleText() => """
-graph TD
-  A[Start] --> B{Decision}
-  B -->|Yes| C[Render Diagram]
-  B -->|No| D[Edit Text]
-  C --> E[Done]
-  D --> B
-""";
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }
