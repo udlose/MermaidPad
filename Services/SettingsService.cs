@@ -48,7 +48,7 @@ public sealed class SettingsService
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != "settings.json")
             {
-                Debug.WriteLine("Settings file name validation failed on save.");
+                Debug.WriteLine("Settings file name validation failed on load.");
                 return new AppSettings();
             }
 
