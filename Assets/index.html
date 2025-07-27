@@ -10,7 +10,7 @@
     </style>
     <script src="mermaid.min.js"></script>
     <script>
-        window.addEventListener('DOMContentLoaded', function () {
+        window.addEventListener('DOMContentLoaded', () => {
             if (typeof mermaid !== 'undefined') {
                 mermaid.initialize({ startOnLoad: false, theme: 'dark' });
                 //document.getElementById('output').innerText += JSON.stringify(Object.keys(mermaid));
@@ -27,7 +27,7 @@
                 return;
             }
             try {
-                const id = 'mermaid-svg-' + Date.now();
+                const id = `mermaid-svg-${Date.now()}`;
                 mermaid.render(id, source)
                     .then((result) => {
                         document.getElementById('output').innerHTML = result.svg;
@@ -37,17 +37,17 @@
                     })
                     .catch(e => {
                         document.getElementById('output').innerHTML =
-                            '<div class="error">' + e.message + '</div>';
+                            `<div class="error">${e.message}</div>`;
                     });
             } catch (e) {
                 document.getElementById('output').innerHTML =
-                    '<div class="error">' + e.message + '</div>';
+                    `<div class="error">${e.message}</div>`;
             }
         };
 
-        function clearOutput() {
+        const clearOutput = () => {
             document.getElementById('output').innerHTML = '';
-        }
+        };
     </script>
 </head>
 <body>
