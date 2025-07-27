@@ -8,6 +8,20 @@
         body.light-theme { background: #fff; color: #222; }
         #output { padding:8px; overflow:auto; height:100vh; box-sizing:border-box; }
         .error { color:#ff6f6f; white-space:pre; font-family:Consolas,monospace; }
+
+        /* Mermaid dark theme overrides */
+        body.dark-theme #output svg .messageLine,
+        body.dark-theme #output svg .actor-line,
+        body.dark-theme #output svg .mermaid .edgePath path,
+        body.dark-theme #output svg .mermaid .node rect,
+        body.dark-theme #output svg .mermaid .node circle,
+        body.dark-theme #output svg .mermaid .node ellipse {
+            stroke: #e0e0e0 !important;
+        }
+        body.dark-theme #output svg text,
+        body.dark-theme #output svg .messageText {
+            fill: #e0e0e0 !important;
+        }
     </style>
     <script src="mermaid.min.js" defer></script>
     <script>
@@ -30,7 +44,7 @@
 
             if (window.mermaid) {
                 mermaid.initialize({ startOnLoad: false, theme: currentTheme });
-        }
+            }
 
             // Listen for theme changes
             if (window.matchMedia) {
