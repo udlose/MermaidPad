@@ -6,4 +6,5 @@ public class AppSettings
     public string BundledMermaidVersion { get; set; } = "UNKNOWN";
     public string? LatestCheckedMermaidVersion { get; set; }
     public bool AutoUpdateMermaid { get; set; } = true;
+    public bool LivePreviewEnabled { get; set; } = true;
 }

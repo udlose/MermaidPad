@@ -29,7 +29,7 @@ public partial class MainViewModel : ViewModelBase
     public partial string? LatestMermaidVersion { get; set; }
 
     [ObservableProperty]
-    public partial bool LivePreviewEnabled { get; set; } = false;
+    public partial bool LivePreviewEnabled { get; set; } = true;
 
     public MainViewModel(IServiceProvider services)
     {
@@ -40,6 +40,7 @@ public partial class MainViewModel : ViewModelBase
 
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+        LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
     }
 
     [RelayCommand(CanExecute = nameof(CanRender))]
@@ -128,6 +129,9 @@ public partial class MainViewModel : ViewModelBase
     public void Persist()
     {
         _settingsService.Settings.LastDiagram = DiagramText;
+        _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
+        _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
+        _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
         _settingsService.Save();
     }
 
