@@ -55,7 +55,7 @@ public sealed class MermaidUpdateService
         string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
         const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
         Debug.WriteLine($"Latest Mermaid version: {version}, JS URL: {jsUrl}");
-        _settings.LatestCheckedMermaidVersion = jsUrl;
+        _settings.LatestCheckedMermaidVersion = version;
         return (version, jsUrl);
     }
 
