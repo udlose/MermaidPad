@@ -38,6 +38,8 @@ public partial class MainViewModel : ViewModelBase
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
 
+        // Initialize properties from settings
+        DiagramText = _settingsService.Settings.LastDiagram ?? SampleText();
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
@@ -126,6 +128,15 @@ public partial class MainViewModel : ViewModelBase
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
         _settingsService.Save();
     }
+
+    private static string SampleText() => """
+graph TD
+  A[Start] --> B{Decision}
+  B -->|Yes| C[Render Diagram]
+  B -->|No| D[Edit Text]
+  C --> E[Done]
+  D --> B
+""";
 
     // Future stubs:
     // [ObservableProperty] private bool autoUpdateEnabled; //TODO - add implementation
