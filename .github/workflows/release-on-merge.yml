@@ -1,0 +1,39 @@
+name: Build and Release on PR Merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Extract version from .csproj
+        id: get_version
+        run: |
+          $csproj_file = Get-ChildItem -Path . -Filter *.csproj -Recurse | Select-Object -First 1
+          $content = Get-Content $csproj_file.FullName
+          $version = ($content | Select-String -Pattern '<Version>(.*?)</Version>' | ForEach-Object { $_.Matches[1].Value })[0]
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Build in Release mode
+        run: dotnet build --configuration Release
+
+      - name: Create or update GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }}
+          body: "Release v${{ steps.get_version.outputs.version }}"
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
