@@ -8,6 +8,7 @@
   Title="MermaidPad (.NET 9)"
   Width="1200"
   Height="800"
+  x:DataType="vm:MainViewModel"
   Icon="/Assets/avalonia-logo.ico">
 
   <DockPanel>
