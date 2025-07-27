@@ -1,72 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>MermaidPad Preview</title>
-<style>
+    <meta charset="utf-8" />
+    <title>MermaidPad Preview</title>
+    <style>
   body { margin:0; font-family: system-ui, sans-serif; background:#1e1e1e; color:#ddd; }
   #output { padding:8px; overflow:auto; height:100vh; box-sizing:border-box; }
   .error { color:#ff6f6f; white-space:pre; font-family:Consolas,monospace; }
-</style>
-<script src="mermaid.min.js"></script>
-<!--
-<script>
-  // Provide JS bridge functions
-  function clearOutput() {
-      document.getElementById('output').innerHTML = '';
-  }
+    </style>
+    <script src="mermaid.min.js"></script>
+    <!--<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>-->
+    <script>
+        window.addEventListener('DOMContentLoaded', function () {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+                //document.getElementById('output').innerHTML = 'Mermaid library loaded!';
+                //document.getElementById('output').innerText += JSON.stringify(Object.keys(mermaid));
+            } else {
+                document.getElementById('output').innerHTML =
+                    '<div class="error">Mermaid library failed to load.</div>';
+            }
+        });
 
-  window.renderMermaid = (source) => {
-      try {
-          //TODO The 'mermaid.initialize* function is called every time is invoked. This could lead to
-          // unnecessary overhead if is called multiple times.Consider moving the initialization outside the
-          // function to ensure it only runs once.
-          mermaid.initialize({ startOnLoad:false, theme:'dark' });
-          const id = 'mermaid-svg-' + Date.now();
-          mermaid.render(id, source, (svgCode) => {
-              document.getElementById('output').innerHTML = svgCode;
-          }, document.getElementById('output'));
-      } catch (e) {
-          document.getElementById('output').innerHTML = '<div class="error">' + e.message + '</div>';
-          console.log(e.message);
-      }
-  };
-</script>-->
-<script>
-    // Initialize Mermaid once
-    window.addEventListener('DOMContentLoaded', function () {
-        if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
-            document.getElementById('output').innerHTML = 'Mermaid library loaded!';
-        } else {
-            document.getElementById('output').innerHTML =
-                '<div class="error">Mermaid library failed to load.</div>';
-        }
-    });
+        window.renderMermaid = (source) => {
+            if (typeof mermaid === 'undefined') {
+                document.getElementById('output').innerHTML =
+                    '<div class="error">Mermaid library is not loaded.</div>';
+                return;
+            }
+            try {
+                const id = 'mermaid-svg-' + Date.now();
+                mermaid.render(id, source)
+                    .then(({ svg, bindFunctions }) => {
+                        document.getElementById('output').innerHTML = svg;
+                        bindFunctions(document.getElementById('output'));
+                    })
+                    .catch(e => {
+                        document.getElementById('output').innerHTML =
+                            '<div class="error">' + e.message + '</div>';
+                    });
+            } catch (e) {
+                document.getElementById('output').innerHTML =
+                    '<div class="error">' + e.message + '</div>';
+            }
+        };
 
-    function clearOutput() {
-        document.getElementById('output').innerHTML = '';
-    }
-
-    window.renderMermaid = (source) => {
-        if (typeof mermaid === 'undefined') {
-            document.getElementById('output').innerHTML =
-                '<div class="error">Mermaid library is not loaded.</div>';
-            return;
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
         }
-        try {
-            const id = 'mermaid-svg-' + Date.now();
-            mermaid.render(id, source, (svgCode) => {
-                document.getElementById('output').innerHTML = svgCode;
-            }, document.getElementById('output'));
-        } catch (e) {
-            document.getElementById('output').innerHTML =
-                '<div class="error">' + e.message + '</div>';
-        }
-    };
-</script>
+    </script>
 </head>
 <body>
-<div id="output">Rendering...</div>
+<div id="output">Click 'Render' or 'Enable Live Preview'</div>
 </body>
 </html>
