@@ -69,19 +69,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!--<Compile Update="**\*.xaml.cs">
+		<Compile Update="**\*.xaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
 		</Compile>
 		<Compile Update="**\*.axaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
-		</Compile>-->
-		<Compile Update="App.axaml.cs">
-			<DependentUpon>App.axaml</DependentUpon>
 		</Compile>
-		<Compile Update="Views\MainWindow.axaml.cs">
-			<DependentUpon>MainWindow.axaml</DependentUpon>
-		</Compile>
-		<None Remove="**\*.xaml" />
 		<AvaloniaResource Include="**\*.xaml">
 			<SubType>Designer</SubType>
 		</AvaloniaResource>
@@ -90,24 +83,13 @@
 		</AvaloniaResource>
 	</ItemGroup>
 
-	
 	<ItemGroup>
-		<AvaloniaResource Include="**\*.xaml" />
-		<!-- Note this AdditionalFiles directive. -->
-		<AdditionalFiles Include="**\*.xaml" SourceItemGroup="AvaloniaXaml" />
+	  <AvaloniaResource Remove="**\*.axaml" />
 	</ItemGroup>
 
-
 	<ItemGroup>
-	  <AdditionalFiles Remove="App.axaml" />
-	  <AdditionalFiles Remove="Views\MainWindow.axaml" />
+	  <AvaloniaXaml Include="**\*.axaml" />
 	</ItemGroup>
-
-
-	<ItemGroup>
-	  <AvaloniaResource Remove="Views\MainWindow.axaml" />
-	</ItemGroup>
-
 
 	<ItemGroup>
 	  <None Include=".github\workflows\release-on-merge.yml" />
