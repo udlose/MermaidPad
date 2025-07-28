@@ -22,7 +22,7 @@ jobs:
         run: |
           $csproj_file = Get-ChildItem -Path . -Filter *.csproj -Recurse | Select-Object -First 1
           $content = Get-Content $csproj_file.FullName
-          $version = ($content | Select-String -Pattern '<Version>(.*?)</Version>' | ForEach-Object { $_.Matches[1].Value })[0]
+          $version = ($content | Select-String -Pattern '<AssemblyVersion>(.*?)</AssemblyVersion>' | ForEach-Object { $_.Matches[1].Value })[0]
           echo "version=$version" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
