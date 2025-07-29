@@ -55,7 +55,7 @@ jobs:
           dotnet-version: 9.x
 
       - name: Publish self-contained (${{ matrix.rid }})
-        run: >
+        run: |
           dotnet publish
           -c Release
           -r ${{ matrix.rid }}
