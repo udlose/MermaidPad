@@ -86,7 +86,7 @@ jobs:
         run: |
           file=$(ls artifacts | head -n1)
           # Example: MermaidPad-1.0.0-win-x64
-          version=$(echo "$file" | sed -E 's/MermaidPad-([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/')
+          version=$(echo "$file" | sed -E 's/MermaidPad-([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)-.*/\1/')
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
