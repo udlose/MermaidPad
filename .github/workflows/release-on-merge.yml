@@ -1,4 +1,4 @@
-name: Build and Release on PR Merge
+name: Release on Merge
 
 on:
   push:
@@ -6,34 +6,94 @@ on:
       - main
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
+  build-and-package:
+    name: Build and Package (${{ matrix.rid }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-latest
+          - rid: win-arm64
+            runner: windows-latest
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-latest
+          - rid: osx-x64
+            runner: macos-latest
+          - rid: osx-arm64
+            runner: macos-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9
+      - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: 9.x
 
-      - name: Extract version from .csproj
-        id: get_version
+      # Extracts <Version> from Directory.Build.props and exposes it as an output
+      - name: Get version from Directory.Build.props
+        id: version
+        shell: bash
         run: |
-          $csproj_file = Get-ChildItem -Path . -Filter *.csproj -Recurse | Select-Object -First 1
-          $content = Get-Content $csproj_file.FullName
-          $version = ($content | Select-String -Pattern '<AssemblyVersion>(.*?)</AssemblyVersion>' | ForEach-Object { $_.Matches[1].Value })[0]
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-        shell: pwsh
+          version=$(xmllint --xpath "string(//Version)" Directory.Build.props)
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "version=$version" >> $GITHUB_OUTPUT
 
-      - name: Build in Release mode
-        run: dotnet build --configuration Release
+      - name: Publish self-contained (${{ matrix.rid }})
+        run: >
+          dotnet publish
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o publish
 
-      - name: Create or update GitHub Release
-        uses: ncipollo/release-action@v1
+      - name: Package artifact
+        shell: bash
+        run: |
+          ARTIFACT="MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}"
+          if [[ "${{ matrix.runner }}" == "windows-latest" ]]; then
+            7z a "$ARTIFACT.zip" ./publish/*
+          else
+            tar -czf "$ARTIFACT.tar.gz" -C publish .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag: v${{ steps.get_version.outputs.version }}
-          name: v${{ steps.get_version.outputs.version }}
-          body: "Release v${{ steps.get_version.outputs.version }}"
-          allowUpdates: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}
+          path: |
+            MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}.*
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-and-package
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Get the version from any artifact's version (they're all the same)
+      - name: Extract version from artifact name
+        id: extract_version
+        run: |
+          file=$(ls artifacts | head -n1)
+          # Example: MermaidPad-1.0.0-win-x64
+          version=$(echo "$file" | sed -E 's/MermaidPad-([0-9]+\.[0-9]+\.[0-9]+)-.*/\1/')
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.extract_version.outputs.version }}
+          name: MermaidPad v${{ steps.extract_version.outputs.version }}
+          body: |
+            Automated cross-platform release for MermaidPad v${{ steps.extract_version.outputs.version }}
+          files: artifacts/**/*
