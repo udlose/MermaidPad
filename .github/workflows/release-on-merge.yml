@@ -84,7 +84,7 @@ jobs:
           path: artifacts
 
       - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.12.0
         with:
           tag: v${{ needs.extract-version.outputs.version }}
           name: MermaidPad v${{ needs.extract-version.outputs.version }}
