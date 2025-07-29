@@ -88,6 +88,6 @@ jobs:
         with:
           tag: v${{ needs.extract-version.outputs.version }}
           name: MermaidPad v${{ needs.extract-version.outputs.version }}
-          artifacts: artifacts/**
+          files: artifacts/**
           generateReleaseNotes: true
           
