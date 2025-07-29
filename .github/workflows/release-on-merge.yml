@@ -57,7 +57,7 @@ jobs:
       - name: Publish self-contained (${{ matrix.rid }})
         run: |
           dotnet publish -c Release -r ${{ matrix.rid }} --self-contained \
-            -p:PublishSingleFile=true \
+            /p:PublishSingleFile=true \
             -o publish/${{ matrix.rid }}
 
       # No manual zipping—just upload the published directory as artifact
