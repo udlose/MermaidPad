@@ -84,6 +84,7 @@ jobs:
           tag: v${{ needs.extract-version.outputs.version }}
           name: MermaidPad v${{ needs.extract-version.outputs.version }}
           artifacts: artifacts/**
+          allowUpdates: true
           generateReleaseNotes: true
           artifactErrorsFailBuild: true
           
