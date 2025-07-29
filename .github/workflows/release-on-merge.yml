@@ -21,7 +21,7 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          version=$(yq eval '.Project.PropertyGroup.Version' Directory.Build.props)
+          version=$(sed -n 's/[[:space:]]*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -n 1 | tr -d '[:space:]')
           echo "version=$version"
           echo "version=$version" >> $GITHUB_OUTPUT
 
