@@ -16,7 +16,7 @@
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<Platforms>AnyCPU</Platforms>
 		<PublishSingleFile>true</PublishSingleFile>
-                <SelfContained>true</SelfContained>
+		<SelfContained>true</SelfContained>
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<LangVersion>preview</LangVersion>
