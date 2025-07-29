@@ -82,12 +82,9 @@ jobs:
 
       # Get the version from any artifact's version (they're all the same)
       - name: Extract version from artifact name
-        id: extract_version
+        id: get_version
         run: |
-          file=$(ls artifacts | head -n1)
-          # Example: MermaidPad-1.0.0-win-x64
-          version=$(echo "$file" | sed -E 's/MermaidPad-([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)-.*/\1/')
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=${{ needs.build-and-package.outputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
