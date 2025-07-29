@@ -56,10 +56,7 @@ jobs:
 
       - name: Publish self-contained (${{ matrix.rid }})
         run: |
-          dotnet publish \
-            -c Release \
-            -r ${{ matrix.rid }} \
-            --self-contained true \
+          dotnet publish -c Release -r ${{ matrix.rid }} --self-contained \
             -p:PublishSingleFile=true \
             -o publish/${{ matrix.rid }}
 
