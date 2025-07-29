@@ -38,7 +38,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          version=$(xmllint --xpath "string(//Version)" Directory.Build.props)
+          version=$(grep -oP '(?<=<Version>).*?(?=</Version>)' Directory.Build.props | head -n 1)
           echo "VERSION=$version" >> $GITHUB_ENV
           echo "version=$version" >> $GITHUB_OUTPUT
 
