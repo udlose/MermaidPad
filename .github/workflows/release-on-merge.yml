@@ -89,8 +89,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.extract_version.outputs.version }}
-          name: MermaidPad v${{ steps.extract_version.outputs.version }}
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: MermaidPad v${{ steps.get_version.outputs.version }}
           body: |
-            Automated cross-platform release for MermaidPad v${{ steps.extract_version.outputs.version }}
+            Automated cross-platform release for MermaidPad v${{ steps.get_version.outputs.version }}
           files: artifacts/**/*
