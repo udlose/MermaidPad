@@ -6,8 +6,29 @@ on:
       - main
 
 jobs:
+  # 1. Extract version up front (runs once, fast, avoids duplication)
+  extract-version:
+    name: Extract Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Extracts <Version> from Directory.Build.props and exposes as output
+      - name: Get version from Directory.Build.props
+        id: get_version
+        shell: bash
+        run: |
+          version=$(grep -oP '(?<=<Version>).*?(?=</Version>)' Directory.Build.props | head -n 1)
+          echo "version=$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  # 2. Build & package matrix, version is passed in from extract-version
   build-and-package:
     name: Build and Package (${{ matrix.rid }})
+    needs: extract-version
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -33,15 +54,6 @@ jobs:
         with:
           dotnet-version: 9.x
 
-      # Extracts <Version> from Directory.Build.props and exposes it as an output
-      - name: Get version from Directory.Build.props
-        id: version
-        shell: bash
-        run: |
-          version=$(grep -oP '(?<=<Version>).*?(?=</Version>)' Directory.Build.props | head -n 1)
-          echo "VERSION=$version" >> $GITHUB_ENV
-          echo "version=$version" >> $GITHUB_OUTPUT
-
       - name: Publish self-contained (${{ matrix.rid }})
         run: >
           dotnet publish
@@ -49,48 +61,33 @@ jobs:
           -r ${{ matrix.rid }}
           --self-contained true
           -p:PublishSingleFile=true
-          -o publish
+          -o publish/${{ matrix.rid }}
 
-      - name: Package artifact
-        shell: bash
-        run: |
-          ARTIFACT="MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}"
-          if [[ "${{ matrix.runner }}" == "windows-latest" ]]; then
-            7z a "$ARTIFACT.zip" ./publish/*
-          else
-            tar -czf "$ARTIFACT.tar.gz" -C publish .
-          fi
-
+      # No manual zipping—just upload the published directory as artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}
-          path: |
-            MermaidPad-${{ env.VERSION }}-${{ matrix.rid }}.*
+          name: MermaidPad-${{ needs.extract-version.outputs.version }}-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}
 
+  # 3. Create GitHub Release (collects all artifacts)
   release:
     name: Create GitHub Release
+    needs: [extract-version, build-and-package]
     runs-on: ubuntu-latest
-    needs: build-and-package
     permissions:
       contents: write
     steps:
-      - name: Download artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      # Get the version from any artifact's version (they're all the same)
-      - name: Extract version from artifact name
-        id: get_version
-        run: |
-          echo "version=${{ needs.build-and-package.outputs.version }}" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: MermaidPad v${{ steps.get_version.outputs.version }}
-          body: |
-            Automated cross-platform release for MermaidPad v${{ steps.get_version.outputs.version }}
-          files: artifacts/**/*
+          tag: v${{ needs.extract-version.outputs.version }}
+          name: MermaidPad v${{ needs.extract-version.outputs.version }}
+          artifacts: artifacts/**
+          generateReleaseNotes: true
+          
