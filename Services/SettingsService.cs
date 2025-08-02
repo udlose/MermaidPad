@@ -129,7 +129,7 @@ public sealed class SettingsService
             Debug.WriteLine($"Settings JSON: {json}");
 
             // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
-            using FileStream fs = File.OpenRead(fullSettingsPath);
+            using FileStream fs = File.Create(fullSettingsPath);
             using StreamWriter writer = new(fs);
             writer.Write(json);
             writer.Flush();
