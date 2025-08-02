@@ -31,6 +31,12 @@
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 	</PropertyGroup>
 
+	<PropertyGroup Label="Avalonia">
+	  <AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
+	  <AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>
+	  <AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
 		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
