@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MermaidPad.Services;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
@@ -24,8 +26,36 @@ public partial class MainWindow : Window
         _vm = sp.GetRequiredService<MainViewModel>();
         DataContext = _vm;
 
-        this.Opened += async (_, _) => await OnOpenedAsync();
-        this.Closing += OnClosing;
+        Opened += async (_, _) =>
+        {
+            await OnOpenedAsync();
+            BringFocusToEditor();
+        };
+        Closing += OnClosing;
+
+        // Focus the editor when the window is activated
+        Activated += (_, _) =>
+        {
+            BringFocusToEditor();
+            //Dispatcher.UIThread.Post(() =>
+            //{
+            //    IInputElement? focused = FocusManager?.GetFocusedElement();
+            //    Debug.WriteLine($"[Activated] Focused control: {focused?.GetType().Name ?? "null"}");
+
+            //    // Make sure caret is visible:
+            //    Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+
+            //    // Ensure selection is visible
+            //    Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+            //    if (!Editor.IsFocused)
+            //    {
+            //        Editor.Focus();
+            //        Editor.TextArea.Caret.BringCaretToView();
+            //    }
+            //    IInputElement? afterFocus = FocusManager?.GetFocusedElement();
+            //    Debug.WriteLine($"[Activated] After Editor.Focus(), focused control: {afterFocus?.GetType().Name ?? "null"}");
+            //}, DispatcherPriority.Background);
+        };
 
         Editor.Text = _vm.DiagramText;
 
@@ -53,11 +83,38 @@ public partial class MainWindow : Window
             }
         };
 
-        // Make sure caret is visible:
-        Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+        BringFocusToEditor();
+        //// Make sure caret is visible:
+        //Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
-        // Optional: ensure selection is visible too
-        Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+        //// Ensure selection is visible
+        //Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+        //Dispatcher.UIThread.Post(() => Editor.TextArea.Caret.BringCaretToView(), DispatcherPriority.Background);
+    }
+
+    private void BringFocusToEditor()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IInputElement? focused = FocusManager?.GetFocusedElement();
+            Debug.WriteLine($"[Activated] Focused control: {focused?.GetType().Name ?? "null"}");
+
+            // Make sure caret is visible:
+            Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+
+            // Ensure selection is visible
+            Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+            if (!Editor.IsFocused)
+            {
+                Editor.Focus();
+            }
+
+            // after focusing, ensure the caret is visible
+            Editor.TextArea.Caret.BringCaretToView();
+
+            IInputElement? afterFocus = FocusManager?.GetFocusedElement();
+            Debug.WriteLine($"[Activated] After Editor.Focus(), focused control: {afterFocus?.GetType().Name ?? "null"}");
+        }, DispatcherPriority.Background);
     }
 
     private async Task OnOpenedAsync()
