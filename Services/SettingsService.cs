@@ -128,7 +128,7 @@ public sealed class SettingsService
             Debug.WriteLine($"Saving settings to: {fullSettingsPath}");
             Debug.WriteLine($"Settings JSON: {json}");
 
-            // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+            // Use File.Create to ensure we create a new file, or overwrite the existing one. This is safer than FileStream
             using FileStream fs = File.Create(fullSettingsPath);
             using StreamWriter writer = new(fs);
             writer.Write(json);
