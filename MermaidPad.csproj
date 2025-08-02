@@ -44,6 +44,7 @@
 		<PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
 		<PackageReference Include="Avalonia.ReactiveUI" Version="11.3.2" />
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.303" />
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
 		<PackageReference Include="System.Text.Json" Version="9.0.7" />
