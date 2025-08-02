@@ -33,7 +33,7 @@
 
 	<PropertyGroup Label="Avalonia">
 	  <AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
-	  <AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>
+	  <!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
 	  <AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
 	</PropertyGroup>
 
