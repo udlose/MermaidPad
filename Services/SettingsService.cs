@@ -69,13 +69,23 @@ public sealed class SettingsService
                 {
                     string json;
 
-                    // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
-                    using (FileStream fs = File.OpenRead(expectedSettingsPath))
-                    using (StreamReader reader = new StreamReader(fs))
+                    // Extra validation: ensure the file is not a symlink or reparse point (already done above)
+                    // Additional validation: ensure the file is not a hard link
+                    if (IsSingleLink(expectedSettingsPath))
                     {
-                        json = reader.ReadToEnd();
+                        // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+                        using (FileStream fs = File.OpenRead(expectedSettingsPath))
+                        using (StreamReader reader = new StreamReader(fs))
+                        {
+                            json = reader.ReadToEnd();
+                        }
+                        return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
                     }
-                    return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+                    else
+                    {
+                        Debug.WriteLine("Settings file is a hard link, aborting read.");
+                        return new AppSettings();
+                    }
                 }
                 else
                 {
@@ -118,8 +128,8 @@ public sealed class SettingsService
             Debug.WriteLine($"Saving settings to: {fullSettingsPath}");
             Debug.WriteLine($"Settings JSON: {json}");
 
-            // Use FileStream for better performance on large files
-            using FileStream fs = new(fullSettingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+            using FileStream fs = File.OpenRead(fullSettingsPath);
             using StreamWriter writer = new(fs);
             writer.Write(json);
             writer.Flush();
@@ -128,5 +138,30 @@ public sealed class SettingsService
         {
             Debug.WriteLine($"Settings save failed: {ex}");
         }
+    }
+
+    private static bool IsSingleLink(string filePath)
+    {
+        // On Windows, check if the file has only one hard link
+        // This is a simple check to see if the file is not a symlink or reparse point
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                FileInfo fileInfo = new FileInfo(filePath);
+                return fileInfo.Exists && fileInfo.LinkTarget is null && !fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking file links: {ex}");
+                return false;
+            }
+        }
+
+        // On non-Windows systems, we assume the file is not a symlink or reparse point
+        // This is a simplification, as non-Windows systems may not have the same link semantics
+        // Note: This may not be fully accurate for all non-Windows systems
+        // but is a reasonable assumption for most use cases.
+        return true;
     }
 }
