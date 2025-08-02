@@ -83,7 +83,6 @@ public partial class MainWindow : Window
             }
         };
 
-        BringFocusToEditor();
         //// Make sure caret is visible:
         //Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
