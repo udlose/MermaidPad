@@ -58,6 +58,9 @@ public partial class MainWindow : Window
         };
 
         Editor.Text = _vm.DiagramText;
+        Editor.SelectionStart = _vm.EditorSelectionStart;
+        Editor.SelectionLength = _vm.EditorSelectionLength;
+        Editor.CaretOffset = _vm.EditorCaretOffset;
 
         Editor.TextChanged += (_, __) =>
         {
@@ -121,8 +124,11 @@ public partial class MainWindow : Window
         string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
         await _vm.CheckForMermaidUpdatesAsync();
 
-        // Ensure Editor and ViewModel are in sync
-        _vm.DiagramText = Editor.Text;
+        // Restore editor state from ViewModel (source of truth)
+        Editor.Text = _vm.DiagramText;
+        Editor.SelectionStart = _vm.EditorSelectionStart;
+        Editor.SelectionLength = _vm.EditorSelectionLength;
+        Editor.CaretOffset = _vm.EditorCaretOffset;
         await InitializeWebViewAsync(assets);
 
         // Ensure command state is updated after UI is loaded

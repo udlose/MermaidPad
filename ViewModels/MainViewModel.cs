@@ -31,6 +31,15 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool LivePreviewEnabled { get; set; } = true;
 
+    [ObservableProperty]
+    public partial int EditorSelectionStart { get; set; }
+
+    [ObservableProperty]
+    public partial int EditorSelectionLength { get; set; }
+
+    [ObservableProperty]
+    public partial int EditorCaretOffset { get; set; }
+
     public MainViewModel(IServiceProvider services)
     {
         _renderer = services.GetRequiredService<MermaidRenderer>();
@@ -43,6 +52,9 @@ public partial class MainViewModel : ViewModelBase
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
+        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
+        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
+        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
     }
 
     [RelayCommand(CanExecute = nameof(CanRender))]
@@ -126,6 +138,9 @@ public partial class MainViewModel : ViewModelBase
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
+        _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
+        _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
+        _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
         _settingsService.Save();
     }
 
