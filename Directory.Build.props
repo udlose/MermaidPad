@@ -12,6 +12,5 @@
 	<PublishSelfContained>false</PublishSelfContained>
 	<PublishTrimmed>false</PublishTrimmed>
 	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-	<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 </Project>
