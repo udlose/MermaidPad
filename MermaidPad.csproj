@@ -98,7 +98,6 @@
 
 	<ItemGroup>
 	  <None Include=".github\workflows\build-and-release.yml" />
-	  <None Include=".github\workflows\release-on-merge.yml" />
 	</ItemGroup>
 
 </Project>
