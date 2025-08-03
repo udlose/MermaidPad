@@ -81,12 +81,7 @@ jobs:
         run: dotnet restore MermaidPad.csproj
 
       - name: Publish
-        run: |
-          dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish \
-            -p:Version=${{ needs.get-version.outputs.version }} \
-            -p:AssemblyVersion=${{ needs.get-version.outputs.version }} \
-            -p:FileVersion=${{ needs.get-version.outputs.version }}
-
+        run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
       - name: Prepare artifact
         shell: bash
         run: |
