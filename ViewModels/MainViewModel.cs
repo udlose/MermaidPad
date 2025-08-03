@@ -70,6 +70,9 @@ public partial class MainViewModel : ViewModelBase
     private async Task ClearAsync()
     {
         DiagramText = string.Empty;
+        EditorSelectionStart = 0;
+        EditorSelectionLength = 0;
+        EditorCaretOffset = 0;
         LastError = null;
         await _renderer.RenderAsync(string.Empty);
     }
