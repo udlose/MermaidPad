@@ -20,8 +20,6 @@
 		<LangVersion>preview</LangVersion>
 		<Configurations>Debug;Release</Configurations>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
-		<!-- Windows-specific -->
-		<ApplicationManifest Condition="'$(TargetOS)'=='windows'">Platforms/Windows/app.manifest</ApplicationManifest>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.22621'">
