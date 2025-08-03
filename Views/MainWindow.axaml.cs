@@ -16,6 +16,8 @@ public partial class MainWindow : Window
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
 
+    private bool _suppressEditorTextChanged = false;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -64,6 +66,8 @@ public partial class MainWindow : Window
 
         Editor.TextChanged += (_, __) =>
         {
+            if (_suppressEditorTextChanged) return;
+
             // Debounce to avoid excessive updates
             editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
             {
@@ -81,7 +85,9 @@ public partial class MainWindow : Window
                 // Debounce to avoid excessive updates
                 editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
                 {
+                    _suppressEditorTextChanged = true;
                     Editor.Text = _vm.DiagramText;
+                    _suppressEditorTextChanged = false;
                 });
             }
         };
