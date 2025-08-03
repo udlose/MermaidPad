@@ -64,7 +64,7 @@ public partial class MainWindow : Window
         Editor.SelectionLength = _vm.EditorSelectionLength;
         Editor.CaretOffset = _vm.EditorCaretOffset;
 
-        Editor.TextChanged += (_, __) =>
+        Editor.TextChanged += (_, _) =>
         {
             if (_suppressEditorTextChanged) return;
 
@@ -144,7 +144,17 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        // When the window is closing, save the current state
+        SynchronizeViewModelWithEditor();
         _vm.Persist();
+    }
+
+    private void SynchronizeViewModelWithEditor()
+    {
+        _vm.DiagramText = Editor.Text;
+        _vm.EditorSelectionStart = Editor.SelectionStart;
+        _vm.EditorSelectionLength = Editor.SelectionLength;
+        _vm.EditorCaretOffset = Editor.CaretOffset;
     }
 
     private async Task InitializeWebViewAsync(string assets)
