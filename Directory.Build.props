@@ -1,10 +1,17 @@
 <Project>
   <PropertyGroup>
-    <Version>1.0.0</Version>
-    <Authors>Dave Black (udlose)</Authors>
-    <Company>udlose</Company>
-    <PackageId>MermaidPad</PackageId>
-    <Product>MermaidPad</Product>
-    <RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
+	<Version>0.0.0-dev</Version>
+	<Authors>Dave Black (udlose)</Authors>
+	<Company>udlose</Company>
+	<PackageId>MermaidPad</PackageId>
+	<Product>MermaidPad</Product>
+	<RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
+
+	<!-- Publishing Configuration - Framework Dependent Single File -->
+	<PublishSingleFile>true</PublishSingleFile>
+	<PublishSelfContained>false</PublishSelfContained>
+	<PublishTrimmed>false</PublishTrimmed>
+	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+	<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 </Project>
