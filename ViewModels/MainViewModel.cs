@@ -39,7 +39,7 @@ public partial class MainViewModel : ViewModelBase
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
 
         // Initialize properties from settings
-        DiagramText = _settingsService.Settings.LastDiagram ?? SampleText();
+        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText();
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
@@ -122,7 +122,7 @@ public partial class MainViewModel : ViewModelBase
 
     public void Persist()
     {
-        _settingsService.Settings.LastDiagram = DiagramText;
+        _settingsService.Settings.LastDiagramText = DiagramText;
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
