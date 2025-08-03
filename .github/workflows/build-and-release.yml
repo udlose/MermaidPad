@@ -1,0 +1,145 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  # Extract version from tag or Directory.Build.props
+  get-version:
+    name: Get Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(sed -n 's/[[:space:]]*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -n 1 | tr -d '[:space:]')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+  # Build matrix for all platforms
+  build:
+    name: Build (${{ matrix.name }})
+    needs: get-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            rid: win-x64
+            extension: .exe
+          - name: Windows ARM64
+            os: windows-latest
+            rid: win-arm64
+            extension: .exe
+          - name: Linux x64
+            os: ubuntu-latest
+            rid: linux-x64
+            extension: ''
+          - name: Linux ARM64
+            os: ubuntu-latest
+            rid: linux-arm64
+            extension: ''
+          - name: macOS x64
+            os: macos-latest
+            rid: osx-x64
+            extension: ''
+          - name: macOS ARM64
+            os: macos-latest
+            rid: osx-arm64
+            extension: ''
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x'
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Publish
+        run: dotnet publish -c Release -r ${{ matrix.rid }} -o ./publish
+      
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd publish
+          if [ "${{ matrix.extension }}" = ".exe" ]; then
+            mv MermaidPad.exe MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe
+            ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe"
+          else
+            mv MermaidPad MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}
+            chmod +x MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}
+            ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}"
+          fi
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./publish/${{ env.ARTIFACT_NAME }}
+          if-no-files-found: error
+
+  # Create GitHub release
+  release:
+    name: Create Release
+    needs: [get-version, build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      
+      - name: Display structure
+        run: ls -la ./artifacts/**
+      
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ needs.get-version.outputs.version }}
+          name: MermaidPad v${{ needs.get-version.outputs.version }}
+          artifacts: "./artifacts/**/*"
+          generateReleaseNotes: true
+          draft: false
+          prerelease: false
+          body: |
+            ## MermaidPad v${{ needs.get-version.outputs.version }}
+            
+            ### Requirements
+            - .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
+            
+            ### Downloads
+            Choose the appropriate version for your platform:
+            - **Windows x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.exe`
+            - **Windows ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.exe`
+            - **Linux x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64`
+            - **Linux ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64`
+            - **macOS Intel**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64`
+            - **macOS Apple Silicon**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64`
+            
+            ### Installation
+            1. Download the appropriate file for your platform
+            2. Make executable (Linux/macOS): `chmod +x MermaidPad-*`
+            3. Run directly: `./MermaidPad-*` or double-click on Windows
