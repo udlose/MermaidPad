@@ -60,9 +60,15 @@ public partial class MainWindow : Window
         };
 
         Editor.Text = _vm.DiagramText;
-        Editor.SelectionStart = _vm.EditorSelectionStart;
-        Editor.SelectionLength = _vm.EditorSelectionLength;
-        Editor.CaretOffset = _vm.EditorCaretOffset;
+
+        // Ensure selection bounds are valid
+        int textLength = _vm.DiagramText.Length;
+        int selectionStart = Math.Max(0, Math.Min(_vm.EditorSelectionStart, textLength));
+        int selectionLength = Math.Max(0, Math.Min(_vm.EditorSelectionLength, textLength - selectionStart));
+        int caretOffset = Math.Max(0, Math.Min(_vm.EditorCaretOffset, textLength));
+        Editor.SelectionLength = selectionLength;
+        Editor.SelectionStart = selectionStart;
+        Editor.CaretOffset = caretOffset;
 
         Editor.TextChanged += (_, _) =>
         {
