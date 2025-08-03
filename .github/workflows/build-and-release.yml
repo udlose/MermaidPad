@@ -3,27 +3,34 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
-  workflow_dispatch:  # Allows manual triggering
+      - 'v*'            # Triggers on version tags like v1.0.0
+  workflow_dispatch:    # Allows manual triggering
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
 
 jobs:
-  # Extract version from tag or Directory.Build.props
   get-version:
     name: Get Version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
       - name: Extract version
         id: version
+        shell: bash
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tag push: extract from tag
             VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual run: use input
+            VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION=$(sed -n 's/[[:space:]]*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props | head -n 1 | tr -d '[:space:]')
+            # Fallback
+            VERSION="dev-$(date +'%Y%m%d-%H%M%S')"
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
@@ -60,22 +67,26 @@ jobs:
             os: macos-latest
             rid: osx-arm64
             extension: ''
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.x'
-      
+
       - name: Restore dependencies
-        run: dotnet restore
-      
+        run: dotnet restore MermaidPad.csproj
+
       - name: Publish
-        run: dotnet publish -c Release -r ${{ matrix.rid }} -o ./publish
-      
+        run: |
+          dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish \
+            -p:Version=${{ needs.get-version.outputs.version }} \
+            -p:AssemblyVersion=${{ needs.get-version.outputs.version }} \
+            -p:FileVersion=${{ needs.get-version.outputs.version }}
+
       - name: Prepare artifact
         shell: bash
         run: |
@@ -89,31 +100,44 @@ jobs:
             ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}"
           fi
           echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
-      
+    
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ./publish/${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
-
+    
   # Create GitHub release
   release:
     name: Create Release
     needs: [get-version, build]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     permissions:
       contents: write
     
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
+      
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
       
-      - name: Display structure
-        run: ls -la ./artifacts/**
+      - name: Create or update tag for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f v${{ needs.get-version.outputs.version }}
+          git push origin v${{ needs.get-version.outputs.version }} --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Create Release
         uses: ncipollo/release-action@v1
@@ -122,8 +146,7 @@ jobs:
           name: MermaidPad v${{ needs.get-version.outputs.version }}
           artifacts: "./artifacts/**/*"
           generateReleaseNotes: true
-          draft: false
-          prerelease: false
+          allowUpdates: true
           body: |
             ## MermaidPad v${{ needs.get-version.outputs.version }}
             
