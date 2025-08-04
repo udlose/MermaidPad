@@ -10,6 +10,11 @@ on:
         description: 'Version to release (e.g., 1.0.0)'
         required: true
         type: string
+      is_preview:
+        description: 'Mark this release as a preview (pre-release)?'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   get-version:
@@ -148,6 +153,7 @@ jobs:
           artifacts: "./artifacts/**/*"
           generateReleaseNotes: true
           allowUpdates: true
+          prerelease: ${{ github.event.inputs.is_preview == 'true' }}
           body: |
             ## MermaidPad v${{ needs.get-version.outputs.version }}
             
