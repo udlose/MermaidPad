@@ -101,19 +101,13 @@ jobs:
           fi
           echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
 
-      - name: Zip published output
-        shell: bash
-        run: |
-          cd publish
-          zip -r ../${ARTIFACT_NAME}.zip .
-    
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: ./${{ env.ARTIFACT_NAME }}.zip
+          path: ./publish
           if-no-files-found: error
-    
+
   # Create GitHub release
   release:
     name: Create Release
@@ -124,17 +118,17 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '')
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         if: github.event_name == 'workflow_dispatch'
-      
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-      
+
       - name: Create or update tag for manual runs
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -144,7 +138,7 @@ jobs:
           git push origin v${{ needs.get-version.outputs.version }} --force-with-lease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Create Release
         uses: ncipollo/release-action@v1
         with:
@@ -156,10 +150,10 @@ jobs:
           prerelease: ${{ github.event.inputs.is_preview == 'true' }}
           body: |
             ## MermaidPad v${{ needs.get-version.outputs.version }}
-            
+
             ### Requirements
             - .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
-            
+
             ### Downloads
             Choose the appropriate version for your platform:
             - **Windows x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.exe`
@@ -168,7 +162,7 @@ jobs:
             - **Linux ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64`
             - **macOS Intel**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64`
             - **macOS Apple Silicon**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64`
-            
+
             ### Installation
             1. Download the appropriate file for your platform
             2. Make executable (Linux/macOS): `chmod +x MermaidPad-*`
