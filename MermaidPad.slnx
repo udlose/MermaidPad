@@ -1,5 +1,3 @@
 <Solution>
-  <Folder Name="/.github/" />
-  <Folder Name="/.github/workflows/" />
   <Project Path="MermaidPad.csproj" />
 </Solution>
