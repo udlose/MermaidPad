@@ -28,9 +28,9 @@
 	</PropertyGroup>
 
 	<PropertyGroup Label="Avalonia">
-	  <AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
-	  <!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
-	  <AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
+		<AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
+		<!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
+		<AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -59,8 +59,7 @@
 		<!--        This line important /\-->
 	</ItemGroup>
 	<ItemGroup>
-		<Folder Include="Assets\" />
-		<AvaloniaResource Include="Assets\**" />
+		<AvaloniaResource Include="Assets\avalonia-logo.ico" />
 		<AdditionalFiles Include="**\*.xaml" />
 		<AdditionalFiles Include="**\*.axaml" />
 	</ItemGroup>
@@ -89,15 +88,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AvaloniaResource Remove="**\*.axaml" />
+		<AvaloniaResource Remove="**\*.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AvaloniaXaml Include="**\*.axaml" />
+		<AvaloniaXaml Include="**\*.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Include=".github\workflows\build-and-release.yml" />
+		<None Include=".github\workflows\build-and-release.yml" />
 	</ItemGroup>
 
 </Project>
