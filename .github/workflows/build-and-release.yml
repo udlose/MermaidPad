@@ -95,12 +95,18 @@ jobs:
             ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}"
           fi
           echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+
+      - name: Zip published output
+        shell: bash
+        run: |
+          cd publish
+          zip -r ../${ARTIFACT_NAME}.zip .
     
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish/**
+          path: ./${{ env.ARTIFACT_NAME }}.zip
           if-no-files-found: error
     
   # Create GitHub release
