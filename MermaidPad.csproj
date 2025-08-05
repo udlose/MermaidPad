@@ -64,17 +64,14 @@
 		<AdditionalFiles Include="**\*.axaml" />
 	</ItemGroup>
 	<ItemGroup>
-		<!-- Explicit asset declarations for reliability -->
-		<Content Include="Assets\index.html">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
-		</Content>
-		<Content Include="Assets\mermaid.min.js">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
-		</Content>
+		<EmbeddedResource Include="Assets\index.html">
+			<LogicalName>MermaidPad.Assets.index.html</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Include="Assets\mermaid.min.js">
+			<LogicalName>MermaidPad.Assets.mermaid.min.js</LogicalName>
+		</EmbeddedResource>
 	</ItemGroup>
-	
+
 	<ItemGroup>
 		<Compile Update="**\*.xaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
