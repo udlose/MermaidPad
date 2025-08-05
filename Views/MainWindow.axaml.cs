@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
+    private readonly MermaidUpdateService _updateService;
 
     private bool _suppressEditorTextChanged = false;
 
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
         IDebounceDispatcher editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
+        _updateService = sp.GetRequiredService<MermaidUpdateService>();
         DataContext = _vm;
 
         Opened += async (_, _) =>
@@ -133,7 +135,6 @@ public partial class MainWindow : Window
 
     private async Task OnOpenedAsync()
     {
-        string assets = PlatformServiceFactory.Instance.GetAssetsDirectory();
         await _vm.CheckForMermaidUpdatesAsync();
 
         // Restore editor state from ViewModel (source of truth)
@@ -141,7 +142,8 @@ public partial class MainWindow : Window
         Editor.SelectionStart = _vm.EditorSelectionStart;
         Editor.SelectionLength = _vm.EditorSelectionLength;
         Editor.CaretOffset = _vm.EditorCaretOffset;
-        await InitializeWebViewAsync(assets);
+        string assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath)!;
+        await InitializeWebViewAsync(assetsPath);
 
         // Ensure command state is updated after UI is loaded
         _vm.RenderCommand.NotifyCanExecuteChanged();
