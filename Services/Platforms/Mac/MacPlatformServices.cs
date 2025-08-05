@@ -7,13 +7,8 @@ using System.Runtime.Versioning;
 namespace MermaidPad.Services;
 #pragma warning restore IDE0130 // Namespace does not match folder structure
 
-//TODO - add implementation
 [SupportedOSPlatform("macos")]
 public sealed class MacPlatformServices : IPlatformServices
 {
-    public string GetAssetsDirectory()
-    {
-        //TODO - add implementation (bundle Resources path)
-        return ".";
-    }
+    //public string GetAssetsDirectory() => Path.Combine(AppContext.BaseDirectory, "Assets");
 }
