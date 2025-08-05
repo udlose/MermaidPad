@@ -10,5 +10,5 @@ namespace MermaidPad.Services;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsPlatformServices : IPlatformServices
 {
-    public string GetAssetsDirectory() => Path.Combine(AppContext.BaseDirectory, "Assets");
+    //public string GetAssetsDirectory() => Path.Combine(AppContext.BaseDirectory, "Assets");
 }

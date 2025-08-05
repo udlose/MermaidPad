@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace MermaidPad.Services.Platforms;
 public interface IPlatformServices
 {
-    string GetAssetsDirectory();
+    //string GetAssetsDirectory();
 }
 
 public static class PlatformServiceFactory
