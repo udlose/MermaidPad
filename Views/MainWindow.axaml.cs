@@ -142,7 +142,12 @@ public partial class MainWindow : Window
         Editor.SelectionStart = _vm.EditorSelectionStart;
         Editor.SelectionLength = _vm.EditorSelectionLength;
         Editor.CaretOffset = _vm.EditorCaretOffset;
-        string assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath)!;
+        string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
+        if (assetsPath == null)
+        {
+            Debug.WriteLine("Error: BundledMermaidPath does not contain a directory component.");
+            throw new InvalidOperationException("BundledMermaidPath does not contain a directory component.");
+        }
         await InitializeWebViewAsync(assetsPath);
 
         // Ensure command state is updated after UI is loaded
