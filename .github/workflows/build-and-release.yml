@@ -123,7 +123,7 @@ jobs:
           # Use portable commands for listing (works on Windows/Linux/macOS)
           if command -v ls >/dev/null 2>&1; then
             ls -la "$ASSETS_DIR/" 2>/dev/null || echo "Could not list with ls -la..."
-          fi
+          ls -la "$ASSETS_DIR/" 2>/dev/null || echo "Could not list with ls -la..."
   
       - name: Prepare artifact
         shell: bash
