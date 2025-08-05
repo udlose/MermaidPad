@@ -64,14 +64,17 @@
 		<AdditionalFiles Include="**\*.axaml" />
 	</ItemGroup>
 	<ItemGroup>
-		<None Update="Assets\*.html">
+		<!-- Explicit asset declarations for reliability -->
+		<Content Include="Assets\index.html">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-		<None Update="Assets\*.js">
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
+		<Content Include="Assets\mermaid.min.js">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+		</Content>
 	</ItemGroup>
-
+	
 	<ItemGroup>
 		<Compile Update="**\*.xaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
