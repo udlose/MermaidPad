@@ -87,10 +87,11 @@ jobs:
 
       - name: Publish
         run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
+      
       - name: Prepare artifact
         shell: bash
+        working-directory: ./publish
         run: |
-          cd publish
           if [ "${{ matrix.extension }}" = ".exe" ]; then
             mv MermaidPad.exe MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe
             ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe"
@@ -105,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish
+          path: ./publish/${{ env.ARTIFACT_NAME }}
           if-no-files-found: error
 
   # Create GitHub release
@@ -147,7 +148,7 @@ jobs:
           artifacts: "./artifacts/**/*"
           generateReleaseNotes: true
           allowUpdates: true
-          prerelease: ${{ github.event.inputs.is_preview }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
           body: |
             ## MermaidPad v${{ needs.get-version.outputs.version }}
 
