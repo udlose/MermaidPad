@@ -148,7 +148,7 @@ jobs:
           artifacts: "./artifacts/**/*"
           generateReleaseNotes: true
           allowUpdates: true
-          prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview || false }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
           body: |
             ## MermaidPad v${{ needs.get-version.outputs.version }}
 
