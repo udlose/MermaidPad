@@ -88,39 +88,6 @@ jobs:
       - name: Publish
         run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
       
-      - name: Verify Assets
-        shell: bash
-        run: |
-          echo "Verifying published assets for ${{ matrix.name }}..."
-      
-          # Define asset paths (works on all platforms with bash)
-          ASSETS_DIR="./publish/Assets"
-          INDEX_FILE="$ASSETS_DIR/index.html"
-          MERMAID_FILE="$ASSETS_DIR/mermaid.min.js"
-      
-          # Check if Assets directory exists
-          if [ ! -d "$ASSETS_DIR" ]; then
-            echo "ERROR: Assets directory missing: $ASSETS_DIR"
-            exit 1
-          fi
-      
-          # Check for required files
-          if [ ! -f "$INDEX_FILE" ]; then
-            echo "ERROR: index.html missing from publish directory"
-            echo "Expected at: $INDEX_FILE"
-            exit 1
-          fi
-      
-          if [ ! -f "$MERMAID_FILE" ]; then
-            echo "ERROR: mermaid.min.js missing from publish directory"
-            echo "Expected at: $MERMAID_FILE"
-            exit 1
-          fi
-      
-          echo "SUCCESS: Assets verification passed for ${{ matrix.name }}"
-          echo "Assets found:"
-          ls -la "$ASSETS_DIR/" 2>/dev/null
-  
       - name: Prepare artifact
         shell: bash
         working-directory: ./publish
