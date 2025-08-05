@@ -103,7 +103,10 @@ public static class ServiceConfiguration
             }
 
             string storedVersion = File.ReadAllText(versionMarkerPath).Trim();
-            string currentVersion = typeof(ServiceConfiguration).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+            var version = typeof(ServiceConfiguration).Assembly.GetName().Version;
+            if (version == null)
+                throw new InvalidOperationException("Could not determine assembly version for ServiceConfiguration.");
+            string currentVersion = version.ToString();
 
             bool isCurrent = storedVersion == currentVersion;
             Debug.WriteLine($"Version check: stored={storedVersion}, current={currentVersion}, isCurrent={isCurrent}");
