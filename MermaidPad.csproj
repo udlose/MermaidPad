@@ -36,16 +36,16 @@
 	<ItemGroup>
 		<PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
 		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
-		<PackageReference Include="Avalonia" Version="11.3.2" />
-		<PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
-		<PackageReference Include="Avalonia.ReactiveUI" Version="11.3.2" />
-		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
-		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.303" />
+		<PackageReference Include="Avalonia" Version="11.3.3" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.3" />
+		<PackageReference Include="Avalonia.ReactiveUI" Version="11.3.3" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.3" />
+		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.304" />
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
-		<PackageReference Include="System.Text.Json" Version="9.0.7" />
+		<PackageReference Include="System.Text.Json" Version="9.0.8" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
