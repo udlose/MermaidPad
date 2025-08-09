@@ -69,9 +69,9 @@ public static class EmbeddedResourceHelper
         try
         {
             string versionMarkerPath = Path.Combine(assetsDirectory, ".version");
-            var versionObj = _currentAssembly.GetName().Version;
-            if (versionObj == null)
+            Version versionObj = _currentAssembly.GetName().Version ??
                 throw new InvalidOperationException("Assembly version could not be determined. This may indicate a build or deployment issue.");
+
             string version = versionObj.ToString();
             File.WriteAllText(versionMarkerPath, version);
             Debug.WriteLine($"Version marker written: {version}");

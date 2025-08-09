@@ -14,53 +14,208 @@ public sealed class MermaidUpdateService
     {
         _settings = settings;
         AssetDir = assetDir;
+
+        SimpleLogger.Log($"MermaidUpdateService initialized with AssetDir: {AssetDir}");
+        SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
     }
 
     public string BundledMermaidPath => Path.Combine(AssetDir, "mermaid.min.js");
 
     public async Task CheckAndUpdateAsync()
     {
+        var stopwatch = Stopwatch.StartNew();
+
+        SimpleLogger.Log("=== Mermaid Update Check Started ===");
+
         if (!_settings.AutoUpdateMermaid)
         {
+            SimpleLogger.Log("Auto-update disabled, skipping update check");
             return;
         }
 
         try
         {
+            SimpleLogger.Log("Fetching latest Mermaid version from npm registry...");
             (string remoteVersion, string url) = await FetchLatestVersionAsync();
+
             _settings.LatestCheckedMermaidVersion = remoteVersion;
+            SimpleLogger.Log($"Latest version check completed: {remoteVersion}");
 
             if (IsNewer(remoteVersion, _settings.BundledMermaidVersion))
             {
-                string tmp = Path.GetTempFileName();
-                string jsContent = await _http.GetStringAsync(url);
-                await File.WriteAllTextAsync(tmp, jsContent);
-                File.Copy(tmp, BundledMermaidPath, overwrite: true);
-                _settings.BundledMermaidVersion = remoteVersion;
+                SimpleLogger.Log($"Update available: {_settings.BundledMermaidVersion} -> {remoteVersion}");
+
+                await DownloadAndInstallUpdate(url, remoteVersion);
+
+                stopwatch.Stop();
+                SimpleLogger.LogTiming("Mermaid update (with download)", stopwatch.Elapsed, success: true);
+                SimpleLogger.Log($"=== Mermaid Update Completed Successfully: {remoteVersion} ===");
+            }
+            else
+            {
+                stopwatch.Stop();
+                SimpleLogger.LogTiming("Mermaid update (no download needed)", stopwatch.Elapsed, success: true);
+                SimpleLogger.Log($"=== Mermaid Already Up-to-Date: {_settings.BundledMermaidVersion} ===");
             }
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            SimpleLogger.LogTiming("Mermaid update", stopwatch.Elapsed, success: false);
+            SimpleLogger.LogError("Mermaid update failed", ex);
             Debug.WriteLine($"Mermaid update failed: {ex}");
+        }
+    }
+
+    private async Task DownloadAndInstallUpdate(string url, string newVersion)
+    {
+        var downloadStopwatch = Stopwatch.StartNew();
+        SimpleLogger.Log($"Downloading Mermaid.js from: {url}");
+
+        try
+        {
+            // Step 1: Download to temporary file
+            string tmp = Path.GetTempFileName();
+            SimpleLogger.Log($"Using temporary file: {tmp}");
+
+            string jsContent = await _http.GetStringAsync(url);
+            downloadStopwatch.Stop();
+
+            SimpleLogger.Log($"Download completed: {jsContent.Length:N0} characters in {downloadStopwatch.ElapsedMilliseconds}ms");
+
+            // Step 2: Write to temp file
+            await File.WriteAllTextAsync(tmp, jsContent);
+            SimpleLogger.Log("Content written to temporary file");
+
+            // Step 3: Backup existing file (if it exists)
+            string backupPath = BundledMermaidPath + ".backup";
+            if (File.Exists(BundledMermaidPath))
+            {
+                File.Copy(BundledMermaidPath, backupPath, overwrite: true);
+                SimpleLogger.Log($"Existing mermaid.min.js backed up to: {backupPath}");
+            }
+
+            // Step 4: Install new version
+            File.Copy(tmp, BundledMermaidPath, overwrite: true);
+            SimpleLogger.LogAsset("updated", "mermaid.min.js", true, new FileInfo(BundledMermaidPath).Length);
+
+            // Step 5: Update version in settings
+            _settings.BundledMermaidVersion = newVersion;
+            SimpleLogger.Log($"Bundled version updated to: {newVersion}");
+
+            // Step 6: Cleanup
+            File.Delete(tmp);
+            SimpleLogger.Log("Temporary file cleaned up");
+
+            // Step 7: Verify installation
+            await VerifyInstallation(newVersion);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError($"Failed to download and install Mermaid update from {url}", ex);
+            throw;
+        }
+    }
+
+    private async Task VerifyInstallation(string _)
+    {
+        try
+        {
+            SimpleLogger.Log("Verifying Mermaid installation...");
+
+            if (!File.Exists(BundledMermaidPath))
+            {
+                throw new InvalidOperationException("Mermaid file does not exist after installation");
+            }
+
+            FileInfo fileInfo = new FileInfo(BundledMermaidPath);
+            SimpleLogger.Log($"Installed file size: {fileInfo.Length:N0} bytes");
+
+            // Basic content validation
+            string content = await File.ReadAllTextAsync(BundledMermaidPath);
+            if (content.Length < 1000) // Mermaid should be much larger than 1KB
+            {
+                throw new InvalidOperationException($"Installed file appears to be too small ({content.Length} chars)");
+            }
+
+            if (!content.Contains("mermaid"))
+            {
+                throw new InvalidOperationException("Installed file does not appear to contain Mermaid content");
+            }
+
+            SimpleLogger.Log("Mermaid installation verified successfully");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Mermaid installation verification failed", ex);
+            throw;
         }
     }
 
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
         const string mermaidUrlPrefix = "https://unpkg.com/mermaid";
+        var stopwatch = Stopwatch.StartNew();
 
-        // unpkg exposes package.json
-        string pkgJson = await _http.GetStringAsync($"{mermaidUrlPrefix}/package.json");
-        using JsonDocument doc = JsonDocument.Parse(pkgJson);
-        string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
-        const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
-        Debug.WriteLine($"Latest Mermaid version: {version}, JS URL: {jsUrl}");
-        _settings.LatestCheckedMermaidVersion = version;
-        return (version, jsUrl);
+        try
+        {
+            SimpleLogger.Log("Fetching package.json from unpkg.com...");
+
+            // unpkg exposes package.json
+            string pkgJson = await _http.GetStringAsync($"{mermaidUrlPrefix}/package.json");
+            stopwatch.Stop();
+
+            SimpleLogger.Log($"Package.json fetched in {stopwatch.ElapsedMilliseconds}ms: {pkgJson.Length} characters");
+
+            using JsonDocument doc = JsonDocument.Parse(pkgJson);
+            string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
+            const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
+
+            SimpleLogger.Log($"Latest Mermaid version discovered: {version}");
+            SimpleLogger.Log($"Download URL will be: {jsUrl}");
+
+            _settings.LatestCheckedMermaidVersion = version;
+            return (version, jsUrl);
+        }
+        catch (JsonException ex)
+        {
+            SimpleLogger.LogError("Failed to parse package.json from unpkg.com", ex);
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            SimpleLogger.LogError("HTTP request failed while fetching version info", ex);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Unexpected error while fetching latest version", ex);
+            throw;
+        }
     }
 
-    private static bool IsNewer(string remote, string local)
+    private bool IsNewer(string remote, string local)
     {
-        return Version.TryParse(remote, out Version? rv) && Version.TryParse(local, out Version? lv) && rv > lv;
+        bool canParseRemote = Version.TryParse(remote, out Version? rv);
+        bool canParseLocal = Version.TryParse(local, out Version? lv);
+
+        SimpleLogger.Log($"Version comparison: remote='{remote}' ({(canParseRemote ? "parsed" : "failed")}), local='{local}' ({(canParseLocal ? "parsed" : "failed")})");
+
+        if (!canParseRemote)
+        {
+            SimpleLogger.Log($"Cannot parse remote version '{remote}', assuming not newer");
+            return false;
+        }
+
+        if (!canParseLocal)
+        {
+            SimpleLogger.Log($"Cannot parse local version '{local}', assuming remote is newer");
+            return true;
+        }
+
+        bool isNewer = rv! > lv!;
+        SimpleLogger.Log($"Version comparison result: {rv} > {lv} = {isNewer}");
+
+        return isNewer;
     }
 }
