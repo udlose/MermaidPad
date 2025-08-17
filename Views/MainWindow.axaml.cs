@@ -161,7 +161,7 @@ public partial class MainWindow : Window
             // Step 3: Initialize WebView
             SimpleLogger.Log("Step 3: Initializing WebView...");
             string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
-            if (assetsPath == null)
+            if (assetsPath is null)
             {
                 const string error = "BundledMermaidPath does not contain a directory component";
                 SimpleLogger.LogError(error);
@@ -238,8 +238,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // Step 1: Use smart approach - auto-detects single-file mode
-            SimpleLogger.Log("Using smart approach - auto-detects file vs HTTP mode...");
+            // Step 1: Initialize the MermaidRenderer
             await _renderer.InitializeAsync(Preview, assets);
 
             // Step 2: Wait for content to load
@@ -259,7 +258,6 @@ public partial class MainWindow : Window
             stopwatch.Stop();
             SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
             SimpleLogger.LogError("WebView initialization failed", ex);
-            Debug.WriteLine($"WebView init failed: {ex}");
         }
         finally
         {
