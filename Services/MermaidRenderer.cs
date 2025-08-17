@@ -1,240 +1,253 @@
 using AvaloniaWebView;
-using System.Diagnostics;
+using System.Net;
+using System.Text;
 
 namespace MermaidPad.Services;
 
 /// <summary>
-/// Thin wrapper around executing Mermaid render script inside the embedded WebView.
-/// Now with simple file logging for debugging WebView rendering issues.
+/// Production version that uses local HTTP server to bypass single-file file:// restrictions.
+/// Based on diagnostic evidence showing WebView2 blocks file:// navigation in single-file apps.
 /// </summary>
-public sealed class MermaidRenderer
+public sealed class MermaidRenderer : IDisposable
 {
     private WebView? _webView;
-    private bool _isWebViewReady = false;
-    private DateTime _lastRenderTime = DateTime.MinValue;
     private int _renderAttemptCount = 0;
+    private HttpListener? _httpListener;
+    private string? _htmlContent;
+    private int _serverPort = 0;
+    private bool _useFileMode = false;
 
     public MermaidRenderer()
     {
         SimpleLogger.Log("MermaidRenderer initialized");
     }
 
-    /// <summary>Attach the WebView after it is constructed (late binding for DI).</summary>
-    public void Attach(WebView webView)
+    public async Task InitializeAsync(WebView webView, string assetsDir)
     {
-        SimpleLogger.Log("Attaching WebView to MermaidRenderer");
-
-        if (_webView != null)
-        {
-            SimpleLogger.Log("WebView was already attached, detaching previous instance");
-        }
+        SimpleLogger.Log("=== MermaidRenderer Initialization ===");
 
         _webView = webView;
-        _isWebViewReady = false;
 
-        // Subscribe to WebView events for comprehensive debugging
-        SetupWebViewEventHandlers();
+        // Detect if we're running in single-file mode by checking working directory
+        bool isSingleFile = Environment.CurrentDirectory.Contains("win-x64") ||
+                            Environment.CurrentDirectory.Contains("win-x86") ||
+                            Environment.CurrentDirectory.Contains("win-arm64") ||
+                            Environment.CurrentDirectory.Contains("linux-arm64") ||
+                            Environment.CurrentDirectory.Contains("linux-x64") ||
+                            Environment.CurrentDirectory.Contains("osx-arm64") ||
+                            Environment.CurrentDirectory.Contains("osx-x64");
 
-        SimpleLogger.LogWebView("attached", $"Type: {webView.GetType().Name}");
+        SimpleLogger.Log($"Detected single-file mode: {isSingleFile}");
+
+        if (isSingleFile)
+        {
+            SimpleLogger.Log("Using HTTP server approach for single-file compatibility");
+            await InitializeWithHttpServerAsync(assetsDir);
+        }
+        else
+        {
+            SimpleLogger.Log("Using direct file approach for multi-file mode");
+            await InitializeWithFileAsync(assetsDir);
+        }
     }
 
-    private void SetupWebViewEventHandlers()
+    private async Task InitializeWithFileAsync(string assetsDir)
     {
-        if (_webView == null) return;
+        _useFileMode = true;
+        string indexPath = Path.Combine(assetsDir, "index.html");
 
+        if (!File.Exists(indexPath))
+        {
+            throw new FileNotFoundException($"Required asset not found: {indexPath}");
+        }
+
+        bool navigationCompleted = false;
+        _webView!.NavigationCompleted += (s, e) =>
+        {
+            navigationCompleted = true;
+            SimpleLogger.LogWebView("navigation completed", "File mode");
+        };
+
+        Uri indexUri = new Uri(indexPath);
+        SimpleLogger.Log($"Navigating to file: {indexUri}");
+        _webView.Url = indexUri;
+
+        // Wait for navigation
+        for (int i = 0; i < 50 && !navigationCompleted; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        if (navigationCompleted)
+        {
+            SimpleLogger.Log("File navigation completed successfully");
+        }
+        else
+        {
+            throw new InvalidOperationException("File navigation failed");
+        }
+    }
+
+    private async Task InitializeWithHttpServerAsync(string assetsDir)
+    {
+        _useFileMode = false;
+
+        // Read and prepare content
+        string indexPath = Path.Combine(assetsDir, "index.html");
+        string mermaidPath = Path.Combine(assetsDir, "mermaid.min.js");
+
+        if (!File.Exists(indexPath) || !File.Exists(mermaidPath))
+        {
+            throw new FileNotFoundException("Required assets not found");
+        }
+
+        string htmlTemplate = await File.ReadAllTextAsync(indexPath);
+        string mermaidJs = await File.ReadAllTextAsync(mermaidPath);
+
+        // Create self-contained HTML
+        _htmlContent = htmlTemplate.Replace(
+            "<script src=\"mermaid.min.js\" defer></script>",
+            $"<script>{mermaidJs}</script>"
+        );
+
+        SimpleLogger.Log($"Prepared self-contained HTML: {_htmlContent.Length} characters");
+
+        // Start HTTP server
+        _serverPort = GetAvailablePort();
+        _httpListener = new HttpListener();
+        _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
+        _httpListener.Start();
+
+        SimpleLogger.Log($"HTTP server started on port {_serverPort}");
+
+        // Handle requests in background
+        _ = Task.Run(HandleHttpRequests);
+
+        // Navigate WebView to HTTP server
+        bool navigationCompleted = false;
+        _webView!.NavigationCompleted += (s, e) =>
+        {
+            navigationCompleted = true;
+            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+        };
+
+        string serverUrl = $"http://localhost:{_serverPort}/";
+        SimpleLogger.Log($"Navigating to HTTP server: {serverUrl}");
+        _webView.Url = new Uri(serverUrl);
+
+        // Wait for navigation
+        for (int i = 0; i < 50 && !navigationCompleted; i++)
+        {
+            await Task.Delay(100);
+        }
+
+        if (navigationCompleted)
+        {
+            SimpleLogger.Log("HTTP navigation completed successfully");
+        }
+        else
+        {
+            throw new InvalidOperationException("HTTP navigation failed");
+        }
+    }
+
+    private static int GetAvailablePort()
+    {
+        for (int port = 8080; port < 8200; port++)
+        {
+            try
+            {
+                using HttpListener listener = new HttpListener();
+                listener.Prefixes.Add($"http://localhost:{port}/");
+                listener.Start();
+                listener.Stop();
+                return port;
+            }
+            catch
+            {
+                // Port in use, try next
+            }
+        }
+        throw new InvalidOperationException("No available ports found");
+    }
+
+    private async Task HandleHttpRequests()
+    {
         try
         {
-            // Navigation events
-            _webView.NavigationCompleted += (sender, args) =>
+            while (_httpListener?.IsListening == true)
             {
-                _isWebViewReady = args.IsSuccess;
-                if (args.IsSuccess)
-                {
-                    SimpleLogger.LogWebView("navigation completed", $"RawArgs: {args.RawArgs}");
-                }
-                else
-                {
-                    SimpleLogger.LogWebView("navigation failed", $"RawArgs: {args.RawArgs}");
-                }
-            };
+                HttpListenerContext context = await _httpListener.GetContextAsync();
 
-            _webView.NavigationStarting += (sender, args) =>
-            {
-                SimpleLogger.LogWebView("navigation starting", $"RawArgs: {args.RawArgs}");
-            };
+                byte[] responseBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
 
-            SimpleLogger.Log("WebView event handlers configured successfully");
+                context.Response.ContentType = "text/html; charset=utf-8";
+                context.Response.ContentLength64 = responseBytes.Length;
+                context.Response.Headers.Add("Cache-Control", "no-cache");
+
+                await context.Response.OutputStream.WriteAsync(responseBytes);
+                context.Response.OutputStream.Close();
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not ObjectDisposedException)
         {
-            SimpleLogger.LogError("Failed to setup WebView event handlers", ex);
+            SimpleLogger.LogError("HTTP server error", ex);
         }
     }
 
     public async Task RenderAsync(string mermaidSource)
     {
-        Stopwatch stopwatch = Stopwatch.StartNew();
         _renderAttemptCount++;
+        SimpleLogger.Log($"Render attempt #{_renderAttemptCount} ({(_useFileMode ? "File" : "HTTP")} mode)");
 
-        SimpleLogger.Log($"Render attempt #{_renderAttemptCount} started");
-
-        if (_webView is null)
+        if (_webView == null)
         {
-            string error = "MermaidRenderer.RenderAsync called before WebView attached";
-            SimpleLogger.LogError(error);
-            Debug.WriteLine(error);
+            SimpleLogger.LogError("WebView not initialized");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(mermaidSource))
         {
-            SimpleLogger.Log("Empty mermaid source provided, clearing output");
             try
             {
-                await ExecuteAsync("clearOutput();");
-                stopwatch.Stop();
-                SimpleLogger.LogTiming("Clear output", stopwatch.Elapsed, success: true);
+                await _webView.ExecuteScriptAsync("clearOutput();");
+                SimpleLogger.Log("clearOutput() succeeded");
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
-                SimpleLogger.LogTiming("Clear output", stopwatch.Elapsed, success: false);
-                SimpleLogger.LogError("Failed to clear output", ex);
+                SimpleLogger.LogError("clearOutput() failed", ex);
             }
             return;
         }
 
-        // Log render details
-        SimpleLogger.Log($"Rendering Mermaid diagram: {mermaidSource.Length} characters");
-        string preview = mermaidSource.Length > 200 ? mermaidSource[..200] + "..." : mermaidSource;
-        SimpleLogger.Log($"Mermaid source preview: {preview}");
-
-        string escaped = EscapeForJs(mermaidSource);
+        string escaped = mermaidSource.Replace("\\", "\\\\").Replace("`", "\\`");
         string script = $"renderMermaid(`{escaped}`);";
 
         try
         {
-            string? result = await ExecuteAsync(script);
-            stopwatch.Stop();
-
-            _lastRenderTime = DateTime.Now;
-            SimpleLogger.LogJavaScript("renderMermaid(...)", true, result);
-            SimpleLogger.LogTiming("Mermaid render", stopwatch.Elapsed, success: true);
-            SimpleLogger.Log($"Render attempt #{_renderAttemptCount} completed successfully in {stopwatch.ElapsedMilliseconds}ms");
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            SimpleLogger.LogJavaScript("renderMermaid(...)", false, ex.Message);
-            SimpleLogger.LogTiming("Mermaid render", stopwatch.Elapsed, success: false);
-            SimpleLogger.LogError("Failed to render mermaid diagram", ex);
-
-            Debug.WriteLine($"Render failed: {ex}");
-
-            // Additional diagnostic information
-            await LogWebViewDiagnostics();
-        }
-    }
-
-    private async Task LogWebViewDiagnostics()
-    {
-        try
-        {
-            SimpleLogger.Log("=== WebView Diagnostics ===");
-            SimpleLogger.Log($"WebView ready state: {_isWebViewReady}");
-            SimpleLogger.Log($"Last successful render: {(_lastRenderTime == DateTime.MinValue ? "Never" : _lastRenderTime.ToString())}");
-            SimpleLogger.Log($"Total render attempts: {_renderAttemptCount}");
-
-            // Try to get basic JavaScript info
-            try
-            {
-                string? docReady = await ExecuteAsync("document.readyState");
-                SimpleLogger.Log($"Document ready state: {docReady ?? "null"}");
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Could not get document ready state: {ex.Message}");
-            }
-
-            try
-            {
-                string? mermaidExists = await ExecuteAsync("typeof window.mermaid");
-                SimpleLogger.Log($"Mermaid library type: {mermaidExists ?? "null"}");
-
-                if (mermaidExists == "object")
-                {
-                    // Mermaid is loaded, check its version
-                    try
-                    {
-                        string? version = await ExecuteAsync("window.mermaid.version || 'unknown'");
-                        SimpleLogger.Log($"Mermaid library version: {version}");
-                    }
-                    catch (Exception ex)
-                    {
-                        SimpleLogger.Log($"Could not get Mermaid version: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Could not check Mermaid library: {ex.Message}");
-            }
-
-            try
-            {
-                string? renderFunctionExists = await ExecuteAsync("typeof window.renderMermaid");
-                SimpleLogger.Log($"renderMermaid function type: {renderFunctionExists ?? "null"}");
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Could not check renderMermaid function: {ex.Message}");
-            }
-
-            // Check what's actually in the output div
-            try
-            {
-                string? outputContent = await ExecuteAsync("document.getElementById('output')?.innerHTML || 'no output div'");
-                SimpleLogger.Log($"Output div content: {(outputContent?.Length > 200 ? outputContent[..200] + "..." : outputContent)}");
-
-                string? outputExists = await ExecuteAsync("document.getElementById('output') ? 'exists' : 'missing'");
-                SimpleLogger.Log($"Output div exists: {outputExists}");
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Could not check output div: {ex.Message}");
-            }
-
-            SimpleLogger.Log("=== End WebView Diagnostics ===");
-        }
-        catch (Exception ex)
-        {
-            SimpleLogger.LogError("Failed to run WebView diagnostics", ex);
-        }
-    }
-
-    private static string EscapeForJs(string text)
-        => text.Replace("\\", "\\\\").Replace("`", "\\`");
-
-    private async Task<string?> ExecuteAsync(string script)
-    {
-        if (_webView == null)
-        {
-            throw new InvalidOperationException("WebView is not attached");
-        }
-
-        string scriptPreview = script.Length > 100 ? script[..100] + "..." : script;
-        SimpleLogger.Log($"Executing JavaScript: {scriptPreview}");
-
-        try
-        {
             string? result = await _webView.ExecuteScriptAsync(script);
-            SimpleLogger.Log($"JavaScript execution result: {result ?? "(null)"}");
-            return result;
+            SimpleLogger.Log($"renderMermaid result: {result ?? "(null)"}");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"JavaScript execution failed for script: {script}", ex);
-            throw;
+            SimpleLogger.LogError("renderMermaid failed", ex);
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            _httpListener?.Stop();
+            _httpListener?.Close();
+            if (!_useFileMode)
+            {
+                SimpleLogger.Log("HTTP server stopped");
+            }
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error stopping HTTP server", ex);
         }
     }
 }
