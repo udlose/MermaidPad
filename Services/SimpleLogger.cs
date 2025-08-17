@@ -30,7 +30,7 @@ public static class SimpleLogger
     /// </summary>
     public static void Log(string message, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
-        string fileName = file != null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
+        string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         string entry = $"[{DateTime.Now:HH:mm:ss.fff}] [{fileName}.{caller}] {message}";
 
         lock (_lockObject)
@@ -47,13 +47,13 @@ public static class SimpleLogger
     /// </summary>
     public static void LogError(string message, Exception? ex = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
-        string fileName = file != null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
+        string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         string entry = $"[{DateTime.Now:HH:mm:ss.fff}] [ERROR] [{fileName}.{caller}] {message}";
 
-        if (ex != null)
+        if (ex is not null)
         {
             entry += $"\n    Exception: {ex.GetType().Name}: {ex.Message}";
-            if (ex.StackTrace != null)
+            if (ex.StackTrace is not null)
             {
                 entry += $"\n    Stack: {ex.StackTrace.Split('\n').FirstOrDefault()?.Trim()}";
             }
