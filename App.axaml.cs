@@ -41,7 +41,7 @@ public partial class App : Application
             BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
 
         // remove each entry found
-        foreach (DataAnnotationsValidationPlugin? plugin in dataValidationPluginsToRemove)
+        foreach (DataAnnotationsValidationPlugin plugin in dataValidationPluginsToRemove)
         {
             BindingPlugins.DataValidators.Remove(plugin);
         }
