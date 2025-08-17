@@ -110,12 +110,6 @@ public partial class MainWindow : Window
         };
 
         SimpleLogger.Log("=== MainWindow Initialization Completed ===");
-        //// Make sure caret is visible:
-        //Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
-
-        //// Ensure selection is visible
-        //Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
-        //Dispatcher.UIThread.Post(() => Editor.TextArea.Caret.BringCaretToView(), DispatcherPriority.Background);
     }
 
     private void BringFocusToEditor()
@@ -158,7 +152,6 @@ public partial class MainWindow : Window
 
             // Step 2: Restore editor state
             SimpleLogger.Log("Step 2: Restoring editor state from ViewModel...");
-            // Restore editor state from ViewModel (source of truth)
             Editor.Text = _vm.DiagramText;
             Editor.SelectionStart = _vm.EditorSelectionStart;
             Editor.SelectionLength = _vm.EditorSelectionLength;
@@ -205,6 +198,14 @@ public partial class MainWindow : Window
             // When the window is closing, save the current state
             SynchronizeViewModelWithEditor();
             _vm.Persist();
+
+            // Dispose the renderer (stops HTTP server if running)
+            if (_renderer is IDisposable disposableRenderer)
+            {
+                disposableRenderer.Dispose();
+                SimpleLogger.Log("MermaidRenderer disposed");
+            }
+
             SimpleLogger.Log("Window state saved successfully");
         }
         catch (Exception ex)
@@ -230,50 +231,22 @@ public partial class MainWindow : Window
         SimpleLogger.Log("=== WebView Initialization Started ===");
         SimpleLogger.Log($"Assets directory: {assets}");
 
+        // CRITICAL FIX: Temporarily disable live preview during WebView initialization
+        bool originalLivePreview = _vm.LivePreviewEnabled;
+        _vm.LivePreviewEnabled = false;
+        SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
+
         try
         {
-            // Step 1: Validate index.html exists
-            string indexPath = Path.Combine(assets, "index.html");
-            SimpleLogger.Log($"Checking for index.html at: {indexPath}");
+            // Step 1: Use smart approach - auto-detects single-file mode
+            SimpleLogger.Log("Using smart approach - auto-detects file vs HTTP mode...");
+            await _renderer.InitializeAsync(Preview, assets);
 
-            if (!File.Exists(indexPath))
-            {
-                SimpleLogger.Log("index.html not found, creating fallback content");
-                await File.WriteAllTextAsync(indexPath, "<html><body>Missing index.html</body></html>");
-                SimpleLogger.LogAsset("created fallback", "index.html", true);
-            }
-            else
-            {
-                FileInfo indexInfo = new FileInfo(indexPath);
-                SimpleLogger.LogAsset("validated", "index.html", true, indexInfo.Length);
-            }
+            // Step 2: Wait for content to load
+            SimpleLogger.Log("Waiting for WebView content loading...");
+            await Task.Delay(1000);
 
-            // Step 2: Validate mermaid.min.js exists
-            string mermaidPath = Path.Combine(assets, "mermaid.min.js");
-            if (File.Exists(mermaidPath))
-            {
-                FileInfo mermaidInfo = new FileInfo(mermaidPath);
-                SimpleLogger.LogAsset("validated", "mermaid.min.js", true, mermaidInfo.Length);
-            }
-            else
-            {
-                SimpleLogger.LogError($"Critical asset missing: mermaid.min.js at {mermaidPath}");
-            }
-
-            // Step 3: Set WebView URL
-            Uri indexUri = new Uri(indexPath);
-            SimpleLogger.Log($"Setting WebView URL to: {indexUri}");
-            Preview.Url = indexUri;
-
-            // Step 4: Attach renderer
-            SimpleLogger.Log("Attaching MermaidRenderer to WebView...");
-            _renderer.Attach(Preview);
-
-            // Step 5: Allow initial load time
-            SimpleLogger.Log("Waiting for WebView initial load (500ms delay)...");
-            await Task.Delay(500);
-
-            // Step 6: Attempt initial render
+            // Step 3: Perform initial render
             SimpleLogger.Log("Performing initial Mermaid render...");
             await _renderer.RenderAsync(_vm.DiagramText);
 
@@ -287,6 +260,12 @@ public partial class MainWindow : Window
             SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
             SimpleLogger.LogError("WebView initialization failed", ex);
             Debug.WriteLine($"WebView init failed: {ex}");
+        }
+        finally
+        {
+            // CRITICAL: Re-enable live preview after WebView is ready
+            _vm.LivePreviewEnabled = originalLivePreview;
+            SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
         }
     }
 
