@@ -15,7 +15,7 @@
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<LangVersion>preview</LangVersion>
-		<Configurations>Debug;Release</Configurations>
+		<Configurations>Debug;Release;Release-x64;Release-Arm64;Release-x86</Configurations>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.22621'">
