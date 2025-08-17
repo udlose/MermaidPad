@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace MermaidPad.Services;
 
@@ -33,12 +34,7 @@ public static class SimpleLogger
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         string entry = $"[{DateTime.Now:HH:mm:ss.fff}] [{fileName}.{caller}] {message}";
 
-        lock (_lockObject)
-        {
-            File.AppendAllText(_logPath, entry + Environment.NewLine);
-        }
-
-        // Also show in Visual Studio output window
+        WriteEntry(entry);
         Debug.WriteLine(entry);
     }
 
@@ -48,22 +44,22 @@ public static class SimpleLogger
     public static void LogError(string message, Exception? ex = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
-        string entry = $"[{DateTime.Now:HH:mm:ss.fff}] [ERROR] [{fileName}.{caller}] {message}";
+        StringBuilder sb = new StringBuilder(512);
+        sb.Append($"[{DateTime.Now:HH:mm:ss.fff}] [ERROR] [{fileName}.{caller}] {message}");
 
         if (ex is not null)
         {
-            entry += $"\n    Exception: {ex.GetType().Name}: {ex.Message}";
+            sb.Append($"\n    Exception: {ex.GetType().Name}: {ex.Message}");
             if (ex.StackTrace is not null)
             {
-                entry += $"\n    Stack: {ex.StackTrace.Split('\n').FirstOrDefault()?.Trim()}";
+                int idx = ex.StackTrace.AsSpan().IndexOf('\n');
+                ReadOnlySpan<char> firstLine = idx >= 0 ? ex.StackTrace.AsSpan()[..idx].Trim() : ex.StackTrace.AsSpan().Trim();
+                sb.Append($"\n    Stack: {firstLine}");
             }
         }
 
-        lock (_lockObject)
-        {
-            File.AppendAllText(_logPath, entry + Environment.NewLine);
-        }
-
+        string entry = sb.ToString();
+        WriteEntry(entry);
         Debug.WriteLine(entry);
     }
 
@@ -72,11 +68,9 @@ public static class SimpleLogger
     /// </summary>
     public static void LogWebView(string eventName, string? details = null, [CallerMemberName] string? caller = null)
     {
-        string message = $"WebView {eventName}";
-        if (!string.IsNullOrEmpty(details))
-        {
-            message += $": {details}";
-        }
+        string message = details?.Length > 0
+            ? $"WebView {eventName}: {details}"
+            : $"WebView {eventName}";
         Log(message, caller);
     }
 
@@ -87,14 +81,13 @@ public static class SimpleLogger
     {
         string truncatedScript = script.Length > 100 ? script[..100] + "..." : script;
         string status = success ? "SUCCESS" : "FAILED";
-        string message = $"JavaScript {status}: {truncatedScript}";
-
+        StringBuilder sb = new StringBuilder(256);
+        sb.Append($"JavaScript {status}: {truncatedScript}");
         if (!string.IsNullOrEmpty(result))
         {
-            message += $" → {result}";
+            sb.Append($" → {result}");
         }
-
-        Log(message, caller);
+        Log(sb.ToString(), caller);
     }
 
     /// <summary>
@@ -111,21 +104,21 @@ public static class SimpleLogger
     /// </summary>
     public static void LogAsset(string operation, string assetName, bool success, long? sizeBytes = null, [CallerMemberName] string? caller = null)
     {
-        string message = $"Asset {operation}: {assetName}";
+        StringBuilder sb = new StringBuilder(128);
+        sb.Append($"Asset {operation}: {assetName}");
         if (success)
         {
             if (sizeBytes.HasValue)
             {
-                message += $" ({sizeBytes:N0} bytes)";
+                sb.Append($" ({sizeBytes.Value:N0} bytes)");
             }
-            message += " ✓";
+            sb.Append(" ✓");
         }
         else
         {
-            message += " ✗";
+            sb.Append(" ✗");
         }
-
-        Log(message, caller);
+        Log(sb.ToString(), caller);
     }
 
     /// <summary>
@@ -148,21 +141,25 @@ public static class SimpleLogger
 
     private static void WriteSessionHeader()
     {
-        string header = $"""
-============================================
-MermaidPad Debug Session Started
-Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}
-OS: {Environment.OSVersion}
-.NET: {Environment.Version}
-Working Directory: {Environment.CurrentDirectory}
-Log File: {_logPath}
-============================================
+        StringBuilder sb = new StringBuilder(256);
+        sb.AppendLine("============================================");
+        sb.AppendLine("MermaidPad Debug Session Started");
+        sb.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"OS: {Environment.OSVersion}");
+        sb.AppendLine($".NET: {Environment.Version}");
+        sb.AppendLine($"Working Directory: {Environment.CurrentDirectory}");
+        sb.AppendLine($"Log File: {_logPath}");
+        sb.AppendLine("============================================");
+        sb.AppendLine();
 
-""";
+        WriteEntry(sb.ToString());
+    }
 
+    private static void WriteEntry(string entry)
+    {
         lock (_lockObject)
         {
-            File.AppendAllText(_logPath, header);
+            File.AppendAllText(_logPath, entry + Environment.NewLine);
         }
     }
 }
