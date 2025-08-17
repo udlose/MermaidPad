@@ -1,3 +1,27 @@
 <Solution>
-  <Project Path="MermaidPad.csproj" />
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Release-Arm64" />
+    <BuildType Name="Release-x64" />
+    <BuildType Name="Release-x86" />
+    <Platform Name="Any CPU" />
+    <Platform Name="arm64" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="MermaidPad.csproj">
+    <Platform Solution="Debug|arm64" Project="arm64" />
+    <Platform Solution="Debug|x64" Project="x64" />
+    <Platform Solution="Release-Arm64|Any CPU" Project="x86" />
+    <Platform Solution="Release-Arm64|arm64" Project="arm64" />
+    <Platform Solution="Release-Arm64|x64" Project="arm64" />
+    <Platform Solution="Release-x64|Any CPU" Project="x86" />
+    <Platform Solution="Release-x64|arm64" Project="arm64" />
+    <Platform Solution="Release-x64|x64" Project="x64" />
+    <Platform Solution="Release-x86|Any CPU" Project="x86" />
+    <Platform Solution="Release-x86|arm64" Project="x86" />
+    <Platform Solution="Release-x86|x64" Project="x64" />
+    <Platform Solution="Release|arm64" Project="arm64" />
+    <Platform Solution="Release|x64" Project="x64" />
+  </Project>
 </Solution>
