@@ -23,7 +23,7 @@ public sealed class MermaidUpdateService
 
     public async Task CheckAndUpdateAsync()
     {
-        var stopwatch = Stopwatch.StartNew();
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         SimpleLogger.Log("=== Mermaid Update Check Started ===");
 
@@ -69,7 +69,7 @@ public sealed class MermaidUpdateService
 
     private async Task DownloadAndInstallUpdate(string url, string newVersion)
     {
-        var downloadStopwatch = Stopwatch.StartNew();
+        Stopwatch downloadStopwatch = Stopwatch.StartNew();
         SimpleLogger.Log($"Downloading Mermaid.js from: {url}");
 
         try
@@ -155,7 +155,7 @@ public sealed class MermaidUpdateService
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
         const string mermaidUrlPrefix = "https://unpkg.com/mermaid";
-        var stopwatch = Stopwatch.StartNew();
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         try
         {
@@ -194,7 +194,7 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private bool IsNewer(string remote, string local)
+    private static bool IsNewer(string remote, string local)
     {
         bool canParseRemote = Version.TryParse(remote, out Version? rv);
         bool canParseLocal = Version.TryParse(local, out Version? lv);
