@@ -2,8 +2,6 @@
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
-		<TargetFramework>net9.0</TargetFramework>
-		<Platforms>AnyCPU</Platforms>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -13,13 +11,11 @@
 		<ApplicationIcon>Assets/avalonia-logo.ico</ApplicationIcon>
 		<AssemblyTitle>MermaidPad</AssemblyTitle>
 		<AssemblyDescription>Live Mermaid Diagram Editor</AssemblyDescription>
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<LangVersion>preview</LangVersion>
 		<Configurations>Debug;Release</Configurations>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.22621'">

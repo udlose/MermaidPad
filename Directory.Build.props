@@ -1,16 +1,22 @@
 <Project>
-  <PropertyGroup>
-	<Version>0.0.0-dev</Version>
-	<Authors>Dave Black (udlose)</Authors>
-	<Company>udlose</Company>
-	<PackageId>MermaidPad</PackageId>
-	<Product>MermaidPad</Product>
-	<RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
+	<PropertyGroup>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<Version>1.0.0-beta</Version>
+		<Authors>Dave Black (udlose)</Authors>
+		<Company>udlose</Company>
+		<PackageId>MermaidPad</PackageId>
+		<Product>MermaidPad</Product>
+		<RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
 
-	<!-- Publishing Configuration - Framework Dependent Single File -->
-	<PublishSingleFile>true</PublishSingleFile>
-	<PublishSelfContained>false</PublishSelfContained>
-	<PublishTrimmed>false</PublishTrimmed>
-	<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-  </PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Platforms>AnyCPU</Platforms>
+
+
+		<!-- Publishing Configuration - Framework Dependent Single File -->
+		<PublishSingleFile>true</PublishSingleFile>
+		<PublishSelfContained>false</PublishSelfContained>
+		<PublishTrimmed>false</PublishTrimmed>
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+	</PropertyGroup>
 </Project>
