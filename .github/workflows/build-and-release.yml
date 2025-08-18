@@ -94,19 +94,21 @@ jobs:
         run: |
           if [ "${{ matrix.extension }}" = ".exe" ]; then
             mv MermaidPad.exe MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe
-            ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe"
+            MAIN_BINARY="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.exe"
           else
             mv MermaidPad MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}
             chmod +x MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}
-            ARTIFACT_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}"
+            MAIN_BINARY="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}"
           fi
-          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+          ZIP_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.zip"
+          zip -r "../$ZIP_NAME" ./*
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ./publish
+          name: ${{ env.ZIP_NAME }}
+          path: ./${{ env.ZIP_NAME }}
           if-no-files-found: error
 
   # Create GitHub release
