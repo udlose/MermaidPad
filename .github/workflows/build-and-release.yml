@@ -93,7 +93,10 @@ jobs:
         working-directory: ./publish
         run: |
           if [ "${{ matrix.extension }}" != ".exe" ]; then
-            chmod +x MermaidPad
+          # Determine binary name based on platform
+          BIN_NAME="MermaidPad${{ matrix.extension }}"
+          if [ "${{ matrix.extension }}" != ".exe" ]; then
+            chmod +x "$BIN_NAME"
           fi
           ZIP_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.zip"
           zip -r "$ZIP_NAME" ./*
