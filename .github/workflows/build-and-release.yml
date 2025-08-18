@@ -92,7 +92,6 @@ jobs:
         shell: bash
         working-directory: ./publish
         run: |
-          if [ "${{ matrix.extension }}" != ".exe" ]; then
           # Determine binary name based on platform
           BIN_NAME="MermaidPad${{ matrix.extension }}"
           if [ "${{ matrix.extension }}" != ".exe" ]; then
