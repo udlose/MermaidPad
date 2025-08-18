@@ -92,13 +92,14 @@ jobs:
         shell: bash
         working-directory: ./publish
         run: |
-          # Determine binary name based on platform
+          ZIP_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.zip"
           BIN_NAME="MermaidPad${{ matrix.extension }}"
           if [ "${{ matrix.extension }}" != ".exe" ]; then
             chmod +x "$BIN_NAME"
+            zip -r "$ZIP_NAME" ./*
+          else
+            powershell.exe -Command "Compress-Archive -Path * -DestinationPath $ZIP_NAME"
           fi
-          ZIP_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.zip"
-          zip -r "$ZIP_NAME" ./*
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload artifact
