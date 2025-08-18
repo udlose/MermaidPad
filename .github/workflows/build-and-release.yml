@@ -155,7 +155,7 @@ jobs:
             ### Requirements
             - .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
             - Windows: WebView2 Runtime ([Download here](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
-            - Linux: libwebkit2gtk-4.0-37+ (for WebView2 support)
+            - Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
             - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
             ### Downloads
