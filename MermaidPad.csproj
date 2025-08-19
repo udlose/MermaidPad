@@ -37,6 +37,7 @@
 		<PackageReference Include="System.Text.Json" Version="9.0.8" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
