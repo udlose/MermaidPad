@@ -9,6 +9,7 @@ public sealed class MermaidUpdateService
     private string AssetDir { get; }
     private readonly AppSettings _settings;
     private static readonly HttpClient _http = new HttpClient();
+    private const string MermaidMinJsFileName = "mermaid.min.js";
 
     public MermaidUpdateService(AppSettings settings, string assetDir)
     {
@@ -19,7 +20,7 @@ public sealed class MermaidUpdateService
         SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
     }
 
-    public string BundledMermaidPath => Path.Combine(AssetDir, "mermaid.min.js");
+    public string BundledMermaidPath => Path.Combine(AssetDir, MermaidMinJsFileName);
 
     public async Task CheckAndUpdateAsync()
     {
@@ -92,12 +93,12 @@ public sealed class MermaidUpdateService
             if (File.Exists(BundledMermaidPath))
             {
                 File.Copy(BundledMermaidPath, backupPath, overwrite: true);
-                SimpleLogger.Log($"Existing mermaid.min.js backed up to: {backupPath}");
+                SimpleLogger.Log($"Existing {MermaidMinJsFileName} backed up to: {backupPath}");
             }
 
             // Step 4: Install new version
             File.Copy(tmp, BundledMermaidPath, overwrite: true);
-            SimpleLogger.LogAsset("updated", "mermaid.min.js", true, new FileInfo(BundledMermaidPath).Length);
+            SimpleLogger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
 
             // Step 5: Update version in settings
             _settings.BundledMermaidVersion = newVersion;
@@ -169,7 +170,7 @@ public sealed class MermaidUpdateService
 
             using JsonDocument doc = JsonDocument.Parse(pkgJson);
             string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
-            const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
+            const string jsUrl = $"{mermaidUrlPrefix}/dist/{MermaidMinJsFileName}";
 
             SimpleLogger.Log($"Latest Mermaid version discovered: {version}");
             SimpleLogger.Log($"Download URL will be: {jsUrl}");
