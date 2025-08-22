@@ -13,6 +13,7 @@ public sealed class SettingsService
     };
 
     private readonly string _settingsPath;
+    private const string SettingsFileName = "settings.json";
 
     public AppSettings Settings { get; }
 
@@ -20,7 +21,7 @@ public sealed class SettingsService
     {
         string baseDir = GetConfigDirectory();
         Directory.CreateDirectory(baseDir);
-        _settingsPath = Path.Combine(baseDir, "settings.json");
+        _settingsPath = Path.Combine(baseDir, SettingsFileName);
         Settings = Load();
     }
 
@@ -46,7 +47,7 @@ public sealed class SettingsService
             }
 
             // Additional validation: ensure the file name is exactly "settings.json"
-            if (Path.GetFileName(fullSettingsPath) != "settings.json")
+            if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
                 Debug.WriteLine("Settings file name validation failed on load.");
                 return new AppSettings();
@@ -64,16 +65,15 @@ public sealed class SettingsService
 
                 // SEC0112 fix: Use a whitelist approach to validate the file path before opening
                 // Only allow reading if the path is exactly the expected settings.json in the config directory
-                string expectedSettingsPath = Path.Combine(fullConfigDir, "settings.json");
+                string expectedSettingsPath = Path.Combine(fullConfigDir, SettingsFileName);
                 if (string.Equals(fullSettingsPath, expectedSettingsPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    string json;
-
                     // Extra validation: ensure the file is not a symlink or reparse point (already done above)
                     // Additional validation: ensure the file is not a hard link
                     if (IsSingleLink(expectedSettingsPath))
                     {
                         // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+                        string json;
                         using (FileStream fs = File.OpenRead(expectedSettingsPath))
                         using (StreamReader reader = new StreamReader(fs))
                         {
@@ -117,7 +117,7 @@ public sealed class SettingsService
             }
 
             // Additional validation: ensure the file name is exactly "settings.json"
-            if (Path.GetFileName(fullSettingsPath) != "settings.json")
+            if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
                 Debug.WriteLine("Settings file name validation failed on save.");
                 return;
