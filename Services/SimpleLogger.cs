@@ -10,10 +10,24 @@ namespace MermaidPad.Services;
 /// </summary>
 public static class SimpleLogger
 {
+    /// <summary>
+    /// Path to the log file.
+    /// </summary>
     private static readonly string _logPath;
-    private static readonly string _lockPath;
-    private const int InitialRetryDelayMs = 25; // Initial delay for retrying lock acquisition
 
+    /// <summary>
+    /// Path to the lock file used for inter-process coordination.
+    /// </summary>
+    private static readonly string _lockPath;
+
+    /// <summary>
+    /// Initial delay in milliseconds for retrying lock acquisition.
+    /// </summary>
+    private const int InitialRetryDelayMs = 25;
+
+    /// <summary>
+    /// Static constructor. Initializes log and lock file paths, cleans up stale lock files, and writes the session header.
+    /// </summary>
     static SimpleLogger()
     {
         // Use same directory pattern as SettingsService
@@ -31,6 +45,12 @@ public static class SimpleLogger
         WriteSessionHeader();
     }
 
+    /// <summary>
+    /// Logs a simple message with timestamp, caller, and file information.
+    /// </summary>
+    /// <param name="message">The message to log.</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
+    /// <param name="file">The calling file path (autopopulated).</param>
     public static void Log(string message, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
@@ -41,8 +61,12 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Log an error with exception details
+    /// Logs an error message with exception details, timestamp, caller, and file information.
     /// </summary>
+    /// <param name="message">The error message to log.</param>
+    /// <param name="ex">The exception to log (optional).</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
+    /// <param name="file">The calling file path (autopopulated).</param>
     public static void LogError(string message, Exception? ex = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
@@ -66,8 +90,11 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Log WebView specific events
+    /// Logs a WebView-specific event.
     /// </summary>
+    /// <param name="eventName">The name of the WebView event.</param>
+    /// <param name="details">Optional details about the event.</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogWebView(string eventName, string? details = null, [CallerMemberName] string? caller = null)
     {
         string message = !string.IsNullOrEmpty(details)
@@ -77,8 +104,12 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Log JavaScript execution attempts
+    /// Logs a JavaScript execution attempt.
     /// </summary>
+    /// <param name="script">The JavaScript code executed.</param>
+    /// <param name="success">True if execution succeeded; otherwise, false.</param>
+    /// <param name="result">Optional result of the execution.</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogJavaScript(string script, bool success, string? result = null, [CallerMemberName] string? caller = null)
     {
         string truncatedScript = script.Length > 100 ? script[..100] + "..." : script;
@@ -93,8 +124,12 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Log performance timing
+    /// Logs performance timing for an operation.
     /// </summary>
+    /// <param name="operation">The name of the operation.</param>
+    /// <param name="elapsed">The elapsed time for the operation.</param>
+    /// <param name="success">True if the operation succeeded; otherwise, false.</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogTiming(string operation, TimeSpan elapsed, bool success = true, [CallerMemberName] string? caller = null)
     {
         string status = success ? "completed" : "failed";
@@ -102,8 +137,13 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Log asset operations (file loading, etc.)
+    /// Logs asset operations such as file loading.
     /// </summary>
+    /// <param name="operation">The asset operation performed.</param>
+    /// <param name="assetName">The name of the asset.</param>
+    /// <param name="success">True if the operation succeeded; otherwise, false.</param>
+    /// <param name="sizeBytes">Optional size of the asset in bytes.</param>
+    /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogAsset(string operation, string assetName, bool success, long? sizeBytes = null, [CallerMemberName] string? caller = null)
     {
         StringBuilder sb = new StringBuilder(128);
@@ -124,12 +164,13 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Get the current log file path (useful for showing user where logs are)
+    /// Gets the current log file path.
     /// </summary>
+    /// <returns>The path to the log file.</returns>
     public static string GetLogPath() => _logPath;
 
     /// <summary>
-    /// Clear the log file (useful for starting fresh)
+    /// Clears the log file and writes a new session header.
     /// </summary>
     public static void ClearLog()
     {
@@ -146,6 +187,9 @@ public static class SimpleLogger
         Log("Log file cleared");
     }
 
+    /// <summary>
+    /// Writes a session header to the log file.
+    /// </summary>
     private static void WriteSessionHeader()
     {
         StringBuilder sb = new StringBuilder(256);
@@ -164,11 +208,20 @@ public static class SimpleLogger
         WriteEntryWithLock(sb.ToString());
     }
 
+    /// <summary>
+    /// Writes a log entry to the log file, using lock file coordination.
+    /// </summary>
+    /// <param name="entry">The log entry to write.</param>
     private static void WriteEntry(string entry)
     {
         WriteEntryWithLock(entry + Environment.NewLine);
     }
 
+    /// <summary>
+    /// Writes content to the log file, acquiring a lock file for inter-process coordination.
+    /// Retries up to three times with exponential backoff if the lock cannot be acquired.
+    /// </summary>
+    /// <param name="content">The content to write to the log file.</param>
     private static void WriteEntryWithLock(string content)
     {
         const int maxRetries = 3;
@@ -235,6 +288,13 @@ public static class SimpleLogger
         Debug.WriteLine($"[LOG-FALLBACK] {content.Trim()}");
     }
 
+    /// <summary>
+    /// Attempts to acquire an exclusive lock on the log file by creating a lock file.
+    /// Returns a FileStream if successful, or null if the lock is held by another process or access is denied.
+    /// </summary>
+    /// <returns>
+    /// A FileStream representing the acquired lock, or null if the lock could not be obtained.
+    /// </returns>
     private static FileStream? TryAcquireLogLock()
     {
         try
@@ -262,6 +322,10 @@ public static class SimpleLogger
         }
     }
 
+    /// <summary>
+    /// Releases the lock on the log file by disposing the FileStream and deleting the lock file.
+    /// </summary>
+    /// <param name="lockStream">The FileStream representing the acquired lock.</param>
     private static void ReleaseLogLock(FileStream lockStream)
     {
         try
@@ -281,6 +345,12 @@ public static class SimpleLogger
         }
     }
 
+    /// <summary>
+    /// Writes the specified content to the log file.
+    /// If the content is empty, the log file is cleared.
+    /// Otherwise, the content is appended to the log file.
+    /// </summary>
+    /// <param name="content">The content to write to the log file.</param>
     private static void WriteToLogFile(string content)
     {
         // If content is empty, clear the file instead of appending
@@ -294,8 +364,15 @@ public static class SimpleLogger
         }
     }
 
+    /// <summary>
+    /// Gets the current timestamp formatted as HH:mm:ss.fff.
+    /// </summary>
+    /// <returns>A string representing the current timestamp.</returns>
     private static string GetTimestamp() => DateTime.Now.ToString("HH:mm:ss.fff");
 
+    /// <summary>
+    /// Removes any stale lock file left over from a previous crash or abnormal termination.
+    /// </summary>
     private static void CleanupStaleLockFile()
     {
         try
