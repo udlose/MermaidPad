@@ -97,7 +97,7 @@ public static class SimpleLogger
     /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogWebView(string eventName, string? details = null, [CallerMemberName] string? caller = null)
     {
-        string message = !string.IsNullOrEmpty(details)
+        string message = !string.IsNullOrWhiteSpace(details)
             ? $"WebView {eventName}: {details}"
             : $"WebView {eventName}";
         Log(message, caller);
@@ -253,7 +253,7 @@ public static class SimpleLogger
                 if (attempt < maxRetries - 1)
                 {
                     Thread.Sleep(delay);
-                    delay *= 2; // Exponential backoff: 25ms, 50ms, 100ms
+                    delay = ExponentialBackoff(delay);
                 }
             }
             catch (Exception ex)
@@ -280,13 +280,25 @@ public static class SimpleLogger
 
                 // Wait before retrying
                 Thread.Sleep(delay);
-                delay *= 2;
+                delay = ExponentialBackoff(delay);
             }
         }
 
         // All retries failed, fall back to Debug.WriteLine
         Debug.WriteLine($"[LOG-FALLBACK] {content.Trim()}");
     }
+
+    /// <summary>
+    /// Calculates the next delay interval using an exponential backoff strategy.
+    /// </summary>
+    /// <param name="delay">The current delay interval, in milliseconds.</param>
+    /// <returns>The next delay interval, in milliseconds, which is the smaller of twice the current delay or 1,000 milliseconds.</returns>
+    /// <example>
+    /// <code>
+    /// int nextDelay = ExponentialBackoff(250); // nextDelay will be 500
+    /// </code>
+    /// </example>
+    private static int ExponentialBackoff(int delay) => Math.Min(delay * 2, 1_000);
 
     /// <summary>
     /// Attempts to acquire an exclusive lock on the log file by creating a lock file.
