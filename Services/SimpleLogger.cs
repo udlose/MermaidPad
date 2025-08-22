@@ -26,6 +26,11 @@ public static class SimpleLogger
     private const int InitialRetryDelayMs = 25;
 
     /// <summary>
+    /// Maximum delay in milliseconds for retrying lock acquisition.
+    /// </summary>
+    private const int MaxRetryDelayMs = 1_000;
+
+    /// <summary>
     /// Static constructor. Initializes log and lock file paths, cleans up stale lock files, and writes the session header.
     /// </summary>
     static SimpleLogger()
@@ -298,7 +303,7 @@ public static class SimpleLogger
     /// int nextDelay = ExponentialBackoff(250); // nextDelay will be 500
     /// </code>
     /// </example>
-    private static int ExponentialBackoff(int delay) => Math.Min(delay * 2, 1_000);
+    private static int ExponentialBackoff(int delay) => Math.Min(delay * 2, MaxRetryDelayMs);
 
     /// <summary>
     /// Attempts to acquire an exclusive lock on the log file by creating a lock file.
