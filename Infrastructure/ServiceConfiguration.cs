@@ -7,6 +7,9 @@ using System.Diagnostics;
 namespace MermaidPad.Infrastructure;
 public static class ServiceConfiguration
 {
+    private const string MermaidMinJsFileName = "mermaid.min.js";
+    private const string IndexHtmlFileName = "index.html";
+
     public static ServiceProvider BuildServiceProvider()
     {
         ServiceCollection services = new ServiceCollection();
@@ -96,22 +99,22 @@ public static class ServiceConfiguration
         // If directory doesn't exist, definitely extract
         if (!Directory.Exists(assetsDir))
         {
-            SimpleLogger.Log("Assets directory does not exist, extraction required");
+            SimpleLogger.Log($"Expected Assets directory '{assetsDir}' does not exist, extraction required");
             return true;
         }
 
         // Check if required files exist
-        string indexPath = Path.Combine(assetsDir, "index.html");
+        string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
         if (!File.Exists(indexPath))
         {
-            SimpleLogger.Log("Missing critical asset: index.html");
+            SimpleLogger.Log($"Missing critical asset: {IndexHtmlFileName}");
             return true;
         }
 
-        string mermaidPath = Path.Combine(assetsDir, "mermaid.min.js");
+        string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
         if (!File.Exists(mermaidPath))
         {
-            SimpleLogger.Log("Missing critical asset: mermaid.min.js");
+            SimpleLogger.Log($"Missing critical asset: {MermaidMinJsFileName}");
             return true;
         }
 
@@ -155,7 +158,7 @@ public static class ServiceConfiguration
 
     private static void ValidateAssets(string assetsDir)
     {
-        string[] requiredFiles = ["index.html", "mermaid.min.js"];
+        string[] requiredFiles = [IndexHtmlFileName, MermaidMinJsFileName];
         bool allValid = true;
 
         foreach (string fileName in requiredFiles)
