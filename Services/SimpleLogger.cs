@@ -276,7 +276,7 @@ public static class SimpleLogger
             else
             {
                 // Could not acquire mutex within timeout
-                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms. Content: {content.AsSpan(0, Math.Min(ContentPreviewLength, content.Length))}...");
+                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms. Content: {content[..Math.Min(ContentPreviewLength, content.Length)]}...");
             }
         }
         catch (AbandonedMutexException ex)
@@ -318,11 +318,16 @@ public static class SimpleLogger
     private static bool IsFileLockException(IOException ioex)
     {
         // Check for specific error codes that indicate file is in use
-        // See https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
+        // Though you normally use Marshal.GetHRForException, the HResult is already available on IOException.
+        // 
+        // See:
+        //  - https://learn.microsoft.com/en-us/dotnet/standard/io/handling-io-errors#handling-ioexception
+        //  - https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
         const int ERROR_SHARING_VIOLATION = 32;   // Win32 32 (0x20) ERROR_SHARING_VIOLATION
         const int ERROR_LOCK_VIOLATION = 33;      // Win32 33 (0x21) ERROR_LOCK_VIOLATION
         const int hrResultMask = 0xFFFF;      // Mask to get the error code from HResult
 
+        // To convert the HResult value to a Win32 error code, you strip out the upper 16 bits of the 32-bit value.
         int errorCode = ioex.HResult & hrResultMask;
         return errorCode is ERROR_SHARING_VIOLATION or ERROR_LOCK_VIOLATION;
     }
