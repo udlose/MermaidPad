@@ -12,6 +12,7 @@ public static class SimpleLogger
 {
     private static readonly string _logPath;
     private static readonly string _lockPath;
+    private const int InitialRetryDelayMs = 25; // Initial delay for retrying lock acquisition
 
     static SimpleLogger()
     {
@@ -30,9 +31,6 @@ public static class SimpleLogger
         WriteSessionHeader();
     }
 
-    /// <summary>
-    /// Log a simple message with timestamp
-    /// </summary>
     public static void Log(string message, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
@@ -174,7 +172,7 @@ public static class SimpleLogger
     private static void WriteEntryWithLock(string content)
     {
         const int maxRetries = 3;
-        int delay = 25; // Start with 25ms
+        int delay = InitialRetryDelayMs; // Start with initial delay
 
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
