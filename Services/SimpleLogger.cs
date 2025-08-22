@@ -1,23 +1,17 @@
 ﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MermaidPad.Services;
+
 /// <summary>
 /// Dead simple file logger for debugging WebView issues.
-/// Just appends to a single log file with timestamps.
-/// Uses named Mutex for inter-process coordination.
+/// Uses lock file coordination to prevent conflicts between multiple instances.
 /// </summary>
 public static class SimpleLogger
 {
     private static readonly string _logPath;
-    private static readonly Mutex _logMutex;
-    private static readonly string _mutexName;
-    private const int MaxRetries = 3;
-    private const int BaseDelayInMs = 50;
-    private const int TimeoutInMs = 5_000;          // 5 second timeout for inter-process coordination
-    private const int ContentPreviewLength = 50;    // Number of characters to show in debug output when mutex acquisition fails
+    private static readonly string _lockPath;
 
     static SimpleLogger()
     {
@@ -27,24 +21,10 @@ public static class SimpleLogger
         Directory.CreateDirectory(baseDir);
 
         _logPath = Path.Combine(baseDir, "debug.log");
-
-        // Create a named mutex for inter-process coordination
-        // Use a hash of the log path to ensure uniqueness per user/path
-        _mutexName = $"Local\\MermaidPad_Logger_{GetStableHash(_logPath):X8}";
-
-        try
-        {
-            _logMutex = new Mutex(false, _mutexName);
-        }
-        catch (Exception ex)
-        {
-            // Fallback to unnamed mutex if named mutex fails (e.g., insufficient privileges)
-            Debug.WriteLine($"Failed to create named mutex, using unnamed: {ex.Message}");
-            _logMutex = new Mutex(false);
-        }
+        _lockPath = Path.Combine(baseDir, "debug.log.lock");
 
         // Write session header
-        WriteSessionHeaderInternal();
+        WriteSessionHeader();
     }
 
     /// <summary>
@@ -53,9 +33,9 @@ public static class SimpleLogger
     public static void Log(string message, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
-        string entry = $"[{DateTime.Now:HH:mm:ss.fff}] [{fileName}.{caller}] {message}";
+        string entry = $"[{GetTimestamp()}] [{fileName}.{caller}] {message}";
 
-        WriteEntryWithMutex(entry + Environment.NewLine);
+        WriteEntry(entry);
         Debug.WriteLine(entry);
     }
 
@@ -66,21 +46,21 @@ public static class SimpleLogger
     {
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         StringBuilder sb = new StringBuilder(512);
-        sb.Append($"[{DateTime.Now:HH:mm:ss.fff}] [ERROR] [{fileName}.{caller}] {message}");
+        sb.Append($"[{GetTimestamp()}] [ERROR] [{fileName}.{caller}] {message}");
 
         if (ex is not null)
         {
-            sb.Append($"\n    Exception: {ex.GetType().Name}: {ex.Message}");
+            sb.Append($"{Environment.NewLine}    Exception: {ex.GetType().Name}: {ex.Message}");
             if (ex.StackTrace is not null)
             {
                 int idx = ex.StackTrace.AsSpan().IndexOf('\n');
                 ReadOnlySpan<char> firstLine = idx >= 0 ? ex.StackTrace.AsSpan()[..idx].Trim() : ex.StackTrace.AsSpan().Trim();
-                sb.Append($"\n    Stack: {firstLine}");
+                sb.Append($"{Environment.NewLine}    Stack: {firstLine}");
             }
         }
 
         string entry = sb.ToString();
-        WriteEntryWithMutex(entry + Environment.NewLine);
+        WriteEntry(entry);
         Debug.WriteLine(entry);
     }
 
@@ -106,7 +86,7 @@ public static class SimpleLogger
         sb.Append($"JavaScript {status}: {truncatedScript}");
         if (!string.IsNullOrEmpty(result))
         {
-            sb.Append($" → {result}");
+            sb.Append($" => {result}");
         }
         Log(sb.ToString(), caller);
     }
@@ -154,34 +134,18 @@ public static class SimpleLogger
     {
         try
         {
-            if (_logMutex.WaitOne(TimeoutInMs))
-            {
-                try
-                {
-                    // Clear the file without holding any locks during internal calls
-                    ClearLogFileInternal();
-                    WriteSessionHeaderInternal();
-                }
-                finally
-                {
-                    _logMutex.ReleaseMutex();
-                }
-            }
-            else
-            {
-                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms for clear operation");
-            }
+            WriteEntryWithLock(""); // This will clear the file
+            WriteSessionHeader();
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to clear log: {ex.Message}");
         }
 
-        // Log the clear operation (this will acquire its own mutex)
         Log("Log file cleared");
     }
 
-    private static void WriteSessionHeaderInternal()
+    private static void WriteSessionHeader()
     {
         StringBuilder sb = new StringBuilder(256);
         sb.AppendLine("============================================");
@@ -192,154 +156,142 @@ public static class SimpleLogger
         sb.AppendLine($".NET: {Environment.Version}");
         sb.AppendLine($"Working Directory: {Environment.CurrentDirectory}");
         sb.AppendLine($"Log File: {_logPath}");
-        sb.AppendLine($"Mutex: {_mutexName}");
+        sb.AppendLine($"Lock File: {_lockPath}");
         sb.AppendLine("============================================");
         sb.AppendLine();
 
-        WriteEntryWithMutex(sb.ToString());
+        WriteEntryWithLock(sb.ToString());
     }
 
-    private static void ClearLogFileInternal()
+    private static void WriteEntry(string entry)
     {
-        // This method assumes the mutex is already held
-        for (int attempt = 0; attempt < MaxRetries; attempt++)
+        WriteEntryWithLock(entry + Environment.NewLine);
+    }
+
+    private static void WriteEntryWithLock(string content)
+    {
+        const int maxRetries = 3;
+        int delay = 25; // Start with 25ms
+
+        for (int attempt = 0; attempt < maxRetries; attempt++)
         {
+            FileStream? lockStream = null;
             try
             {
-                File.WriteAllText(_logPath, "");
-                return; // Success
-            }
-            catch (IOException ex) when (IsFileLockException(ex) && attempt < MaxRetries - 1)
-            {
-                int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
-                Debug.WriteLine($"Log file locked during clear (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms");
-                Thread.Sleep(delay);
+                // Try to acquire the lock file
+                lockStream = TryAcquireLogLock();
+                if (lockStream is not null)
+                {
+                    try
+                    {
+                        // Successfully got the lock, now write to the log file
+                        WriteToLogFile(content);
+                        return; // Success!
+                    }
+                    finally
+                    {
+                        // Always release the lock
+                        ReleaseLogLock(lockStream);
+                    }
+                }
+
+                // Couldn't get the lock, wait before retrying (unless this is the last attempt)
+                if (attempt < maxRetries - 1)
+                {
+                    Thread.Sleep(delay);
+                    delay *= 2; // Exponential backoff: 25ms, 50ms, 100ms
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to clear log file: {ex.Message}");
-                return;
-            }
-        }
-    }
-
-    private static void WriteEntryWithMutex(string content)
-    {
-        try
-        {
-            if (_logMutex.WaitOne(TimeoutInMs))
-            {
-                try
+                // If we got an exception after acquiring the lock, make sure to release it
+                if (lockStream is not null)
                 {
-                    // Retry logic for file I/O within the mutex
-                    for (int attempt = 0; attempt < MaxRetries; attempt++)
+                    try
                     {
-                        try
-                        {
-                            // Use FileStream with proper sharing to allow concurrent read access while writing
-                            using FileStream fs = new FileStream(_logPath, FileMode.Append, FileAccess.Write, FileShare.Read);
-                            using StreamWriter writer = new StreamWriter(fs, Encoding.UTF8);
-                            writer.Write(content);
-                            writer.Flush();
-                            return; // Success - exit retry loop
-                        }
-                        catch (IOException ex) when (IsFileLockException(ex) && attempt < MaxRetries - 1)
-                        {
-                            // File is locked, wait and retry
-                            int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
-                            Debug.WriteLine($"Log file locked (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms: {ex.Message}");
-                            Thread.Sleep(delay);
-                        }
-                        catch (UnauthorizedAccessException ex) when (attempt < MaxRetries - 1)
-                        {
-                            // Access denied, wait and retry
-                            int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
-                            Debug.WriteLine($"Log file access denied (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms: {ex.Message}");
-                            Thread.Sleep(delay);
-                        }
-                        catch (Exception ex)
-                        {
-                            // For any other exception, write to Debug and give up
-                            Debug.WriteLine($"Failed to write to log file: {ex.Message}");
-                            return;
-                        }
+                        ReleaseLogLock(lockStream);
                     }
+                    catch
+                    {
+                        // Ignore errors during lock release
+                    }
+                }
 
-                    // If we get here, all retries failed
-                    Debug.WriteLine($"Failed to write to log file after {MaxRetries} attempts");
-                }
-                finally
+                // For the last attempt, don't retry
+                if (attempt == maxRetries - 1)
                 {
-                    _logMutex.ReleaseMutex();
+                    Debug.WriteLine($"Failed to write to log after {maxRetries} attempts: {ex.Message}");
+                    break;
                 }
-            }
-            else
-            {
-                // Could not acquire mutex within timeout
-                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms. Content: {content[..Math.Min(ContentPreviewLength, content.Length)]}...");
-            }
-        }
-        catch (AbandonedMutexException ex)
-        {
-            // Another process holding the mutex crashed - we now own it
-            Debug.WriteLine($"Acquired abandoned mutex: {ex.Message}");
-            try
-            {
-                // Try to write anyway since we now own the mutex
-                WriteDirectToFile(content);
-            }
-            finally
-            {
-                _logMutex.ReleaseMutex();
+
+                // Wait before retrying
+                Thread.Sleep(delay);
+                delay *= 2;
             }
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Mutex error: {ex.Message}");
-        }
+
+        // All retries failed, fall back to Debug.WriteLine
+        Debug.WriteLine($"[LOG-FALLBACK] {content.Trim()}");
     }
 
-    private static void WriteDirectToFile(string content)
+    private static FileStream? TryAcquireLogLock()
     {
         try
         {
-            using FileStream fs = new FileStream(_logPath, FileMode.Append, FileAccess.Write, FileShare.Read);
-            using StreamWriter writer = new StreamWriter(fs, Encoding.UTF8);
-            writer.Write(content);
-            writer.Flush();
+            // Try to create the lock file with exclusive access
+            // FileShare.None ensures only one process can open it at a time
+            FileStream lockStream = new FileStream(_lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            return lockStream;
+        }
+        catch (IOException)
+        {
+            // Another process has the lock, or file system error
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Permission denied
+            return null;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Direct file write failed: {ex.Message}");
+            Debug.WriteLine($"Unexpected error acquiring log lock: {ex.Message}");
+            return null;
         }
     }
 
-    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Error codes are defined by Windows API")]
-    private static bool IsFileLockException(IOException ioex)
+    private static void ReleaseLogLock(FileStream lockStream)
     {
-        // Check for specific error codes that indicate file is in use
-        // Though you normally use Marshal.GetHRForException, the HResult is already available on IOException.
-        // 
-        // See:
-        //  - https://learn.microsoft.com/en-us/dotnet/standard/io/handling-io-errors#handling-ioexception
-        //  - https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
-        const int ERROR_SHARING_VIOLATION = 32;   // Win32 32 (0x20) ERROR_SHARING_VIOLATION
-        const int ERROR_LOCK_VIOLATION = 33;      // Win32 33 (0x21) ERROR_LOCK_VIOLATION
-        const int hrResultMask = 0xFFFF;      // Mask to get the error code from HResult
-
-        // To convert the HResult value to a Win32 error code, you strip out the upper 16 bits of the 32-bit value.
-        int errorCode = ioex.HResult & hrResultMask;
-        return errorCode is ERROR_SHARING_VIOLATION or ERROR_LOCK_VIOLATION;
-    }
-
-    private static uint GetStableHash(string input)
-    {
-        // Simple hash function for mutex naming (consistent across processes)
-        uint hash = 2166136261;
-        foreach (char c in input)
+        try
         {
-            hash = (hash ^ c) * 16777619;
+            // Close and dispose the lock stream
+            lockStream.Dispose();
+
+            // Clean up the lock file
+            if (File.Exists(_lockPath))
+            {
+                File.Delete(_lockPath);
+            }
         }
-        return hash;
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error cleaning up lock file: {ex.Message}");
+        }
     }
+
+    private static void WriteToLogFile(string content)
+    {
+        // If content is empty, clear the file instead of appending
+        if (string.IsNullOrEmpty(content))
+        {
+            File.WriteAllText(_logPath, "");
+        }
+        else
+        {
+            File.AppendAllText(_logPath, content);
+        }
+    }
+
+    private static string GetTimestamp() => DateTime.Now.ToString("HH:mm:ss.fff");
 }
