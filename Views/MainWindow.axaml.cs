@@ -94,7 +94,7 @@ public partial class MainWindow : Window
             });
         };
 
-        _vm.PropertyChanged += (s, e) =>
+        _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(_vm.DiagramText) && Editor.Text != _vm.DiagramText)
             {
