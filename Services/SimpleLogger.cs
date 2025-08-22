@@ -15,9 +15,9 @@ public static class SimpleLogger
     private static readonly Mutex _logMutex;
     private static readonly string _mutexName;
     private const int MaxRetries = 3;
-    private const int BaseDelayMs = 50;
-    private const int TimeoutInMs = 5_000; // 5 second timeout for inter-process coordination
-    private const int ContentPreviewLength = 50; // Number of characters to show in debug output when mutex acquisition fails
+    private const int BaseDelayInMs = 50;
+    private const int TimeoutInMs = 5_000;          // 5 second timeout for inter-process coordination
+    private const int ContentPreviewLength = 50;    // Number of characters to show in debug output when mutex acquisition fails
 
     static SimpleLogger()
     {
@@ -211,7 +211,7 @@ public static class SimpleLogger
             }
             catch (IOException ex) when (IsFileLockException(ex) && attempt < MaxRetries - 1)
             {
-                int delay = BaseDelayMs * (int)Math.Pow(2, attempt);
+                int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
                 Debug.WriteLine($"Log file locked during clear (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms");
                 Thread.Sleep(delay);
             }
@@ -246,14 +246,14 @@ public static class SimpleLogger
                         catch (IOException ex) when (IsFileLockException(ex) && attempt < MaxRetries - 1)
                         {
                             // File is locked, wait and retry
-                            int delay = BaseDelayMs * (int)Math.Pow(2, attempt);
+                            int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
                             Debug.WriteLine($"Log file locked (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms: {ex.Message}");
                             Thread.Sleep(delay);
                         }
                         catch (UnauthorizedAccessException ex) when (attempt < MaxRetries - 1)
                         {
                             // Access denied, wait and retry
-                            int delay = BaseDelayMs * (int)Math.Pow(2, attempt);
+                            int delay = BaseDelayInMs * (int)Math.Pow(2, attempt);
                             Debug.WriteLine($"Log file access denied (attempt {attempt + 1}/{MaxRetries}), retrying in {delay}ms: {ex.Message}");
                             Thread.Sleep(delay);
                         }
