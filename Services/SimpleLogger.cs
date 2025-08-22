@@ -30,7 +30,7 @@ public static class SimpleLogger
 
         // Create a named mutex for inter-process coordination
         // Use a hash of the log path to ensure uniqueness per user/path
-        _mutexName = $"Global\\MermaidPad_Logger_{GetStableHash(_logPath):X8}";
+        _mutexName = $"Local\\MermaidPad_Logger_{GetStableHash(_logPath):X8}";
 
         try
         {
