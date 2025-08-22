@@ -23,6 +23,9 @@ public static class SimpleLogger
         _logPath = Path.Combine(baseDir, "debug.log");
         _lockPath = Path.Combine(baseDir, "debug.log.lock");
 
+        // Clean up any stale lock files from previous crashes
+        CleanupStaleLockFile();
+
         // Write session header
         WriteSessionHeader();
     }
@@ -294,4 +297,21 @@ public static class SimpleLogger
     }
 
     private static string GetTimestamp() => DateTime.Now.ToString("HH:mm:ss.fff");
+
+    private static void CleanupStaleLockFile()
+    {
+        try
+        {
+            if (File.Exists(_lockPath))
+            {
+                File.Delete(_lockPath);
+                Debug.WriteLine("Cleaned up stale lock file from previous session");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to cleanup stale lock file: {ex.Message}");
+            // Not critical - continue with normal operation
+        }
+    }
 }
