@@ -40,15 +40,17 @@
         let currentTheme = getSystemTheme();
 
         // Wait for both DOMContentLoaded and Mermaid to be available
+        // ReSharper disable PossiblyUnassignedProperty
         function initializeMermaidIfReady() {
             if (document.readyState === 'complete' || document.readyState === 'interactive') {
                 if (window.mermaid) {
                     applyTheme(currentTheme);
-                    mermaid.initialize({ startOnLoad: false, theme: currentTheme });
+                    window.mermaid.initialize({ startOnLoad: false, theme: currentTheme });
                 }
             }
         }
-
+        
+        // ReSharper enable PossiblyUnassignedProperty
         document.addEventListener('DOMContentLoaded', () => {
             applyTheme(currentTheme);
             initializeMermaidIfReady();
