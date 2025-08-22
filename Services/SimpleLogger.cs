@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MermaidPad.Services;
-
 /// <summary>
 /// Dead simple file logger for debugging WebView issues.
 /// Just appends to a single log file with timestamps.
@@ -17,6 +17,7 @@ public static class SimpleLogger
     private const int MaxRetries = 3;
     private const int BaseDelayMs = 50;
     private const int TimeoutInMs = 5_000; // 5 second timeout for inter-process coordination
+    private const int ContentPreviewLength = 50; // Number of characters to show in debug output when mutex acquisition fails
 
     static SimpleLogger()
     {
@@ -275,7 +276,7 @@ public static class SimpleLogger
             else
             {
                 // Could not acquire mutex within timeout
-                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms. Content: {content.AsSpan(0, Math.Min(50, content.Length))}...");
+                Debug.WriteLine($"Failed to acquire log mutex within {TimeoutInMs}ms. Content: {content.AsSpan(0, Math.Min(ContentPreviewLength, content.Length))}...");
             }
         }
         catch (AbandonedMutexException ex)
@@ -313,14 +314,17 @@ public static class SimpleLogger
         }
     }
 
+    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Error codes are defined by Windows API")]
     private static bool IsFileLockException(IOException ioex)
     {
         // Check for specific error codes that indicate file is in use
-        const int errorSharingViolation = 32;
-        const int errorLockViolation = 33;
+        // See https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
+        const int ERROR_SHARING_VIOLATION = 32;   // Win32 32 (0x20) ERROR_SHARING_VIOLATION
+        const int ERROR_LOCK_VIOLATION = 33;      // Win32 33 (0x21) ERROR_LOCK_VIOLATION
+        const int hrResultMask = 0xFFFF;      // Mask to get the error code from HResult
 
-        int errorCode = ioex.HResult & 0xFFFF;
-        return errorCode is errorSharingViolation or errorLockViolation;
+        int errorCode = ioex.HResult & hrResultMask;
+        return errorCode is ERROR_SHARING_VIOLATION or ERROR_LOCK_VIOLATION;
     }
 
     private static uint GetStableHash(string input)
