@@ -1,11 +1,16 @@
-
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Services.Platforms;
+
 public interface IPlatformServices
 {
-    //string GetAssetsDirectory();
+    /// <summary>
+    /// Shows a native OS dialog with the specified title and message.
+    /// </summary>
+    /// <param name="title">Dialog title</param>
+    /// <param name="message">Dialog message</param>
+    void ShowNativeDialog(string title, string message);
 }
 
 public static class PlatformServiceFactory
@@ -21,11 +26,11 @@ public static class PlatformServiceFactory
         }
         if (OperatingSystem.IsLinux())
         {
-            return new LinuxPlatformServices(); //TODO - add implementation
+            return new LinuxPlatformServices();
         }
         if (OperatingSystem.IsMacOS())
         {
-            return new MacPlatformServices();     //TODO - add implementation
+            return new MacPlatformServices();
         }
 
         Debug.Fail("Unsupported operating system. Only Windows, Linux, and macOS are supported.");
