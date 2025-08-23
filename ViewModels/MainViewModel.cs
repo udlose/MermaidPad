@@ -4,12 +4,14 @@ using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels;
 /// <summary>
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
-public partial class MainViewModel : ViewModelBase
+[SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
+public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
@@ -94,7 +96,7 @@ public partial class MainViewModel : ViewModelBase
             {
                 try
                 {
-                    _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: e => Debug.WriteLine(e));
+                    _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: static e => Debug.WriteLine(e));
                 }
                 catch (Exception ex)
                 {
