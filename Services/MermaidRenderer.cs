@@ -63,9 +63,20 @@ public sealed class MermaidRenderer : IAsyncDisposable
             throw new FileNotFoundException("Required assets not found");
         }
 
-        // Read files separately - this is needed to avoid JavaScript injection issues
-        _htmlContent = await File.ReadAllTextAsync(indexPath);
-        _mermaidJs = await File.ReadAllTextAsync(mermaidPath);
+        try
+        {
+            // Read files in parallel
+            Task<string> indexHtmlTask = File.ReadAllTextAsync(indexPath);
+            Task<string> jsTask = File.ReadAllTextAsync(mermaidPath);
+            await Task.WhenAll(indexHtmlTask, jsTask);
+            _htmlContent = await indexHtmlTask;
+            _mermaidJs = await jsTask;
+        }
+        catch (Exception e)
+        {
+            SimpleLogger.LogError("Error reading asset files", e);
+            return;
+        }
 
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} characters");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} characters");
@@ -106,16 +117,37 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             while (_httpListener?.IsListening == true && !cancellationToken.IsCancellationRequested)
             {
+                HttpListenerContext? context = null;
                 try
                 {
-                    HttpListenerContext context = await _httpListener.GetContextAsync();
+                    // Use WaitAsync for responsive cancellation while waiting for requests
+                    context = await _httpListener.GetContextAsync().WaitAsync(cancellationToken);
                     await ProcessRequestAsync(context);
                 }
-                catch (ObjectDisposedException) { break; }
-                catch (HttpListenerException ex) when (ex.ErrorCode == 995) { break; }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation requested, exit loop
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (HttpListenerException ex) when (ex.ErrorCode == 995)
+                {
+                    break;
+                }
                 catch (Exception ex)
                 {
                     SimpleLogger.LogError("Error processing HTTP request", ex);
+                    try
+                    {
+                        context?.Response.Close();
+                    }
+                    catch
+                    {
+                        Debug.WriteLine("Error closing response stream");
+                    }
                 }
             }
         }
@@ -137,47 +169,60 @@ public sealed class MermaidRenderer : IAsyncDisposable
             SimpleLogger.Log($"Processing request: {requestPath}");
 
             // Separate file handling is needed to avoid JavaScript injection issues
-            if (requestPath == MermaidRequestPath)
+            switch (requestPath)
             {
-                // Serve mermaid.js separately to avoid HTML injection issues
-                if (_mermaidJs is not null)
-                {
-                    byte[] jsBytes = Encoding.UTF8.GetBytes(_mermaidJs);
-                    context.Response.ContentType = "application/javascript; charset=utf-8";
-                    context.Response.ContentLength64 = jsBytes.Length;
-                    await context.Response.OutputStream.WriteAsync(jsBytes);
-                    SimpleLogger.Log($"Served JS: {jsBytes.Length} bytes");
-                }
-                else
-                {
-                    context.Response.StatusCode = 404;
-                }
+                case MermaidRequestPath when _mermaidJs is not null:
+                    {
+                        // Serve mermaid.js efficiently
+                        byte[] jsBytes = Encoding.UTF8.GetBytes(_mermaidJs);
+                        context.Response.ContentType = "application/javascript; charset=utf-8";
+                        context.Response.ContentLength64 = jsBytes.Length;
+                        await context.Response.OutputStream.WriteAsync(jsBytes);
+                        SimpleLogger.Log($"Served JS: {jsBytes.Length} bytes");
+                        break;
+                    }
+                case MermaidRequestPath:
+                    {
+                        context.Response.StatusCode = 404;
+                        break;
+                    }
+                case "/" or IndexRequestPath:
+                    {
+                        // Serve HTML efficiently
+                        byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
+                        context.Response.ContentType = "text/html; charset=utf-8";
+                        context.Response.ContentLength64 = htmlBytes.Length;
+                        await context.Response.OutputStream.WriteAsync(htmlBytes);
+                        SimpleLogger.Log($"Served HTML: {htmlBytes.Length} bytes");
+                        break;
+                    }
+                default:
+                    {
+                        context.Response.StatusCode = 404;
+                        SimpleLogger.Log($"404 for: {requestPath}");
+                        break;
+                    }
             }
-            else if (requestPath is "/" or IndexRequestPath)
-            {
-                // Serve HTML file
-                byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
-                context.Response.ContentType = "text/html; charset=utf-8";
-                context.Response.ContentLength64 = htmlBytes.Length;
-                await context.Response.OutputStream.WriteAsync(htmlBytes);
-                SimpleLogger.Log($"Served HTML: {htmlBytes.Length} bytes");
-            }
-            else
-            {
-                // 404 for other requests
-                context.Response.StatusCode = 404;
-                SimpleLogger.Log($"404 for: {requestPath}");
-            }
-
-            context.Response.OutputStream.Close();
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Error processing HTTP request", ex);
+
+            // Setting the StatusCode property can throw exceptions in certain scenarios
             try
             {
                 context.Response.StatusCode = 500;
-                context.Response.Close();
+            }
+            catch
+            {
+                Debug.WriteLine("Error setting response status code");
+            }
+        }
+        finally
+        {
+            try
+            {
+                context.Response.OutputStream.Close();
             }
             catch
             {
@@ -258,12 +303,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             try
             {
-                async Task ClearOutputAsync()
-                {
-                    await _webView.ExecuteScriptAsync("clearOutput();");
-                    SimpleLogger.Log("Cleared output");
-                }
+                async Task ClearOutputAsync() => await _webView.ExecuteScriptAsync("clearOutput();");
                 await Dispatcher.UIThread.InvokeAsync(ClearOutputAsync);
+                SimpleLogger.Log("Cleared output");
             }
             catch (Exception ex)
             {
@@ -273,7 +315,27 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
 
         // Simple JavaScript execution - no unnecessary complexity
-        string escaped = mermaidSource.Replace("\\", "\\\\").Replace("`", "\\`");
+        string escaped;
+        {
+            ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
+            StringBuilder sb = new StringBuilder(sourceSpan.Length);
+            foreach (char c in sourceSpan)
+            {
+                if (c == '\\')
+                {
+                    sb.Append(@"\\");
+                }
+                else if (c == '`')
+                {
+                    sb.Append("\\`");
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            escaped = sb.ToString();
+        }
         string script = $"renderMermaid(`{escaped}`);";
 
         try
