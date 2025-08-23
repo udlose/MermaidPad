@@ -30,5 +30,8 @@
 			Publishing and cross-platform artifact creation is handled via 'dotnet publish' using the specified RuntimeIdentifiers.
 			No additional publish configuration is needed in this file.
 		-->
+
+		<!-- Embed build target RID as compile-time constant for platform compatibility checking -->
+		<DefineConstants Condition="'$(RuntimeIdentifier)' != ''">$(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace("-", "_").ToUpperInvariant())</DefineConstants>
 	</PropertyGroup>
 </Project>
