@@ -16,12 +16,25 @@ I hope you enjoy it and feel welcome to contribute!
 - Click **Clear** to clear the Editor pane.
 - Bundled `mermaid.min.js` for offline use.
 - On startup attempts to fetch the latest Mermaid version (if online) and self-updates the local bundle.
-- Persists last diagram in user settings (AppData\MermaidPad\settings.json).
+- Persists last diagram in user settings (`AppData\MermaidPad\settings.json`).
 - Drag the divider to resize the editor pane.
+- **Native OS dialogs for error and information messages:**
+  - Windows: `MessageBox`
+  - Linux: `zenity`, `kdialog`, `yad`, `Xdialog`, `gxmessage`, or console fallback
+  - macOS: `NSAlert` via native APIs
+- **Checks platform compatibility at startup to prevent architecture/OS mismatches**
+
+## Requirements
+- .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
+- Windows: WebView2 Runtime ([Download here](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
+- Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
+  - For graphical dialogs: zenity, kdialog, yad, Xdialog, or gxmessage (otherwise falls back to console)
+- macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
 ## Planned
 - Syntax highlighting (AvaloniaEdit custom definition)
 - SVG/PNG export
+- App Update mechanism
 
 ## Usage
 <img width="2318" height="1381" alt="image" src="https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61" />
@@ -141,4 +154,3 @@ pie
     "Others": 10
 ```
 <img width="2315" height="1362" alt="image" src="https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b" />
-
