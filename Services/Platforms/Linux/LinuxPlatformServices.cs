@@ -21,16 +21,20 @@ public sealed class LinuxPlatformServices : IPlatformServices
         ArgumentException.ThrowIfNullOrEmpty(title);
         ArgumentException.ThrowIfNullOrEmpty(message);
 
-        // Try zenity first (GUI dialog)
-        if (TryShowZenityDialog(title, message))
+        // Check for graphical environment before attempting GUI dialogs
+        if (IsGraphicalEnvironment())
         {
-            return;
-        }
+            // Try zenity first (GUI dialog)
+            if (TryShowZenityDialog(title, message))
+            {
+                return;
+            }
 
-        // Try other common GUI dialog tools
-        if (TryShowKDialogDialog(title, message))
-        {
-            return;
+            // Try other common GUI dialog tools
+            if (TryShowKDialogDialog(title, message))
+            {
+                return;
+            }
         }
 
         // Fallback to console output
@@ -38,16 +42,31 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
+    /// Checks if a graphical environment is available.
+    /// </summary>
+    private static bool IsGraphicalEnvironment()
+    {
+        // Check for DISPLAY or WAYLAND_DISPLAY environment variable
+        return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")) ||
+               !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
+    }
+
+    /// <summary>
     /// Attempts to show dialog using zenity (GNOME).
     /// </summary>
     private static bool TryShowZenityDialog(string title, string message)
     {
+        if (!IsToolAvailable("zenity"))
+        {
+            return false;
+        }
+
         try
         {
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "zenity",
-                Arguments = $"--error --title=\"{EscapeShellArg(title)}\" --text=\"{EscapeShellArg(message)}\"",
+                Arguments = $"--error --title={EscapeShellArg(title)} --text={EscapeShellArg(message)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -67,12 +86,17 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// </summary>
     private static bool TryShowKDialogDialog(string title, string message)
     {
+        if (!IsToolAvailable("kdialog"))
+        {
+            return false;
+        }
+
         try
         {
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "kdialog",
-                Arguments = $"--error --title \"{EscapeShellArg(title)}\" \"{EscapeShellArg(message)}\"",
+                Arguments = $"--error --title {EscapeShellArg(title)} {EscapeShellArg(message)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
@@ -80,6 +104,31 @@ public sealed class LinuxPlatformServices : IPlatformServices
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a tool is available in the PATH.
+    /// </summary>
+    private static bool IsToolAvailable(string toolName)
+    {
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "which",
+                Arguments = toolName,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using Process? process = Process.Start(startInfo);
+            process?.WaitForExit();
+            return process != null && process.ExitCode == 0;
         }
         catch
         {
@@ -108,15 +157,21 @@ public sealed class LinuxPlatformServices : IPlatformServices
         catch
         {
             // In case console input is not available
-            Thread.Sleep(3000);
+            Thread.Sleep(3_000);
         }
     }
 
     /// <summary>
     /// Escapes shell arguments to prevent injection.
     /// </summary>
-    private static string EscapeShellArg(string arg)
+    private static string EscapeShellArg(string? arg)
     {
-        return arg.Replace("\"", "\\\"").Replace("'", "\\'").Replace("$", "\\$").Replace("`", "\\`");
+        // Wrap in single quotes and escape single quotes inside the argument
+        if (arg is null)
+        {
+            return "''";
+        }
+
+        return $"'{arg.Replace("'", "'\\''")}'";
     }
 }
