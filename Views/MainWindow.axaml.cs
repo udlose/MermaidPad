@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -117,9 +116,6 @@ public partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            IInputElement? focused = FocusManager?.GetFocusedElement();
-            SimpleLogger.Log($"Current focused control: {focused?.GetType().Name ?? "null"}");
-
             // Make sure caret is visible:
             Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
@@ -132,9 +128,6 @@ public partial class MainWindow : Window
 
             // after focusing, ensure the caret is visible
             Editor.TextArea.Caret.BringCaretToView();
-
-            IInputElement? afterFocus = FocusManager?.GetFocusedElement();
-            SimpleLogger.Log($"After focus attempt: {afterFocus?.GetType().Name ?? "null"}");
         }, DispatcherPriority.Background);
     }
 
