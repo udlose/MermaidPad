@@ -1,15 +1,15 @@
+using Avalonia.Threading;
 using AvaloniaWebView;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
 
 namespace MermaidPad.Services;
-
 /// <summary>
 /// Clean HTTP server approach for WebView content.
 /// Uses separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
-public sealed class MermaidRenderer : IDisposable
+public sealed class MermaidRenderer : IAsyncDisposable
 {
     private const string MermaidMinJsFileName = "mermaid.min.js";
     private const string MermaidRequestPath = $"/{MermaidMinJsFileName}";
@@ -153,7 +153,7 @@ public sealed class MermaidRenderer : IDisposable
                     context.Response.StatusCode = 404;
                 }
             }
-            else if (requestPath == "/" || requestPath == IndexRequestPath)
+            else if (requestPath is "/" or IndexRequestPath)
             {
                 // Serve HTML file
                 byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
@@ -192,13 +192,10 @@ public sealed class MermaidRenderer : IDisposable
         SimpleLogger.Log($"Navigating to: {serverUrl}");
 
         bool navigationCompleted = false;
-        _webView!.NavigationCompleted += (_, _) =>
-        {
-            navigationCompleted = true;
-            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
-        };
 
-        _webView.Url = new Uri(serverUrl);
+        _webView!.NavigationCompleted += OnNavigationCompleted;
+
+        await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
 
         // Wait for navigation
         for (int i = 0; i < 50 && !navigationCompleted; i++)
@@ -213,6 +210,15 @@ public sealed class MermaidRenderer : IDisposable
         else
         {
             throw new InvalidOperationException("Navigation failed");
+        }
+
+        return;
+
+        void OnNavigationCompleted(object? sender, EventArgs e)
+        {
+            navigationCompleted = true;
+            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+            _webView!.NavigationCompleted -= OnNavigationCompleted; // Unsubscribe to avoid memory leaks
         }
     }
 
@@ -252,8 +258,12 @@ public sealed class MermaidRenderer : IDisposable
         {
             try
             {
-                await _webView.ExecuteScriptAsync("clearOutput();");
-                SimpleLogger.Log("Cleared output");
+                async Task ClearOutputAsync()
+                {
+                    await _webView.ExecuteScriptAsync("clearOutput();");
+                    SimpleLogger.Log("Cleared output");
+                }
+                await Dispatcher.UIThread.InvokeAsync(ClearOutputAsync);
             }
             catch (Exception ex)
             {
@@ -268,8 +278,12 @@ public sealed class MermaidRenderer : IDisposable
 
         try
         {
-            string? result = await _webView.ExecuteScriptAsync(script);
-            SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+            async Task RenderMermaidAsync()
+            {
+                string? result = await _webView.ExecuteScriptAsync(script);
+                SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+            }
+            await Dispatcher.UIThread.InvokeAsync(RenderMermaidAsync);
         }
         catch (Exception ex)
         {
@@ -277,12 +291,15 @@ public sealed class MermaidRenderer : IDisposable
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         try
         {
             // Cancel server operations
-            _serverCancellation?.Cancel();
+            if (_serverCancellation is not null)
+            {
+                await _serverCancellation.CancelAsync();
+            }
 
             // Stop and close HTTP listener
             if (_httpListener?.IsListening == true)
@@ -296,7 +313,8 @@ public sealed class MermaidRenderer : IDisposable
             {
                 try
                 {
-                    _serverTask.Wait(TimeSpan.FromSeconds(5));
+                    const int maxWaitSeconds = 5;
+                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds));
                 }
                 catch (Exception ex)
                 {
