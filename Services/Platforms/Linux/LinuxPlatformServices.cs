@@ -2,6 +2,7 @@
 
 using MermaidPad.Services.Platforms;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
 
 #pragma warning disable IDE0130 // Namespace does not match folder structure
@@ -15,11 +16,12 @@ namespace MermaidPad.Services;
 public sealed class LinuxPlatformServices : IPlatformServices
 {
     /// <summary>
-    /// Shows a native Linux dialog using zenity or kdialog if available, otherwise falls back to console output.
+    /// Shows a native Linux dialog using zenity, kdialog, yad, Xdialog, or gxmessage if available, otherwise falls back to console output.
     /// </summary>
     /// <param name="title">The title of the dialog.</param>
     /// <param name="message">The message to display in the dialog.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="title"/> or <paramref name="message"/> is null or empty.</exception>
+    [SuppressMessage("Style", "IDE0011:Add braces", Justification = "<Pending>")]
     public void ShowNativeDialog(string title, string message)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
@@ -29,16 +31,13 @@ public sealed class LinuxPlatformServices : IPlatformServices
         if (IsGraphicalEnvironment())
         {
             // Try zenity first (GUI dialog)
-            if (TryShowZenityDialog(title, message))
-            {
-                return;
-            }
+            if (TryShowZenityDialog(title, message)) return;
 
             // Try other common GUI dialog tools
-            if (TryShowKDialogDialog(title, message))
-            {
-                return;
-            }
+            if (TryShowKDialogDialog(title, message)) return;
+            if (TryShowYadDialog(title, message)) return;
+            if (TryShowXDialogDialog(title, message)) return;
+            if (TryShowGxmessageDialog(title, message)) return;
         }
 
         // Fallback to console output
@@ -117,7 +116,110 @@ public sealed class LinuxPlatformServices : IPlatformServices
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            using Process? process = Process.Start(startInfo);
+            process?.WaitForExit();
+            return process?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
+    /// <summary>
+    /// Attempts to show a dialog using yad.
+    /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <returns>
+    /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
+    /// </returns>
+    private static bool TryShowYadDialog(string title, string message)
+    {
+        if (!IsToolAvailable("yad"))
+        {
+            return false;
+        }
+
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "yad",
+                Arguments = $"--title={EscapeShellArg(title)} --text={EscapeShellArg(message)} --button=OK",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using Process? process = Process.Start(startInfo);
+            process?.WaitForExit();
+            return process?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to show a dialog using Xdialog.
+    /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <returns>
+    /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
+    /// </returns>
+    private static bool TryShowXDialogDialog(string title, string message)
+    {
+        if (!IsToolAvailable("Xdialog"))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Xdialog requires geometry: --msgbox "Message" height width
+            // We'll use a default geometry
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "Xdialog",
+                Arguments = $"--msgbox {EscapeShellArg(message)} 10 40 --title {EscapeShellArg(title)}",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using Process? process = Process.Start(startInfo);
+            process?.WaitForExit();
+            return process?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to show a dialog using gxmessage.
+    /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <returns>
+    /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
+    /// </returns>
+    private static bool TryShowGxmessageDialog(string title, string message)
+    {
+        if (!IsToolAvailable("gxmessage"))
+        {
+            return false;
+        }
+
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "gxmessage",
+                Arguments = $"-title {EscapeShellArg(title)} {EscapeShellArg(message)}",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
