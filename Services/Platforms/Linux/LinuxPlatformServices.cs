@@ -8,14 +8,18 @@ using System.Runtime.Versioning;
 namespace MermaidPad.Services;
 #pragma warning restore IDE0130 // Namespace does not match folder structure
 
+/// <summary>
+/// Provides platform-specific services for Linux, including native dialog display.
+/// </summary>
 [SupportedOSPlatform("linux")]
 public sealed class LinuxPlatformServices : IPlatformServices
 {
     /// <summary>
-    /// Shows a Linux dialog using zenity, falls back to console output.
+    /// Shows a native Linux dialog using zenity or kdialog if available, otherwise falls back to console output.
     /// </summary>
-    /// <param name="title">Dialog title</param>
-    /// <param name="message">Dialog message</param>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="title"/> or <paramref name="message"/> is null or empty.</exception>
     public void ShowNativeDialog(string title, string message)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
@@ -42,8 +46,11 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Checks if a graphical environment is available.
+    /// Determines whether a graphical environment is available by checking environment variables.
     /// </summary>
+    /// <returns>
+    /// <c>true</c> if a graphical environment is available; otherwise, <c>false</c>.
+    /// </returns>
     private static bool IsGraphicalEnvironment()
     {
         // Check for DISPLAY or WAYLAND_DISPLAY environment variable
@@ -52,8 +59,13 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Attempts to show dialog using zenity (GNOME).
+    /// Attempts to show a dialog using zenity (GNOME).
     /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <returns>
+    /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
+    /// </returns>
     private static bool TryShowZenityDialog(string title, string message)
     {
         if (!IsToolAvailable("zenity"))
@@ -82,8 +94,13 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Attempts to show dialog using kdialog (KDE).
+    /// Attempts to show a dialog using kdialog (KDE).
     /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
+    /// <returns>
+    /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
+    /// </returns>
     private static bool TryShowKDialogDialog(string title, string message)
     {
         if (!IsToolAvailable("kdialog"))
@@ -112,8 +129,12 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Checks if a tool is available in the PATH.
+    /// Checks if a tool is available in the system's PATH.
     /// </summary>
+    /// <param name="toolName">The name of the tool to check.</param>
+    /// <returns>
+    /// <c>true</c> if the tool is available; otherwise, <c>false</c>.
+    /// </returns>
     private static bool IsToolAvailable(string toolName)
     {
         try
@@ -128,7 +149,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
             };
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
-            return process != null && process.ExitCode == 0;
+            return process?.ExitCode == 0;
         }
         catch
         {
@@ -137,8 +158,10 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Shows dialog in console as fallback.
+    /// Shows a dialog in the console as a fallback if no GUI dialog tools are available.
     /// </summary>
+    /// <param name="title">The title of the dialog.</param>
+    /// <param name="message">The message to display in the dialog.</param>
     private static void ShowConsoleDialog(string title, string message)
     {
         Console.WriteLine();
@@ -162,8 +185,12 @@ public sealed class LinuxPlatformServices : IPlatformServices
     }
 
     /// <summary>
-    /// Escapes shell arguments to prevent injection.
+    /// Escapes a shell argument to prevent injection by wrapping in single quotes and escaping internal single quotes.
     /// </summary>
+    /// <param name="arg">The argument to escape.</param>
+    /// <returns>
+    /// The escaped shell argument.
+    /// </returns>
     private static string EscapeShellArg(string? arg)
     {
         // Wrap in single quotes and escape single quotes inside the argument
