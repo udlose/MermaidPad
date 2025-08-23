@@ -1,5 +1,31 @@
 ﻿[*.cs]
 
+#### Core EditorConfig Options ####
+
+# License header
+file_header_template = unset
+
+# Indentation and spacing
+indent_size = 4
+indent_style = space
+tab_width = 4
+
+# New line preferences
+end_of_line = crlf
+insert_final_newline = true
+
+#### .NET Code Actions ####
+
+# Type members
+dotnet_hide_advanced_members = false
+dotnet_member_insertion_location = with_other_members_of_the_same_kind
+dotnet_property_generation_behavior = prefer_throwing_properties
+
+# Symbol search
+dotnet_search_reference_assemblies = true
+
+#### .NET Coding Conventions ####
+
 # IDE0090: Use 'new(...)'
 dotnet_diagnostic.IDE0090.severity = none
 
