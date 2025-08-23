@@ -160,14 +160,27 @@ jobs:
 
             ### Downloads
             Choose the appropriate version for your platform:
-            - **Windows x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.exe`
-            - **Windows ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.exe`
-            - **Linux x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64`
-            - **Linux ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64`
-            - **macOS Intel**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64`
-            - **macOS Apple Silicon**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64`
+
+            - #### Windows:
+              - `x64`: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.exe`
+              - `arm64`: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.exe`
+
+            - #### Linux:
+              - `x64`: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64`
+              - `arm64`: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64`
+
+            - #### MacOS:
+  
+              Not sure which one?
+              If you have an:
+              - Apple M1/M2/M3 = Apple Silicon `arm64`
+              - Intel = Intel Mac `x64`
+
+              Both architectures are supported on MacOS, but you should choose download for your native CPU Architecture:
+              - Intel (`x64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64`
+              - Apple Silicon (`arm64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64`
 
             ### Installation
             1. Download the appropriate file for your platform
             2. Make executable (Linux/macOS): `chmod +x MermaidPad-*`
-            3. Run directly: `./MermaidPad-*` or double-click on Windows
+            3. Run directly: `./MermaidPad-*` or double-click (on Windows)
