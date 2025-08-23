@@ -78,10 +78,12 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "zenity",
-                Arguments = $"--error --title={EscapeShellArg(title)} --text={EscapeShellArg(message)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("--error");
+            startInfo.ArgumentList.Add($"--title={title}");
+            startInfo.ArgumentList.Add($"--text={message}");
 
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
@@ -113,10 +115,14 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "kdialog",
-                Arguments = $"--error --title {EscapeShellArg(title)} {EscapeShellArg(message)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("--error");
+            startInfo.ArgumentList.Add("--title");
+            startInfo.ArgumentList.Add(title);
+            startInfo.ArgumentList.Add(message);
+
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
@@ -147,10 +153,13 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "yad",
-                Arguments = $"--title={EscapeShellArg(title)} --text={EscapeShellArg(message)} --button=OK",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add($"--title={title}");
+            startInfo.ArgumentList.Add($"--text={message}");
+            startInfo.ArgumentList.Add("--button=OK");
+
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
@@ -183,10 +192,16 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "Xdialog",
-                Arguments = $"--msgbox {EscapeShellArg(message)} 10 40 --title {EscapeShellArg(title)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("--msgbox");
+            startInfo.ArgumentList.Add(message);
+            startInfo.ArgumentList.Add("10");
+            startInfo.ArgumentList.Add("40");
+            startInfo.ArgumentList.Add("--title");
+            startInfo.ArgumentList.Add(title);
+
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
@@ -217,10 +232,13 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "gxmessage",
-                Arguments = $"-title {EscapeShellArg(title)} {EscapeShellArg(message)}",
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add("-title");
+            startInfo.ArgumentList.Add(title);
+            startInfo.ArgumentList.Add(message);
+
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
@@ -245,11 +263,12 @@ public sealed class LinuxPlatformServices : IPlatformServices
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
                 FileName = "which",
-                Arguments = toolName,
-                RedirectStandardOutput = true,
                 UseShellExecute = false,
+                RedirectStandardOutput = true,
                 CreateNoWindow = true
             };
+            startInfo.ArgumentList.Add(toolName);
+
             using Process? process = Process.Start(startInfo);
             process?.WaitForExit();
             return process?.ExitCode == 0;
@@ -297,6 +316,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     private static string EscapeShellArg(string? arg)
     {
         // Wrap in single quotes and escape single quotes inside the argument
+        // No longer needed for ArgumentList, but kept for compatibility
         if (arg is null)
         {
             return "''";
