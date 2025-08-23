@@ -1,6 +1,6 @@
 namespace MermaidPad.Models;
 
-public class AppSettings
+public sealed class AppSettings
 {
     public string? LastDiagramText { get; set; }
     public string BundledMermaidVersion { get; set; } = "11.10.1";
