@@ -11,6 +11,7 @@ namespace MermaidPad.Services;
 
 /// <summary>
 /// Provides platform-specific services for Linux, including native dialog display.
+/// All dialog methods block by default until the user closes the dialog, ensuring modality.
 /// </summary>
 [SupportedOSPlatform("linux")]
 public sealed class LinuxPlatformServices : IPlatformServices
