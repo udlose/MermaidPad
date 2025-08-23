@@ -3,8 +3,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 
+namespace MermaidPad.Services.Platforms;
+
 /// <summary>
-/// Static platform compatibility checker that validates the running application 
+/// Static platform compatibility checker that validates the running application
 /// matches the target platform and architecture. Shows native OS dialogs on mismatches.
 /// </summary>
 [SuppressMessage("ReSharper", "InconsistentNaming")]
@@ -25,7 +27,17 @@ public static class PlatformCompatibilityChecker
         if (IsMismatch(currentInfo, targetInfo))
         {
             string message = CreateMismatchMessage(currentInfo, targetInfo);
-            ShowNativeDialog("Platform Mismatch Detected", message);
+            try
+            {
+                PlatformServiceFactory.Instance.ShowNativeDialog("Warning: Platform Mismatch Detected", message);
+            }
+            catch (Exception ex)
+            {
+                // Fallback if platform service fails
+                Console.WriteLine("Warning: Platform Mismatch Detected: " + message);
+                Console.WriteLine($"Dialog error: {ex.Message}");
+            }
+
             Environment.Exit(1);
         }
     }
@@ -344,42 +356,6 @@ public static class PlatformCompatibilityChecker
     private static string GetRecommendedRid(PlatformInfo current)
     {
         return GetNativeRidForCurrent(current);
-    }
-
-    /// <summary>
-    /// Displays a native dialog box with the specified title and message.
-    /// Falls back to console output if native dialogs are unavailable or fail.
-    /// </summary>
-    /// <param name="title">The dialog title.</param>
-    /// <param name="message">The dialog message body.</param>
-    private static void ShowNativeDialog(string title, string message)
-    {
-        try
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                WindowsNativeDialog.Show(title, message);
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                MacOSNativeDialog.Show(title, message);
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                LinuxNativeDialog.Show(title, message);
-            }
-            else
-            {
-                // Fallback to console
-                Console.WriteLine($"{title}: {message}");
-            }
-        }
-        catch (Exception ex)
-        {
-            // Fallback if native dialog fails
-            Console.WriteLine($"{title}: {message}");
-            Console.WriteLine($"Dialog error: {ex.Message}");
-        }
     }
 
     /// <summary>
