@@ -1,5 +1,3 @@
-// Replace Services/Platforms/Mac/MacPlatformServices.cs with this
-
 // ReSharper disable CheckNamespace
 
 using MermaidPad.Services.Platforms;
@@ -39,8 +37,12 @@ public sealed partial class MacPlatformServices : IPlatformServices
     /// </summary>
     /// <param name="title">Dialog title</param>
     /// <param name="message">Dialog message</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="title"/> or <paramref name="message"/> is null or empty.</exception>
     public void ShowNativeDialog(string title, string message)
     {
+        ArgumentException.ThrowIfNullOrEmpty(title);
+        ArgumentException.ThrowIfNullOrEmpty(message);
+
         try
         {
             // Get required classes and selectors
@@ -71,7 +73,7 @@ public sealed partial class MacPlatformServices : IPlatformServices
             objc_msgSend(alert, setMessageTextSelector, titleNSString);
             objc_msgSend(alert, setInformativeTextSelector, messageNSString);
 
-            // Show modal dialog
+            // Show modal dialog (blocks until dismissed)
             objc_msgSend(alert, runModalSelector);
 
             // Clean up - release the alert (NSStrings created with stringWithUTF8String are auto-released)
