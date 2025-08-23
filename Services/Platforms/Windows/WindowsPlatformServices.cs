@@ -1,6 +1,7 @@
 // ReSharper disable CheckNamespace
 
 using MermaidPad.Services.Platforms;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -26,6 +27,7 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
     /// <param name="message">Dialog message</param>
     public void ShowNativeDialog(string title, string message)
     {
-        MessageBox(IntPtr.Zero, message, title, MB_OK | MB_ICONERROR);
+        IntPtr mainWindowHandle = Process.GetCurrentProcess().MainWindowHandle;
+        MessageBox(mainWindowHandle, message, title, MB_OK | MB_ICONERROR);
     }
 }
