@@ -1,4 +1,5 @@
 using AvaloniaWebView;
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 
@@ -10,6 +11,10 @@ namespace MermaidPad.Services;
 /// </summary>
 public sealed class MermaidRenderer : IDisposable
 {
+    private const string MermaidMinJsFileName = "mermaid.min.js";
+    private const string MermaidRequestPath = $"/{MermaidMinJsFileName}";
+    private const string IndexHtmlFileName = "index.html";
+    private const string IndexRequestPath = $"/{IndexHtmlFileName}";
     private WebView? _webView;
     private int _renderAttemptCount = 0;
     private HttpListener? _httpListener;
@@ -50,8 +55,8 @@ public sealed class MermaidRenderer : IDisposable
 
     private async Task PrepareContentAsync(string assetsDir)
     {
-        string indexPath = Path.Combine(assetsDir, "index.html");
-        string mermaidPath = Path.Combine(assetsDir, "mermaid.min.js");
+        string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
+        string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
 
         if (!File.Exists(indexPath) || !File.Exists(mermaidPath))
         {
@@ -132,7 +137,7 @@ public sealed class MermaidRenderer : IDisposable
             SimpleLogger.Log($"Processing request: {requestPath}");
 
             // Separate file handling is needed to avoid JavaScript injection issues
-            if (requestPath == "/mermaid.min.js")
+            if (requestPath == MermaidRequestPath)
             {
                 // Serve mermaid.js separately to avoid HTML injection issues
                 if (_mermaidJs is not null)
@@ -148,7 +153,7 @@ public sealed class MermaidRenderer : IDisposable
                     context.Response.StatusCode = 404;
                 }
             }
-            else if (requestPath == "/" || requestPath == "/index.html")
+            else if (requestPath == "/" || requestPath == IndexRequestPath)
             {
                 // Serve HTML file
                 byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
@@ -174,7 +179,10 @@ public sealed class MermaidRenderer : IDisposable
                 context.Response.StatusCode = 500;
                 context.Response.Close();
             }
-            catch { }
+            catch
+            {
+                Debug.WriteLine("Error closing response stream");
+            }
         }
     }
 
@@ -297,7 +305,7 @@ public sealed class MermaidRenderer : IDisposable
             }
 
             _serverCancellation?.Dispose();
-            _serverReadySemaphore?.Dispose();
+            _serverReadySemaphore.Dispose();
             _serverTask?.Dispose();
 
             SimpleLogger.Log("MermaidRenderer disposed");
