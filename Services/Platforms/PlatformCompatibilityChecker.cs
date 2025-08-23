@@ -121,6 +121,7 @@ public static class PlatformCompatibilityChecker
     /// <returns>
     /// "win" for Windows, "linux" for Linux, "osx" for macOS, or "unknown" if undetectable.
     /// </returns>
+    [SuppressMessage("Style", "IDE0046:Convert to conditional expression", Justification = "Code is more clear without a double-ternary")]
     private static string GetCurrentOS()
     {
         if (OperatingSystem.IsWindows())
