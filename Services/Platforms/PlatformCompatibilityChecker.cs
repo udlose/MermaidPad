@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace MermaidPad.Services.Platforms;
 /// <summary>
 /// Static platform compatibility checker that validates the running application 
 /// matches the target platform and architecture. Shows native OS dialogs on mismatches.
@@ -14,8 +13,8 @@ public static class PlatformCompatibilityChecker
     private const string DownloadUrl = "https://github.com/udlose/MermaidPad/releases";
 
     /// <summary>
-    /// Performs platform compatibility check. If a mismatch is detected,
-    /// shows a native dialog and exits the application.
+    /// Checks if the current runtime platform and architecture match the build target.
+    /// If a mismatch is detected, displays a native OS dialog with details and terminates the application.
     /// </summary>
     public static void CheckCompatibility()
     {
@@ -32,8 +31,12 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Gets information about the current runtime platform and architecture.
+    /// Retrieves information about the current operating system, processor architecture,
+    /// and whether the application is running under translation/emulation (e.g., Rosetta on macOS).
     /// </summary>
+    /// <returns>
+    /// A <see cref="PlatformInfo"/> struct containing the OS identifier, architecture, and translation status.
+    /// </returns>
     private static PlatformInfo GetCurrentPlatformInfo()
     {
         string os = GetCurrentOS();
@@ -44,8 +47,12 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Gets information about the build target embedded at compile time.
+    /// Retrieves the build target platform and architecture as determined at compile time.
+    /// If unavailable or in an unexpected format, falls back to the current runtime platform.
     /// </summary>
+    /// <returns>
+    /// A <see cref="PlatformInfo"/> struct representing the build target.
+    /// </returns>
     private static PlatformInfo GetBuildTargetInfo()
     {
         // These constants are defined by Directory.Build.props based on RuntimeIdentifier
@@ -69,8 +76,12 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Gets the build target RID based on compile-time constants.
+    /// Determines the build target Runtime Identifier (RID) using compile-time constants.
+    /// The RID is used to identify the intended OS and architecture for the build.
     /// </summary>
+    /// <returns>
+    /// A string representing the build target RID (e.g., "win-x64", "osx-arm64"), or an empty string if not specified.
+    /// </returns>
     private static string GetBuildTargetRid()
     {
 #if BUILT_FOR_WIN_X64
@@ -93,8 +104,11 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Determines the current operating system identifier.
+    /// Identifies the current operating system as a short string identifier.
     /// </summary>
+    /// <returns>
+    /// "win" for Windows, "linux" for Linux, "osx" for macOS, or "unknown" if undetectable.
+    /// </returns>
     private static string GetCurrentOS()
     {
         if (OperatingSystem.IsWindows())
@@ -111,8 +125,11 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Determines the current processor architecture.
+    /// Identifies the current processor architecture as a short string identifier.
     /// </summary>
+    /// <returns>
+    /// "x64", "x86", "arm64", "arm", or "unknown" if undetectable.
+    /// </returns>
     private static string GetCurrentArchitecture()
     {
         return RuntimeInformation.ProcessArchitecture switch
@@ -126,8 +143,12 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Detects if the application is running under translation (like Rosetta on macOS).
+    /// Detects if the application is running under translation or emulation,
+    /// such as Rosetta on Apple Silicon Macs.
     /// </summary>
+    /// <returns>
+    /// True if running under translation/emulation; otherwise, false.
+    /// </returns>
     private static bool IsRunningUnderTranslation()
     {
         if (!OperatingSystem.IsMacOS())
@@ -170,8 +191,13 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Determines if there's a platform/architecture mismatch that should be flagged.
+    /// Determines if there is a platform or architecture mismatch between the current runtime and the build target.
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <param name="target">The build target platform information.</param>
+    /// <returns>
+    /// True if a mismatch is detected; otherwise, false.
+    /// </returns>
     private static bool IsMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Cross-OS mismatches are always problematic
@@ -191,8 +217,14 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Windows-specific architecture compatibility rules.
+    /// Checks for architecture mismatches specific to Windows.
+    /// Allows x86 applications to run on x64 systems (WOW64).
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <param name="target">The build target platform information.</param>
+    /// <returns>
+    /// True if a problematic mismatch is detected; otherwise, false.
+    /// </returns>
     private static bool IsWindowsArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Windows x86 can run on x64 (WOW64), so don't flag this
@@ -206,11 +238,17 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// macOS-specific architecture compatibility rules.
+    /// Checks for architecture mismatches specific to macOS.
+    /// Flags running x64 apps under Rosetta on ARM64 hardware and direct architecture mismatches.
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <param name="target">The build target platform information.</param>
+    /// <returns>
+    /// True if a problematic mismatch is detected; otherwise, false.
+    /// </returns>
     private static bool IsMacOSArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
-        // Flag Rosetta translation (x64 app on arm64 hardware) - this was the original issue!
+        // Flag Rosetta translation (x64 app on arm64 hardware)
         if (current.IsTranslated && target.Architecture == "x64" && current.Architecture == "x64")
         {
             return true;
@@ -221,8 +259,14 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Linux-specific architecture compatibility rules.
+    /// Checks for architecture mismatches specific to Linux.
+    /// Linux generally does not support cross-architecture execution.
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <param name="target">The build target platform information.</param>
+    /// <returns>
+    /// True if a problematic mismatch is detected; otherwise, false.
+    /// </returns>
     private static bool IsLinuxArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Linux typically doesn't have as robust cross-architecture support as Windows
@@ -230,8 +274,14 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Creates a user-friendly message describing the platform mismatch.
+    /// Generates a detailed, user-friendly message describing the detected platform mismatch,
+    /// including recommended download instructions for the correct version.
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <param name="target">The build target platform information.</param>
+    /// <returns>
+    /// A string containing the mismatch details and download instructions.
+    /// </returns>
     private static string CreateMismatchMessage(PlatformInfo current, PlatformInfo target)
     {
         StringBuilder sb = new StringBuilder();
@@ -266,8 +316,13 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Gets the native RID for the current system (detecting hardware architecture on macOS).
+    /// Determines the native Runtime Identifier (RID) for the current system,
+    /// accounting for translation/emulation scenarios (e.g., Rosetta on macOS).
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <returns>
+    /// A string representing the native RID (e.g., "osx-arm64").
+    /// </returns>
     private static string GetNativeRidForCurrent(PlatformInfo current)
     {
         if (current.OS == "osx" && current.IsTranslated)
@@ -280,16 +335,23 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Gets the recommended RID to download for the current system.
+    /// Gets the recommended Runtime Identifier (RID) to download for the current system.
     /// </summary>
+    /// <param name="current">The current platform information.</param>
+    /// <returns>
+    /// A string representing the recommended RID.
+    /// </returns>
     private static string GetRecommendedRid(PlatformInfo current)
     {
         return GetNativeRidForCurrent(current);
     }
 
     /// <summary>
-    /// Shows a platform-native dialog with the specified title and message.
+    /// Displays a native dialog box with the specified title and message.
+    /// Falls back to console output if native dialogs are unavailable or fail.
     /// </summary>
+    /// <param name="title">The dialog title.</param>
+    /// <param name="message">The dialog message body.</param>
     private static void ShowNativeDialog(string title, string message)
     {
         try
@@ -321,7 +383,7 @@ public static class PlatformCompatibilityChecker
     }
 
     /// <summary>
-    /// Simple record to hold platform information.
+    /// Represents platform information including OS identifier, architecture, and translation/emulation status.
     /// </summary>
     private readonly record struct PlatformInfo(string OS, string Architecture, bool IsTranslated);
 }
