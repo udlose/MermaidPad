@@ -46,7 +46,7 @@ public sealed class MermaidUpdateService
             {
                 SimpleLogger.Log($"Update available: {_settings.BundledMermaidVersion} -> {remoteVersion}");
 
-                await DownloadAndInstallUpdate(url, remoteVersion);
+                await DownloadAndInstallUpdateAsync(url, remoteVersion);
 
                 stopwatch.Stop();
                 SimpleLogger.LogTiming("Mermaid update (with download)", stopwatch.Elapsed, success: true);
@@ -68,7 +68,7 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private async Task DownloadAndInstallUpdate(string url, string newVersion)
+    private async Task DownloadAndInstallUpdateAsync(string url, string newVersion)
     {
         Stopwatch downloadStopwatch = Stopwatch.StartNew();
         SimpleLogger.Log($"Downloading Mermaid.js from: {url}");
@@ -105,11 +105,31 @@ public sealed class MermaidUpdateService
             SimpleLogger.Log($"Bundled version updated to: {newVersion}");
 
             // Step 6: Cleanup
-            File.Delete(tmp);
-            SimpleLogger.Log("Temporary file cleaned up");
+            // Use Path.GetTempFileName() output validation and FileInfo for strict checks
+            try
+            {
+                var tempDir = Path.GetFullPath(Path.GetTempPath());
+                var tmpFileInfo = new FileInfo(tmp);
+                var tmpFileDir = Path.GetFullPath(tmpFileInfo.DirectoryName ?? "");
+
+                // Ensure the temp file is inside the temp directory and is a direct child (not a symlink or traversal)
+                if (tmpFileDir == tempDir && tmpFileInfo.Exists && tmpFileInfo.FullName.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(tmpFileInfo.FullName);
+                    SimpleLogger.Log("Temporary file cleaned up");
+                }
+                else
+                {
+                    SimpleLogger.LogError($"Refusing to delete file outside temp directory or with suspicious path: {tmpFileInfo.FullName}", null);
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Error during temp file cleanup", ex);
+            }
 
             // Step 7: Verify installation
-            await VerifyInstallation(newVersion);
+            await VerifyInstallationAsync(newVersion);
         }
         catch (Exception ex)
         {
@@ -118,7 +138,7 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private async Task VerifyInstallation(string _)
+    private async Task VerifyInstallationAsync(string _)
     {
         try
         {
