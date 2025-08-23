@@ -55,6 +55,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
     private async Task PrepareContentAsync(string assetsDir)
     {
+        Stopwatch sw = Stopwatch.StartNew();
         string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
         string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
 
@@ -80,6 +81,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} characters");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} characters");
+
+        sw.Stop();
+        SimpleLogger.Log($"{nameof(PrepareContentAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
     private void StartHttpServer()
@@ -317,24 +321,32 @@ public sealed class MermaidRenderer : IAsyncDisposable
         // Simple JavaScript execution - no unnecessary complexity
         string escaped;
         {
-            ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
-            StringBuilder sb = new StringBuilder(sourceSpan.Length);
-            foreach (char c in sourceSpan)
+            if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
             {
-                if (c == '\\')
-                {
-                    sb.Append(@"\\");
-                }
-                else if (c == '`')
-                {
-                    sb.Append("\\`");
-                }
-                else
-                {
-                    sb.Append(c);
-                }
+                escaped = mermaidSource;
             }
-            escaped = sb.ToString();
+            else
+            {
+                ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
+                StringBuilder sb = new StringBuilder(sourceSpan.Length);
+                foreach (char c in sourceSpan)
+                {
+                    // Prefer Append(char) for single characters
+                    switch (c)
+                    {
+                        case '\\':
+                            sb.Append('\\').Append('\\');
+                            break;
+                        case '`':
+                            sb.Append('\\').Append('`');
+                            break;
+                        default:
+                            sb.Append(c);
+                            break;
+                    }
+                }
+                escaped = sb.ToString();
+            }
         }
         string script = $"renderMermaid(`{escaped}`);";
 
