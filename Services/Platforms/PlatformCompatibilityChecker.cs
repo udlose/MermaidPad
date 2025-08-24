@@ -12,6 +12,7 @@ namespace MermaidPad.Services.Platforms;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class PlatformCompatibilityChecker
 {
+    [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Hardcoded to specific github download url")]
     private const string DownloadUrl = "https://github.com/udlose/MermaidPad/releases";
 
     /// <summary>
@@ -94,6 +95,7 @@ public static class PlatformCompatibilityChecker
     /// <returns>
     /// A string representing the build target RID (e.g., "win-x64", "osx-arm64"), or an empty string if not specified.
     /// </returns>
+    [SuppressMessage("Minor Code Smell", "S3400:Methods should not return constants", Justification = "Compile-time constants for build targets")]
     private static string GetBuildTargetRid()
     {
 #if BUILT_FOR_WIN_X64
@@ -309,11 +311,6 @@ public static class PlatformCompatibilityChecker
         {
             sb.AppendLine($"You're running the {targetRid} version under translation/emulation.");
             sb.AppendLine($"Your system needs the native {GetNativeRidForCurrent(current)} version.");
-        }
-        else if (current.OS != target.OS)
-        {
-            sb.AppendLine($"You downloaded: {targetRid} version.");
-            sb.AppendLine($"Your system needs: {currentRid} version.");
         }
         else
         {

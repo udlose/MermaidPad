@@ -50,7 +50,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
 
         // Initialize properties from settings
-        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText();
+        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
@@ -149,7 +149,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Save();
     }
 
-    private static string SampleText() => """
+    private static string SampleText => """
 graph TD
   A[Start] --> B{Decision}
   B -->|Yes| C[Render Diagram]
