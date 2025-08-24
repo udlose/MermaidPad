@@ -53,6 +53,10 @@ jobs:
         run: |
           unzip ./publish/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip -d ./publish/unpacked
 
+      - name: Substitute version in Info.plist
+        run: |
+          sed "s/__VERSION__/${{ inputs.version }}/g" Info.plist.in > Info.plist
+
       - name: Create .app bundle structure
         run: |
           APPNAME="MermaidPad"
