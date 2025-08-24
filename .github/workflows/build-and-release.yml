@@ -17,6 +17,15 @@ on:
         type: boolean
 
 jobs:
+  restrict-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if actor is udlose
+        if: github.actor != 'udlose'
+        run: |
+          echo "Only udlose can run this workflow."
+          exit 1
+
   get-version:
     name: Get Version
     runs-on: ubuntu-latest
