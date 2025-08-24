@@ -200,12 +200,12 @@ jobs:
   bundle-macos-app:
     name: Bundle macOS .app
     needs: [restrict-user, get-version, build]
-    uses: ./.github/workflows/macos-bundle.yml
-    with:
-      version: ${{ needs.get-version.outputs.version }}
-      rid: ${{ matrix.rid }}
     strategy:
       matrix:
         include:
           - rid: osx-x64
           - rid: osx-arm64
+    uses: ./.github/workflows/macos-bundle.yml
+    with:
+      version: ${{ needs.get-version.outputs.version }}
+      rid: ${{ matrix.rid }}
