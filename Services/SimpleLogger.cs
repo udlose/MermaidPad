@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace MermaidPad.Services;
-
 /// <summary>
 /// Dead simple file logger for debugging WebView issues.
 /// Uses lock file coordination to prevent conflicts between multiple instances.
@@ -197,11 +197,13 @@ public static class SimpleLogger
     /// </summary>
     private static void WriteSessionHeader()
     {
+        string? version = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
         StringBuilder sb = new StringBuilder(256);
         sb.AppendLine("============================================");
         sb.AppendLine("MermaidPad Debug Session Started");
+        sb.AppendLine($"Version: {version ?? "Unknown"}");
         sb.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        sb.AppendLine($"Process ID: {Environment.ProcessId}");
+        sb.AppendLine($"PID: {Environment.ProcessId}");
         sb.AppendLine($"OS: {Environment.OSVersion}");
         sb.AppendLine($".NET: {Environment.Version}");
         sb.AppendLine($"Working Directory: {Environment.CurrentDirectory}");
