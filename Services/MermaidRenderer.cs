@@ -320,36 +320,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
         // Simple JavaScript execution - no unnecessary complexity
         string escaped;
+        if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
         {
-            if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
-            {
-                escaped = mermaidSource;
-            }
-            else
-            {
-                ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
-                StringBuilder sb = new StringBuilder(sourceSpan.Length);
-                foreach (char c in sourceSpan)
-                {
-                    // Prefer Append(char) for single characters
-                    switch (c)
-                    {
-                        case '\\':
-                            sb.Append('\\').Append('\\');
-                            break;
-                        case '`':
-                            sb.Append('\\').Append('`');
-                            break;
-                        default:
-                            sb.Append(c);
-                            break;
-                    }
-                }
-                escaped = sb.ToString();
-            }
+            escaped = mermaidSource;
         }
-        string script = $"renderMermaid(`{escaped}`);";
+        else
+        {
+            escaped = EscapeSource(mermaidSource);
+        }
 
+        string script = $"renderMermaid(`{escaped}`);";
         try
         {
             async Task RenderMermaidAsync()
@@ -362,6 +342,29 @@ public sealed class MermaidRenderer : IAsyncDisposable
         catch (Exception ex)
         {
             SimpleLogger.LogError("Render failed", ex);
+        }
+
+        static string EscapeSource(string source)
+        {
+            ReadOnlySpan<char> sourceSpan = source.AsSpan();
+            StringBuilder sb = new StringBuilder(sourceSpan.Length);
+            foreach (char c in sourceSpan)
+            {
+                // Prefer Append(char) for single characters
+                switch (c)
+                {
+                    case '\\':
+                        sb.Append('\\').Append('\\');
+                        break;
+                    case '`':
+                        sb.Append('\\').Append('`');
+                        break;
+                    default:
+                        sb.Append(c);
+                        break;
+                }
+            }
+            return sb.ToString();
         }
     }
 
