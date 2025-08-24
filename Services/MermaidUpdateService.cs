@@ -1,9 +1,9 @@
 using MermaidPad.Models;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
-
 public sealed class MermaidUpdateService
 {
     private string AssetDir { get; }
@@ -76,8 +76,8 @@ public sealed class MermaidUpdateService
         try
         {
             // Step 1: Download to temporary file
-            string tmp = Path.GetTempFileName();
-            SimpleLogger.Log($"Using temporary file: {tmp}");
+            string tmpPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            SimpleLogger.Log($"Using temporary file: {tmpPath}");
 
             string jsContent = await _http.GetStringAsync(url);
             downloadStopwatch.Stop();
@@ -85,7 +85,7 @@ public sealed class MermaidUpdateService
             SimpleLogger.Log($"Download completed: {jsContent.Length:N0} characters in {downloadStopwatch.ElapsedMilliseconds}ms");
 
             // Step 2: Write to temp file
-            await File.WriteAllTextAsync(tmp, jsContent);
+            await File.WriteAllTextAsync(tmpPath, jsContent);
             SimpleLogger.Log("Content written to temporary file");
 
             // Step 3: Backup existing file (if it exists)
@@ -97,7 +97,7 @@ public sealed class MermaidUpdateService
             }
 
             // Step 4: Install new version
-            File.Copy(tmp, BundledMermaidPath, overwrite: true);
+            File.Copy(tmpPath, BundledMermaidPath, overwrite: true);
             SimpleLogger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
 
             // Step 5: Update version in settings
@@ -105,11 +105,10 @@ public sealed class MermaidUpdateService
             SimpleLogger.Log($"Bundled version updated to: {newVersion}");
 
             // Step 6: Cleanup
-            // Use Path.GetTempFileName() output validation and FileInfo for strict checks
             try
             {
                 string tempDir = Path.GetFullPath(Path.GetTempPath());
-                FileInfo tmpFileInfo = new FileInfo(tmp);
+                FileInfo tmpFileInfo = new FileInfo(tmpPath);
                 string tmpFileDir = Path.GetFullPath(tmpFileInfo.DirectoryName ?? "");
 
                 // Ensure the temp file is inside the temp directory and is a direct child (not a symlink or traversal)
@@ -129,7 +128,7 @@ public sealed class MermaidUpdateService
             }
 
             // Step 7: Verify installation
-            await VerifyInstallationAsync(newVersion);
+            await VerifyInstallationAsync();
         }
         catch (Exception ex)
         {
@@ -138,7 +137,7 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private async Task VerifyInstallationAsync(string _)
+    private async Task VerifyInstallationAsync()
     {
         try
         {
@@ -173,6 +172,7 @@ public sealed class MermaidUpdateService
         }
     }
 
+    [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Hardcoded to specific unpkg.com URL")]
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
         const string mermaidUrlPrefix = "https://unpkg.com/mermaid";
