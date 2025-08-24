@@ -2,7 +2,7 @@
 
 A minimal cross-platform-ready Mermaid diagram editor built with .NET 9 + Avalonia. The editor uses [MermaidJS](https://mermaid.js.org/) to render Mermaid Diagrams.
 It is cross-platform and runs on:
-- Windows x86/x64/arm64
+- Windows x64/arm64
 - Linux x64/arm64
 - macOS x64/arm64
 
