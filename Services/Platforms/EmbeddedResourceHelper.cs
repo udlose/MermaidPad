@@ -4,7 +4,7 @@ using System.Reflection;
 namespace MermaidPad.Services.Platforms;
 
 /// <summary>
-/// Extracts embedded assets to the file system for WebView consumption.
+/// Provides methods to extract embedded assets to the file system for WebView consumption.
 /// Designed for single-file publishing scenarios where Content files are unreliable.
 /// IL3000-safe: Does not use Assembly.Location for single-file compatibility.
 /// </summary>
@@ -41,6 +41,12 @@ public static class EmbeddedResourceHelper
         Debug.WriteLine("Asset extraction completed");
     }
 
+    /// <summary>
+    /// Extracts a single embedded resource to the specified target path.
+    /// </summary>
+    /// <param name="resourceName">The full name of the embedded resource.</param>
+    /// <param name="targetPath">The file system path to write the resource to.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the resource cannot be found.</exception>
     private static void ExtractResource(string resourceName, string targetPath)
     {
         try
@@ -64,6 +70,10 @@ public static class EmbeddedResourceHelper
         }
     }
 
+    /// <summary>
+    /// Writes a version marker file to the assets directory for cache validation.
+    /// </summary>
+    /// <param name="assetsDirectory">The directory where the version marker will be written.</param>
     private static void WriteVersionMarker(string assetsDirectory)
     {
         try
@@ -82,4 +92,3 @@ public static class EmbeddedResourceHelper
         }
     }
 }
-

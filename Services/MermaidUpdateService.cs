@@ -4,13 +4,26 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
+
+/// <summary>
+/// Provides functionality to check for, download, and install updates for the Mermaid.js library.
+/// </summary>
 public sealed class MermaidUpdateService
 {
+    /// <summary>
+    /// Gets the directory where Mermaid assets are stored.
+    /// </summary>
     private string AssetDir { get; }
+
     private readonly AppSettings _settings;
     private static readonly HttpClient _http = new HttpClient();
     private const string MermaidMinJsFileName = "mermaid.min.js";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MermaidUpdateService"/> class.
+    /// </summary>
+    /// <param name="settings">Application settings containing Mermaid configuration.</param>
+    /// <param name="assetDir">Directory path for storing Mermaid assets.</param>
     public MermaidUpdateService(AppSettings settings, string assetDir)
     {
         _settings = settings;
@@ -20,8 +33,15 @@ public sealed class MermaidUpdateService
         SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
     }
 
+    /// <summary>
+    /// Gets the full path to the bundled Mermaid.js file.
+    /// </summary>
     public string BundledMermaidPath => Path.Combine(AssetDir, MermaidMinJsFileName);
 
+    /// <summary>
+    /// Checks for a newer version of Mermaid.js and updates the local copy if available.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task CheckAndUpdateAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -68,6 +88,12 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Downloads the specified Mermaid.js file and installs it, updating the local version.
+    /// </summary>
+    /// <param name="url">URL to download the Mermaid.js file from.</param>
+    /// <param name="newVersion">The new version string to update to.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task DownloadAndInstallUpdateAsync(string url, string newVersion)
     {
         Stopwatch downloadStopwatch = Stopwatch.StartNew();
@@ -137,6 +163,10 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Verifies the integrity and validity of the installed Mermaid.js file.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task VerifyInstallationAsync()
     {
         try
@@ -172,6 +202,12 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Fetches the latest Mermaid.js version and its download URL from the npm registry.
+    /// </summary>
+    /// <returns>
+    /// A tuple containing the latest version string and the download URL for Mermaid.js.
+    /// </returns>
     [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Hardcoded to specific unpkg.com URL")]
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
@@ -215,6 +251,12 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Determines whether the remote Mermaid.js version is newer than the local version.
+    /// </summary>
+    /// <param name="remote">The remote version string.</param>
+    /// <param name="local">The local version string.</param>
+    /// <returns><c>true</c> if the remote version is newer; otherwise, <c>false</c>.</returns>
     private static bool IsNewer(string remote, string local)
     {
         bool canParseRemote = Version.TryParse(remote, out Version? rv);
