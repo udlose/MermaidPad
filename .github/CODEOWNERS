@@ -1,0 +1,7 @@
+# MermaidPad CODEOWNERS
+# All code owned by @udlose
+*       @udlose
+
+# Optionally, you can add more granular rules:
+# src/   @udlose
+# *.md   @udlose
