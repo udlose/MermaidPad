@@ -39,6 +39,8 @@ jobs:
   bundle-app:
     needs: restrict-user
     runs-on: macos-latest
+    permissions:
+      contents: write           # To update artifacts and create releases
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,25 +64,36 @@ jobs:
           APPNAME="MermaidPad"
           BUNDLE="MermaidPad.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
-          cp ./publish/unpacked/$APPNAME "$BUNDLE/Contents/MacOS/"
+          cp -a ./publish/unpacked/. "$BUNDLE/Contents/MacOS/"
           cp Info.plist "$BUNDLE/Contents/"
           cp Assets/AppIcon.icns "$BUNDLE/Contents/"
           chmod +x "$BUNDLE/Contents/MacOS/$APPNAME"
 
-      - name: Zip .app bundle
+      - name: List .app bundle contents
         run: |
-          zip -r MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip MermaidPad.app
+          find MermaidPad.app
+
+      - name: Download .app bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          path: ./artifacts
+
+      - name: Zip .app bundle for release
+        run: |
+          cd ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          zip -r ../MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip .
 
       - name: Upload .app bundle artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
-          path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          path: MermaidPad.app
 
       - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
         uses: ncipollo/release-action@v1
         with:
           tag: v${{ inputs.version }}
-          artifacts: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          artifacts: ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
