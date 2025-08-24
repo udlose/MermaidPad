@@ -6,8 +6,8 @@ using System.Text;
 
 namespace MermaidPad.Services;
 /// <summary>
-/// Clean HTTP server approach for WebView content.
-/// Uses separate HTML and JS files to avoid JavaScript injection issues.
+/// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
+/// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
 public sealed class MermaidRenderer : IAsyncDisposable
 {
@@ -25,6 +25,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
 
+    /// <summary>
+    /// Initializes the MermaidRenderer with the specified WebView and assets directory.
+    /// </summary>
+    /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InitializeAsync(WebView webView, string assetsDir)
     {
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
@@ -33,6 +39,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         await InitializeWithHttpServerAsync(assetsDir);
     }
 
+    /// <summary>
+    /// Prepares content and starts the local HTTP server for serving Mermaid assets.
+    /// </summary>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task InitializeWithHttpServerAsync(string assetsDir)
     {
         // Step 1: Prepare content (HTML and JS separately)
@@ -53,6 +64,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         await NavigateToServerAsync();
     }
 
+    /// <summary>
+    /// Reads the required HTML and JS asset files from disk.
+    /// </summary>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task PrepareContentAsync(string assetsDir)
     {
         Stopwatch sw = Stopwatch.StartNew();
@@ -86,6 +102,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log($"{nameof(PrepareContentAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
+    /// <summary>
+    /// Starts the local HTTP server to serve Mermaid assets.
+    /// </summary>
     private void StartHttpServer()
     {
         _serverPort = GetAvailablePort();
@@ -111,6 +130,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log($"HTTP server started on port {_serverPort}");
     }
 
+    /// <summary>
+    /// Handles incoming HTTP requests and serves the appropriate content.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the request handling loop.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task HandleHttpRequestsAsync(CancellationToken cancellationToken)
     {
         try
@@ -165,6 +189,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Processes a single HTTP request and serves the requested asset.
+    /// </summary>
+    /// <param name="context">The HTTP request context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ProcessRequestAsync(HttpListenerContext context)
     {
         try
@@ -235,6 +264,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Navigates the WebView to the local HTTP server URL.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task NavigateToServerAsync()
     {
         string serverUrl = $"http://localhost:{_serverPort}/";
@@ -271,6 +304,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Finds an available port in the range 8083-8199 for the HTTP server.
+    /// </summary>
+    /// <returns>An available port number.</returns>
     private static int GetAvailablePort()
     {
         for (int port = 8083; port < 8200; port++)
@@ -292,6 +329,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         throw new InvalidOperationException("No available ports found in range 8083-8199");
     }
 
+    /// <summary>
+    /// Renders the specified Mermaid diagram source in the WebView.
+    /// </summary>
+    /// <param name="mermaidSource">The Mermaid diagram source code.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
         _renderAttemptCount++;
@@ -368,6 +410,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
+    /// </summary>
+    /// <returns>A task representing the asynchronous disposal operation.</returns>
     public async ValueTask DisposeAsync()
     {
         try

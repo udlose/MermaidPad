@@ -18,30 +18,58 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
 
+    /// <summary>
+    /// Gets or sets the current diagram text.
+    /// </summary>
     [ObservableProperty]
     public partial string DiagramText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the last error message, if any.
+    /// </summary>
     [ObservableProperty]
     public partial string? LastError { get; set; }
 
+    /// <summary>
+    /// Gets or sets the version of the bundled Mermaid.js.
+    /// </summary>
     [ObservableProperty]
     public partial string BundledMermaidVersion { get; set; } = "11.9.0";
 
+    /// <summary>
+    /// Gets or sets the latest Mermaid.js version available.
+    /// </summary>
     [ObservableProperty]
     public partial string? LatestMermaidVersion { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether live preview is enabled.
+    /// </summary>
     [ObservableProperty]
     public partial bool LivePreviewEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Gets or sets the selection start index in the editor.
+    /// </summary>
     [ObservableProperty]
     public partial int EditorSelectionStart { get; set; }
 
+    /// <summary>
+    /// Gets or sets the selection length in the editor.
+    /// </summary>
     [ObservableProperty]
     public partial int EditorSelectionLength { get; set; }
 
+    /// <summary>
+    /// Gets or sets the caret offset in the editor.
+    /// </summary>
     [ObservableProperty]
     public partial int EditorCaretOffset { get; set; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainViewModel"/> class.
+    /// </summary>
+    /// <param name="services">The service provider for dependency injection.</param>
     public MainViewModel(IServiceProvider services)
     {
         _renderer = services.GetRequiredService<MermaidRenderer>();
@@ -59,6 +87,10 @@ public sealed partial class MainViewModel : ViewModelBase
         EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
     }
 
+    /// <summary>
+    /// Renders the current diagram text in the preview.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanRender))]
     private async Task RenderAsync()
     {
@@ -66,8 +98,16 @@ public sealed partial class MainViewModel : ViewModelBase
         await _renderer.RenderAsync(DiagramText);
     }
 
+    /// <summary>
+    /// Determines whether the render command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the diagram text is not empty; otherwise, <c>false</c>.</returns>
     private bool CanRender() => !string.IsNullOrWhiteSpace(DiagramText);
 
+    /// <summary>
+    /// Clears the diagram text and resets editor selection and caret.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanClear))]
     private async Task ClearAsync()
     {
@@ -79,14 +119,20 @@ public sealed partial class MainViewModel : ViewModelBase
         await _renderer.RenderAsync(string.Empty);
     }
 
+    /// <summary>
+    /// Determines whether the clear command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the diagram text is not empty; otherwise, <c>false</c>.</returns>
     private bool CanClear() => !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
     /// Handles changes to the diagram text and triggers rendering if live preview is enabled.
     /// </summary>
-    /// <remarks>If live preview is enabled, this method de-bounces the rendering operation to occur 500
+    /// <remarks>
+    /// If live preview is enabled, this method de-bounces the rendering operation to occur 500
     /// milliseconds after the last change. It also reevaluates the execution status of the Render and Clear
-    /// commands.</remarks>
+    /// commands.
+    /// </remarks>
     /// <param name="value">The updated diagram text, which is not used directly in this method.</param>
     partial void OnDiagramTextChanged(string value)
     {
@@ -110,6 +156,10 @@ public sealed partial class MainViewModel : ViewModelBase
         ClearCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Handles changes to the live preview enabled state.
+    /// </summary>
+    /// <param name="value">The new value indicating whether live preview is enabled.</param>
     partial void OnLivePreviewEnabledChanged(bool value)
     {
         if (value)
@@ -130,6 +180,10 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Checks for Mermaid.js updates and updates the version properties.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task CheckForMermaidUpdatesAsync()
     {
         await _updateService.CheckAndUpdateAsync();
@@ -137,6 +191,9 @@ public sealed partial class MainViewModel : ViewModelBase
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
     }
 
+    /// <summary>
+    /// Persists the current state to the settings service.
+    /// </summary>
     public void Persist()
     {
         _settingsService.Settings.LastDiagramText = DiagramText;
@@ -149,6 +206,9 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Save();
     }
 
+    /// <summary>
+    /// Gets sample Mermaid diagram text.
+    /// </summary>
     private static string SampleText => """
 graph TD
   A[Start] --> B{Decision}
