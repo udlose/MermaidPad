@@ -18,9 +18,9 @@ on:
         required: true
         type: string
       rid:
-        description: 'Runtime Identifier (osx-x64 or osx-arm64)'
+        description: 'Runtime Identifier'
         required: true
-        type: string
+        type: choice
         options:
           - osx-x64
           - osx-arm64
