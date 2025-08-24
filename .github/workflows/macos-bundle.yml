@@ -29,11 +29,12 @@ jobs:
   restrict-user:
     runs-on: ubuntu-latest
     steps:
-      - name: Check if actor is udlose
-        if: github.actor != 'udlose'
+      - name: Restrict to allowed user
         run: |
-          echo "Only udlose can run this workflow."
-          exit 1
+          if [ "${{ github.actor }}" != "udlose" ]; then
+            echo "Only udlose can run this workflow."
+            exit 1
+          fi
 
   bundle-app:
     needs: restrict-user
