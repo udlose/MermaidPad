@@ -73,6 +73,14 @@ jobs:
         run: |
           find MermaidPad.app
 
+      # Upload the .app bundle immediately after creation
+      - name: Upload .app bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          path: MermaidPad.app
+
+      # Download the .app bundle artifact for zipping and release
       - name: Download .app bundle artifact
         uses: actions/download-artifact@v4
         with:
@@ -83,12 +91,6 @@ jobs:
         run: |
           cd ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
           zip -r ../MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip .
-
-      - name: Upload .app bundle artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
-          path: MermaidPad.app
 
       - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
         uses: ncipollo/release-action@v1
