@@ -40,7 +40,8 @@ MermaidPad's macOS `.app` bundle is distributed via a [Homebrew tap](https://git
 
 ### Install via Homebrew
 ```bash
-brew tap udlose/tap brew install --cask udlose/tap/mermaidpad
+brew tap udlose/tap
+brew install --cask udlose/tap/mermaidpad
 ```
 
 ## Planned
