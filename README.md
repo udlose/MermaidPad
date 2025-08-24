@@ -1,6 +1,6 @@
 # MermaidPad
 
-A minimal cross-platform-ready Mermaid diagram editor built with .NET 9 + Avalonia. The editor uses [MermaidJS](https://mermaid.js.org/) to render Mermaid Diagrams.
+A cross-platform-ready Mermaid Chart editor built with .NET 9 + Avalonia. The editor uses [MermaidJS](https://mermaid.js.org/) to render Mermaid Diagrams.
 It is cross-platform and runs on:
 - Windows x64/arm64
 - Linux x64/arm64
@@ -31,6 +31,18 @@ I hope you enjoy it and feel welcome to contribute!
   - For graphical dialogs: zenity, kdialog, yad, Xdialog, or gxmessage (otherwise falls back to console)
 - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
+## Automated Homebrew Cask Updates
+MermaidPad's macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates:
+
+- The [Cask file](https://github.com/udlose/homebrew-tap/blob/main/Casks/mermaidpad.rb) is **automatically updated** after each new release.
+- A scheduled workflow checks for new releases daily, updates the Cask version and SHA256 checksums, and creates a pull request in the tap repository.
+- You will always get the latest version via Homebrew once the PR is merged.
+
+### Install via Homebrew
+```bash
+brew tap udlose/tap brew install --cask udlose/tap/mermaidpad
+```
+
 ## Planned
 - Syntax highlighting (AvaloniaEdit custom definition)
 - SVG/PNG export
@@ -40,7 +52,7 @@ I hope you enjoy it and feel welcome to contribute!
 <img width="2318" height="1381" alt="image" src="https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61" />
 
 ## Examples
-Here are some examples - you can find these [here](https://github.com/udlose/MermaidPad/blob/main/MermaidSamples.txt).
+Here are some examples - you can find these [here](https://github.com/udlose/MermaidPad/blob/main/Assets/Samples/MermaidSamples.txt).
 
 ### Graphs
 ```
