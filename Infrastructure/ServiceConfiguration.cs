@@ -5,11 +5,20 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 
 namespace MermaidPad.Infrastructure;
+/// <summary>
+/// Provides methods for configuring and building the application's dependency injection service provider.
+/// Handles asset extraction and validation for MermaidPad.
+/// </summary>
 public static class ServiceConfiguration
 {
     private const string MermaidMinJsFileName = "mermaid.min.js";
     private const string IndexHtmlFileName = "index.html";
 
+    /// <summary>
+    /// Builds and configures the application's service provider.
+    /// Registers core services, asset extraction, and view models.
+    /// </summary>
+    /// <returns>A fully configured <see cref="ServiceProvider"/> instance.</returns>
     public static ServiceProvider BuildServiceProvider()
     {
         ServiceCollection services = new ServiceCollection();
@@ -40,6 +49,11 @@ public static class ServiceConfiguration
         return services.BuildServiceProvider();
     }
 
+    /// <summary>
+    /// Extracts embedded assets to the assets directory if required.
+    /// Validates asset existence and version, and logs timing information.
+    /// </summary>
+    /// <returns>The path to the assets directory.</returns>
     private static string ExtractAssetsOnce()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -84,8 +98,9 @@ public static class ServiceConfiguration
 
     /// <summary>
     /// Gets the assets directory using the same pattern as SettingsService.
-    /// This ensures cross-platform compatibility and user-writable storage.
+    /// Ensures cross-platform compatibility and user-writable storage.
     /// </summary>
+    /// <returns>The path to the assets directory.</returns>
     private static string GetAssetsDirectory()
     {
         // Use same pattern as SettingsService.GetConfigDirectory()
@@ -94,6 +109,11 @@ public static class ServiceConfiguration
         return Path.Combine(baseDir, "Assets");
     }
 
+    /// <summary>
+    /// Determines whether assets should be extracted based on existence and version.
+    /// </summary>
+    /// <param name="assetsDir">The assets directory to check.</param>
+    /// <returns><c>true</c> if extraction is required; otherwise, <c>false</c>.</returns>
     private static bool ShouldExtractAssets(string assetsDir)
     {
         // If directory doesn't exist, definitely extract
@@ -124,6 +144,11 @@ public static class ServiceConfiguration
         return !isCurrent;
     }
 
+    /// <summary>
+    /// Checks if the assets in the specified directory are current by comparing version markers.
+    /// </summary>
+    /// <param name="assetsDir">The assets directory to check.</param>
+    /// <returns><c>true</c> if assets are current; otherwise, <c>false</c>.</returns>
     private static bool IsAssetsCurrent(string assetsDir)
     {
         try
@@ -156,6 +181,11 @@ public static class ServiceConfiguration
         }
     }
 
+    /// <summary>
+    /// Validates that all required asset files exist in the specified directory.
+    /// Throws an exception if any critical asset is missing.
+    /// </summary>
+    /// <param name="assetsDir">The assets directory to validate.</param>
     private static void ValidateAssets(string assetsDir)
     {
         string[] requiredFiles = [IndexHtmlFileName, MermaidMinJsFileName];
