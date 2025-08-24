@@ -55,7 +55,7 @@ jobs:
   # Build matrix for all platforms
   build:
     name: Build (${{ matrix.name }})
-    needs: get-version
+    needs: [restrict-user, get-version]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -124,7 +124,7 @@ jobs:
   # Create GitHub release
   release:
     name: Create Release
-    needs: [get-version, build]
+    needs: [restrict-user, get-version, build]
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
@@ -199,7 +199,7 @@ jobs:
 
   bundle-macos-app:
     name: Bundle macOS .app
-    needs: [get-version, build]
+    needs: [restrict-user, get-version, build]
     uses: ./.github/workflows/macos-bundle.yml
     with:
       version: ${{ needs.get-version.outputs.version }}
