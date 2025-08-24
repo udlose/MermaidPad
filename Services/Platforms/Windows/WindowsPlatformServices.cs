@@ -47,6 +47,7 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
     /// <param name="title">Dialog title.</param>
     /// <param name="message">Dialog message.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="title"/> or <paramref name="message"/> is null or empty.</exception>
+    [SuppressMessage("Minor Code Smell", "S1905:Redundant casts should not be used", Justification = "Clarifies intent of conversion to IntPtr")]
     public void ShowNativeDialog(string title, string message)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
