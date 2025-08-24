@@ -193,3 +193,30 @@ jobs:
             1. Download the appropriate file for your platform
             2. Make executable (Linux/macOS): `chmod +x MermaidPad-*`
             3. Run directly: `./MermaidPad-*` or double-click (on Windows)
+
+  bundle-macos-app:
+    name: Bundle macOS .app
+    needs: [get-version, build]
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - rid: osx-x64
+          - rid: osx-arm64
+    steps:
+      - name: Call macOS bundle workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = process.env.VERSION || '${{ needs.get-version.outputs.version }}';
+            const rid = '${{ matrix.rid }}';
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'macos-bundle.yml',
+              ref: context.ref,
+              inputs: {
+                version,
+                rid
+              }
+            });

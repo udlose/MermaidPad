@@ -1,0 +1,79 @@
+name: Bundle macOS .app
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      rid:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to bundle (e.g., 1.0.0)'
+        required: true
+        type: string
+      rid:
+        description: 'Runtime Identifier (osx-x64 or osx-arm64)'
+        required: true
+        type: string
+        options:
+          - osx-x64
+          - osx-arm64
+
+jobs:
+  restrict-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if actor is udlose
+        if: github.actor != 'udlose'
+        run: |
+          echo "Only udlose can run this workflow."
+          exit 1
+
+  bundle-app:
+    needs: restrict-user
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download published artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip
+          path: ./publish
+
+      - name: Unzip published files
+        run: |
+          unzip ./publish/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip -d ./publish/unpacked
+
+      - name: Create .app bundle structure
+        run: |
+          APPNAME="MermaidPad"
+          BUNDLE="MermaidPad.app"
+          mkdir -p "$BUNDLE/Contents/MacOS"
+          cp ./publish/unpacked/$APPNAME "$BUNDLE/Contents/MacOS/"
+          cp Info.plist "$BUNDLE/Contents/"
+          cp Assets/AppIcon.icns "$BUNDLE/Contents/"
+          chmod +x "$BUNDLE/Contents/MacOS/$APPNAME"
+
+      - name: Zip .app bundle
+        run: |
+          zip -r MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip MermaidPad.app
+
+      - name: Upload .app bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+
+      - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ inputs.version }}
+          artifacts: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
