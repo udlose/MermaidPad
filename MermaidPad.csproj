@@ -8,9 +8,9 @@
 		<RootNamespace>MermaidPad</RootNamespace>
 		<AssemblyName>MermaidPad</AssemblyName>
 		<UseAvalonia>true</UseAvalonia>
-		<ApplicationIcon>Assets/avalonia-logo.ico</ApplicationIcon>
+		<ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
 		<AssemblyTitle>MermaidPad</AssemblyTitle>
-		<AssemblyDescription>Live Mermaid Diagram Editor</AssemblyDescription>
+		<AssemblyDescription>Live Mermaid Chart Editor</AssemblyDescription>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
@@ -33,12 +33,12 @@
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.4" />
 		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.304" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
-		  <PrivateAssets>all</PrivateAssets>
-		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
-		  <PrivateAssets>all</PrivateAssets>
-		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
@@ -59,7 +59,7 @@
 		<!--        This line important /\-->
 	</ItemGroup>
 	<ItemGroup>
-		<AvaloniaResource Include="Assets\avalonia-logo.ico" />
+		<AvaloniaResource Include="Assets\AppIcon.ico" />
 		<AdditionalFiles Include="**\*.xaml" />
 		<AdditionalFiles Include="**\*.axaml" />
 	</ItemGroup>
@@ -97,6 +97,13 @@
 
 	<ItemGroup>
 		<None Include=".github\workflows\build-and-release.yml" />
+		<None Include=".github\workflows\macos-bundle.yml" />
+	</ItemGroup>
+
+	<!-- macOS app bundle support -->
+	<ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'">
+		<None Include="Info.plist" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 </Project>
