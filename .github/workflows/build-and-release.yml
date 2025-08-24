@@ -209,3 +209,5 @@ jobs:
     with:
       version: ${{ needs.get-version.outputs.version }}
       rid: ${{ matrix.rid }}
+    permissions:
+      contents: write
