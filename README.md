@@ -1,7 +1,8 @@
 # MermaidPad
 
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
-[![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml) [![Bundle macOS .app](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml)
+[![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
+[![Bundle macOS .app](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml)
 [![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
@@ -10,66 +11,69 @@
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
 [![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE)
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green?style=flat-square&logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=YJY8X9LZ6U8NQ)
-[![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/daveblack)
 
+---
 
-A cross-platform-ready Mermaid Chart editor built with .NET 9 + Avalonia. The editor uses [MermaidJS](https://mermaid.js.org/) to render Mermaid Diagrams.
-It is cross-platform and runs on:
-- Windows x64/arm64
-- Linux x64/arm64
-- macOS x64/arm64
+## Overview
 
-It has an optional "Live Preview" feature to render in real-time. I plan to add syntax highlighting and SVG/PNG exporting. If there are features you'd like to see,
-open a feature request.
+**MermaidPad** is a cross-platform Mermaid chart editor built with .NET 9 and Avalonia. It leverages [MermaidJS](https://mermaid.js.org/) for rendering diagrams and supports Windows, Linux, and macOS (x64/arm64). MermaidPad offers a streamlined experience for editing, previewing, and exporting Mermaid diagrams.
 
-I hope you enjoy it and feel welcome to contribute!
+---
 
 ## Features
-- Paste/edit Mermaid markup on the left, click **Render** to preview on the right.
-- Click **Clear** to clear the Editor pane.
-- Bundled `mermaid.min.js` for offline use.
-- On startup attempts to fetch the latest Mermaid version (if online) and self-updates the local bundle.
-- Persists last diagram in user settings (`AppData\MermaidPad\settings.json`).
-- Drag the divider to resize the editor pane.
-- **Native OS dialogs for error and information messages:**
-  - Windows: `MessageBox`
-  - Linux: `zenity`, `kdialog`, `yad`, `Xdialog`, `gxmessage`, or console fallback
-  - macOS: `NSAlert` via native APIs
-- **Checks platform compatibility at startup to prevent architecture/OS mismatches**
+
+- Edit Mermaid markup and preview diagrams in real-time
+- "Live Preview" for instant rendering
+- Bundled `mermaid.min.js` for offline use
+- Automatic update of MermaidJS bundle on startup (if online)
+- Persistent storage of last diagram in user settings (`AppData\MermaidPad\settings.json`)
+- Adjustable editor pane via draggable divider
+- Native OS dialogs for error and information messages:
+  - **Windows:** MessageBox
+  - **Linux:** zenity, kdialog, yad, Xdialog, gxmessage, or console fallback
+  - **macOS:** NSAlert via native APIs
+- Platform compatibility checks at startup
+
+---
 
 ## Requirements
-- .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
-- Windows: WebView2 Runtime ([Download here](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
-- Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
-  - For graphical dialogs: zenity, kdialog, yad, Xdialog, or gxmessage (otherwise falls back to console)
-- macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
-## Automated Homebrew Cask Updates
-MermaidPad's macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates:
+- [.NET 9 Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
+- **Windows:** [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download)
+- **Linux:** `libwebkit2gtk-4.0-37+` (for WebKit support)
+  - For graphical dialogs: zenity, kdialog, yad, Xdialog, or gxmessage
+- **macOS:** WebKit (included by default, [Download](https://webkit.org/downloads/))
 
-- The [Cask file](https://github.com/udlose/homebrew-tap/blob/main/Casks/mermaidpad.rb) is **automatically updated** after each new release.
-- A scheduled workflow checks for new releases daily, updates the Cask version and SHA256 checksums, and creates a pull request in the tap repository.
-- You will always get the latest version via Homebrew once the PR is merged.
+---
 
-### Install via Homebrew
-```bash
+## Installation
+
+### macOS (via Homebrew)
+
+MermaidPad’s macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
+
+```
 brew tap udlose/tap
 brew install --cask udlose/tap/mermaidpad
 ```
 
-## Planned
-- Syntax highlighting (AvaloniaEdit custom definition)
-- SVG/PNG export
-- App Update mechanism
+The [Cask file](https://github.com/udlose/homebrew-tap/blob/main/Casks/mermaidpad.rb) is automatically updated after each release.
+
+---
 
 ## Usage
-<img width="2318" height="1381" alt="image" src="https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61" />
+
+<img width="2318" height="1381" alt="MermaidPad UI" src="https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61" />
+
+---
 
 ## Examples
-Here are some examples - you can find these [here](https://github.com/udlose/MermaidPad/blob/main/Assets/Samples/MermaidSamples.txt).
 
-### Graphs
+Find more samples in [Assets/Samples/MermaidSamples.txt](https://github.com/udlose/MermaidPad/blob/main/Assets/Samples/MermaidSamples.txt).
+
+<details>
+<summary>Graphs</summary>
+
 ```
 graph TD
     A[Start Build] --> B{runtimeFlavor specified?}
@@ -86,9 +90,12 @@ graph TD
     I -->|No| M[Build Mono only]
     G --> N[SUCCESS - builds both as needed]
 ```
-<img width="3833" height="2070" alt="image" src="https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a" />
+<img width="3833" height="2070" alt="Graph Example" src="https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a" />
+</details>
 
-### Sequence Diagrams
+<details>
+<summary>Sequence Diagrams</summary>
+
 ```
 sequenceDiagram
     participant User
@@ -99,9 +106,12 @@ sequenceDiagram
     System-->>User: Confirmation
     User->>System: Logout
 ```
-<img width="2317" height="1364" alt="image" src="https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959" />
+<img width="2317" height="1364" alt="Sequence Diagram Example" src="https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959" />
+</details>
 
-### Class Diagrams
+<details>
+<summary>Class Diagrams</summary>
+
 ```
 classDiagram
     class Animal {
@@ -140,9 +150,12 @@ classDiagram
     }
     Animal <|-- Insect
 ```
-<img width="2319" height="1365" alt="image" src="https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a" />
+<img width="2319" height="1365" alt="Class Diagram Example" src="https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a" />
+</details>
 
-### State Diagrams
+<details>
+<summary>State Diagrams</summary>
+
 ```
 stateDiagram
     [*] --> Idle
@@ -152,9 +165,12 @@ stateDiagram
     Completed --> Idle : reset
     Error --> Idle : reset
 ```
-<img width="2320" height="1361" alt="image" src="https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be" />
+<img width="2320" height="1361" alt="State Diagram Example" src="https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be" />
+</details>
 
-### Gantt Charts
+<details>
+<summary>Gantt Charts</summary>
+
 ```
 gantt
     title Project Timeline
@@ -169,9 +185,12 @@ gantt
     Task 5 :2024-01-01, 20d
     Task 6 :after a5, 15d
 ```
-<img width="2318" height="1360" alt="image" src="https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390" />
+<img width="2318" height="1360" alt="Gantt Chart Example" src="https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390" />
+</details>
 
-### Pie Charts
+<details>
+<summary>Pie Charts</summary>
+
 ```
 pie
     title Browser Usage
@@ -180,4 +199,40 @@ pie
     "Safari": 15
     "Others": 10
 ```
-<img width="2315" height="1362" alt="image" src="https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b" />
+<img width="2315" height="1362" alt="Pie Chart Example" src="https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b" />
+</details>
+
+---
+
+## Roadmap
+
+- Syntax highlighting (AvaloniaEdit custom definition)
+- SVG/PNG export
+- Application update mechanism
+
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the project’s style and includes relevant tests.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](https://github.com/udlose/MermaidPad/blob/main/LICENSE).
+
+---
+
+## Support
+
+If you find MermaidPad useful, consider supporting development:
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green?style=flat-square&logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=YJY8X9LZ6U8NQ)
+[![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/daveblack)
+
+---
+
+## Contact
+
+For questions or feedback, please open an issue or reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions).
