@@ -5,11 +5,11 @@
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
-  Title="MermaidPad - Save Ferris!"
+  Title="MermaidPad - The Cross-Platform Mermaid Chart Editor"
   Width="1200"
   Height="800"
   x:DataType="vm:MainViewModel"
-  Icon="/Assets/avalonia-logo.ico">
+  Icon="/Assets/AppIcon.ico">
 
   <Window.Styles>
     <Style Selector="edit|TextEditor ScrollBar[Orientation=Vertical]">
