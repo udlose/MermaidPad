@@ -50,7 +50,7 @@
 
 ### macOS (via Homebrew)
 
-MermaidPad’s macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
+MermaidPadâ€™s macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
 
 ```
 brew tap udlose/tap
@@ -214,7 +214,7 @@ pie
 
 ## Contributing
 
-Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the project’s style and includes relevant tests.
+Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the projectâ€™s style and includes relevant tests.
 
 ---
 
@@ -228,7 +228,6 @@ This project is licensed under the [MIT License](https://github.com/udlose/Merma
 
 If you find MermaidPad useful, consider supporting development:
 
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green?style=flat-square&logo=paypal)](https://www.paypal.com/donate/?hosted_button_id=YJY8X9LZ6U8NQ)
 [![Buy Me A Coffee](https://img.shields.io/badge/Donate-Buy%20Me%20A%20Coffee-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/daveblack)
 
 ---
