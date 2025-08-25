@@ -22,6 +22,7 @@
 		<AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
 		<!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
 		<AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
+		<TargetFramework>net9.0-windows7.0</TargetFramework>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -84,6 +85,14 @@
 
 	<ItemGroup>
 		<AvaloniaXaml Include="**\*.axaml" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="Assets\js-yaml.min.js" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Include="Assets\js-yaml.min.js" />
 	</ItemGroup>
 
 	<ItemGroup>
