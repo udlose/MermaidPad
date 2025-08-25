@@ -129,3 +129,26 @@ pie
     "Firefox": 30
     "Safari": 15
     "Others": 10
+
+
+# Now with config we can apply layouts and styling:-
+---
+config:
+  theme: forest
+  layout: elk
+---
+classDiagram
+    class User {
+        +String name
+        +String email
+        +login()
+        +logout()
+    }
+    class System {
+        +String systemName
+        +initialize()
+        +shutdown()
+    }
+    User --> System : interacts with
+
+just we need to add the config block at the top of the diagram.
