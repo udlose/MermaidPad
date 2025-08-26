@@ -152,8 +152,9 @@ jobs:
           # Ensure all files have correct permissions before zipping
           find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
     
-          # Create zip preserving executable permissions  
-          zip -r "MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip" "$APP_BUNDLE" -x "*.DS_Store*" "*/__MACOSX*"
+          # Create zip preserving executable permissions with correct exclusion patterns
+          zip -r "MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip" "$APP_BUNDLE" \
+              -x "*.DS_Store" "__MACOSX/*"
     
           echo "Success: Created app bundle zip: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
 
