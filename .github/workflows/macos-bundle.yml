@@ -135,9 +135,9 @@ jobs:
         run: |
           cd ./artifacts
           
-          # Find the exact MermaidPad.app bundle using robust array assignment:
-          # This approach (readarray with process substitution) safely handles filenames with spaces or newlines,
-          # avoids word splitting issues, and ensures each result is a separate array element.
+          # Find MermaidPad.app bundle in current directory
+          
+          
           readarray -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
           
           # Validate exactly one .app bundle exists
