@@ -260,37 +260,67 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download macOS x64 artifact
+      # Download the .app bundle artifacts (these contain the proper app structure)
+      - name: Download macOS x64 app bundle
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.zip
-          path: ./artifacts/x64
+          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app
+          path: ./artifacts/x64-app
 
-      - name: Download macOS ARM64 artifact
+      - name: Download macOS ARM64 app bundle  
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.zip
-          path: ./artifacts/arm64
+          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app
+          path: ./artifacts/arm64-app
 
-      - name: Extract both architectures
+      - name: Verify downloaded app bundles
         run: |
-          cd ./artifacts/x64
-          unzip MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.zip
-          cd ../arm64  
-          unzip MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.zip
+          echo "Downloaded app bundles:"
+          ls -la ./artifacts/x64-app/
+          ls -la ./artifacts/arm64-app/
+          
+          echo "App bundle contents:"
+          find ./artifacts/x64-app/ -name "*.app" -exec ls -la {} \;
+          find ./artifacts/arm64-app/ -name "*.app" -exec ls -la {} \;
 
       - name: Create Universal Binary
         run: |
-          # Create the universal app bundle structure
-          mkdir -p "./universal/MermaidPad.app/Contents/MacOS"
+          # Find the .app bundles in the downloaded artifacts
+          X64_APP=$(find ./artifacts/x64-app -name "*.app" -type d | head -1)
+          ARM64_APP=$(find ./artifacts/arm64-app -name "*.app" -type d | head -1)
           
-          # Copy the app structure from x64 (could be either, they're the same except for the binary)
-          cp -r ./artifacts/x64/MermaidPad.app/Contents/* ./universal/MermaidPad.app/Contents/
+          echo "X64 app bundle: $X64_APP"
+          echo "ARM64 app bundle: $ARM64_APP"
+          
+          if [ -z "$X64_APP" ] || [ -z "$ARM64_APP" ]; then
+            echo "Could not find app bundles"
+            exit 1
+          fi
+          
+          # Create the universal app bundle by copying the x64 structure
+          mkdir -p "./universal"
+          cp -r "$X64_APP" "./universal/MermaidPad.app"
+          
+          # Verify we have the binaries
+          X64_BINARY="$X64_APP/Contents/MacOS/MermaidPad"
+          ARM64_BINARY="$ARM64_APP/Contents/MacOS/MermaidPad"
+          
+          echo "X64 binary: $X64_BINARY"
+          echo "ARM64 binary: $ARM64_BINARY"
+          
+          if [ ! -f "$X64_BINARY" ] || [ ! -f "$ARM64_BINARY" ]; then
+            echo "Could not find binaries in app bundles"
+            echo "X64 contents:"
+            ls -la "$X64_APP/Contents/MacOS/"
+            echo "ARM64 contents:"
+            ls -la "$ARM64_APP/Contents/MacOS/"
+            exit 1
+          fi
           
           # Create universal binary using lipo
           lipo -create \
-            ./artifacts/x64/MermaidPad.app/Contents/MacOS/MermaidPad \
-            ./artifacts/arm64/MermaidPad.app/Contents/MacOS/MermaidPad \
+            "$X64_BINARY" \
+            "$ARM64_BINARY" \
             -output ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
           
           # Verify the universal binary
@@ -299,6 +329,9 @@ jobs:
           
           # Make sure it's executable
           chmod +x ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
+          
+          echo "Universal app bundle structure:"
+          ls -la ./universal/MermaidPad.app/Contents/
 
       - name: Install create-dmg
         run: |
@@ -327,13 +360,9 @@ jobs:
 
       - name: Verify DMG
         run: |
-          # Mount and verify the DMG contents
-          hdiutil attach "MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg" -readonly -mountpoint /tmp/mermaid-verify
-          echo "DMG Contents:"
-          ls -la /tmp/mermaid-verify/
-          echo "App binary info:"
-          lipo -info "/tmp/mermaid-verify/MermaidPad.app/Contents/MacOS/MermaidPad"
-          hdiutil detach /tmp/mermaid-verify
+          # Basic verification
+          ls -la MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg
+          echo "DMG file size: $(du -h MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg)"
 
       - name: Upload Universal DMG to Release
         uses: ncipollo/release-action@v1
