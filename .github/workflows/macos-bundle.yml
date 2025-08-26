@@ -107,9 +107,9 @@ jobs:
           
           # List final app structure for debugging
           echo "Final app bundle structure:"
-          find "$BUNDLE" -type f | head -20
-          echo "   ... (showing first 20 files)"
-          
+          find "$BUNDLE" -type f | head -100
+          echo "   ... (showing first 100 files)"
+
           echo "Success: Ad-hoc signing completed successfully!"
 
       - name: List .app bundle contents
