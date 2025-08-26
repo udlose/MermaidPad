@@ -69,48 +69,48 @@ jobs:
           cp Assets/AppIcon.icns "$BUNDLE/Contents/"
           chmod +x "$BUNDLE/Contents/MacOS/$APPNAME"
 
-      - name: Ad-hoc Sign .app Bundle
-        run: |
-          BUNDLE="MermaidPad.app"
-          echo "Starting comprehensive ad-hoc signing of $BUNDLE"
+      # - name: Ad-hoc Sign .app Bundle
+      #   run: |
+      #     BUNDLE="MermaidPad.app"
+      #     echo "Starting comprehensive ad-hoc signing of $BUNDLE"
           
-          # Sign all dylibs and frameworks first (inside-out approach)
-          echo "Signing dynamic libraries and frameworks..."
-          find "$BUNDLE" -name "*.dylib" -exec codesign --force --sign - {} \; || echo "No .dylib files found"
-          find "$BUNDLE" -name "*.framework" -exec codesign --force --sign - {} \; || echo "No .framework files found"
+      #     # Sign all dylibs and frameworks first (inside-out approach)
+      #     echo "Signing dynamic libraries and frameworks..."
+      #     find "$BUNDLE" -name "*.dylib" -exec codesign --force --sign - {} \; || echo "No .dylib files found"
+      #     find "$BUNDLE" -name "*.framework" -exec codesign --force --sign - {} \; || echo "No .framework files found"
           
-          # Sign the main executable
-          echo "Signing main executable..."
-          codesign --force --sign - "$BUNDLE/Contents/MacOS/MermaidPad"
+      #     # Sign the main executable
+      #     echo "Signing main executable..."
+      #     codesign --force --sign - "$BUNDLE/Contents/MacOS/MermaidPad"
           
-          # Sign the entire bundle with --deep to catch anything we missed
-          echo "Signing entire .app bundle..."
-          codesign --force --deep --sign - "$BUNDLE"
+      #     # Sign the entire bundle with --deep to catch anything we missed
+      #     echo "Signing entire .app bundle..."
+      #     codesign --force --deep --sign - "$BUNDLE"
           
-          # Verify the signing worked
-          echo "Verifying signatures..."
-          codesign --verify --deep --strict --verbose=2 "$BUNDLE" || {
-            echo "ERROR: Signature verification failed"
-            exit 1
-          }
+      #     # Verify the signing worked
+      #     echo "Verifying signatures..."
+      #     codesign --verify --deep --strict --verbose=2 "$BUNDLE" || {
+      #       echo "ERROR: Signature verification failed"
+      #       exit 1
+      #     }
           
-          # Check Gatekeeper assessment (what users will experience)
-          echo "Testing Gatekeeper assessment..."
-          spctl --assess --type execute --verbose "$BUNDLE" || {
-            echo "Gatekeeper assessment failed (expected for ad-hoc signed apps)"
-            echo "   Users will need to right-click -> Open on first launch"
-          }
+      #     # Check Gatekeeper assessment (what users will experience)
+      #     echo "Testing Gatekeeper assessment..."
+      #     spctl --assess --type execute --verbose "$BUNDLE" || {
+      #       echo "Gatekeeper assessment failed (expected for ad-hoc signed apps)"
+      #       echo "   Users will need to right-click -> Open on first launch"
+      #     }
           
-          # Clear any quarantine attributes
-          echo "Clearing quarantine attributes..."
-          xattr -cr "$BUNDLE" || echo "No quarantine attributes to clear"
+      #     # Clear any quarantine attributes
+      #     echo "Clearing quarantine attributes..."
+      #     xattr -cr "$BUNDLE" || echo "No quarantine attributes to clear"
           
-          # List final app structure for debugging
-          echo "Final app bundle structure:"
-          find "$BUNDLE" -type f | head -100
-          echo "   ... (showing first 100 files)"
+      #     # List final app structure for debugging
+      #     echo "Final app bundle structure:"
+      #     find "$BUNDLE" -type f | head -100
+      #     echo "   ... (showing first 100 files)"
 
-          echo "Success: Ad-hoc signing completed successfully!"
+      #     echo "Success: Ad-hoc signing completed successfully!"
 
       - name: List .app bundle contents
         run: |

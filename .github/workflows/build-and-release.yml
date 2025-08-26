@@ -100,47 +100,47 @@ jobs:
       - name: Publish
         run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
       
-      # Add ad-hoc code signing for macOS binaries
-      - name: Ad-hoc Sign macOS Binary
-        if: ${{ matrix.rid == 'osx-x64' || matrix.rid == 'osx-arm64' }}
-        shell: bash
-        working-directory: ./publish
-        run: |
-          BIN_NAME="MermaidPad${{ matrix.extension }}"
-          echo "Ad-hoc signing macOS binary: $BIN_NAME"
+      # # Add ad-hoc code signing for macOS binaries
+      # - name: Ad-hoc Sign macOS Binary
+      #   if: ${{ matrix.rid == 'osx-x64' || matrix.rid == 'osx-arm64' }}
+      #   shell: bash
+      #   working-directory: ./publish
+      #   run: |
+      #     BIN_NAME="MermaidPad${{ matrix.extension }}"
+      #     echo "Ad-hoc signing macOS binary: $BIN_NAME"
           
-          # Ad-hoc sign the main executable
-          codesign --force --sign - "$BIN_NAME"
+      #     # Ad-hoc sign the main executable
+      #     codesign --force --sign - "$BIN_NAME"
           
-          # Verify the signing worked
-          codesign --verify --verbose "$BIN_NAME"
-          echo "Success: Ad-hoc signing completed for $BIN_NAME"
+      #     # Verify the signing worked
+      #     codesign --verify --verbose "$BIN_NAME"
+      #     echo "Success: Ad-hoc signing completed for $BIN_NAME"
           
-          # Sign .dylib files using find to avoid race conditions
-          echo "Searching for .dylib files to sign..."
-          DYLIB_COUNT=$(find . -name "*.dylib" -type f | wc -l)
+      #     # Sign .dylib files using find to avoid race conditions
+      #     echo "Searching for .dylib files to sign..."
+      #     DYLIB_COUNT=$(find . -name "*.dylib" -type f | wc -l)
           
-          if [ "$DYLIB_COUNT" -gt 0 ]; then
-            echo "Found $DYLIB_COUNT .dylib files, signing them..."
-            find . -name "*.dylib" -type f -print0 | while IFS= read -r -d '' file; do
-              if [ -f "$file" ]; then
-                echo "Signing: $file"
-                codesign --force --sign - "$file"
-                codesign --verify --verbose "$file"
-              else
-                echo "Warning: File disappeared during signing: $file"
-              fi
-            done
-            echo "Success: All .dylib files have been signed"
-          else
-            echo "No .dylib files found to sign"
-          fi
+      #     if [ "$DYLIB_COUNT" -gt 0 ]; then
+      #       echo "Found $DYLIB_COUNT .dylib files, signing them..."
+      #       find . -name "*.dylib" -type f -print0 | while IFS= read -r -d '' file; do
+      #         if [ -f "$file" ]; then
+      #           echo "Signing: $file"
+      #           codesign --force --sign - "$file"
+      #           codesign --verify --verbose "$file"
+      #         else
+      #           echo "Warning: File disappeared during signing: $file"
+      #         fi
+      #       done
+      #       echo "Success: All .dylib files have been signed"
+      #     else
+      #       echo "No .dylib files found to sign"
+      #     fi
           
-          # Clear any quarantine attributes that might have been set
-          echo "Clearing quarantine attributes..."
-          xattr -cr . || echo "No quarantine attributes to clear"
+      #     # Clear any quarantine attributes that might have been set
+      #     echo "Clearing quarantine attributes..."
+      #     xattr -cr . || echo "No quarantine attributes to clear"
           
-          echo "Success: All macOS binaries have been ad-hoc signed"
+      #     echo "Success: All macOS binaries have been ad-hoc signed"
 
       - name: Prepare artifact
         shell: bash
@@ -213,7 +213,7 @@ jobs:
             - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
             ### macOS Installation Notes
-            **Important**: macOS binaries are ad-hoc signed. On first launch:
+            **Important**: macOS binaries are not signed. On first launch:
             1. Right-click the app -> **"Open"** (not double-click)
             2. Click **"Open"** when prompted about unidentified developer
             3. OR via terminal: `xattr -cr MermaidPad-*-osx-* && ./MermaidPad-*-osx-*`
