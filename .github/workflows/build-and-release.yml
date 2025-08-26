@@ -122,17 +122,15 @@ jobs:
           
           if [ "$DYLIB_COUNT" -gt 0 ]; then
             echo "Found $DYLIB_COUNT .dylib files, signing them..."
-            find . -name "*.dylib" -type f -exec sh -c '
-              for dylib; do
-                if [ -f "$dylib" ]; then
-                  echo "Signing: $dylib"
-                  codesign --force --sign - "$dylib"
-                  codesign --verify --verbose "$dylib"
-                else
-                  echo "Warning: File disappeared during signing: $dylib"
-                fi
-              done
-            ' _ {} +
+            find . -name "*.dylib" -type f -print0 | xargs -0 -I {} sh -c '
+              if [ -f "{}" ]; then
+                echo "Signing: {}"
+                codesign --force --sign - "{}"
+                codesign --verify --verbose "{}"
+              else
+                echo "Warning: File disappeared during signing: {}"
+              fi
+            '
             echo "Success: All .dylib files have been signed"
           else
             echo "No .dylib files found to sign"
