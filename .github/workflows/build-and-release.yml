@@ -100,6 +100,37 @@ jobs:
       - name: Publish
         run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
       
+      # Add ad-hoc code signing for macOS binaries
+      - name: Ad-hoc Sign macOS Binary
+        if: matrix.rid == 'osx-x64' || matrix.rid == 'osx-arm64'
+        shell: bash
+        working-directory: ./publish
+        run: |
+          BIN_NAME="MermaidPad${{ matrix.extension }}"
+          echo "Ad-hoc signing macOS binary: $BIN_NAME"
+          
+          # Ad-hoc sign the main executable
+          codesign --force --sign - "$BIN_NAME"
+          
+          # Verify the signing worked
+          codesign --verify --verbose "$BIN_NAME"
+          echo "Success: Ad-hoc signing completed for $BIN_NAME"
+          
+          # Also sign any .dylib files if they exist
+          if ls *.dylib 1> /dev/null 2>&1; then
+            echo "Found .dylib files, signing them too..."
+            for dylib in *.dylib; do
+              echo "Signing: $dylib"
+              codesign --force --sign - "$dylib"
+              codesign --verify --verbose "$dylib"
+            done
+          fi
+          
+          # Clear any quarantine attributes that might have been set
+          xattr -cr . || echo "No quarantine attributes to clear"
+          
+          echo "Success: All macOS binaries have been ad-hoc signed"
+
       - name: Prepare artifact
         shell: bash
         working-directory: ./publish
@@ -169,6 +200,12 @@ jobs:
             - Windows: WebView2 Runtime ([Download here](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
             - Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
             - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
+
+            ### macOS Installation Notes
+            **Important**: macOS binaries are ad-hoc signed. On first launch:
+            1. Right-click the app -> **"Open"** (not double-click)
+            2. Click **"Open"** when prompted about unidentified developer
+            3. OR via terminal: `xattr -cr MermaidPad-*-osx-* && ./MermaidPad-*-osx-*`
 
             ### Downloads
             Choose the appropriate version for your platform:
