@@ -3,6 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
 [![Bundle macOS .app](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml)
+[![Create Universal macOS DMG](https://github.com/udlose/MermaidPad/actions/workflows/macos-universal-dmg.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-universal-dmg.yml)
 [![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
@@ -48,16 +49,69 @@
 
 ## Installation
 
-### macOS (via Homebrew)
+### macOS
 
-MermaidPad’s macOS `.app` bundle is distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
+#### Universal DMG - One Download for All Macs (Recommended)
+Download the Universal DMG from the [latest release](https://github.com/udlose/MermaidPad/releases/latest). This single file works on both Intel and Apple Silicon Macs.
 
-```
+**Download:** `MermaidPad-[version]-universal.dmg`
+
+**Installation:**
+1. Download the Universal DMG file
+2. Double-click to mount the DMG
+3. Drag **MermaidPad.app** to the **Applications** folder
+4. Launch from Applications or Spotlight
+
+#### Alternative: Homebrew
+MermaidPad's macOS `.app` bundle is also distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
+
+```bash
 brew tap udlose/tap
 brew install --cask udlose/tap/mermaidpad
 ```
 
 The [Cask file](https://github.com/udlose/homebrew-tap/blob/main/Casks/mermaidpad.rb) is automatically updated after each release.
+
+### Windows
+
+Download the appropriate version for your processor:
+- **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-win-x64.zip`
+- **ARM64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
+
+**Installation:**
+1. Download and extract the appropriate .zip file
+2. Run `MermaidPad.exe`
+
+### Linux
+
+Download the appropriate version for your processor:
+- **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-linux-x64.zip`
+- **ARM64 (Raspberry Pi 4+, etc.):** `MermaidPad-[version]-linux-arm64.zip`
+
+**Installation:**
+1. Download and extract the appropriate .zip file
+2. Make executable: `chmod +x MermaidPad`
+3. Run: `./MermaidPad`
+
+### Advanced Users / Developers
+
+Individual architecture-specific downloads are also available for all platforms:
+- **macOS Intel x64:** `MermaidPad-[version]-osx-x64.zip`
+- **macOS Apple Silicon ARM64:** `MermaidPad-[version]-osx-arm64.zip`
+- **macOS App Bundles:** `MermaidPad-[version]-osx-[arch].app.zip`
+
+These are provided for developers, CI/CD systems, and users who need specific architectures.
+
+---
+
+## Downloads
+
+Visit the [Releases page](https://github.com/udlose/MermaidPad/releases/latest) to download the latest version.
+
+**Recommended Downloads by Platform:**
+- **macOS:** `MermaidPad-[version]-universal.dmg` (works on all Macs)
+- **Windows:** `MermaidPad-[version]-win-x64.zip` or `MermaidPad-[version]-win-arm64.zip`
+- **Linux:** `MermaidPad-[version]-linux-x64.zip` or `MermaidPad-[version]-linux-arm64.zip`
 
 ---
 
@@ -204,6 +258,16 @@ pie
 
 ---
 
+## Distribution & Build Process
+
+MermaidPad uses an automated build and release process that creates optimized distributions for each platform:
+
+- **Cross-platform builds** for Windows (x64/ARM64), Linux (x64/ARM64), and macOS (x64/ARM64)
+- **Universal macOS DMG** combining both Intel and Apple Silicon binaries
+- **macOS app bundles** with proper code signing and Gatekeeper compatibility
+
+---
+
 ## Roadmap
 
 - Syntax highlighting (AvaloniaEdit custom definition)
@@ -214,7 +278,7 @@ pie
 
 ## Contributing
 
-Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the project’s style and includes relevant tests.
+Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the project's style and includes relevant tests.
 
 ---
 
