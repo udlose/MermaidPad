@@ -248,3 +248,97 @@ jobs:
       rid: ${{ matrix.rid }}
     permissions:
       contents: write
+
+  # Create Universal DMG for macOS
+  create-universal-dmg:
+    name: Create Universal macOS DMG
+    needs: [restrict-user, get-version, build]
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download macOS x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.zip
+          path: ./artifacts/x64
+
+      - name: Download macOS ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.zip
+          path: ./artifacts/arm64
+
+      - name: Extract both architectures
+        run: |
+          cd ./artifacts/x64
+          unzip MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.zip
+          cd ../arm64  
+          unzip MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.zip
+
+      - name: Create Universal Binary
+        run: |
+          # Create the universal app bundle structure
+          mkdir -p "./universal/MermaidPad.app/Contents/MacOS"
+          
+          # Copy the app structure from x64 (could be either, they're the same except for the binary)
+          cp -r ./artifacts/x64/MermaidPad.app/Contents/* ./universal/MermaidPad.app/Contents/
+          
+          # Create universal binary using lipo
+          lipo -create \
+            ./artifacts/x64/MermaidPad.app/Contents/MacOS/MermaidPad \
+            ./artifacts/arm64/MermaidPad.app/Contents/MacOS/MermaidPad \
+            -output ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
+          
+          # Verify the universal binary
+          echo "Universal binary info:"
+          lipo -info ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
+          
+          # Make sure it's executable
+          chmod +x ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
+
+      - name: Install create-dmg
+        run: |
+          brew install create-dmg
+
+      - name: Create DMG
+        run: |
+          # Create a staging directory for DMG contents
+          mkdir -p ./dmg-staging
+          cp -r ./universal/MermaidPad.app ./dmg-staging/
+          
+          # Create the DMG with professional layout
+          create-dmg \
+            --volname "MermaidPad" \
+            --volicon "./Assets/AppIcon.icns" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "MermaidPad.app" 200 190 \
+            --hide-extension "MermaidPad.app" \
+            --app-drop-link 600 185 \
+            --disk-image-size 200 \
+            --format UDZO \
+            "MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg" \
+            "./dmg-staging"
+
+      - name: Verify DMG
+        run: |
+          # Mount and verify the DMG contents
+          hdiutil attach "MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg" -readonly -mountpoint /tmp/mermaid-verify
+          echo "DMG Contents:"
+          ls -la /tmp/mermaid-verify/
+          echo "App binary info:"
+          lipo -info "/tmp/mermaid-verify/MermaidPad.app/Contents/MacOS/MermaidPad"
+          hdiutil detach /tmp/mermaid-verify
+
+      - name: Upload Universal DMG to Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ needs.get-version.outputs.version }}
+          artifacts: "MermaidPad-${{ needs.get-version.outputs.version }}-universal.dmg"
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
