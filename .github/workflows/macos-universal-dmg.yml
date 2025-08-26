@@ -153,9 +153,9 @@ jobs:
           
           # Create the DMG with professional layout
           # shellcheck disable=SC2086
-          eval create-dmg \
+          create-dmg \
             --volname "MermaidPad" \
-            $ICON_PARAM \
+            --volicon "$ICON_PATH" \
             --window-pos 200 120 \
             --window-size 800 400 \
             --icon-size 100 \
