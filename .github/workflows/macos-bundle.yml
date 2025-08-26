@@ -141,13 +141,10 @@ jobs:
           readarray -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
           
           # Validate exactly one .app bundle exists
-          if [ ${#APP_BUNDLES[@]} -eq 0 ]; then
-            echo "ERROR: Could not find MermaidPad.app bundle"
-            ls -la .
-            exit 1
-          elif [ ${#APP_BUNDLES[@]} -gt 1 ]; then
-            echo "ERROR: Multiple MermaidPad.app bundles found:"
+          if [ ${#APP_BUNDLES[@]} -ne 1 ]; then
+            echo "ERROR: Expected exactly one MermaidPad.app bundle, found ${#APP_BUNDLES[@]}:"
             printf '%s\n' "${APP_BUNDLES[@]}"
+            ls -la .
             exit 1
           fi
           
