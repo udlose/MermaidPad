@@ -138,9 +138,8 @@ jobs:
           readarray -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
           
           # Validate exactly one .app bundle exists
-          if [ ${#APP_BUNDLES[@]} -ne 1 ]; then
-            echo "ERROR: Expected exactly one MermaidPad.app bundle, found ${#APP_BUNDLES[@]}:"
             printf '%s\n' "${APP_BUNDLES[@]}"
+            echo "Current working directory: $(pwd)"
             ls -la .
             exit 1
           fi
