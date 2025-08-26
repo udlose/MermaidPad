@@ -134,8 +134,8 @@ jobs:
         run: |
           cd ./artifacts
           
-          # Find the exact MermaidPad.app bundle
-          APP_BUNDLES=($(find . -name "MermaidPad.app" -type d))
+          # Find the exact MermaidPad.app bundle using robust array assignment
+          mapfile -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
           
           # Validate exactly one .app bundle exists
           if [ ${#APP_BUNDLES[@]} -eq 0 ]; then
@@ -156,7 +156,7 @@ jobs:
           
           # Create zip preserving executable permissions with correct exclusion patterns
           zip -r "MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip" "$APP_BUNDLE" \
-              -x "**/.DS_Store" "__MACOSX/*"
+              -x "*.DS_Store" "*/.DS_Store" "__MACOSX/*"
           
           echo "Success: Created app bundle zip: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
 
