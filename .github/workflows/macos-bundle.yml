@@ -132,22 +132,24 @@ jobs:
 
       - name: Zip .app bundle for release
         run: |
-          # Verify the downloaded structure
-          echo "Downloaded artifact structure:"
-          ls -la ./artifacts/
-
           cd ./artifacts
-        
-          # Find the actual .app bundle (it should be directly here)
-          APP_BUNDLE=$(find . -name "*.app" -type d | head -1)
     
-          if [ -z "$APP_BUNDLE" ]; then
-            echo "ERROR: Could not find .app bundle"
+          # Find MermaidPad .app bundles specifically
+          APP_BUNDLES=($(find . -name "MermaidPad*.app" -type d))
+    
+          # Validate exactly one .app bundle exists
+          if [ ${#APP_BUNDLES[@]} -eq 0 ]; then
+            echo "ERROR: Could not find MermaidPad .app bundle"
             ls -la .
+            exit 1
+          elif [ ${#APP_BUNDLES[@]} -gt 1 ]; then
+            echo "ERROR: Multiple MermaidPad .app bundles found:"
+            printf '%s\n' "${APP_BUNDLES[@]}"
             exit 1
           fi
     
-          echo "Found: $APP_BUNDLE"
+          APP_BUNDLE="${APP_BUNDLES[0]}"
+          echo "Found app bundle: $APP_BUNDLE"
     
           # Ensure all files have correct permissions before zipping
           find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
