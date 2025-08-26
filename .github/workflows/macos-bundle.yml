@@ -138,7 +138,7 @@ jobs:
           find . -type f -name "MermaidPad" -exec chmod +x {} \;
           
           # Create zip preserving executable permissions
-          zip -r ../MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip . -x "*.DS_Store*" "*/__MACOSX*"
+          zip -r ../MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip . -x "*.DS_Store*" "__MACOSX/*"
           
           echo "Success: Created app bundle zip: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
 
