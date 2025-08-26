@@ -133,31 +133,31 @@ jobs:
       - name: Zip .app bundle for release
         run: |
           cd ./artifacts
-    
-          # Find MermaidPad .app bundles specifically
-          APP_BUNDLES=($(find . -name "MermaidPad*.app" -type d))
-    
+          
+          # Find the exact MermaidPad.app bundle
+          APP_BUNDLES=($(find . -name "MermaidPad.app" -type d))
+          
           # Validate exactly one .app bundle exists
           if [ ${#APP_BUNDLES[@]} -eq 0 ]; then
-            echo "ERROR: Could not find MermaidPad .app bundle"
+            echo "ERROR: Could not find MermaidPad.app bundle"
             ls -la .
             exit 1
           elif [ ${#APP_BUNDLES[@]} -gt 1 ]; then
-            echo "ERROR: Multiple MermaidPad .app bundles found:"
+            echo "ERROR: Multiple MermaidPad.app bundles found:"
             printf '%s\n' "${APP_BUNDLES[@]}"
             exit 1
           fi
-    
+          
           APP_BUNDLE="${APP_BUNDLES[0]}"
           echo "Found app bundle: $APP_BUNDLE"
-    
+          
           # Ensure all files have correct permissions before zipping
           find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
-    
+          
           # Create zip preserving executable permissions with correct exclusion patterns
           zip -r "MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip" "$APP_BUNDLE" \
-              -x "*.DS_Store" "__MACOSX/*"
-    
+              -x "**/.DS_Store" "__MACOSX/*"
+          
           echo "Success: Created app bundle zip: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
 
       - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
