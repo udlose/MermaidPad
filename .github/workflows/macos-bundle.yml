@@ -135,7 +135,7 @@ jobs:
           cd ./artifacts
           
           # Find the exact MermaidPad.app bundle using robust array assignment
-          APP_BUNDLES=($(find . -name "MermaidPad.app" -type d))
+          readarray -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
           
           # Validate exactly one .app bundle exists
           if [ ${#APP_BUNDLES[@]} -eq 0 ]; then
