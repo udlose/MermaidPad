@@ -139,18 +139,21 @@ jobs:
           cp -r ./universal/MermaidPad.app ./dmg-staging/
           
           # Verify icon file exists, set up icon parameters
-          ICON_PARAM=""
-          if [ -f "./Assets/AppIcon.icns" ]; then
-            echo "Using custom volume icon: ./Assets/AppIcon.icns"
-            ICON_PARAM="--volicon ./Assets/AppIcon.icns"
+          # Expected location: ./Assets/AppIcon.icns (relative to repository root)
+          ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"
+          if [ -f "$ICON_PATH" ]; then
+            echo "Using custom volume icon: $ICON_PATH"
+            ICON_PARAM="--volicon \"$ICON_PATH\""
           else
-            echo "Warning: ./Assets/AppIcon.icns not found, DMG will use default volume icon"
+            echo "ERROR: AppIcon.icns not found at ./Assets/AppIcon.icns"
             echo "Available files in Assets directory:"
             ls -la ./Assets/ || echo "Assets directory not found"
+            exit 1
           fi
           
           # Create the DMG with professional layout
-          create-dmg \
+          # shellcheck disable=SC2086
+          eval create-dmg \
             --volname "MermaidPad" \
             $ICON_PARAM \
             --window-pos 200 120 \
