@@ -61,6 +61,7 @@ jobs:
 
       - name: Create .app bundle structure
         run: |
+          set -euo pipefail
           APPNAME="MermaidPad"
           BUNDLE="MermaidPad.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
@@ -133,27 +134,24 @@ jobs:
       - name: Zip .app bundle for release
         shell: bash
         run: |
+          set -euo pipefail
           cd ./artifacts
-          
-          # Find MermaidPad.app bundle in current directory
-          readarray -t APP_BUNDLES < <(find . -name "MermaidPad.app" -type d)
-          
-          # Validate exactly one .app bundle exists
-            printf '%s\n' "${APP_BUNDLES[@]}"
-            echo "Current working directory: $(pwd)"
-            ls -la .
+          # Find exactly one MermaidPad.app anywhere under artifacts
+          mapfile -t APP_BUNDLES < <(find . -type d -name "MermaidPad.app")
+          printf '%s\n' "${APP_BUNDLES[@]}"
+          if [ "${#APP_BUNDLES[@]}" -ne 1 ]; then
+            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]}"
+            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
             exit 1
           fi
-          
           APP_BUNDLE="${APP_BUNDLES[0]}"
           echo "Found app bundle: $APP_BUNDLE"
-          
-          # Ensure all files have correct permissions before zipping
+          # Ensure main binary is executable
           find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
-          
-          zip -r "MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip" "$APP_BUNDLE" -x "*.DS_Store*" "__MACOSX/*"
-          
-          echo "Success: Created app bundle zip: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
+          # Create the zip at artifacts root
+          ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
+          zip -r "$ZIP_NAME" "$APP_BUNDLE" -x "*.DS_Store*" "__MACOSX/*"
+          echo "Success: Created app bundle zip: $ZIP_NAME"
 
       - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
         uses: ncipollo/release-action@v1
