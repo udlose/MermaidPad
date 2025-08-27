@@ -177,8 +177,8 @@ jobs:
 
     steps:
       - name: Checkout
-        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
