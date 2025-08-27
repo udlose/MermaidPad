@@ -146,11 +146,12 @@ jobs:
         shell: bash
         working-directory: ./publish
         run: |
+          set -euo pipefail
           ZIP_NAME="MermaidPad-${{ needs.get-version.outputs.version }}-${{ matrix.rid }}.zip"
           BIN_NAME="MermaidPad${{ matrix.extension }}"
           if [ "${{ matrix.extension }}" != ".exe" ]; then
             chmod +x "$BIN_NAME"
-            zip -r "$ZIP_NAME" ./*
+            zip -r "$ZIP_NAME" ./* -x "*.DS_Store*"
           else
             powershell.exe -Command "Compress-Archive -Path * -DestinationPath $ZIP_NAME"
           fi
@@ -176,8 +177,8 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
         if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -199,7 +200,8 @@ jobs:
         with:
           tag: v${{ needs.get-version.outputs.version }}
           name: MermaidPad v${{ needs.get-version.outputs.version }}
-          artifacts: "./artifacts/**/*"
+          # Restrict to actual files; avoids "Artifact is a directory" warnings
+          artifacts: "./artifacts/**/*.zip"
           generateReleaseNotes: true
           allowUpdates: true
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
