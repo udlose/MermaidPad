@@ -132,6 +132,7 @@ jobs:
           path: ./artifacts
 
       - name: Zip .app bundle for release
+        shell: bash
         run: |
           set -euo pipefail
           cd ./artifacts
