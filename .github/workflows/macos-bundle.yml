@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           APPNAME="MermaidPad"
-          BUNDLE="MermaidPad.app"
+          BUNDLE="./artifacts/$APPNAME.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
           cp -a ./publish/unpacked/. "$BUNDLE/Contents/MacOS/"
           cp Info.plist "$BUNDLE/Contents/"
@@ -132,10 +132,12 @@ jobs:
           path: ./artifacts
 
       # Debugging
-      - name: List contents of .
+      - name: List contents of ./artifacts
         run: |
-          ls -R .
-          find .
+          echo "Contents of ./artifacts using ls -R:"
+          ls -R ./artifacts
+          echo "First 100 files in the .app bundle using find:"
+          find ./artifacts/MermaidPad.app -type f | head -100
 
       # Ensure main binary is executable before zipping
       - name: Ensure main binary is executable
