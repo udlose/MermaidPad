@@ -143,9 +143,11 @@ jobs:
             APP_BUNDLES+=("$line")
           done < <(find . -type d -name "MermaidPad.app" -print0 2>/dev/null)
 
-          printf '%s\n' "${APP_BUNDLES[@]}"
-          if [ "${#APP_BUNDLES[@]}" -ne 1 ]; then
-            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]}"
+          printf '%s\n' "${APP_BUNDLES[@]:-}"
+
+          if [ "${#APP_BUNDLES[@]:-0}" -ne 1 ]; then
+            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]:-0}"
+
             # Limit debug search to a shallow tree for speed and concise logs.
             # maxdepth 4 comfortably covers expected layouts like:
             #   ./<artifact-name>/MermaidPad.app            (depth ~2)
