@@ -137,43 +137,23 @@ jobs:
           ls -R ./artifacts
           find ./artifacts
 
+      # Zip the .app bundle for release
       - name: Zip .app bundle for release
         shell: bash
         run: |
           set -euo pipefail
-          cd ./artifacts
-
-          # Collect .app bundles (expect exactly one)
-          APP_BUNDLES=()
-          while IFS= read -r -d '' line; do
-            APP_BUNDLES+=("$line")
-          done < <(find . -type d -name "MermaidPad.app" -print0 2>/dev/null)
-
-          printf '%s\n' "${APP_BUNDLES[@]:-}"
-
-          if [ "${#APP_BUNDLES[@]:-0}" -ne 1 ]; then
-            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]:-0}"
-
-            # Limit debug search to a shallow tree for speed and concise logs.
-            # maxdepth 4 comfortably covers expected layouts like:
-            #   ./<artifact-name>/MermaidPad.app            (depth ~2)
-            #   ./<artifact-name>/<extra>/.../MermaidPad.app (depth <=4)
-            # This avoids traversing large trees under ./artifacts when something is off.
-            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
-            exit 1
-          fi
-
-          APP_BUNDLE="${APP_BUNDLES[0]}"
-          echo "Found app bundle: $APP_BUNDLE"
-
-          # Ensure main binary is executable
-          find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
-
-          # Create macOS-friendly zip (preserves metadata, no __MACOSX)
           ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+          ditto -c -k --sequesterRsrc --keepParent MermaidPad.app "$ZIP_NAME"
           echo "Success: Created app bundle zip: $ZIP_NAME"
 
+      # Upload the zipped .app bundle as the artifact
+      - name: Upload .app bundle zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+
+      # Upload the zipped .app bundle to the GitHub Release created by build-and-release.yml
       - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
         uses: ncipollo/release-action@v1
         with:
