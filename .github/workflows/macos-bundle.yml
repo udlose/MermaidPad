@@ -143,7 +143,7 @@ jobs:
         run: |
           set -euo pipefail
           ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
-          ditto -c -k --sequesterRsrc --keepParent MermaidPad.app "$ZIP_NAME"
+          ditto -c -k --sequesterRsrc --keepParent ./artifacts/MermaidPad.app "$ZIP_NAME"
           echo "Success: Created app bundle zip: $ZIP_NAME"
 
       # Upload the zipped .app bundle as the artifact
