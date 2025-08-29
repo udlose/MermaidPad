@@ -159,7 +159,7 @@ jobs:
             #   ./<artifact-name>/MermaidPad.app            (depth ~2)
             #   ./<artifact-name>/<extra>/.../MermaidPad.app (depth <=4)
             # This avoids traversing large trees under ./artifacts when something is off.
-            find . -maxdepth 4 -type d -name "MermaidPad.app" -print0 2>/dev/null
+            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
             exit 1
           fi
 
