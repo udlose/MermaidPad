@@ -216,7 +216,7 @@ jobs:
           name: MermaidPad v${{ needs.get-version.outputs.version }}
           artifacts: |
             ./artifacts/**/*.zip
-            ./artifacts-app/**/*.app
+            ./artifacts-app/**/*.zip
           generateReleaseNotes: true
           allowUpdates: true
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
