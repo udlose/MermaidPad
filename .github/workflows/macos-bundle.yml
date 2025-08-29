@@ -132,17 +132,32 @@ jobs:
           path: ./artifacts
 
       # Debugging
-      - name: List contents of ./artifacts
+      - name: List contents of .
         run: |
-          ls -R ./artifacts
-          find ./artifacts
+          ls -R .
+          find .
+
+      # Ensure main binary is executable before zipping
+      - name: Ensure main binary is executable
+        run: |
+          if [ ! -d "./artifacts/MermaidPad.app" ]; then
+            echo "ERROR: ./artifacts/MermaidPad.app does not exist."
+            exit 1
+          fi
+          find ./artifacts/MermaidPad.app -type f -name "MermaidPad" -exec chmod +x {} \;
 
       # Zip the .app bundle for release
       - name: Zip .app bundle for release
         shell: bash
         run: |
           set -euo pipefail
+
+          # Create macOS-friendly zip (preserves metadata, no __MACOSX)
           ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
+          if [ ! -d "./artifacts/MermaidPad.app" ]; then
+            echo "ERROR: ./artifacts/MermaidPad.app does not exist."
+            exit 1
+          fi
           ditto -c -k --sequesterRsrc --keepParent ./artifacts/MermaidPad.app "$ZIP_NAME"
           echo "Success: Created app bundle zip: $ZIP_NAME"
 
