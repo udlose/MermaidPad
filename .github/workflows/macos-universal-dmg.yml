@@ -40,14 +40,22 @@ jobs:
       - name: Download macOS x64 app bundle
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ inputs.version }}-osx-x64.app
+          name: MermaidPad-${{ inputs.version }}-osx-x64.app.zip
           path: ./artifacts/x64-app
 
       - name: Download macOS ARM64 app bundle  
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ inputs.version }}-osx-arm64.app
+          name: MermaidPad-${{ inputs.version }}-osx-arm64.app.zip
           path: ./artifacts/arm64-app
+
+      - name: Unzip x64 app bundle
+        run: |
+          unzip ./artifacts/x64-app/MermaidPad-${{ inputs.version }}-osx-x64.app.zip -d ./artifacts/x64-app/
+
+      - name: Unzip arm64 app bundle
+        run: |
+          unzip ./artifacts/arm64-app/MermaidPad-${{ inputs.version }}-osx-arm64.app.zip -d ./artifacts/arm64-app/
 
       - name: Verify downloaded app bundles
         run: |
@@ -61,9 +69,9 @@ jobs:
 
       - name: Create Universal Binary
         run: |
-          # Find the .app bundles in the downloaded artifacts
-          X64_APP=$(find ./artifacts/x64-app -name "*.app" -type d | head -1)
-          ARM64_APP=$(find ./artifacts/arm64-app -name "*.app" -type d | head -1)
+          # Use the .app bundles in the downloaded artifacts
+          X64_APP="./artifacts/x64-app/MermaidPad.app"
+          ARM64_APP="./artifacts/arm64-app/MermaidPad.app"
           
           echo "X64 app bundle: $X64_APP"
           echo "ARM64 app bundle: $ARM64_APP"
