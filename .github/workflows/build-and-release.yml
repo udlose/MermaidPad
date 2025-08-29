@@ -185,13 +185,14 @@ jobs:
         with:
           path: ./artifacts
 
-      # This will download MermaidPad-<version>-osx-*.app.zip from macos-bundle.yml
+      # This will download MermaidPad-<version>-osx-x64.app from macos-bundle.yml
       - name: Download macOS .app bundle zip (x64)
         uses: actions/download-artifact@v4
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app
           path: ./artifacts-app
 
+      # This will download MermaidPad-<version>-osx-arm64.app from macos-bundle.yml
       - name: Download macOS .app bundle zip (arm64)
         uses: actions/download-artifact@v4
         with:
@@ -215,7 +216,7 @@ jobs:
           name: MermaidPad v${{ needs.get-version.outputs.version }}
           artifacts: |
             ./artifacts/**/*.zip
-            ./artifacts-app/**/*.app.zip
+            ./artifacts-app/**/*.app
           generateReleaseNotes: true
           allowUpdates: true
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
