@@ -1,15 +1,29 @@
 using MermaidPad.Models;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
 
+/// <summary>
+/// Provides functionality to check for, download, and install updates for the Mermaid.js library.
+/// </summary>
 public sealed class MermaidUpdateService
 {
+    /// <summary>
+    /// Gets the directory where Mermaid assets are stored.
+    /// </summary>
     private string AssetDir { get; }
+
     private readonly AppSettings _settings;
     private static readonly HttpClient _http = new HttpClient();
+    private const string MermaidMinJsFileName = "mermaid.min.js";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MermaidUpdateService"/> class.
+    /// </summary>
+    /// <param name="settings">Application settings containing Mermaid configuration.</param>
+    /// <param name="assetDir">Directory path for storing Mermaid assets.</param>
     public MermaidUpdateService(AppSettings settings, string assetDir)
     {
         _settings = settings;
@@ -19,8 +33,15 @@ public sealed class MermaidUpdateService
         SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
     }
 
-    public string BundledMermaidPath => Path.Combine(AssetDir, "mermaid.min.js");
+    /// <summary>
+    /// Gets the full path to the bundled Mermaid.js file.
+    /// </summary>
+    public string BundledMermaidPath => Path.Combine(AssetDir, MermaidMinJsFileName);
 
+    /// <summary>
+    /// Checks for a newer version of Mermaid.js and updates the local copy if available.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task CheckAndUpdateAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -45,7 +66,7 @@ public sealed class MermaidUpdateService
             {
                 SimpleLogger.Log($"Update available: {_settings.BundledMermaidVersion} -> {remoteVersion}");
 
-                await DownloadAndInstallUpdate(url, remoteVersion);
+                await DownloadAndInstallUpdateAsync(url, remoteVersion);
 
                 stopwatch.Stop();
                 SimpleLogger.LogTiming("Mermaid update (with download)", stopwatch.Elapsed, success: true);
@@ -67,7 +88,13 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private async Task DownloadAndInstallUpdate(string url, string newVersion)
+    /// <summary>
+    /// Downloads the specified Mermaid.js file and installs it, updating the local version.
+    /// </summary>
+    /// <param name="url">URL to download the Mermaid.js file from.</param>
+    /// <param name="newVersion">The new version string to update to.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task DownloadAndInstallUpdateAsync(string url, string newVersion)
     {
         Stopwatch downloadStopwatch = Stopwatch.StartNew();
         SimpleLogger.Log($"Downloading Mermaid.js from: {url}");
@@ -75,8 +102,8 @@ public sealed class MermaidUpdateService
         try
         {
             // Step 1: Download to temporary file
-            string tmp = Path.GetTempFileName();
-            SimpleLogger.Log($"Using temporary file: {tmp}");
+            string tmpPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            SimpleLogger.Log($"Using temporary file: {tmpPath}");
 
             string jsContent = await _http.GetStringAsync(url);
             downloadStopwatch.Stop();
@@ -84,7 +111,7 @@ public sealed class MermaidUpdateService
             SimpleLogger.Log($"Download completed: {jsContent.Length:N0} characters in {downloadStopwatch.ElapsedMilliseconds}ms");
 
             // Step 2: Write to temp file
-            await File.WriteAllTextAsync(tmp, jsContent);
+            await File.WriteAllTextAsync(tmpPath, jsContent);
             SimpleLogger.Log("Content written to temporary file");
 
             // Step 3: Backup existing file (if it exists)
@@ -92,23 +119,42 @@ public sealed class MermaidUpdateService
             if (File.Exists(BundledMermaidPath))
             {
                 File.Copy(BundledMermaidPath, backupPath, overwrite: true);
-                SimpleLogger.Log($"Existing mermaid.min.js backed up to: {backupPath}");
+                SimpleLogger.Log($"Existing {MermaidMinJsFileName} backed up to: {backupPath}");
             }
 
             // Step 4: Install new version
-            File.Copy(tmp, BundledMermaidPath, overwrite: true);
-            SimpleLogger.LogAsset("updated", "mermaid.min.js", true, new FileInfo(BundledMermaidPath).Length);
+            File.Copy(tmpPath, BundledMermaidPath, overwrite: true);
+            SimpleLogger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
 
             // Step 5: Update version in settings
             _settings.BundledMermaidVersion = newVersion;
             SimpleLogger.Log($"Bundled version updated to: {newVersion}");
 
             // Step 6: Cleanup
-            File.Delete(tmp);
-            SimpleLogger.Log("Temporary file cleaned up");
+            try
+            {
+                string tempDir = Path.GetFullPath(Path.GetTempPath());
+                FileInfo tmpFileInfo = new FileInfo(tmpPath);
+                string tmpFileDir = Path.GetFullPath(tmpFileInfo.DirectoryName ?? "");
+
+                // Ensure the temp file is inside the temp directory and is a direct child (not a symlink or traversal)
+                if (tmpFileDir == tempDir && tmpFileInfo.Exists && tmpFileInfo.FullName.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(tmpFileInfo.FullName);
+                    SimpleLogger.Log("Temporary file cleaned up");
+                }
+                else
+                {
+                    SimpleLogger.LogError($"Refusing to delete file outside temp directory or with suspicious path: {tmpFileInfo.FullName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Error during temp file cleanup", ex);
+            }
 
             // Step 7: Verify installation
-            await VerifyInstallation(newVersion);
+            await VerifyInstallationAsync();
         }
         catch (Exception ex)
         {
@@ -117,7 +163,11 @@ public sealed class MermaidUpdateService
         }
     }
 
-    private async Task VerifyInstallation(string _)
+    /// <summary>
+    /// Verifies the integrity and validity of the installed Mermaid.js file.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task VerifyInstallationAsync()
     {
         try
         {
@@ -152,6 +202,13 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Fetches the latest Mermaid.js version and its download URL from the npm registry.
+    /// </summary>
+    /// <returns>
+    /// A tuple containing the latest version string and the download URL for Mermaid.js.
+    /// </returns>
+    [SuppressMessage("Minor Code Smell", "S1075:URIs should not be hardcoded", Justification = "Hardcoded to specific unpkg.com URL")]
     private async Task<(string version, string jsUrl)> FetchLatestVersionAsync()
     {
         const string mermaidUrlPrefix = "https://unpkg.com/mermaid";
@@ -169,7 +226,7 @@ public sealed class MermaidUpdateService
 
             using JsonDocument doc = JsonDocument.Parse(pkgJson);
             string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
-            const string jsUrl = $"{mermaidUrlPrefix}/dist/mermaid.min.js";
+            const string jsUrl = $"{mermaidUrlPrefix}/dist/{MermaidMinJsFileName}";
 
             SimpleLogger.Log($"Latest Mermaid version discovered: {version}");
             SimpleLogger.Log($"Download URL will be: {jsUrl}");
@@ -194,6 +251,12 @@ public sealed class MermaidUpdateService
         }
     }
 
+    /// <summary>
+    /// Determines whether the remote Mermaid.js version is newer than the local version.
+    /// </summary>
+    /// <param name="remote">The remote version string.</param>
+    /// <param name="local">The local version string.</param>
+    /// <returns><c>true</c> if the remote version is newer; otherwise, <c>false</c>.</returns>
     private static bool IsNewer(string remote, string local)
     {
         bool canParseRemote = Version.TryParse(remote, out Version? rv);

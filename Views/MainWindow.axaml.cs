@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -8,6 +7,8 @@ using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
+
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
 public partial class MainWindow : Window
@@ -32,12 +33,7 @@ public partial class MainWindow : Window
         SimpleLogger.Log("=== MainWindow Initialization Started ===");
         SimpleLogger.Log("Window created, services resolved from DI container");
 
-        Opened += async (_, _) =>
-        {
-            SimpleLogger.Log("Window opened event triggered");
-            await OnOpenedAsync();
-            BringFocusToEditor();
-        };
+        Opened += OnOpened;
         Closing += OnClosing;
 
         // Focus the editor when the window is activated
@@ -65,6 +61,7 @@ public partial class MainWindow : Window
             //}, DispatcherPriority.Background);
         };
 
+        // All constructors run on UI thread, so it's safe to access Editor control directly without marshaling
         Editor.Text = _vm.DiagramText;
         SimpleLogger.Log($"Editor initialized with {_vm.DiagramText.Length} characters");
 
@@ -81,7 +78,10 @@ public partial class MainWindow : Window
 
         Editor.TextChanged += (_, _) =>
         {
-            if (_suppressEditorTextChanged) return;
+            if (_suppressEditorTextChanged)
+            {
+                return;
+            }
 
             // Debounce to avoid excessive updates
             editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
@@ -94,7 +94,7 @@ public partial class MainWindow : Window
             });
         };
 
-        _vm.PropertyChanged += (s, e) =>
+        _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(_vm.DiagramText) && Editor.Text != _vm.DiagramText)
             {
@@ -116,9 +116,6 @@ public partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            IInputElement? focused = FocusManager?.GetFocusedElement();
-            SimpleLogger.Log($"Current focused control: {focused?.GetType().Name ?? "null"}");
-
             // Make sure caret is visible:
             Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
@@ -131,10 +128,23 @@ public partial class MainWindow : Window
 
             // after focusing, ensure the caret is visible
             Editor.TextArea.Caret.BringCaretToView();
-
-            IInputElement? afterFocus = FocusManager?.GetFocusedElement();
-            SimpleLogger.Log($"After focus attempt: {afterFocus?.GetType().Name ?? "null"}");
         }, DispatcherPriority.Background);
+    }
+
+    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "Event handler")]
+    private async void OnOpened(object? sender, EventArgs e)
+    {
+        try
+        {
+            SimpleLogger.Log("Window opened event triggered");
+            await OnOpenedAsync();
+            BringFocusToEditor();
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
+            // TODO - show a message to the user
+        }
     }
 
     private async Task OnOpenedAsync()
@@ -152,11 +162,14 @@ public partial class MainWindow : Window
 
             // Step 2: Restore editor state
             SimpleLogger.Log("Step 2: Restoring editor state from ViewModel...");
-            Editor.Text = _vm.DiagramText;
-            Editor.SelectionStart = _vm.EditorSelectionStart;
-            Editor.SelectionLength = _vm.EditorSelectionLength;
-            Editor.CaretOffset = _vm.EditorCaretOffset;
-            SimpleLogger.Log("Editor state restored successfully");
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Editor.Text = _vm.DiagramText;
+                Editor.SelectionStart = _vm.EditorSelectionStart;
+                Editor.SelectionLength = _vm.EditorSelectionLength;
+                Editor.CaretOffset = _vm.EditorCaretOffset;
+                SimpleLogger.Log("Editor state restored successfully");
+            });
 
             // Step 3: Initialize WebView
             SimpleLogger.Log("Step 3: Initializing WebView...");
@@ -173,8 +186,11 @@ public partial class MainWindow : Window
 
             // Step 4: Update command states
             SimpleLogger.Log("Step 4: Updating command states...");
-            _vm.RenderCommand.NotifyCanExecuteChanged();
-            _vm.ClearCommand.NotifyCanExecuteChanged();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _vm.RenderCommand.NotifyCanExecuteChanged();
+                _vm.ClearCommand.NotifyCanExecuteChanged();
+            });
 
             stopwatch.Stop();
             SimpleLogger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
@@ -189,20 +205,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, CancelEventArgs e)
+    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "Event handler")]
+    private async void OnClosing(object? sender, CancelEventArgs e)
     {
-        SimpleLogger.Log("Window closing, saving current state...");
-
         try
         {
+            SimpleLogger.Log("Window closing, saving current state...");
+
             // When the window is closing, save the current state
             SynchronizeViewModelWithEditor();
             _vm.Persist();
 
             // Dispose the renderer (stops HTTP server if running)
-            if (_renderer is IDisposable disposableRenderer)
+            if (_renderer is IAsyncDisposable disposableRenderer)
             {
-                disposableRenderer.Dispose();
+                await disposableRenderer.DisposeAsync();
                 SimpleLogger.Log("MermaidRenderer disposed");
             }
 
@@ -214,14 +231,18 @@ public partial class MainWindow : Window
         }
     }
 
+    // Only called from OnClosing so no marshaling needed, but we marshal to UI thread anyway for safety
     private void SynchronizeViewModelWithEditor()
     {
-        _vm.DiagramText = Editor.Text;
-        _vm.EditorSelectionStart = Editor.SelectionStart;
-        _vm.EditorSelectionLength = Editor.SelectionLength;
-        _vm.EditorCaretOffset = Editor.CaretOffset;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _vm.DiagramText = Editor.Text;
+            _vm.EditorSelectionStart = Editor.SelectionStart;
+            _vm.EditorSelectionLength = Editor.SelectionLength;
+            _vm.EditorCaretOffset = Editor.CaretOffset;
 
-        SimpleLogger.Log($"ViewModel synchronized with editor state: {Editor.Text.Length} chars, selection {Editor.SelectionStart}:{Editor.SelectionLength}, caret {Editor.CaretOffset}");
+            SimpleLogger.Log($"ViewModel synchronized with editor state: {Editor.Text.Length} chars, selection {Editor.SelectionStart}:{Editor.SelectionLength}, caret {Editor.CaretOffset}");
+        });
     }
 
     private async Task InitializeWebViewAsync(string assets)
@@ -233,8 +254,11 @@ public partial class MainWindow : Window
 
         // CRITICAL FIX: Temporarily disable live preview during WebView initialization
         bool originalLivePreview = _vm.LivePreviewEnabled;
-        _vm.LivePreviewEnabled = false;
-        SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _vm.LivePreviewEnabled = false;
+            SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
+        });
 
         try
         {
@@ -243,7 +267,7 @@ public partial class MainWindow : Window
 
             // Step 2: Wait for content to load
             SimpleLogger.Log("Waiting for WebView content loading...");
-            await Task.Delay(1000);
+            await Task.Delay(1_000);
 
             // Step 3: Perform initial render
             SimpleLogger.Log("Performing initial Mermaid render...");
@@ -262,8 +286,11 @@ public partial class MainWindow : Window
         finally
         {
             // CRITICAL: Re-enable live preview after WebView is ready
-            _vm.LivePreviewEnabled = originalLivePreview;
-            SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _vm.LivePreviewEnabled = originalLivePreview;
+                SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
+            });
         }
     }
 

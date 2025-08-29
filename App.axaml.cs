@@ -5,8 +5,9 @@ using Avalonia.Markup.Xaml;
 using MermaidPad.Infrastructure;
 using MermaidPad.Views;
 
-namespace MermaidPad;
+using System.Diagnostics.CodeAnalysis;
 
+namespace MermaidPad;
 public partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
@@ -34,6 +35,7 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    [SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "<Pending>")]
     private static void DisableAvaloniaDataAnnotationValidation()
     {
         // Get an array of plugins to remove

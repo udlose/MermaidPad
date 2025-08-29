@@ -1,5 +1,6 @@
 <Project>
 	<PropertyGroup>
+		<!-- Assembly and Package Metadata -->
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<Version>1.0.0-beta</Version>
 		<Authors>Dave Black (udlose)</Authors>
@@ -10,13 +11,27 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 
 		<TargetFramework>net9.0</TargetFramework>
-		<Platforms>arm64;x64;x86</Platforms>
-		<RuntimeIdentifiers>win-x64;win-x86;win-arm64;linux-x64;linux-arm64;osx-arm64;osx-x64</RuntimeIdentifiers>
+		<Platforms>arm64;x64</Platforms>
+		<!-- Supported Runtime Identifiers for Cross-Platform Publish -->
+		<RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-arm64;osx-x64</RuntimeIdentifiers>
 
 		<!-- Publishing Configuration - Framework Dependent Single File -->
 		<PublishSingleFile>false</PublishSingleFile>
 		<PublishSelfContained>false</PublishSelfContained>
 		<PublishTrimmed>false</PublishTrimmed>
+		<!--
+		  If publishing as single-file or self-contained in the future,
+		  set IncludeNativeLibrariesForSelfExtract to true to ensure native libraries are extracted at runtime.
+		-->
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+		<!--
+			Note:
+			Publishing and cross-platform artifact creation is handled via 'dotnet publish' using the specified RuntimeIdentifiers.
+			No additional publish configuration is needed in this file.
+		-->
+
+		<!-- Embed build target RID as compile-time constant for platform compatibility checking -->
+		<DefineConstants Condition="'$(RuntimeIdentifier)' != ''">$(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace("-", "_").ToUpperInvariant())</DefineConstants>
 	</PropertyGroup>
 </Project>

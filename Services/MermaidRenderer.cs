@@ -1,15 +1,20 @@
+using Avalonia.Threading;
 using AvaloniaWebView;
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 
 namespace MermaidPad.Services;
-
 /// <summary>
-/// Clean HTTP server approach for WebView content.
-/// Uses separate HTML and JS files to avoid JavaScript injection issues.
+/// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
+/// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
-public sealed class MermaidRenderer : IDisposable
+public sealed class MermaidRenderer : IAsyncDisposable
 {
+    private const string MermaidMinJsFileName = "mermaid.min.js";
+    private const string MermaidRequestPath = $"/{MermaidMinJsFileName}";
+    private const string IndexHtmlFileName = "index.html";
+    private const string IndexRequestPath = $"/{IndexHtmlFileName}";
     private WebView? _webView;
     private int _renderAttemptCount = 0;
     private HttpListener? _httpListener;
@@ -20,6 +25,12 @@ public sealed class MermaidRenderer : IDisposable
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
 
+    /// <summary>
+    /// Initializes the MermaidRenderer with the specified WebView and assets directory.
+    /// </summary>
+    /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InitializeAsync(WebView webView, string assetsDir)
     {
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
@@ -28,6 +39,11 @@ public sealed class MermaidRenderer : IDisposable
         await InitializeWithHttpServerAsync(assetsDir);
     }
 
+    /// <summary>
+    /// Prepares content and starts the local HTTP server for serving Mermaid assets.
+    /// </summary>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task InitializeWithHttpServerAsync(string assetsDir)
     {
         // Step 1: Prepare content (HTML and JS separately)
@@ -48,24 +64,47 @@ public sealed class MermaidRenderer : IDisposable
         await NavigateToServerAsync();
     }
 
+    /// <summary>
+    /// Reads the required HTML and JS asset files from disk.
+    /// </summary>
+    /// <param name="assetsDir">The directory containing required assets.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task PrepareContentAsync(string assetsDir)
     {
-        string indexPath = Path.Combine(assetsDir, "index.html");
-        string mermaidPath = Path.Combine(assetsDir, "mermaid.min.js");
+        Stopwatch sw = Stopwatch.StartNew();
+        string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
+        string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
 
         if (!File.Exists(indexPath) || !File.Exists(mermaidPath))
         {
             throw new FileNotFoundException("Required assets not found");
         }
 
-        // Read files separately - this is needed to avoid JavaScript injection issues
-        _htmlContent = await File.ReadAllTextAsync(indexPath);
-        _mermaidJs = await File.ReadAllTextAsync(mermaidPath);
+        try
+        {
+            // Read files in parallel
+            Task<string> indexHtmlTask = File.ReadAllTextAsync(indexPath);
+            Task<string> jsTask = File.ReadAllTextAsync(mermaidPath);
+            await Task.WhenAll(indexHtmlTask, jsTask);
+            _htmlContent = await indexHtmlTask;
+            _mermaidJs = await jsTask;
+        }
+        catch (Exception e)
+        {
+            SimpleLogger.LogError("Error reading asset files", e);
+            return;
+        }
 
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} characters");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} characters");
+
+        sw.Stop();
+        SimpleLogger.Log($"{nameof(PrepareContentAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
+    /// <summary>
+    /// Starts the local HTTP server to serve Mermaid assets.
+    /// </summary>
     private void StartHttpServer()
     {
         _serverPort = GetAvailablePort();
@@ -91,6 +130,11 @@ public sealed class MermaidRenderer : IDisposable
         SimpleLogger.Log($"HTTP server started on port {_serverPort}");
     }
 
+    /// <summary>
+    /// Handles incoming HTTP requests and serves the appropriate content.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the request handling loop.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task HandleHttpRequestsAsync(CancellationToken cancellationToken)
     {
         try
@@ -101,16 +145,37 @@ public sealed class MermaidRenderer : IDisposable
 
             while (_httpListener?.IsListening == true && !cancellationToken.IsCancellationRequested)
             {
+                HttpListenerContext? context = null;
                 try
                 {
-                    HttpListenerContext context = await _httpListener.GetContextAsync();
+                    // Use WaitAsync for responsive cancellation while waiting for requests
+                    context = await _httpListener.GetContextAsync().WaitAsync(cancellationToken);
                     await ProcessRequestAsync(context);
                 }
-                catch (ObjectDisposedException) { break; }
-                catch (HttpListenerException ex) when (ex.ErrorCode == 995) { break; }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation requested, exit loop
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+                catch (HttpListenerException ex) when (ex.ErrorCode == 995)
+                {
+                    break;
+                }
                 catch (Exception ex)
                 {
                     SimpleLogger.LogError("Error processing HTTP request", ex);
+                    try
+                    {
+                        context?.Response.Close();
+                    }
+                    catch
+                    {
+                        Debug.WriteLine("Error closing response stream");
+                    }
                 }
             }
         }
@@ -124,6 +189,11 @@ public sealed class MermaidRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Processes a single HTTP request and serves the requested asset.
+    /// </summary>
+    /// <param name="context">The HTTP request context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ProcessRequestAsync(HttpListenerContext context)
     {
         try
@@ -132,65 +202,82 @@ public sealed class MermaidRenderer : IDisposable
             SimpleLogger.Log($"Processing request: {requestPath}");
 
             // Separate file handling is needed to avoid JavaScript injection issues
-            if (requestPath == "/mermaid.min.js")
+            switch (requestPath)
             {
-                // Serve mermaid.js separately to avoid HTML injection issues
-                if (_mermaidJs is not null)
-                {
-                    byte[] jsBytes = Encoding.UTF8.GetBytes(_mermaidJs);
-                    context.Response.ContentType = "application/javascript; charset=utf-8";
-                    context.Response.ContentLength64 = jsBytes.Length;
-                    await context.Response.OutputStream.WriteAsync(jsBytes);
-                    SimpleLogger.Log($"Served JS: {jsBytes.Length} bytes");
-                }
-                else
-                {
-                    context.Response.StatusCode = 404;
-                }
+                case MermaidRequestPath when _mermaidJs is not null:
+                    {
+                        // Serve mermaid.js efficiently
+                        byte[] jsBytes = Encoding.UTF8.GetBytes(_mermaidJs);
+                        context.Response.ContentType = "application/javascript; charset=utf-8";
+                        context.Response.ContentLength64 = jsBytes.Length;
+                        await context.Response.OutputStream.WriteAsync(jsBytes);
+                        SimpleLogger.Log($"Served JS: {jsBytes.Length} bytes");
+                        break;
+                    }
+                case MermaidRequestPath:
+                    {
+                        context.Response.StatusCode = 404;
+                        break;
+                    }
+                case "/" or IndexRequestPath:
+                    {
+                        // Serve HTML efficiently
+                        byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
+                        context.Response.ContentType = "text/html; charset=utf-8";
+                        context.Response.ContentLength64 = htmlBytes.Length;
+                        await context.Response.OutputStream.WriteAsync(htmlBytes);
+                        SimpleLogger.Log($"Served HTML: {htmlBytes.Length} bytes");
+                        break;
+                    }
+                default:
+                    {
+                        context.Response.StatusCode = 404;
+                        SimpleLogger.Log($"404 for: {requestPath}");
+                        break;
+                    }
             }
-            else if (requestPath == "/" || requestPath == "/index.html")
-            {
-                // Serve HTML file
-                byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
-                context.Response.ContentType = "text/html; charset=utf-8";
-                context.Response.ContentLength64 = htmlBytes.Length;
-                await context.Response.OutputStream.WriteAsync(htmlBytes);
-                SimpleLogger.Log($"Served HTML: {htmlBytes.Length} bytes");
-            }
-            else
-            {
-                // 404 for other requests
-                context.Response.StatusCode = 404;
-                SimpleLogger.Log($"404 for: {requestPath}");
-            }
-
-            context.Response.OutputStream.Close();
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Error processing HTTP request", ex);
+
+            // Setting the StatusCode property can throw exceptions in certain scenarios
             try
             {
                 context.Response.StatusCode = 500;
-                context.Response.Close();
             }
-            catch { }
+            catch
+            {
+                Debug.WriteLine("Error setting response status code");
+            }
+        }
+        finally
+        {
+            try
+            {
+                context.Response.OutputStream.Close();
+            }
+            catch
+            {
+                Debug.WriteLine("Error closing response stream");
+            }
         }
     }
 
+    /// <summary>
+    /// Navigates the WebView to the local HTTP server URL.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task NavigateToServerAsync()
     {
         string serverUrl = $"http://localhost:{_serverPort}/";
         SimpleLogger.Log($"Navigating to: {serverUrl}");
 
         bool navigationCompleted = false;
-        _webView!.NavigationCompleted += (_, _) =>
-        {
-            navigationCompleted = true;
-            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
-        };
 
-        _webView.Url = new Uri(serverUrl);
+        _webView!.NavigationCompleted += OnNavigationCompleted;
+
+        await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
 
         // Wait for navigation
         for (int i = 0; i < 50 && !navigationCompleted; i++)
@@ -206,8 +293,21 @@ public sealed class MermaidRenderer : IDisposable
         {
             throw new InvalidOperationException("Navigation failed");
         }
+
+        return;
+
+        void OnNavigationCompleted(object? sender, EventArgs e)
+        {
+            navigationCompleted = true;
+            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+            _webView!.NavigationCompleted -= OnNavigationCompleted; // Unsubscribe to avoid memory leaks
+        }
     }
 
+    /// <summary>
+    /// Finds an available port in the range 8083-8199 for the HTTP server.
+    /// </summary>
+    /// <returns>An available port number.</returns>
     private static int GetAvailablePort()
     {
         for (int port = 8083; port < 8200; port++)
@@ -229,6 +329,11 @@ public sealed class MermaidRenderer : IDisposable
         throw new InvalidOperationException("No available ports found in range 8083-8199");
     }
 
+    /// <summary>
+    /// Renders the specified Mermaid diagram source in the WebView.
+    /// </summary>
+    /// <param name="mermaidSource">The Mermaid diagram source code.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
         _renderAttemptCount++;
@@ -244,7 +349,8 @@ public sealed class MermaidRenderer : IDisposable
         {
             try
             {
-                await _webView.ExecuteScriptAsync("clearOutput();");
+                async Task ClearOutputAsync() => await _webView.ExecuteScriptAsync("clearOutput();");
+                await Dispatcher.UIThread.InvokeAsync(ClearOutputAsync);
                 SimpleLogger.Log("Cleared output");
             }
             catch (Exception ex)
@@ -255,26 +361,68 @@ public sealed class MermaidRenderer : IDisposable
         }
 
         // Simple JavaScript execution - no unnecessary complexity
-        string escaped = mermaidSource.Replace("\\", "\\\\").Replace("`", "\\`");
-        string script = $"renderMermaid(`{escaped}`);";
+        string escaped;
+        if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
+        {
+            escaped = mermaidSource;
+        }
+        else
+        {
+            escaped = EscapeSource(mermaidSource);
+        }
 
+        string script = $"renderMermaid(`{escaped}`);";
         try
         {
-            string? result = await _webView.ExecuteScriptAsync(script);
-            SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+            async Task RenderMermaidAsync()
+            {
+                string? result = await _webView.ExecuteScriptAsync(script);
+                SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+            }
+            await Dispatcher.UIThread.InvokeAsync(RenderMermaidAsync);
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Render failed", ex);
         }
+
+        static string EscapeSource(string source)
+        {
+            ReadOnlySpan<char> sourceSpan = source.AsSpan();
+            StringBuilder sb = new StringBuilder(sourceSpan.Length);
+            foreach (char c in sourceSpan)
+            {
+                // Prefer Append(char) for single characters
+                switch (c)
+                {
+                    case '\\':
+                        sb.Append('\\').Append('\\');
+                        break;
+                    case '`':
+                        sb.Append('\\').Append('`');
+                        break;
+                    default:
+                        sb.Append(c);
+                        break;
+                }
+            }
+            return sb.ToString();
+        }
     }
 
-    public void Dispose()
+    /// <summary>
+    /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
+    /// </summary>
+    /// <returns>A task representing the asynchronous disposal operation.</returns>
+    public async ValueTask DisposeAsync()
     {
         try
         {
             // Cancel server operations
-            _serverCancellation?.Cancel();
+            if (_serverCancellation is not null)
+            {
+                await _serverCancellation.CancelAsync();
+            }
 
             // Stop and close HTTP listener
             if (_httpListener?.IsListening == true)
@@ -288,7 +436,8 @@ public sealed class MermaidRenderer : IDisposable
             {
                 try
                 {
-                    _serverTask.Wait(TimeSpan.FromSeconds(5));
+                    const int maxWaitSeconds = 5;
+                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds));
                 }
                 catch (Exception ex)
                 {
@@ -297,7 +446,7 @@ public sealed class MermaidRenderer : IDisposable
             }
 
             _serverCancellation?.Dispose();
-            _serverReadySemaphore?.Dispose();
+            _serverReadySemaphore.Dispose();
             _serverTask?.Dispose();
 
             SimpleLogger.Log("MermaidRenderer disposed");

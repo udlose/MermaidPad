@@ -1,0 +1,175 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Bundle macOS .app
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      rid:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to bundle (e.g., 1.0.0)'
+        required: true
+        type: string
+      rid:
+        description: 'Runtime Identifier'
+        required: true
+        type: choice
+        options:
+          - osx-x64
+          - osx-arm64
+
+jobs:
+  restrict-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restrict to allowed user
+        run: |
+          if [ "${{ github.actor }}" != "udlose" ]; then
+            echo "Only udlose can run this workflow."
+            exit 1
+          fi
+
+  bundle-app:
+    needs: restrict-user
+    runs-on: macos-latest
+    permissions:
+      contents: write           # To update artifacts and create releases
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download published artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip
+          path: ./publish
+
+      - name: Unzip published files
+        run: |
+          unzip ./publish/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip -d ./publish/unpacked
+
+      - name: Substitute version in Info.plist
+        run: |
+          sed "s/__VERSION__/${{ inputs.version }}/g" Info.plist.in > Info.plist
+
+      - name: Create .app bundle structure
+        run: |
+          set -euo pipefail
+          APPNAME="MermaidPad"
+          BUNDLE="MermaidPad.app"
+          mkdir -p "$BUNDLE/Contents/MacOS"
+          cp -a ./publish/unpacked/. "$BUNDLE/Contents/MacOS/"
+          cp Info.plist "$BUNDLE/Contents/"
+          cp Assets/AppIcon.icns "$BUNDLE/Contents/"
+          chmod +x "$BUNDLE/Contents/MacOS/$APPNAME"
+
+      # - name: Ad-hoc Sign .app Bundle
+      #   run: |
+      #     BUNDLE="MermaidPad.app"
+      #     echo "Starting comprehensive ad-hoc signing of $BUNDLE"
+      #     
+      #     # Sign all dylibs and frameworks first (inside-out approach)
+      #     echo "Signing dynamic libraries and frameworks..."
+      #     find "$BUNDLE" -name "*.dylib" -exec codesign --force --sign - {} \; || echo "No .dylib files found"
+      #     find "$BUNDLE" -name "*.framework" -exec codesign --force --sign - {} \; || echo "No .framework files found"
+      #     
+      #     # Sign the main executable
+      #     echo "Signing main executable..."
+      #     codesign --force --sign - "$BUNDLE/Contents/MacOS/MermaidPad"
+      #     
+      #     # Sign the entire bundle with --deep to catch anything we missed
+      #     echo "Signing entire .app bundle..."
+      #     codesign --force --deep --sign - "$BUNDLE"
+      #     
+      #     # Verify the signing worked
+      #     echo "Verifying signatures..."
+      #     codesign --verify --deep --strict --verbose=2 "$BUNDLE" || {
+      #       echo "ERROR: Signature verification failed"
+      #       exit 1
+      #     }
+      #     
+      #     # Check Gatekeeper assessment (what users will experience)
+      #     echo "Testing Gatekeeper assessment..."
+      #     spctl --assess --type execute --verbose "$BUNDLE" || {
+      #       echo "Gatekeeper assessment failed (expected for ad-hoc signed apps)"
+      #       echo "   Users will need to right-click -> Open on first launch"
+      #     }
+      #     
+      #     # Clear any quarantine attributes
+      #     echo "Clearing quarantine attributes..."
+      #     xattr -cr "$BUNDLE" || echo "No quarantine attributes to clear"
+      #     
+      #     # List final app structure for debugging
+      #     echo "Final app bundle structure:"
+      #     find "$BUNDLE" -type f | head -100
+      #     echo "   ... (showing first 100 files)"
+
+      #     echo "Success: Ad-hoc signing completed successfully!"
+
+      - name: List .app bundle contents
+        run: |
+          find MermaidPad.app
+
+      # Upload the .app bundle immediately after creation
+      - name: Upload .app bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          path: MermaidPad.app
+
+      # Download the .app bundle artifact for zipping and release
+      - name: Download .app bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+          path: ./artifacts
+
+      - name: Zip .app bundle for release
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ./artifacts
+
+          # Collect .app bundles (expect exactly one)
+          APP_BUNDLES=()
+          while IFS= read -r -d '' line; do
+            APP_BUNDLES+=("$line")
+          done < <(find . -type d -name "MermaidPad.app" -print0 2>/dev/null)
+
+          printf '%s\n' "${APP_BUNDLES[@]}"
+          if [ "${#APP_BUNDLES[@]}" -ne 1 ]; then
+            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]}"
+            # Limit debug search to a shallow tree for speed and concise logs.
+            # maxdepth 4 comfortably covers expected layouts like:
+            #   ./<artifact-name>/MermaidPad.app            (depth ~2)
+            #   ./<artifact-name>/<extra>/.../MermaidPad.app (depth <=4)
+            # This avoids traversing large trees under ./artifacts when something is off.
+            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
+            exit 1
+          fi
+
+          APP_BUNDLE="${APP_BUNDLES[0]}"
+          echo "Found app bundle: $APP_BUNDLE"
+
+          # Ensure main binary is executable
+          find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
+
+          # Create macOS-friendly zip (preserves metadata, no __MACOSX)
+          ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+          echo "Success: Created app bundle zip: $ZIP_NAME"
+
+      - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ inputs.version }}
+          artifacts: ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
