@@ -117,13 +117,17 @@ jobs:
           mkdir -p ./dmg-staging
           cp -R ./universal/MermaidPad.app ./dmg-staging/
 
-          ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null || true)"
+          ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to resolve path for ./Assets/AppIcon.icns"
+            echo "Available files in Assets directory:"
+            ls -la ./Assets/ || echo "Assets directory not found"
+            exit 1
+          fi
           if [ -f "$ICON_PATH" ]; then
             echo "Using custom volume icon: $ICON_PATH"
           else
-            echo "ERROR: AppIcon.icns not found at ./Assets/AppIcon.icns"
-            echo "Available files in Assets directory:"
-            ls -la ./Assets/ || echo "Assets directory not found"
+            echo "ERROR: AppIcon.icns not found at $ICON_PATH"
             exit 1
           fi
 
