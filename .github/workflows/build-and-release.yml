@@ -185,11 +185,12 @@ jobs:
         with:
           path: ./artifacts
 
+      # This will download MermaidPad-<version>-osx-*.app.zip from macos-bundle.yml
       - name: Download macOS .app bundle zips
         uses: actions/download-artifact@v4
         with:
+          name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-*
           path: ./artifacts-app
-          # This will download MermaidPad-<version>-osx-*.app.zip from macos-bundle.yml
 
       - name: Create or update tag for manual runs
         if: github.event_name == 'workflow_dispatch'
