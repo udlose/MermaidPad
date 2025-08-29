@@ -63,6 +63,9 @@ jobs:
         run: |
           set -euo pipefail
           APPNAME="MermaidPad"
+
+          # Create the .app bundle directory structure
+          mkdir -p ./artifacts
           BUNDLE="./artifacts/$APPNAME.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
           cp -a ./publish/unpacked/. "$BUNDLE/Contents/MacOS/"
@@ -72,7 +75,7 @@ jobs:
 
       # - name: Ad-hoc Sign .app Bundle
       #   run: |
-      #     BUNDLE="MermaidPad.app"
+      #     BUNDLE="./artifacts/MermaidPad.app"
       #     echo "Starting comprehensive ad-hoc signing of $BUNDLE"
       #     
       #     # Sign all dylibs and frameworks first (inside-out approach)
@@ -110,19 +113,19 @@ jobs:
       #     echo "Final app bundle structure:"
       #     find "$BUNDLE" -type f | head -100
       #     echo "   ... (showing first 100 files)"
-
+      #
       #     echo "Success: Ad-hoc signing completed successfully!"
 
       - name: List .app bundle contents
         run: |
-          find MermaidPad.app
+          find ./artifacts/MermaidPad.app
 
       # Upload the .app bundle immediately after creation
       - name: Upload .app bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
-          path: MermaidPad.app
+          path: ./artifacts/MermaidPad.app
 
       # Download the .app bundle artifact for zipping and release
       - name: Download .app bundle artifact
@@ -131,13 +134,11 @@ jobs:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
           path: ./artifacts
 
-      # Debugging
+      # List contents of ./artifacts
       - name: List contents of ./artifacts
         run: |
           echo "Contents of ./artifacts using ls -R:"
           ls -R ./artifacts
-          echo "First 100 files in the .app bundle using find:"
-          find ./artifacts/MermaidPad.app -type f | head -100
 
       # Ensure main binary is executable before zipping
       - name: Ensure main binary is executable
