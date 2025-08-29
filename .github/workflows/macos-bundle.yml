@@ -131,6 +131,12 @@ jobs:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
           path: ./artifacts
 
+      # Debugging
+      - name: List contents of ./artifacts
+        run: |
+          ls -R ./artifacts
+          find ./artifacts
+
       - name: Zip .app bundle for release
         shell: bash
         run: |
@@ -153,7 +159,7 @@ jobs:
             #   ./<artifact-name>/MermaidPad.app            (depth ~2)
             #   ./<artifact-name>/<extra>/.../MermaidPad.app (depth <=4)
             # This avoids traversing large trees under ./artifacts when something is off.
-            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
+            find . -maxdepth 4 -type d -name "MermaidPad.app" -print0 2>/dev/null
             exit 1
           fi
 

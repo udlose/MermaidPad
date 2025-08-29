@@ -167,7 +167,7 @@ jobs:
   # Create GitHub release
   release:
     name: Create Release
-    needs: [restrict-user, get-version, build]
+    needs: [restrict-user, get-version, build, bundle-macos-app]
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
@@ -180,10 +180,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+
+      - name: Download macOS .app bundle zips
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts-app
+          # This will download MermaidPad-<version>-osx-*.app.zip from macos-bundle.yml
 
       - name: Create or update tag for manual runs
         if: github.event_name == 'workflow_dispatch'
@@ -200,8 +206,9 @@ jobs:
         with:
           tag: v${{ needs.get-version.outputs.version }}
           name: MermaidPad v${{ needs.get-version.outputs.version }}
-          # Restrict to actual files; avoids "Artifact is a directory" warnings
-          artifacts: "./artifacts/**/*.zip"
+          artifacts: |
+            ./artifacts/**/*.zip
+            ./artifacts-app/**/*.app.zip
           generateReleaseNotes: true
           allowUpdates: true
           prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_preview == 'true' }}
@@ -235,12 +242,12 @@ jobs:
   
               Not sure which one?
               If you have an:
-              - Apple M1/M2/M3 = Apple Silicon `arm64`
-              - Intel = Intel Mac `x64`
+              - Apple M1/M2/M3, then you have an Apple Silicon. Download the `arm64` version.
+              - Intel, then you have an Intel Mac. Download the `x64` version.
 
               Both architectures are supported on MacOS, but you should choose download for your native CPU Architecture:
-              - Intel (`x64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64`
-              - Apple Silicon (`arm64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64`
+              - Intel (`x64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app.zip`
+              - Apple Silicon (`arm64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app.zip`
 
             ### Installation
             1. Download the appropriate file for your platform
