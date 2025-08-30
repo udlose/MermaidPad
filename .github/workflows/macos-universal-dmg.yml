@@ -32,6 +32,8 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+    env:
+      DMG_FILENAME: MermaidPad-${{ inputs.version }}-universal.dmg
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -116,6 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ./dmg-staging
+          mkdir -p ./artifacts-dmg
           cp -R ./universal/MermaidPad.app ./dmg-staging/
 
           ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"
@@ -143,16 +146,16 @@ jobs:
             --app-drop-link 600 185 \
             --disk-image-size 200 \
             --format UDZO \
-            "MermaidPad-${{ inputs.version }}-universal.dmg" \
+            "./artifacts-dmg/${{ env.DMG_FILENAME }}" \
             "./dmg-staging"
 
       - name: Verify DMG
         run: |
           set -euo pipefail
-          ls -la "MermaidPad-${{ inputs.version }}-universal.dmg"
-          echo "DMG file size: $(du -h MermaidPad-${{ inputs.version }}-universal.dmg)"
+          ls -la "./artifacts-dmg/${{ env.DMG_FILENAME }}"
+          echo "DMG file size: $(du -h ./artifacts-dmg/${{ env.DMG_FILENAME }})"
           echo "Mounting DMG for verification..."
-          hdiutil attach "MermaidPad-${{ inputs.version }}-universal.dmg" -readonly -mountpoint /tmp/mermaid-verify
+          hdiutil attach "./artifacts-dmg/${{ env.DMG_FILENAME }}" -readonly -mountpoint /tmp/mermaid-verify
           echo "DMG Contents:"
           ls -la /tmp/mermaid-verify/
           echo "Verifying universal binary inside DMG:"
@@ -174,12 +177,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MermaidPad-${{ inputs.version }}-macos-universal.dmg
-          path: MermaidPad-${{ inputs.version }}-universal.dmg
+          path: ./artifacts-dmg/${{ env.DMG_FILENAME }}
 
       - name: Upload Universal DMG to Release
         uses: ncipollo/release-action@v1
         with:
           tag: v${{ inputs.version }}
-          artifacts: "MermaidPad-${{ inputs.version }}-universal.dmg"
+          artifacts: "./artifacts-dmg/${{ env.DMG_FILENAME }}"
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
