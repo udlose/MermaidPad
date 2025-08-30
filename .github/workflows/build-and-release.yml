@@ -180,10 +180,11 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
 
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
+      # REMOVE DOWNLOAD REDUNDANCIES
+      # - name: Download all build artifacts
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     path: ./artifacts
 
       # Download macOS .app bundle zip (x64)
       - name: Download macOS .app bundle zip (x64)
