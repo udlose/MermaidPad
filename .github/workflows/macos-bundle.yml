@@ -170,12 +170,3 @@ jobs:
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
           path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
-
-      # Upload the zipped .app bundle to the GitHub Release created by build-and-release.yml
-      - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
-        uses: ncipollo/release-action@v1
-        with:
-          tag: v${{ inputs.version }}
-          artifacts: ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
-          allowUpdates: true
-          token: ${{ secrets.GITHUB_TOKEN }}
