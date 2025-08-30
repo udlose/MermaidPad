@@ -32,11 +32,14 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write           # To update artifacts and create releases
+    env:
+      DMG_FILENAME: MermaidPad-${{ inputs.version }}-macos-universal.dmg
+      DMG_FILEPATH: ./artifacts-dmg/MermaidPad-${{ inputs.version }}-macos-universal.dmg
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Download the .app bundle artifacts (these contain the proper app structure)
+      # Download the .app bundle artifacts that were uploaded by macos-bundle.yml
       - name: Download macOS x64 app bundle
         uses: actions/download-artifact@v4
         with:
@@ -69,6 +72,8 @@ jobs:
 
       - name: Create Universal Binary
         run: |
+          set -euo pipefail
+
           # Use the .app bundles in the downloaded artifacts
           X64_APP="./artifacts/x64-app/MermaidPad.app"
           ARM64_APP="./artifacts/arm64-app/MermaidPad.app"
@@ -142,19 +147,25 @@ jobs:
 
       - name: Create DMG
         run: |
+          set -euo pipefail
+
           # Create a staging directory for DMG contents
           mkdir -p ./dmg-staging
-          cp -r ./universal/MermaidPad.app ./dmg-staging/
+          mkdir -p ./artifacts-dmg
+          cp -R ./universal/MermaidPad.app ./dmg-staging/
           
           # Verify icon file exists, set up icon parameters
           # Expected location: ./Assets/AppIcon.icns (relative to repository root)
-          ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"
+          if ! ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"; then
+            echo "ERROR: Failed to resolve path for ./Assets/AppIcon.icns"
+            echo "Available files in Assets directory:"
+            ls -la ./Assets/ || echo "Assets directory not found"
+            exit 1
+          fi
           if [ -f "$ICON_PATH" ]; then
             echo "Using custom volume icon: $ICON_PATH"
           else
-            echo "ERROR: AppIcon.icns not found at ./Assets/AppIcon.icns"
-            echo "Available files in Assets directory:"
-            ls -la ./Assets/ || echo "Assets directory not found"
+            echo "ERROR: AppIcon.icns not found at $ICON_PATH"
             exit 1
           fi
           
@@ -171,19 +182,20 @@ jobs:
             --app-drop-link 600 185 \
             --disk-image-size 200 \
             --format UDZO \
-            "MermaidPad-${{ inputs.version }}-universal.dmg" \
+            "${{ env.DMG_FILEPATH }}" \
             "./dmg-staging"
 
       - name: Verify DMG
         run: |
           # Basic file verification
-          ls -la "MermaidPad-${{ inputs.version }}-universal.dmg"
-          echo "DMG file size: $(du -h MermaidPad-${{ inputs.version }}-universal.dmg)"
-          
+          set -euo pipefail
+          ls -la "${{ env.DMG_FILEPATH }}"
+          echo "DMG file size: $(du -h "${{ env.DMG_FILEPATH }}")"
+
           # Mount and verify the DMG contents (restored verification)
           echo "Mounting DMG for verification..."
-          hdiutil attach "MermaidPad-${{ inputs.version }}-universal.dmg" -readonly -mountpoint /tmp/mermaid-verify
-          
+          hdiutil attach "${{ env.DMG_FILEPATH }}" -readonly -mountpoint /tmp/mermaid-verify
+
           echo "DMG Contents:"
           ls -la /tmp/mermaid-verify/
           
@@ -202,10 +214,10 @@ jobs:
           
           echo "SUCCESS: DMG verification completed"
 
-      - name: Upload Universal DMG to Release
-        uses: ncipollo/release-action@v1
+      # Upload the .dmg file as an artifact
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag: v${{ inputs.version }}
-          artifacts: "MermaidPad-${{ inputs.version }}-universal.dmg"
-          allowUpdates: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ env.DMG_FILENAME }}
+          path: ${{ env.DMG_FILEPATH }}
+          if-no-files-found: error
