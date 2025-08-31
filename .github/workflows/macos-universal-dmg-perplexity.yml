@@ -1,5 +1,4 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
+﻿# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Create Universal macOS DMG
 
 on:
@@ -31,115 +30,82 @@ jobs:
     needs: restrict-user
     runs-on: macos-latest
     permissions:
-      contents: write           # To update artifacts and create releases
-    env:
-      DMG_FILENAME: MermaidPad-${{ inputs.version }}-macos-universal.dmg
-      DMG_FILEPATH: ./artifacts-dmg/MermaidPad-${{ inputs.version }}-macos-universal.dmg
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Download the .app bundle artifacts that were uploaded by macos-bundle.yml
+      # Download .app bundle artifacts that were uploaded by macos-bundle.yml
       - name: Download macOS x64 app bundle
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ inputs.version }}-osx-x64.app.zip
+          name: MermaidPad-${{ inputs.version }}-osx-x64.app
           path: ./artifacts/x64-app
 
-      - name: Download macOS ARM64 app bundle  
+      - name: Download macOS ARM64 app bundle
         uses: actions/download-artifact@v4
         with:
-          name: MermaidPad-${{ inputs.version }}-osx-arm64.app.zip
+          name: MermaidPad-${{ inputs.version }}-osx-arm64.app
           path: ./artifacts/arm64-app
-
-      - name: Unzip x64 app bundle
-        run: |
-          unzip ./artifacts/x64-app/MermaidPad-${{ inputs.version }}-osx-x64.app.zip -d ./artifacts/x64-app/
-
-      - name: Unzip arm64 app bundle
-        run: |
-          unzip ./artifacts/arm64-app/MermaidPad-${{ inputs.version }}-osx-arm64.app.zip -d ./artifacts/arm64-app/
 
       - name: Verify downloaded app bundles
         run: |
+          set -euo pipefail
           echo "Downloaded app bundles:"
-          ls -la ./artifacts/x64-app/
-          ls -la ./artifacts/arm64-app/
-          
+          ls -la ./artifacts/x64-app/ || true
+          ls -la ./artifacts/arm64-app/ || true
           echo "App bundle contents:"
-          find ./artifacts/x64-app/ -name "*.app" -exec ls -la {} \;
-          find ./artifacts/arm64-app/ -name "*.app" -exec ls -la {} \;
+          find ./artifacts/x64-app/ -name "*.app" -maxdepth 4 -exec ls -la {} \; || true
+          find ./artifacts/arm64-app/ -name "*.app" -maxdepth 4 -exec ls -la {} \; || true
 
       - name: Create Universal Binary
         run: |
           set -euo pipefail
-
-          # Use the .app bundles in the downloaded artifacts
-          X64_APP="./artifacts/x64-app/MermaidPad.app"
-          ARM64_APP="./artifacts/arm64-app/MermaidPad.app"
-          
+          # Find the .app bundles in the downloaded artifacts
+          X64_APP=$(find ./artifacts/x64-app -name "*.app" -type d | head -1 || true)
+          ARM64_APP=$(find ./artifacts/arm64-app -name "*.app" -type d | head -1 || true)
           echo "X64 app bundle: $X64_APP"
           echo "ARM64 app bundle: $ARM64_APP"
-          
-          if [ -z "$X64_APP" ] || [ -z "$ARM64_APP" ]; then
+          if [ -z "${X64_APP}" ] || [ -z "${ARM64_APP}" ]; then
             echo "ERROR: Could not find app bundles"
-            echo "X64 directory contents:"
-            ls -la ./artifacts/x64-app/
-            echo "ARM64 directory contents:"
-            ls -la ./artifacts/arm64-app/
+            echo "X64 directory contents:"; ls -la ./artifacts/x64-app/ || true
+            echo "ARM64 directory contents:"; ls -la ./artifacts/arm64-app/ || true
             exit 1
           fi
-          
+
           # Create the universal app bundle by copying the x64 structure
           mkdir -p "./universal"
-          cp -r "$X64_APP" "./universal/MermaidPad.app"
-          
+          rm -rf "./universal/MermaidPad.app"
+          cp -R "$X64_APP" "./universal/MermaidPad.app"
+
           # Verify we have the binaries
           X64_BINARY="$X64_APP/Contents/MacOS/MermaidPad"
           ARM64_BINARY="$ARM64_APP/Contents/MacOS/MermaidPad"
-          
           echo "X64 binary: $X64_BINARY"
           echo "ARM64 binary: $ARM64_BINARY"
-          
           if [ ! -f "$X64_BINARY" ] || [ ! -f "$ARM64_BINARY" ]; then
             echo "ERROR: Could not find binaries in app bundles"
-            echo "X64 contents:"
-            ls -la "$X64_APP/Contents/MacOS/" || echo "X64 MacOS directory not found"
-            echo "ARM64 contents:"
-            ls -la "$ARM64_APP/Contents/MacOS/" || echo "ARM64 MacOS directory not found"
+            echo "X64 contents:"; ls -la "$X64_APP/Contents/MacOS/" || echo "X64 MacOS directory not found"
+            echo "ARM64 contents:"; ls -la "$ARM64_APP/Contents/MacOS/" || echo "ARM64 MacOS directory not found"
             exit 1
           fi
-          
-          # Verify individual architectures before combining
+
           echo "Verifying individual binaries:"
-          echo "X64 binary info:"
-          lipo -info "$X64_BINARY"
-          echo "ARM64 binary info:"
-          lipo -info "$ARM64_BINARY"
-          
-          # Create universal binary using lipo
+          lipo -info "$X64_BINARY" || true
+          lipo -info "$ARM64_BINARY" || true
+
           echo "Creating universal binary..."
           lipo -create \
             "$X64_BINARY" \
             "$ARM64_BINARY" \
             -output ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
-          
-          # Verify the universal binary
+
           echo "Universal binary info:"
           lipo -info ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
-          
-          # Make sure it's executable
           chmod +x ./universal/MermaidPad.app/Contents/MacOS/MermaidPad
-          
-          # # Sign the universal binary (ad-hoc signing)
-          # echo "Ad-hoc signing universal app bundle..."
-          # codesign --force --deep --sign - ./universal/MermaidPad.app
-          
-          # # Verify the signing
-          # codesign --verify --deep --strict --verbose=2 ./universal/MermaidPad.app
-          
+
           echo "Universal app bundle structure:"
-          ls -la ./universal/MermaidPad.app/Contents/
+          ls -la ./universal/MermaidPad.app/Contents/ || true
 
       - name: Install create-dmg
         run: |
@@ -148,26 +114,23 @@ jobs:
       - name: Create DMG
         run: |
           set -euo pipefail
-
-          # Create a staging directory for DMG contents
           mkdir -p ./dmg-staging
-          mkdir -p ./artifacts-dmg
           cp -R ./universal/MermaidPad.app ./dmg-staging/
-          
-          # Verify icon file exists, set up icon parameters
-          # Expected location: ./Assets/AppIcon.icns (relative to repository root)
-          if [ ! -f ./Assets/AppIcon.icns ]; then
-            echo "ERROR: AppIcon.icns not found at ./Assets/AppIcon.icns"
+
+          ICON_PATH="$(realpath ./Assets/AppIcon.icns 2>/dev/null)"
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to resolve path for ./Assets/AppIcon.icns"
             echo "Available files in Assets directory:"
             ls -la ./Assets/ || echo "Assets directory not found"
             exit 1
           fi
+          if [ -f "$ICON_PATH" ]; then
+            echo "Using custom volume icon: $ICON_PATH"
+          else
+            echo "ERROR: AppIcon.icns not found at $ICON_PATH"
+            exit 1
+          fi
 
-          ICON_PATH="$(realpath ./Assets/AppIcon.icns)"
-          echo "Using custom volume icon: $ICON_PATH"
-          
-          # Create the DMG with professional layout
-          # shellcheck disable=SC2086
           create-dmg \
             --volname "MermaidPad" \
             --volicon "$ICON_PATH" \
@@ -179,23 +142,18 @@ jobs:
             --app-drop-link 600 185 \
             --disk-image-size 200 \
             --format UDZO \
-            "${{ env.DMG_FILEPATH }}" \
+            "MermaidPad-${{ inputs.version }}-universal.dmg" \
             "./dmg-staging"
 
       - name: Verify DMG
         run: |
-          # Basic file verification
           set -euo pipefail
-          ls -la "${{ env.DMG_FILEPATH }}"
-          echo "DMG file size: $(du -h "${{ env.DMG_FILEPATH }}")"
-
-          # Mount and verify the DMG contents (restored verification)
+          ls -la "MermaidPad-${{ inputs.version }}-universal.dmg"
+          echo "DMG file size: $(du -h MermaidPad-${{ inputs.version }}-universal.dmg)"
           echo "Mounting DMG for verification..."
-          hdiutil attach "${{ env.DMG_FILEPATH }}" -readonly -mountpoint /tmp/mermaid-verify
-
+          hdiutil attach "MermaidPad-${{ inputs.version }}-universal.dmg" -readonly -mountpoint /tmp/mermaid-verify
           echo "DMG Contents:"
           ls -la /tmp/mermaid-verify/
-          
           echo "Verifying universal binary inside DMG:"
           if [ -f "/tmp/mermaid-verify/MermaidPad.app/Contents/MacOS/MermaidPad" ]; then
             lipo -info "/tmp/mermaid-verify/MermaidPad.app/Contents/MacOS/MermaidPad"
@@ -203,18 +161,17 @@ jobs:
           else
             echo "ERROR: Could not find MermaidPad binary inside mounted DMG"
             ls -la "/tmp/mermaid-verify/MermaidPad.app/Contents/MacOS/" || echo "MacOS directory not found"
+            hdiutil detach /tmp/mermaid-verify || true
             exit 1
           fi
-          
           echo "Unmounting DMG..."
           hdiutil detach /tmp/mermaid-verify
-          
           echo "SUCCESS: DMG verification completed"
 
-      # Upload the .dmg file as an artifact
-      - name: Upload .dmg artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload Universal DMG to Release
+        uses: ncipollo/release-action@v1
         with:
-          name: ${{ env.DMG_FILENAME }}
-          path: ${{ env.DMG_FILEPATH }}
-          if-no-files-found: error
+          tag: v${{ inputs.version }}
+          artifacts: "MermaidPad-${{ inputs.version }}-universal.dmg"
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}

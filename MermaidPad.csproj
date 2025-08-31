@@ -105,6 +105,7 @@
 
 	<ItemGroup>
 		<None Include=".github\workflows\build-and-release.yml" />
+		<None Include=".github\workflows\macos-universal-dmg-perplexity.yml" />
 		<None Include=".github\workflows\macos-universal-dmg.yml" />
 		<None Include=".github\workflows\macos-bundle.yml" />
 	</ItemGroup>

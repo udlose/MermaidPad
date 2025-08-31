@@ -63,7 +63,10 @@ jobs:
         run: |
           set -euo pipefail
           APPNAME="MermaidPad"
-          BUNDLE="MermaidPad.app"
+
+          # Create the .app bundle directory structure
+          mkdir -p ./artifacts
+          BUNDLE="./artifacts/$APPNAME.app"
           mkdir -p "$BUNDLE/Contents/MacOS"
           cp -a ./publish/unpacked/. "$BUNDLE/Contents/MacOS/"
           cp Info.plist "$BUNDLE/Contents/"
@@ -72,7 +75,7 @@ jobs:
 
       # - name: Ad-hoc Sign .app Bundle
       #   run: |
-      #     BUNDLE="MermaidPad.app"
+      #     BUNDLE="./artifacts/MermaidPad.app"
       #     echo "Starting comprehensive ad-hoc signing of $BUNDLE"
       #     
       #     # Sign all dylibs and frameworks first (inside-out approach)
@@ -110,66 +113,61 @@ jobs:
       #     echo "Final app bundle structure:"
       #     find "$BUNDLE" -type f | head -100
       #     echo "   ... (showing first 100 files)"
-
+      #
       #     echo "Success: Ad-hoc signing completed successfully!"
 
-      - name: List .app bundle contents
+      # REMOVE REDUNDANCIES
+      # - name: List .app bundle contents
+      #   run: |
+      #     find ./artifacts/MermaidPad.app
+
+      # # Upload the .app bundle immediately after creation
+      # - name: Upload .app bundle artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+      #     path: ./artifacts/MermaidPad.app
+
+      # # Download the .app bundle artifact for zipping and release
+      # - name: Download .app bundle artifact
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
+      #     path: ./artifacts
+
+      # List contents of ./artifacts
+      - name: List contents of ./artifacts
         run: |
-          find MermaidPad.app
+          echo "Contents of ./artifacts using ls -R:"
+          ls -R ./artifacts
 
-      # Upload the .app bundle immediately after creation
-      - name: Upload .app bundle artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
-          path: MermaidPad.app
+      # Ensure main binary is executable before zipping
+      - name: Ensure main binary is executable
+        run: |
+          if [ ! -d "./artifacts/MermaidPad.app" ]; then
+            echo "ERROR: ./artifacts/MermaidPad.app does not exist."
+            exit 1
+          fi
+          find ./artifacts/MermaidPad.app -type f -name "MermaidPad" -exec chmod +x {} \;
 
-      # Download the .app bundle artifact for zipping and release
-      - name: Download .app bundle artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
-          path: ./artifacts
-
+      # Zip the .app bundle for release
       - name: Zip .app bundle for release
         shell: bash
         run: |
           set -euo pipefail
-          cd ./artifacts
-
-          # Collect .app bundles (expect exactly one)
-          APP_BUNDLES=()
-          while IFS= read -r -d '' line; do
-            APP_BUNDLES+=("$line")
-          done < <(find . -type d -name "MermaidPad.app" -print0 2>/dev/null)
-
-          printf '%s\n' "${APP_BUNDLES[@]}"
-          if [ "${#APP_BUNDLES[@]}" -ne 1 ]; then
-            echo "ERROR: Expected exactly one MermaidPad.app, found ${#APP_BUNDLES[@]}"
-            # Limit debug search to a shallow tree for speed and concise logs.
-            # maxdepth 4 comfortably covers expected layouts like:
-            #   ./<artifact-name>/MermaidPad.app            (depth ~2)
-            #   ./<artifact-name>/<extra>/.../MermaidPad.app (depth <=4)
-            # This avoids traversing large trees under ./artifacts when something is off.
-            find . -maxdepth 4 -type d -name "MermaidPad.app" -print
-            exit 1
-          fi
-
-          APP_BUNDLE="${APP_BUNDLES[0]}"
-          echo "Found app bundle: $APP_BUNDLE"
-
-          # Ensure main binary is executable
-          find "$APP_BUNDLE" -type f -name "MermaidPad" -exec chmod +x {} \;
 
           # Create macOS-friendly zip (preserves metadata, no __MACOSX)
           ZIP_NAME="MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_NAME"
+          if [ ! -d "./artifacts/MermaidPad.app" ]; then
+            echo "ERROR: ./artifacts/MermaidPad.app does not exist."
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent ./artifacts/MermaidPad.app "$ZIP_NAME"
           echo "Success: Created app bundle zip: $ZIP_NAME"
 
-      - name: Upload .app bundle to the GitHub Release created by build-and-release.yml
-        uses: ncipollo/release-action@v1
+      # Upload the zipped .app bundle as the artifact
+      - name: Upload .app bundle zip artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag: v${{ inputs.version }}
-          artifacts: ./artifacts/MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
-          allowUpdates: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
+          path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
