@@ -100,6 +100,7 @@
 		<None Include=".github\workflows\macos-universal-dmg-perplexity.yml" />
 		<None Include=".github\workflows\macos-universal-dmg.yml" />
 		<None Include=".github\workflows\macos-bundle.yml" />
+		<None Include=".github\workflows\README.md" />
 	</ItemGroup>
 
 	<!-- macOS app bundle support -->

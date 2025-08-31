@@ -1,9 +1,7 @@
-# MermaidPad
+﻿# MermaidPad
 
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
-[![Bundle macOS .app](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-bundle.yml)
-[![Create Universal macOS DMG](https://github.com/udlose/MermaidPad/actions/workflows/macos-universal-dmg.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/macos-universal-dmg.yml)
 [![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
@@ -52,25 +50,53 @@
 ### macOS
 
 #### Universal DMG - One Download for All Macs (Recommended)
-Download the Universal DMG from the [latest release](https://github.com/udlose/MermaidPad/releases/latest). This single file works on both Intel and Apple Silicon Macs.
 
 **Download:** `MermaidPad-[version]-universal.dmg`
 
-**Installation:**
-1. Download the Universal DMG file
-2. Double-click to mount the DMG
-3. Drag **MermaidPad.app** to the **Applications** folder
-4. Launch from Applications or Spotlight
+The Universal DMG is the preferred installation method for macOS users. This single disk image contains optimized binaries for both Intel and Apple Silicon Macs, automatically using the correct architecture for your system.
+
+**Benefits of the Universal DMG:**
+- **One file works everywhere**: No need to determine your Mac's architecture
+- **Standard macOS experience**: Familiar drag-and-drop installation to Applications folder
+- **Preserves permissions**: No manual `chmod +x` commands needed
+- **Clean installation**: Mounts as a virtual drive, no unzipping required
+- **Smaller download**: More efficient than downloading separate architecture-specific files
+
+**Installation Steps:**
+1. Download `MermaidPad-[version]-universal.dmg` from the [latest release](https://github.com/udlose/MermaidPad/releases/latest)
+2. Double-click the DMG file to mount it
+3. Drag **MermaidPad.app** to the **Applications** folder shortcut
+4. Eject the DMG (right-click → Eject)
+5. Launch MermaidPad from Applications or Spotlight search
+
+**First Launch (Unsigned App):**
+Since the app is not code-signed by Apple, macOS Gatekeeper will prevent normal launching:
+1. **Right-click** MermaidPad.app → **"Open"** (don't double-click)
+2. Click **"Open"** when prompted about the unidentified developer
+3. Subsequent launches will work normally with double-click
+
+**Alternative via Terminal:**
+```bash
+# Remove quarantine attribute and launch
+xattr -cr /Applications/MermaidPad.app && open /Applications/MermaidPad.app
+```
 
 #### Alternative: Homebrew
-MermaidPad's macOS `.app` bundle is also distributed via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates.
+MermaidPad is also available via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates:
 
 ```bash
 brew tap udlose/tap
 brew install --cask udlose/tap/mermaidpad
 ```
 
-The [Cask file](https://github.com/udlose/homebrew-tap/blob/main/Casks/mermaidpad.rb) is automatically updated after each release.
+The Homebrew cask is automatically updated after each release.
+
+#### Advanced Users: Individual Architecture Downloads
+Architecture-specific downloads are available for developers and advanced users:
+- **Intel x64:** `MermaidPad-[version]-osx-x64.app.zip`
+- **Apple Silicon ARM64:** `MermaidPad-[version]-osx-arm64.app.zip`
+
+These require manual unzipping and permission setting (`chmod +x MermaidPad`).
 
 ### Windows
 
