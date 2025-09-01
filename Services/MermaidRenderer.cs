@@ -15,13 +15,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private const string MermaidRequestPath = $"/{MermaidMinJsFileName}";
     private const string IndexHtmlFileName = "index.html";
     private const string IndexRequestPath = $"/{IndexHtmlFileName}";
+    private const string JsYamlFileName = "js-yaml.min.js";
+    private const string JsYamlRequestPath = $"/{JsYamlFileName}";
     private WebView? _webView;
     private int _renderAttemptCount = 0;
     private HttpListener? _httpListener;
     private string? _htmlContent;
     private string? _mermaidJs;
-    private int _serverPort = 0;
-    private readonly SemaphoreSlim _serverReadySemaphore = new(0, 1);
+    private string? _jsYamlJs;
+    private int _serverPort;
+    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
 
@@ -74,8 +77,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Stopwatch sw = Stopwatch.StartNew();
         string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
         string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
+        string jsYamlPath = Path.Combine(assetsDir, JsYamlFileName);
 
-        if (!File.Exists(indexPath) || !File.Exists(mermaidPath))
+        if (!File.Exists(indexPath) || !File.Exists(mermaidPath) || !File.Exists(jsYamlPath))
         {
             throw new FileNotFoundException("Required assets not found");
         }
@@ -85,9 +89,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Read files in parallel
             Task<string> indexHtmlTask = File.ReadAllTextAsync(indexPath);
             Task<string> jsTask = File.ReadAllTextAsync(mermaidPath);
-            await Task.WhenAll(indexHtmlTask, jsTask);
+            Task<string> jsYamlTask = File.ReadAllTextAsync(jsYamlPath);
+            await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask);
             _htmlContent = await indexHtmlTask;
             _mermaidJs = await jsTask;
+            _jsYamlJs = await jsYamlTask;
         }
         catch (Exception e)
         {
@@ -201,17 +207,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
             string requestPath = context.Request.Url?.LocalPath ?? "/";
             SimpleLogger.Log($"Processing request: {requestPath}");
 
+            byte[]? responseBytes = null;
+            string? contentType = null;
+
             // Separate file handling is needed to avoid JavaScript injection issues
             switch (requestPath)
             {
                 case MermaidRequestPath when _mermaidJs is not null:
                     {
-                        // Serve mermaid.js efficiently
-                        byte[] jsBytes = Encoding.UTF8.GetBytes(_mermaidJs);
-                        context.Response.ContentType = "application/javascript; charset=utf-8";
-                        context.Response.ContentLength64 = jsBytes.Length;
-                        await context.Response.OutputStream.WriteAsync(jsBytes);
-                        SimpleLogger.Log($"Served JS: {jsBytes.Length} bytes");
+                        responseBytes = Encoding.UTF8.GetBytes(_mermaidJs);
+                        contentType = "application/javascript; charset=utf-8";
                         break;
                     }
                 case MermaidRequestPath:
@@ -221,12 +226,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     }
                 case "/" or IndexRequestPath:
                     {
-                        // Serve HTML efficiently
-                        byte[] htmlBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
-                        context.Response.ContentType = "text/html; charset=utf-8";
-                        context.Response.ContentLength64 = htmlBytes.Length;
-                        await context.Response.OutputStream.WriteAsync(htmlBytes);
-                        SimpleLogger.Log($"Served HTML: {htmlBytes.Length} bytes");
+                        responseBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
+                        contentType = "text/html; charset=utf-8";
+                        break;
+                    }
+                case JsYamlRequestPath when _jsYamlJs is not null:
+                    {
+                        responseBytes = Encoding.UTF8.GetBytes(_jsYamlJs);
+                        contentType = "application/javascript; charset=utf-8";
                         break;
                     }
                 default:
@@ -235,6 +242,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
                         SimpleLogger.Log($"404 for: {requestPath}");
                         break;
                     }
+            }
+
+            if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
+            {
+                context.Response.ContentType = contentType;
+                context.Response.ContentLength64 = responseBytes.Length;
+                await context.Response.OutputStream.WriteAsync(responseBytes);
+                SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
             }
         }
         catch (Exception ex)
