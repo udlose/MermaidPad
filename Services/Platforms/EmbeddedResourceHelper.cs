@@ -1,6 +1,7 @@
 ﻿using MermaidPad.Infrastructure;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 
 namespace MermaidPad.Services.Platforms;
 
@@ -67,6 +68,36 @@ public static class EmbeddedResourceHelper
         ValidateAssets(assetsDirectory);
 
         return assetsDirectory;
+    }
+
+    /// <summary>
+    /// Asynchronously retrieves the content of an embedded resource as a byte array.
+    /// </summary>
+    /// <remarks>The method constructs the full resource name by appending the provided <paramref
+    /// name="resourceName"/> to a predefined resource prefix. If the resource is not found, an exception is thrown.
+    /// Ensure that the resource name matches exactly, including case sensitivity, and that the resource is properly
+    /// embedded in the assembly.</remarks>
+    /// <param name="resourceName">The name of the embedded resource to retrieve. This value cannot be <see langword="null"/> or whitespace.</param>
+    /// <returns>A byte array containing the UTF-8 encoded content of the specified embedded resource.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the specified resource cannot be found in the assembly. The exception message includes a list of
+    /// available resources.</exception>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="resourceName"/> is <see langword="null"/> or whitespace.</exception>
+    /// <remarks>This method is provided as an alternative to reading assets from disk for scenarios where embedded resources are preferred.</remarks>
+    internal static async Task<byte[]> GetEmbeddedResourceAsync(string resourceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
+
+        string fullResourceName = $"{EmbeddedResourcePrefix}{resourceName}";
+        await using Stream? stream = _currentAssembly.GetManifestResourceStream(fullResourceName);
+        if (stream is null)
+        {
+            string available = string.Join(", ", _currentAssembly.GetManifestResourceNames());
+            throw new InvalidOperationException($"Resource '{fullResourceName}' not found. Available: {available}");
+        }
+
+        using StreamReader reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);
+        string resourceText = await reader.ReadToEndAsync();
+        return Encoding.UTF8.GetBytes(resourceText);
     }
 
     /// <summary>
