@@ -252,7 +252,7 @@ public partial class MainWindow : Window
         SimpleLogger.Log("=== WebView Initialization Started ===");
         SimpleLogger.Log($"Assets directory: {assets}");
 
-        // CRITICAL FIX: Temporarily disable live preview during WebView initialization
+        // Temporarily disable live preview during WebView initialization
         bool originalLivePreview = _vm.LivePreviewEnabled;
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
@@ -285,7 +285,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            // CRITICAL: Re-enable live preview after WebView is ready
+            // Re-enable live preview after WebView is ready
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.LivePreviewEnabled = originalLivePreview;
