@@ -81,7 +81,7 @@ public static class SimpleLogger
         if (ex is not null)
         {
             sb.Append($"{Environment.NewLine}    Exception: {ex.GetType().Name}: {ex.Message}");
-            if (ex.StackTrace is not null)
+            if (!string.IsNullOrWhiteSpace(ex.StackTrace))
             {
                 int idx = ex.StackTrace.AsSpan().IndexOf(Environment.NewLine);
                 ReadOnlySpan<char> firstLine = idx >= 0 ? ex.StackTrace.AsSpan()[..idx].Trim() : ex.StackTrace.AsSpan().Trim();
