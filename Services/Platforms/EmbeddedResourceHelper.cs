@@ -33,18 +33,18 @@ public static class EmbeddedResourceHelper
         SimpleLogger.Log("Asset extraction process starting...");
 
         // Use the SAME directory pattern as SettingsService for consistency
-        string assetsDir = GetAssetsDirectory();
-        SimpleLogger.Log($"Assets directory: {assetsDir}");
+        string assetsDirectory = GetAssetsDirectory();
+        SimpleLogger.Log($"Assets directory: {assetsDirectory}");
 
         // Check if extraction is needed
-        if (ShouldExtractAssets(assetsDir))
+        if (ShouldExtractAssets(assetsDirectory))
         {
             SimpleLogger.Log("Assets require extraction/update");
-            Directory.CreateDirectory(assetsDir);
+            Directory.CreateDirectory(assetsDirectory);
 
             try
             {
-                ExtractEmbeddedAssetsToDisk(assetsDir);
+                ExtractEmbeddedAssetsToDisk(assetsDirectory);
 
                 stopwatch.Stop();
                 SimpleLogger.LogTiming("Asset extraction", stopwatch.Elapsed, success: true);
@@ -64,9 +64,9 @@ public static class EmbeddedResourceHelper
         }
 
         // Validate critical files exist
-        ValidateAssets(assetsDir);
+        ValidateAssets(assetsDirectory);
 
-        return assetsDir;
+        return assetsDirectory;
     }
 
     /// <summary>
@@ -211,14 +211,13 @@ public static class EmbeddedResourceHelper
     /// Validates that all required asset files exist in the specified directory.
     /// Throws an exception if any critical asset is missing.
     /// </summary>
-    /// <param name="assetsDir">The assets directory to validate.</param>
-    private static void ValidateAssets(string assetsDir)
+    /// <param name="assetsDirectory">The assets directory to validate.</param>
+    private static void ValidateAssets(string assetsDirectory)
     {
-        bool allValid = true;
-
+        List<string> missingFiles = new List<string>();
         foreach (string fileName in _requiredAssets)
         {
-            string filePath = Path.Combine(assetsDir, fileName);
+            string filePath = Path.Combine(assetsDirectory, fileName);
             if (File.Exists(filePath))
             {
                 FileInfo fileInfo = new FileInfo(filePath);
@@ -227,18 +226,19 @@ public static class EmbeddedResourceHelper
             else
             {
                 SimpleLogger.LogAsset("validate", fileName, false);
-                allValid = false;
+                missingFiles.Add(fileName);
             }
         }
 
-        if (allValid)
+        if (missingFiles.Count == 0)
         {
             SimpleLogger.Log("All required assets validated successfully");
         }
         else
         {
-            SimpleLogger.LogError("Asset validation failed - some required files are missing");
-            throw new InvalidOperationException("Critical assets are missing after extraction");
+            string errorMessage = $"Asset validation after extraction failed: One or more required asset files are missing from {assetsDirectory}: {string.Join(", ", missingFiles)}";
+            SimpleLogger.LogError(errorMessage);
+            throw new InvalidOperationException(errorMessage);
         }
     }
 
