@@ -143,3 +143,7 @@ dotnet_style_prefer_compound_assignment = true:warning
 dotnet_style_prefer_simplified_interpolation = true:suggestion
 dotnet_style_prefer_collection_expression = when_types_loosely_match:suggestion
 dotnet_style_namespace_match_folder = true:suggestion
+
+# Resharper
+# Use preferred style of 'new' expression when created type is evident
+resharper_arrange_object_creation_when_type_evident_highlighting = none
