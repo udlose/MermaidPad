@@ -292,7 +292,14 @@ public static class AssetHelper
                 // Clean up temp file if it still exists
                 if (File.Exists(tempFile))
                 {
-                    try { File.Delete(tempFile); } catch { /* Best effort */ }
+                    try
+                    {
+                        File.Delete(tempFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.LogError($"Failed to delete temp file '{tempFile}': {ex.Message}");
+                    }
                 }
             }
         }
