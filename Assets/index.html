@@ -73,7 +73,7 @@
 
             if (!window.mermaid) {
                 // Retry a few times before showing error
-                const retries = window._mermaidRetries || 0;
+                let retries = window._mermaidRetries || 0;
                 if (retries < 10) {
                     window._mermaidRetries = retries + 1;
                     setTimeout(() => window.renderMermaid(source), 100);
