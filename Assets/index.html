@@ -73,7 +73,7 @@
 
             if (!window.mermaid) {
                 // Retry a few times before showing error
-                let retries = window._mermaidRetries || 0;
+                const retries = window._mermaidRetries || 0;
                 if (retries < 10) {
                     window._mermaidRetries = retries + 1;
                     setTimeout(() => window.renderMermaid(source), 100);
@@ -92,9 +92,9 @@
             if (match) {
                 try {
                     // STEP 2: Parsing config
-                    const parsed = jsyaml.load(match[1]);
+                    const parsed = window.jsyaml.load(match[1]);
                     if (parsed && parsed.config) {
-                        mermaid.initialize(parsed.config); // apply config
+                        window.mermaid.initialize(parsed.config); // apply config
                     }
                     // STEP 3: Get rest of the source.
                     diagramSource = source.replace(fmRegex, "");
@@ -106,7 +106,7 @@
 
             // STEP 4: Render with clean diagram source
             const id = `mermaid-svg-${Date.now()}`;
-            mermaid.render(id, diagramSource)
+            window.mermaid.render(id, diagramSource)
                 .then(result => {
                     output.innerHTML = result.svg;
                     if (typeof result.bindFunctions === 'function') {
