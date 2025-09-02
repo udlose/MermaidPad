@@ -1,3 +1,4 @@
+
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -7,24 +8,26 @@ using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
-
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
+
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
+    private readonly IDebounceDispatcher _editorDebouncer;
 
     private bool _suppressEditorTextChanged = false;
+    private bool _suppressEditorStateSync = false; // Prevent circular updates
 
     public MainWindow()
     {
         InitializeComponent();
 
         IServiceProvider sp = App.Services;
-        IDebounceDispatcher editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
+        _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
@@ -61,21 +64,49 @@ public partial class MainWindow : Window
             //}, DispatcherPriority.Background);
         };
 
-        // All constructors run on UI thread, so it's safe to access Editor control directly without marshaling
-        Editor.Text = _vm.DiagramText;
+        // Initialize editor with ViewModel data using validation
+        SetEditorStateWithValidation(
+            _vm.DiagramText,
+            _vm.EditorSelectionStart,
+            _vm.EditorSelectionLength,
+            _vm.EditorCaretOffset
+        );
+
         SimpleLogger.Log($"Editor initialized with {_vm.DiagramText.Length} characters");
 
-        // Ensure selection bounds are valid
-        int textLength = _vm.DiagramText.Length;
-        int selectionStart = Math.Max(0, Math.Min(_vm.EditorSelectionStart, textLength));
-        int selectionLength = Math.Max(0, Math.Min(_vm.EditorSelectionLength, textLength - selectionStart));
-        int caretOffset = Math.Max(0, Math.Min(_vm.EditorCaretOffset, textLength));
-        Editor.SelectionLength = selectionLength;
-        Editor.SelectionStart = selectionStart;
-        Editor.CaretOffset = caretOffset;
+        // Set up two-way synchronization between Editor and ViewModel
+        SetupEditorViewModelSync();
 
-        SimpleLogger.Log($"Editor selection restored: Start={selectionStart}, Length={selectionLength}, Caret={caretOffset}");
+        SimpleLogger.Log("=== MainWindow Initialization Completed ===");
+    }
 
+    private void SetEditorStateWithValidation(string text, int selectionStart, int selectionLength, int caretOffset)
+    {
+        _suppressEditorStateSync = true; // Prevent circular updates during initialization
+        try
+        {
+            Editor.Text = text;
+
+            // Ensure selection bounds are valid
+            int textLength = text.Length;
+            int validSelectionStart = Math.Max(0, Math.Min(selectionStart, textLength));
+            int validSelectionLength = Math.Max(0, Math.Min(selectionLength, textLength - validSelectionStart));
+            int validCaretOffset = Math.Max(0, Math.Min(caretOffset, textLength));
+            Editor.SelectionStart = validSelectionStart;
+            Editor.SelectionLength = validSelectionLength;
+            Editor.CaretOffset = validCaretOffset;
+
+            SimpleLogger.Log($"Editor state set: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset} (text length: {textLength})");
+        }
+        finally
+        {
+            _suppressEditorStateSync = false;
+        }
+    }
+
+    private void SetupEditorViewModelSync()
+    {
+        // Editor -> ViewModel synchronization
         Editor.TextChanged += (_, _) =>
         {
             if (_suppressEditorTextChanged)
@@ -84,32 +115,133 @@ public partial class MainWindow : Window
             }
 
             // Debounce to avoid excessive updates
-            editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+            _editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
                 if (_vm.DiagramText != Editor.Text)
                 {
                     SimpleLogger.Log($"Editor text changed, updating ViewModel ({_vm.DiagramText.Length} -> {Editor.Text.Length} chars)");
-                    _vm.DiagramText = Editor.Text;
+                    _suppressEditorStateSync = true;
+                    try
+                    {
+                        _vm.DiagramText = Editor.Text;
+                    }
+                    finally
+                    {
+                        _suppressEditorStateSync = false;
+                    }
                 }
             });
         };
 
-        _vm.PropertyChanged += (_, e) =>
+        // Editor selection/caret -> ViewModel synchronization
+        // Hook into TextArea events since TextEditor doesn't expose SelectionChanged directly
+        Editor.TextArea.SelectionChanged += (_, _) =>
         {
-            if (e.PropertyName == nameof(_vm.DiagramText) && Editor.Text != _vm.DiagramText)
+            if (_suppressEditorStateSync) return;
+
+            _editorDebouncer.Debounce("editor-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
             {
-                // Debounce to avoid excessive updates
-                editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+                _suppressEditorStateSync = true;
+                try
                 {
-                    SimpleLogger.Log($"ViewModel text changed, updating Editor ({Editor.Text.Length} -> {_vm.DiagramText.Length} chars)");
-                    _suppressEditorTextChanged = true;
-                    Editor.Text = _vm.DiagramText;
-                    _suppressEditorTextChanged = false;
-                });
-            }
+                    _vm.EditorSelectionStart = Editor.SelectionStart;
+                    _vm.EditorSelectionLength = Editor.SelectionLength;
+                    _vm.EditorCaretOffset = Editor.CaretOffset;
+
+                    SimpleLogger.Log($"Editor selection synced to ViewModel: Start={Editor.SelectionStart}, Length={Editor.SelectionLength}, Caret={Editor.CaretOffset}");
+                }
+                finally
+                {
+                    _suppressEditorStateSync = false;
+                }
+            });
         };
 
-        SimpleLogger.Log("=== MainWindow Initialization Completed ===");
+        // Also hook into caret position changes for more comprehensive coverage
+        Editor.TextArea.Caret.PositionChanged += (_, _) =>
+        {
+            if (_suppressEditorStateSync) return;
+
+            _editorDebouncer.Debounce("editor-caret", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+            {
+                _suppressEditorStateSync = true;
+                try
+                {
+                    // Update caret offset when caret position changes
+                    _vm.EditorCaretOffset = Editor.CaretOffset;
+
+                    SimpleLogger.Log($"Editor caret synced to ViewModel: Caret={Editor.CaretOffset}");
+                }
+                finally
+                {
+                    _suppressEditorStateSync = false;
+                }
+            });
+        };
+
+        // ViewModel -> Editor synchronization
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressEditorStateSync) return;
+
+        switch (e.PropertyName)
+        {
+            case nameof(_vm.DiagramText):
+                if (Editor.Text != _vm.DiagramText)
+                {
+                    _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+                    {
+                        SimpleLogger.Log($"ViewModel text changed, updating Editor ({Editor.Text.Length} -> {_vm.DiagramText.Length} chars)");
+                        _suppressEditorTextChanged = true;
+                        _suppressEditorStateSync = true;
+                        try
+                        {
+                            Editor.Text = _vm.DiagramText;
+                        }
+                        finally
+                        {
+                            _suppressEditorTextChanged = false;
+                            _suppressEditorStateSync = false;
+                        }
+                    });
+                }
+                break;
+
+            case nameof(_vm.EditorSelectionStart):
+            case nameof(_vm.EditorSelectionLength):
+            case nameof(_vm.EditorCaretOffset):
+                _editorDebouncer.Debounce("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+                {
+                    _suppressEditorStateSync = true;
+                    try
+                    {
+                        // Validate bounds before setting
+                        int textLength = Editor.Text.Length;
+                        int validSelectionStart = Math.Max(0, Math.Min(_vm.EditorSelectionStart, textLength));
+                        int validSelectionLength = Math.Max(0, Math.Min(_vm.EditorSelectionLength, textLength - validSelectionStart));
+                        int validCaretOffset = Math.Max(0, Math.Min(_vm.EditorCaretOffset, textLength));
+
+                        if (Editor.SelectionStart != validSelectionStart ||
+                            Editor.SelectionLength != validSelectionLength ||
+                            Editor.CaretOffset != validCaretOffset)
+                        {
+                            Editor.SelectionStart = validSelectionStart;
+                            Editor.SelectionLength = validSelectionLength;
+                            Editor.CaretOffset = validCaretOffset;
+
+                            SimpleLogger.Log($"ViewModel selection synced to Editor: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset}");
+                        }
+                    }
+                    finally
+                    {
+                        _suppressEditorStateSync = false;
+                    }
+                });
+                break;
+        }
     }
 
     private void BringFocusToEditor()
@@ -160,19 +292,8 @@ public partial class MainWindow : Window
             await _vm.CheckForMermaidUpdatesAsync();
             SimpleLogger.Log("Mermaid update check completed");
 
-            // Step 2: Restore editor state
-            SimpleLogger.Log("Step 2: Restoring editor state from ViewModel...");
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                Editor.Text = _vm.DiagramText;
-                Editor.SelectionStart = _vm.EditorSelectionStart;
-                Editor.SelectionLength = _vm.EditorSelectionLength;
-                Editor.CaretOffset = _vm.EditorCaretOffset;
-                SimpleLogger.Log("Editor state restored successfully");
-            });
-
-            // Step 3: Initialize WebView
-            SimpleLogger.Log("Step 3: Initializing WebView...");
+            // Step 2: Initialize WebView (editor state is already synchronized via constructor)
+            SimpleLogger.Log("Step 2: Initializing WebView...");
             string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
             if (assetsPath is null)
             {
@@ -183,8 +304,8 @@ public partial class MainWindow : Window
 
             await InitializeWebViewAsync();
 
-            // Step 4: Update command states
-            SimpleLogger.Log("Step 4: Updating command states...");
+            // Step 3: Update command states
+            SimpleLogger.Log("Step 3: Updating command states...");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.RenderCommand.NotifyCanExecuteChanged();
@@ -211,8 +332,8 @@ public partial class MainWindow : Window
         {
             SimpleLogger.Log("Window closing, saving current state...");
 
-            // When the window is closing, save the current state
-            SynchronizeViewModelWithEditor();
+            // Since we now have real-time sync, the ViewModel is already up-to-date
+            // Just persist the current state
             _vm.Persist();
 
             // Dispose the renderer (stops HTTP server if running)
@@ -228,20 +349,6 @@ public partial class MainWindow : Window
         {
             SimpleLogger.LogError("Failed to save window state during close", ex);
         }
-    }
-
-    // Only called from OnClosing so no marshaling needed, but we marshal to UI thread anyway for safety
-    private void SynchronizeViewModelWithEditor()
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            _vm.DiagramText = Editor.Text;
-            _vm.EditorSelectionStart = Editor.SelectionStart;
-            _vm.EditorSelectionLength = Editor.SelectionLength;
-            _vm.EditorCaretOffset = Editor.CaretOffset;
-
-            SimpleLogger.Log($"ViewModel synchronized with editor state: {Editor.Text.Length} chars, selection {Editor.SelectionStart}:{Editor.SelectionLength}, caret {Editor.CaretOffset}");
-        });
     }
 
     private async Task InitializeWebViewAsync()
