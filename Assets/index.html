@@ -4,28 +4,10 @@
     <meta charset="utf-8" />
     <title>MermaidPad Preview</title>
     <style>
-        body.dark-theme {
-            background: #1e1e1e;
-            color: #ddd;
-        }
-
-        body.light-theme {
-            background: #fff;
-            color: #222;
-        }
-
-        #output {
-            padding: 8px;
-            overflow: auto;
-            height: 100vh;
-            box-sizing: border-box;
-        }
-
-        .error {
-            color: #ff6f6f;
-            white-space: pre;
-            font-family: Consolas,monospace;
-        }
+        body.dark-theme { background: #1e1e1e; color: #ddd; }
+        body.light-theme { background: #fff; color: #222; }
+        #output { padding: 8px; overflow: auto; height: 100vh; box-sizing: border-box; }
+        .error { color: #ff6f6f; white-space: pre; font-family: Consolas,monospace; }
 
         /* Mermaid dark theme overrides */
         body.dark-theme #output svg .messageLine,
@@ -33,14 +15,9 @@
         body.dark-theme #output svg .mermaid .edgePath path,
         body.dark-theme #output svg .mermaid .node rect,
         body.dark-theme #output svg .mermaid .node circle,
-        body.dark-theme #output svg .mermaid .node ellipse {
-            stroke: #e0e0e0 !important;
-        }
-
+        body.dark-theme #output svg .mermaid .node ellipse { stroke: #e0e0e0 !important; }
         body.dark-theme #output svg text,
-        body.dark-theme #output svg .messageText {
-            fill: #e0e0e0 !important;
-        }
+        body.dark-theme #output svg .messageText { fill: #e0e0e0 !important; }
     </style>
     <script src="mermaid.min.js" defer></script>
     <script src="js-yaml.min.js" defer></script>
