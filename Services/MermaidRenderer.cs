@@ -1,28 +1,27 @@
 using Avalonia.Threading;
 using AvaloniaWebView;
+using MermaidPad.Services.Platforms;
 using System.Diagnostics;
 using System.Net;
 using System.Text;
 
 namespace MermaidPad.Services;
+
 /// <summary>
 /// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
 public sealed class MermaidRenderer : IAsyncDisposable
 {
-    private const string MermaidMinJsFileName = "mermaid.min.js";
-    private const string MermaidRequestPath = $"/{MermaidMinJsFileName}";
-    private const string IndexHtmlFileName = "index.html";
-    private const string IndexRequestPath = $"/{IndexHtmlFileName}";
-    private const string JsYamlFileName = "js-yaml.min.js";
-    private const string JsYamlRequestPath = $"/{JsYamlFileName}";
+    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFileName}";
+    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFileName}";
+    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFileName}";
     private WebView? _webView;
-    private int _renderAttemptCount = 0;
+    private int _renderAttemptCount;
     private HttpListener? _httpListener;
-    private string? _htmlContent;
-    private string? _mermaidJs;
-    private string? _jsYamlJs;
+    private byte[]? _htmlContent;
+    private byte[]? _mermaidJs;
+    private byte[]? _jsYamlJs;
     private int _serverPort;
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
@@ -32,25 +31,23 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
     /// </summary>
     /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
-    /// <param name="assetsDir">The directory containing required assets.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InitializeAsync(WebView webView, string assetsDir)
+    public async Task InitializeAsync(WebView webView)
     {
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
 
-        await InitializeWithHttpServerAsync(assetsDir);
+        await InitializeWithHttpServerAsync();
     }
 
     /// <summary>
     /// Prepares content and starts the local HTTP server for serving Mermaid assets.
     /// </summary>
-    /// <param name="assetsDir">The directory containing required assets.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task InitializeWithHttpServerAsync(string assetsDir)
+    private async Task InitializeWithHttpServerAsync()
     {
         // Step 1: Prepare content (HTML and JS separately)
-        await PrepareContentAsync(assetsDir);
+        await PrepareContentFromDiskAsync();
 
         // Step 2: Start HTTP server
         StartHttpServer();
@@ -70,26 +67,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <summary>
     /// Reads the required HTML and JS asset files from disk.
     /// </summary>
-    /// <param name="assetsDir">The directory containing required assets.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task PrepareContentAsync(string assetsDir)
+    private async Task PrepareContentFromDiskAsync()
     {
         Stopwatch sw = Stopwatch.StartNew();
-        string indexPath = Path.Combine(assetsDir, IndexHtmlFileName);
-        string mermaidPath = Path.Combine(assetsDir, MermaidMinJsFileName);
-        string jsYamlPath = Path.Combine(assetsDir, JsYamlFileName);
-
-        if (!File.Exists(indexPath) || !File.Exists(mermaidPath) || !File.Exists(jsYamlPath))
-        {
-            throw new FileNotFoundException("Required assets not found");
-        }
 
         try
         {
-            // Read files in parallel
-            Task<string> indexHtmlTask = File.ReadAllTextAsync(indexPath);
-            Task<string> jsTask = File.ReadAllTextAsync(mermaidPath);
-            Task<string> jsYamlTask = File.ReadAllTextAsync(jsYamlPath);
+            // Get assets in parallel
+            Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFileName);
+            Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFileName);
+            Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFileName);
             await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask);
             _htmlContent = await indexHtmlTask;
             _mermaidJs = await jsTask;
@@ -101,11 +89,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return;
         }
 
+        sw.Stop();
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} characters");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} characters");
 
-        sw.Stop();
-        SimpleLogger.Log($"{nameof(PrepareContentAsync)} took {sw.ElapsedMilliseconds} ms");
+        SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
     /// <summary>
@@ -215,7 +203,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             {
                 case MermaidRequestPath when _mermaidJs is not null:
                     {
-                        responseBytes = Encoding.UTF8.GetBytes(_mermaidJs);
+                        responseBytes = _mermaidJs;
                         contentType = "application/javascript; charset=utf-8";
                         break;
                     }
@@ -226,13 +214,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     }
                 case "/" or IndexRequestPath:
                     {
-                        responseBytes = Encoding.UTF8.GetBytes(_htmlContent ?? "<html><body>Content not ready</body></html>");
+                        responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
                         contentType = "text/html; charset=utf-8";
                         break;
                     }
                 case JsYamlRequestPath when _jsYamlJs is not null:
                     {
-                        responseBytes = Encoding.UTF8.GetBytes(_jsYamlJs);
+                        responseBytes = _jsYamlJs;
                         contentType = "application/javascript; charset=utf-8";
                         break;
                     }
