@@ -62,6 +62,8 @@ public static class AssetHelper
         '~', '$', '%', '|', '>', '<', '*', '?', '"', '\0', '\n', '\r'
     );
 
+    private const string SecurityLogCategory = "Security: ";
+
     #region Get assets from disk
 
     /// <summary>
@@ -100,16 +102,18 @@ public static class AssetHelper
         // Check for symbolic links / reparse points
         if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
         {
-            SimpleLogger.LogError($"Security: Asset '{validatedAssetName}' is a symbolic link or reparse point");
-            throw new SecurityException("Symbolic links are not allowed for assets");
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' is a symbolic link or reparse point";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Check file size to prevent resource exhaustion
         const long maxFileSize = 50 * 1_024 * 1_024; // 50MB max
         if (fileInfo.Length > maxFileSize)
         {
-            SimpleLogger.LogError($"Security: Asset '{validatedAssetName}' exceeds maximum size ({fileInfo.Length} > {maxFileSize})");
-            throw new SecurityException($"Asset file exceeds maximum allowed size of {maxFileSize} bytes");
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds maximum size ({fileInfo.Length} > {maxFileSize})";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Step 6: Read the file with proper sharing mode
@@ -133,8 +137,9 @@ public static class AssetHelper
         }
         catch (UnauthorizedAccessException ex)
         {
-            SimpleLogger.LogError($"Security: Access denied to asset '{validatedAssetName}'", ex);
-            throw new SecurityException($"Access denied to asset '{validatedAssetName}'", ex);
+            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}'";
+            SimpleLogger.LogError(errorMessage, ex);
+            throw new SecurityException(errorMessage, ex);
         }
     }
 
@@ -311,11 +316,12 @@ public static class AssetHelper
     /// <exception cref="SecurityException">Thrown if the assets directory is not under ApplicationData.</exception>
     private static string GetAssetsDirectory()
     {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        const Environment.SpecialFolder appDataSpecialFolder = Environment.SpecialFolder.ApplicationData;
+        string appData = Environment.GetFolderPath(appDataSpecialFolder);
 
         if (string.IsNullOrWhiteSpace(appData))
         {
-            throw new InvalidOperationException("Could not determine ApplicationData folder");
+            throw new InvalidOperationException($"Could not determine {nameof(Environment.SpecialFolder.ApplicationData)} folder '{appData}'");
         }
 
         string baseDir = Path.Combine(appData, "MermaidPad");
@@ -332,8 +338,9 @@ public static class AssetHelper
 
         if (!fullPath.StartsWith(fullAppData, comparison))
         {
-            SimpleLogger.LogError($"Security: Assets directory '{fullPath}' is not under AppData '{fullAppData}'");
-            throw new SecurityException("Assets directory must be under ApplicationData");
+            string errorMessage = $"{SecurityLogCategory} Assets directory '{fullPath}' is not under AppData '{fullAppData}'";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         return fullPath;
@@ -390,8 +397,9 @@ public static class AssetHelper
             Version? version = typeof(AssetHelper).Assembly.GetName().Version;
             if (version is null)
             {
-                SimpleLogger.LogError("Could not determine assembly version for ServiceConfiguration");
-                throw new InvalidOperationException("Could not determine assembly version for ServiceConfiguration.");
+                const string errorMessage = $"Could not determine assembly version for {nameof(AssetHelper)}. This may indicate a build or deployment issue.";
+                SimpleLogger.LogError(errorMessage);
+                throw new InvalidOperationException(errorMessage);
             }
             string currentVersion = version.ToString();
 
@@ -481,43 +489,49 @@ public static class AssetHelper
         // Layer 1: Whitelist check (fastest, most secure)
         if (!_allowedAssets.Contains(assetName))
         {
-            SimpleLogger.LogError($"Security: Asset '{assetName}' not in whitelist");
-            throw new SecurityException($"Asset '{assetName}' is not allowed");
+            string errorMessage = $"Security: Asset '{assetName}' is not in the allowed assets list";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Layer 2: Check for parent directory traversal
         if (assetName.Contains("..", StringComparison.Ordinal))
         {
-            SimpleLogger.LogError("Security: Asset name contains parent directory traversal");
-            throw new SecurityException("Asset name contains forbidden pattern");
+            string errorMessage = $"Security: Asset name '{assetName}' contains parent directory traversal";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Layer 3: Check for forbidden characters using SearchValues (fast in .NET 9)
         if (assetName.AsSpan().ContainsAny(_forbiddenCharacters))
         {
-            SimpleLogger.LogError("Security: Asset name contains forbidden characters");
-            throw new SecurityException("Asset name contains forbidden characters");
+            string errorMessage = $"Security: Asset name '{assetName}' contains forbidden characters";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Layer 4: Path character validation
         if (assetName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            SimpleLogger.LogError("Security: Asset name contains invalid filename characters");
-            throw new SecurityException("Asset name contains invalid characters");
+            string errorMessage = $"Security: Asset name '{assetName}' contains invalid filename characters";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Layer 5: Ensure it's just a filename, not a path
         if (Path.GetFileName(assetName) != assetName)
         {
-            SimpleLogger.LogError("Security: Asset name appears to be a path, not a filename");
-            throw new SecurityException("Asset name must be a filename only, not a path");
+            string errorMessage = $"Security: Asset name '{assetName}' appears to be a path, not a filename";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Layer 6: Check for rooted paths
         if (Path.IsPathRooted(assetName))
         {
-            SimpleLogger.LogError("Security: Asset name is a rooted path");
-            throw new SecurityException("Asset name cannot be a rooted path");
+            string errorMessage = $"Security: Asset name '{assetName}' is a rooted path";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         return assetName;
@@ -549,16 +563,18 @@ public static class AssetHelper
 
         if (!normalizedPath.StartsWith(normalizedAssetsDir, comparison))
         {
-            SimpleLogger.LogError($"Security: Path traversal detected. Path '{normalizedPath}' is outside '{normalizedAssetsDir}'");
-            throw new SecurityException("Access to path outside assets directory is forbidden");
+            string errorMessage = $"Security: Path traversal detected. Path '{normalizedPath}' is outside '{normalizedAssetsDir}'";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
         // Additional check: Ensure the file is directly in the assets directory (no subdirectories)
         string directory = Path.GetDirectoryName(normalizedPath) ?? string.Empty;
         if (!string.Equals(directory, normalizedAssetsDir.TrimEnd(Path.DirectorySeparatorChar), comparison))
         {
-            SimpleLogger.LogError("Security: Asset not in root of assets directory");
-            throw new SecurityException("Assets must be in the root assets directory");
+            string errorMessage = $"Security: Asset '{fullPath}' is not in the root of the assets directory '{normalizedAssetsDir}'";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
     }
 
