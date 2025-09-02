@@ -90,8 +90,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
 
         sw.Stop();
-        SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} characters");
-        SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} characters");
+        SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
+        SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
+        SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
 
         SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
