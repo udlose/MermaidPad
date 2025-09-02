@@ -59,7 +59,7 @@ public static class AssetHelper
     /// Set of forbidden characters for asset names to prevent security issues.
     /// </summary>
     private static readonly SearchValues<char> _forbiddenCharacters = SearchValues.Create(
-        '~', '$', '%', '|', '>', '<', '*', '?', '"', '\0', '\n', '\r'
+        '~', '$', '%', '|', '>', '<', '*', '?', '"', '\0', '\n', '\r', '/', '\\', ':'
     );
 
     private const string SecurityLogCategory = "Security: ";
