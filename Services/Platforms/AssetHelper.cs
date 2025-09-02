@@ -6,20 +6,56 @@ using System.Text;
 namespace MermaidPad.Services.Platforms;
 
 /// <summary>
-/// Provides methods to extract embedded assets to the file system for WebView consumption.
-/// Designed for single-file publishing scenarios where Content files are unreliable.
-/// IL3000-safe: Does not use Assembly.Location for single-file compatibility.
+/// Provides utility methods for managing and accessing application assets, including embedded resources and disk-based
+/// files. This class handles asset extraction, validation, and retrieval to ensure that required assets are available
+/// and up-to-date.
 /// </summary>
-public static class EmbeddedResourceHelper
+/// <remarks>The <see cref="AssetHelper"/> class is designed to support scenarios where application assets, such
+/// as JavaScript libraries or HTML files, need to be embedded in the assembly or stored on disk. It includes methods
+/// for extracting embedded resources, validating asset integrity, and retrieving asset content.  This class is
+/// primarily intended for internal use within the application and is not designed for direct consumption by external
+/// callers. Designed for single-file publishing scenarios where Content files are unreliable.
+/// IL3000-safe: Does not use Assembly.Location for single-file compatibility.</remarks>
+public static class AssetHelper
 {
-    private static readonly Assembly _currentAssembly = Assembly.GetExecutingAssembly();
+    internal const string IndexHtmlFileName = "index.html";
+    internal const string MermaidMinJsFileName = "mermaid.min.js";
+    internal const string JsYamlFileName = "js-yaml.min.js";
+
     private const string EmbeddedResourcePrefix = "MermaidPad.Assets.";
+    private static readonly Encoding _encoding = Encoding.UTF8;
+    private static readonly Assembly _currentAssembly = Assembly.GetExecutingAssembly();
     private static readonly string[] _requiredAssets =
     [
-        "index.html",
-        "mermaid.min.js",
-        "js-yaml.min.js"
+        IndexHtmlFileName,
+        MermaidMinJsFileName,
+        JsYamlFileName
     ];
+
+    #region Get assets from disk
+
+    /// <summary>
+    /// Asynchronously retrieves the contents of an asset file from the disk as a byte array.
+    /// </summary>
+    /// <param name="assetName">The name of the asset file to retrieve. Cannot be null, empty, or consist only of whitespace.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the contents of the asset file as a
+    /// byte array.</returns>
+    /// <exception cref="FileNotFoundException">Thrown if the specified asset file does not exist in the assets directory.</exception>
+    internal static Task<byte[]> GetAssetFromDiskAsync(string assetName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
+
+        string assetsDirectory = GetAssetsDirectory();
+        string assetPath = Path.Combine(assetsDirectory, assetName);
+        if (!File.Exists(assetPath))
+        {
+            // Return a faulted task to avoid async/await overhead
+            return Task.FromException<byte[]>(new FileNotFoundException($"Asset '{assetName}' not found in assets directory '{assetsDirectory}'. Ensure assets have been extracted.", assetPath));
+        }
+        return File.ReadAllBytesAsync(assetPath);
+    }
+
+    #endregion Get assets from disk
 
     #region Asset Extraction
 
@@ -95,9 +131,9 @@ public static class EmbeddedResourceHelper
             throw new InvalidOperationException($"Resource '{fullResourceName}' not found. Available: {available}");
         }
 
-        using StreamReader reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);
+        using StreamReader reader = new StreamReader(stream, leaveOpen: false);
         string resourceText = await reader.ReadToEndAsync();
-        return Encoding.UTF8.GetBytes(resourceText);
+        return _encoding.GetBytes(resourceText);
     }
 
     /// <summary>
