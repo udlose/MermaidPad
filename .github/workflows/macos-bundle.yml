@@ -43,10 +43,10 @@ jobs:
       contents: write           # To update artifacts and create releases
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download published artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip
           path: ./publish
@@ -130,7 +130,7 @@ jobs:
 
       # # Download the .app bundle artifact for zipping and release
       # - name: Download .app bundle artifact
-      #   uses: actions/download-artifact@v4
+      #   uses: actions/download-artifact@v5
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts
