@@ -1,7 +1,6 @@
 ﻿using MermaidPad.Infrastructure;
 using System.Diagnostics;
 using System.Reflection;
-using System.Text;
 
 namespace MermaidPad.Services.Platforms;
 
@@ -23,7 +22,6 @@ public static class AssetHelper
     internal const string JsYamlFileName = "js-yaml.min.js";
 
     private const string EmbeddedResourcePrefix = "MermaidPad.Assets.";
-    private static readonly Encoding _encoding = Encoding.UTF8;
     private static readonly Assembly _currentAssembly = Assembly.GetExecutingAssembly();
     private static readonly string[] _requiredAssets =
     [
@@ -131,9 +129,9 @@ public static class AssetHelper
             throw new InvalidOperationException($"Resource '{fullResourceName}' not found. Available: {available}");
         }
 
-        using StreamReader reader = new StreamReader(stream, leaveOpen: false);
-        string resourceText = await reader.ReadToEndAsync();
-        return _encoding.GetBytes(resourceText);
+        byte[] buffer = new byte[stream.Length];
+        await stream.ReadExactlyAsync(buffer);
+        return buffer;
     }
 
     /// <summary>

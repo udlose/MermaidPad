@@ -34,7 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets or sets the version of the bundled Mermaid.js.
     /// </summary>
     [ObservableProperty]
-    public partial string BundledMermaidVersion { get; set; } = "11.9.0";
+    public partial string BundledMermaidVersion { get; set; }
 
     /// <summary>
     /// Gets or sets the latest Mermaid.js version available.
@@ -46,7 +46,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets or sets a value indicating whether live preview is enabled.
     /// </summary>
     [ObservableProperty]
-    public partial bool LivePreviewEnabled { get; set; } = true;
+    public partial bool LivePreviewEnabled { get; set; }
 
     /// <summary>
     /// Gets or sets the selection start index in the editor.
