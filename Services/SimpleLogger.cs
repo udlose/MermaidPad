@@ -83,8 +83,9 @@ public static class SimpleLogger
             sb.Append($"{Environment.NewLine}    Exception: {ex.GetType().Name}: {ex.Message}");
             if (!string.IsNullOrWhiteSpace(ex.StackTrace))
             {
-                int idx = ex.StackTrace.AsSpan().IndexOf(Environment.NewLine);
-                ReadOnlySpan<char> firstLine = idx >= 0 ? ex.StackTrace.AsSpan()[..idx].Trim() : ex.StackTrace.AsSpan().Trim();
+                ReadOnlySpan<char> stackTraceSpan = ex.StackTrace.AsSpan();
+                int idx = stackTraceSpan.IndexOf(Environment.NewLine.AsSpan());
+                ReadOnlySpan<char> firstLine = idx >= 0 ? stackTraceSpan[..idx].Trim() : stackTraceSpan.Trim();
                 sb.Append($"{Environment.NewLine}    Stack: {firstLine}");
             }
         }
