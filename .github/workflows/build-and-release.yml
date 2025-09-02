@@ -87,7 +87,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -178,31 +178,31 @@ jobs:
     steps:
       - name: Checkout
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Download non-macOS build artifacts
       - name: Download non-macOS build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: ./artifacts
 
       # Download macOS .app bundle zip (x64)
       - name: Download macOS .app bundle zip (x64)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app.zip
           path: ./artifacts-app
 
       # Download macOS .app bundle zip (arm64)
       - name: Download macOS .app bundle zip (arm64)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app.zip
           path: ./artifacts-app
           
       # Download macOS universal DMG
       - name: Download macOS universal DMG
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-macos-universal.dmg
           path: ./artifacts-dmg
