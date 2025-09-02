@@ -238,38 +238,49 @@ jobs:
             - Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
             - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))
 
-            ### macOS Installation Notes
-            **Important**: macOS binaries are not signed. On first launch:
-            1. Right-click the app -> **"Open"** (not double-click)
-            2. Click **"Open"** when prompted about unidentified developer
-            3. OR via terminal: `xattr -cr MermaidPad-*-osx-* && ./MermaidPad-*-osx-*`
-
             ### Downloads
-            Choose the appropriate version for your platform:
 
-            - #### Windows:
-              - `x64`: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.exe`
-              - `arm64`: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.exe`
+            #### macOS (Recommended)
+            **Universal DMG - Works on All Macs:**
+            - `MermaidPad-${{ needs.get-version.outputs.version }}-macos-universal.dmg`
 
-            - #### Linux:
-              - `x64`: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64`
-              - `arm64`: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64`
+            This single DMG file contains optimized binaries for both Intel and Apple Silicon Macs. Simply download, mount, and drag to Applications folder.
 
-            - #### MacOS:
-  
-              Not sure which one?
-              If you have an:
-              - Apple M1/M2/M3, then you have an Apple Silicon. Download the `arm64` version.
-              - Intel, then you have an Intel Mac. Download the `x64` version.
+            **Installation Steps:**
+            1. Download the Universal DMG above
+            2. Double-click to mount the disk image
+            3. Drag MermaidPad.app to the Applications folder shortcut
+            4. Eject the DMG and launch from Applications
 
-              Both architectures are supported on MacOS, but you should choose download for your native CPU Architecture:
-              - Intel (`x64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app.zip`
-              - Apple Silicon (`arm64`): `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app.zip`
+            **First Launch (Unsigned App):**
+            Since the app is not code-signed by Apple:
+            1. **Right-click** MermaidPad.app -> **"Open"** (don't double-click)
+            2. Click **"Open"** when prompted about unidentified developer
+            3. Future launches work normally with double-click
 
-            ### Installation
-            1. Download the appropriate file for your platform
-            2. Make executable (Linux/macOS): `chmod +x MermaidPad-*`
-            3. Run directly: `./MermaidPad-*` or double-click (on Windows)
+            **Alternative: Homebrew**
+            ```bash
+            brew install --cask udlose/tap/mermaidpad
+            ```
+
+            - #### Windows
+            - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.zip`
+            - **ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.zip`
+
+            Extract and run `MermaidPad.exe`
+
+            - #### Linux
+            - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64.zip`
+            - **ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-arm64.zip`
+
+            Extract, make executable (`chmod +x MermaidPad`), and run `./MermaidPad`
+
+            #### Advanced Users: Individual macOS Architecture Downloads
+            For developers and advanced users who need specific architectures:
+            - **Intel x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app.zip`
+            - **Apple Silicon ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app.zip`
+
+            These require manual unzipping and permission setting.
 
   bundle-macos-app:
     name: Bundle macOS .app
