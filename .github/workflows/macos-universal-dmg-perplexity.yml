@@ -33,7 +33,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Download .app bundle artifacts that were uploaded by macos-bundle.yml
       - name: Download macOS x64 app bundle
