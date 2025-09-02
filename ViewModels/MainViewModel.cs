@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels;
+
 /// <summary>
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
@@ -138,7 +139,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (LivePreviewEnabled)
         {
-            _editorDebouncer.Debounce("render", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultDebounceMilliseconds), () =>
+            _editorDebouncer.Debounce("render", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
                 try
                 {

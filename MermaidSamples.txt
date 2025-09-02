@@ -150,5 +150,3 @@ classDiagram
         +shutdown()
     }
     User --> System : interacts with
-
-just we need to add the config block at the top of the diagram.
