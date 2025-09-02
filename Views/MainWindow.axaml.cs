@@ -181,8 +181,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException(error);
             }
 
-            SimpleLogger.Log($"Assets path resolved: {assetsPath}");
-            await InitializeWebViewAsync(assetsPath);
+            await InitializeWebViewAsync();
 
             // Step 4: Update command states
             SimpleLogger.Log("Step 4: Updating command states...");
@@ -245,12 +244,11 @@ public partial class MainWindow : Window
         });
     }
 
-    private async Task InitializeWebViewAsync(string assets)
+    private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         SimpleLogger.Log("=== WebView Initialization Started ===");
-        SimpleLogger.Log($"Assets directory: {assets}");
 
         // Temporarily disable live preview during WebView initialization
         bool originalLivePreview = _vm.LivePreviewEnabled;
@@ -263,7 +261,7 @@ public partial class MainWindow : Window
         try
         {
             // Step 1: Initialize the MermaidRenderer
-            await _renderer.InitializeAsync(Preview, assets);
+            await _renderer.InitializeAsync(Preview);
 
             // Step 2: Wait for content to load
             SimpleLogger.Log("Waiting for WebView content loading...");
