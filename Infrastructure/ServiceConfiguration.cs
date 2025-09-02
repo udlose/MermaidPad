@@ -23,7 +23,7 @@ public static class ServiceConfiguration
         SimpleLogger.Log("=== MermaidPad Service Configuration Started ===");
 
         // Extract assets ONCE to user-writable directory (same pattern as settings)
-        string assetsDirectory = EmbeddedResourceHelper.ExtractAssets();
+        string assetsDirectory = AssetHelper.ExtractAssets();
 
         // Core singletons
         services.AddSingleton<SettingsService>();
