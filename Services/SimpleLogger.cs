@@ -95,6 +95,7 @@ public static class SimpleLogger
     /// <param name="file">The calling file path (autopopulated).</param>
     public static void Log(string message, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         string entry = $"[{GetTimestamp()}] [{fileName}.{caller}] {message}";
 
@@ -111,6 +112,8 @@ public static class SimpleLogger
     /// <param name="file">The calling file path (autopopulated).</param>
     public static void LogError(string message, Exception? ex = null, [CallerMemberName] string? caller = null, [CallerFilePath] string? file = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
         string fileName = file is not null ? Path.GetFileNameWithoutExtension(file) : "Unknown";
         StringBuilder sb = new StringBuilder(512);
         sb.Append($"[{GetTimestamp()}] [ERROR] [{fileName}.{caller}] {message}");
@@ -140,6 +143,8 @@ public static class SimpleLogger
     /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogWebView(string eventName, string? details = null, [CallerMemberName] string? caller = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+
         string message = !string.IsNullOrWhiteSpace(details)
             ? $"WebView {eventName}: {details}"
             : $"WebView {eventName}";
@@ -155,6 +160,8 @@ public static class SimpleLogger
     /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogJavaScript(string script, bool success, string? result = null, [CallerMemberName] string? caller = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
+
         string truncatedScript = script.Length > 100 ? script[..100] + "..." : script;
         string status = success ? "SUCCESS" : "FAILED";
         StringBuilder sb = new StringBuilder(256);
@@ -175,6 +182,8 @@ public static class SimpleLogger
     /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogTiming(string operation, TimeSpan elapsed, bool success = true, [CallerMemberName] string? caller = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+
         string status = success ? "completed" : "failed";
         Log($"TIMING: {operation} {status} in {elapsed.TotalMilliseconds:F1}ms", caller);
     }
@@ -189,6 +198,13 @@ public static class SimpleLogger
     /// <param name="caller">The calling member name (autopopulated).</param>
     public static void LogAsset(string operation, string assetName, bool success, long? sizeBytes = null, [CallerMemberName] string? caller = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
+        if (sizeBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sizeBytes), "Size in bytes cannot be negative");
+        }
+
         StringBuilder sb = new StringBuilder(128);
         sb.Append($"Asset {operation}: {assetName}");
         if (success)
@@ -405,8 +421,7 @@ public static class SimpleLogger
 
             // Try to create the lock file with exclusive access
             // FileShare.None ensures only one process can open it at a time
-            FileStream lockStream = new FileStream(_lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            return lockStream;
+            return new FileStream(_lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
         }
         catch (IOException)
         {
@@ -498,7 +513,7 @@ public static class SimpleLogger
     /// Removes the stale lock file from the file system, if it exists.
     /// </summary>
     /// <remarks>This method checks for the presence of a lock file at the predefined path and deletes it if
-    /// found.  Any exceptions encountered during the operation are logged for debugging purposes but do not interrupt
+    /// found. Any exceptions encountered during the operation are logged for debugging purposes but do not interrupt
     /// the program's execution.</remarks>
     private static void CleanupStaleLockFile()
     {
