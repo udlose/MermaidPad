@@ -1,6 +1,28 @@
-﻿using System.Diagnostics;
+﻿// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+using JetBrains.Annotations;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Security;
 using System.Text;
 
 namespace MermaidPad.Services;
@@ -11,14 +33,32 @@ namespace MermaidPad.Services;
 public static class SimpleLogger
 {
     /// <summary>
-    /// Path to the log file.
+    /// Represents the path to the application data directory for the current user.
     /// </summary>
-    private static readonly string _logPath;
+    /// <remarks>This field is initialized to the value returned by Environment.GetFolderPath. It provides a convenient way to
+    /// access the application data directory, which is typically used for storing user-specific application data.</remarks>
+    private static readonly string _appDataDir = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
     /// <summary>
-    /// Path to the lock file used for inter-process coordination.
+    /// Represents the base directory path for storing MermaidPad application data.
     /// </summary>
-    private static readonly string _lockPath;
+    /// <remarks>The directory path is constructed by combining the application data directory with the
+    /// "MermaidPad" subdirectory. This field is read-only and cannot be modified at runtime.</remarks>
+    private static readonly string _baseDir = Path.Combine(_appDataDir, "MermaidPad");
+
+    /// <summary>
+    /// Represents the file path for the debug log.
+    /// </summary>
+    /// <remarks>This field combines the base directory with the file name "debug.log" to create the full
+    /// path. It is used internally for logging purposes.</remarks>
+    private static readonly string _logPath = Path.Combine(_baseDir, "debug.log");
+
+    /// <summary>
+    /// Represents the file path for the lock file used to synchronize access to the debug log.
+    /// </summary>
+    /// <remarks>This path is constructed by combining the base directory with the file name "debug.log.lock".
+    /// It is used to ensure that only one process can write to the debug log at a time.</remarks>
+    private static readonly string _lockPath = Path.Combine(_baseDir, "debug.log.lock");
 
     /// <summary>
     /// Initial delay in milliseconds for retrying lock acquisition.
@@ -31,17 +71,14 @@ public static class SimpleLogger
     private const int MaxRetryDelayMs = 1_000;
 
     /// <summary>
-    /// Static constructor. Initializes log and lock file paths, cleans up stale lock files, and writes the session header.
+    /// Static constructor. Validates log and lock file paths, cleans up stale lock files, and writes the session header.
     /// </summary>
     static SimpleLogger()
     {
         // Use same directory pattern as SettingsService
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string baseDir = Path.Combine(appData, "MermaidPad");
-        Directory.CreateDirectory(baseDir);
+        Directory.CreateDirectory(_baseDir);
 
-        _logPath = Path.Combine(baseDir, "debug.log");
-        _lockPath = Path.Combine(baseDir, "debug.log.lock");
+        ValidateLogPaths();
 
         // Clean up any stale lock files from previous crashes
         CleanupStaleLockFile();
@@ -226,10 +263,13 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Writes content to the log file, acquiring a lock file for inter-process coordination.
-    /// Retries up to three times with exponential backoff if the lock cannot be acquired.
+    /// Attempts to write the specified content to the log file, using a locking mechanism to ensure exclusive access.
+    /// Retries the operation up to a maximum number of attempts if the lock cannot be acquired.
     /// </summary>
-    /// <param name="content">The content to write to the log file.</param>
+    /// <remarks>This method uses a retry mechanism with exponential backoff to handle scenarios where the
+    /// lock file is  temporarily unavailable. If all retry attempts fail, the content is written to the debug output as
+    /// a fallback.</remarks>
+    /// <param name="content">The content to write to the log file. Cannot be <see langword="null"/> or empty.</param>
     private static void WriteEntryWithLock(string content)
     {
         const int maxRetries = 3;
@@ -336,11 +376,15 @@ public static class SimpleLogger
 
     /// <summary>
     /// Attempts to acquire an exclusive lock on the log file by creating a lock file.
-    /// Returns a FileStream if successful, or null if the lock is held by another process or access is denied.
     /// </summary>
-    /// <returns>
-    /// A FileStream representing the acquired lock, or null if the lock could not be obtained.
-    /// </returns>
+    /// <remarks>This method attempts to create a lock file at the specified path to ensure that only one
+    /// process can access the log file at a time. If the lock file already exists and is in use by another process, or
+    /// if the file system or permissions prevent the lock from being acquired, the method returns <see
+    /// langword="null"/>.  The method also validates the lock file path before attempting to acquire the lock and
+    /// ensures that the lock file is not a symbolic link. If the lock file is a symbolic link, the method will abort
+    /// and return <see langword="null"/>.</remarks>
+    /// <returns>A <see cref="FileStream"/> representing the acquired lock if successful; otherwise, <see langword="null"/>.</returns>
+    [MustDisposeResource]
     private static FileStream? TryAcquireLogLock()
     {
         try
@@ -382,9 +426,14 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Releases the lock on the log file by disposing the FileStream and deleting the lock file.
+    /// Releases the lock on the log file by disposing of the provided file stream  and deleting the associated lock
+    /// file, if it exists.
     /// </summary>
-    /// <param name="lockStream">The FileStream representing the acquired lock.</param>
+    /// <remarks>This method ensures that the lock file is cleaned up after the lock is released.  If an error
+    /// occurs during the cleanup process, it is logged for debugging purposes  but does not propagate
+    /// exceptions.</remarks>
+    /// <param name="lockStream">The <see cref="FileStream"/> representing the lock on the log file.  This stream will be disposed as part of the
+    /// release process.</param>
     private static void ReleaseLogLock(FileStream lockStream)
     {
         try
@@ -405,11 +454,13 @@ public static class SimpleLogger
     }
 
     /// <summary>
-    /// Writes the specified content to the log file.
-    /// If the content is empty, the log file is cleared.
-    /// Otherwise, the content is appended to the log file.
+    /// Writes the specified content to the log file. If the content is empty or null, the log file is cleared instead
+    /// of appending.
     /// </summary>
-    /// <param name="content">The content to write to the log file.</param>
+    /// <remarks>This method ensures that the log file is not a symbolic link before writing to it. If the log
+    /// file is a symbolic link, the write operation is aborted.</remarks>
+    /// <param name="content">The content to write to the log file. If <paramref name="content"/> is <see langword="null"/> or empty, the log
+    /// file is cleared.</param>
     private static void WriteToLogFile(string content)
     {
         // Validate before writing
@@ -444,8 +495,11 @@ public static class SimpleLogger
     private static string GetTimestamp() => DateTime.Now.ToString("HH:mm:ss.fff");
 
     /// <summary>
-    /// Removes any stale lock file left over from a previous crash or abnormal termination.
+    /// Removes the stale lock file from the file system, if it exists.
     /// </summary>
+    /// <remarks>This method checks for the presence of a lock file at the predefined path and deletes it if
+    /// found.  Any exceptions encountered during the operation are logged for debugging purposes but do not interrupt
+    /// the program's execution.</remarks>
     private static void CleanupStaleLockFile()
     {
         try
