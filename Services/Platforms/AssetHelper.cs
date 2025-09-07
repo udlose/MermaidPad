@@ -164,7 +164,8 @@ public static class AssetHelper
             );
 
             byte[] buffer = new byte[stream.Length];
-            await stream.ReadExactlyAsync(buffer);
+            await stream.ReadExactlyAsync(buffer)
+                .ConfigureAwait(false);
 
             // Step 7: Verify integrity if we have a known hash
             // For disk assets, we check against stored hashes (will be expanded in Phase 2)
@@ -173,7 +174,8 @@ public static class AssetHelper
                 string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName, settingsService);
                 if (expectedHash != null)
                 {
-                    bool integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash);
+                    bool integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                        .ConfigureAwait(false);
                     if (!integrityValid)
                     {
                         SimpleLogger.LogError($"Integrity check failed for asset '{validatedAssetName}'. File may be corrupted or tampered.");
@@ -207,6 +209,9 @@ public static class AssetHelper
     /// <returns>The path to the directory containing the extracted assets.</returns>
     internal static string ExtractAssets()
     {
+        const string timingMessage = "Asset extraction";
+        bool skippedExtraction = false;
+
         SimpleLogger.Log("Asset extraction process starting...");
         Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -223,26 +228,32 @@ public static class AssetHelper
             try
             {
                 ExtractEmbeddedAssetsToDisk(assetsDirectory);
-
-                stopwatch.Stop();
-                SimpleLogger.LogTiming("Asset extraction", stopwatch.Elapsed, success: true);
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                SimpleLogger.LogTiming("Asset extraction", stopwatch.Elapsed, success: false);
+                SimpleLogger.LogTiming(timingMessage, stopwatch.Elapsed, success: false);
                 SimpleLogger.LogError("Asset extraction failed", ex);
                 throw;
             }
         }
         else
         {
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("Asset extraction (skipped)", stopwatch.Elapsed);
+            skippedExtraction = true;
         }
 
         // Validate critical files exist
         ValidateAssets(assetsDirectory);
+
+        stopwatch.Stop();
+        if (skippedExtraction)
+        {
+            SimpleLogger.LogTiming(timingMessage + " (skipped)", stopwatch.Elapsed, success: true);
+        }
+        else
+        {
+            SimpleLogger.LogTiming(timingMessage, stopwatch.Elapsed, success: true);
+        }
 
         return assetsDirectory;
     }
@@ -271,7 +282,8 @@ public static class AssetHelper
         }
 
         byte[] buffer = new byte[stream.Length];
-        await stream.ReadExactlyAsync(buffer);
+        await stream.ReadExactlyAsync(buffer)
+            .ConfigureAwait(false);
 
         // Verify integrity of embedded resource
         bool integrityValid = AssetIntegrityService.VerifyEmbeddedAssetIntegrity(resourceName, buffer);
@@ -298,7 +310,7 @@ public static class AssetHelper
         SimpleLogger.Log($"Extracting embedded assets to: {targetDirectory}");
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        SimpleLogger.LogTiming("Beginning asset extraction to disk", stopwatch.Elapsed);
+        SimpleLogger.Log("Asset extraction: Beginning extraction to disk");
 
         // Extract all required assets
         foreach (string asset in _allowedAssets)
@@ -311,7 +323,7 @@ public static class AssetHelper
 
         stopwatch.Stop();
         SimpleLogger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
-        SimpleLogger.Log("Asset extraction completed");
+        SimpleLogger.Log("Asset extraction: Completed");
     }
 
     /// <summary>
