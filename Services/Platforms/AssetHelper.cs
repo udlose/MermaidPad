@@ -79,6 +79,8 @@ public static class AssetHelper
         JsYamlFileName
     };
 
+    private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
+
     /// <summary>
     /// Represents a collection of characters that are considered invalid or forbidden in certain contexts.
     /// </summary>
@@ -159,7 +161,7 @@ public static class AssetHelper
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
-                bufferSize: 4096,
+                bufferSize: DefaultBufferSize,
                 useAsync: true
             );
 
