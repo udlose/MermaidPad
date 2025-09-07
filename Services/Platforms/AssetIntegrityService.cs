@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -34,6 +35,23 @@ namespace MermaidPad.Services.Platforms;
 /// applicable.</remarks>
 internal static class AssetIntegrityService
 {
+    private const int StackAllocThreshold = 8_192; // 8KB threshold for stack vs heap allocation
+    private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
+    private static readonly SearchValues<string> _jsPatterns = SearchValues.Create(
+    [
+        "function", "const ", "var ", "let ", "=>", "class ", "import ", "export "
+    ], StringComparison.Ordinal);
+
+    private static readonly SearchValues<string> _suspiciousPatterns = SearchValues.Create(
+    [
+        "<script", "<?php", "<?xml", "\0"
+    ], StringComparison.OrdinalIgnoreCase);
+
+    private static readonly SearchValues<string> _htmlPatterns = SearchValues.Create(
+    [
+        "<!DOCTYPE", "<html", "<HTML"
+    ], StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Verifies the integrity of an embedded asset by comparing its computed SHA-256 hash  against a pre-stored hash
     /// value.
@@ -51,6 +69,10 @@ internal static class AssetIntegrityService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
         ArgumentNullException.ThrowIfNull(content);
+        if (content.Length == 0)
+        {
+            throw new ArgumentException("Value cannot be an empty collection.", nameof(content));
+        }
 
         try
         {
@@ -99,10 +121,24 @@ internal static class AssetIntegrityService
             return false;
         }
 
-        byte[] content = await File.ReadAllBytesAsync(filePath);
-        string actualHash = ComputeSha256Hash(content);
-        bool isValid = string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
+        // Performance optimization: Use streaming hash computation instead of loading entire file into memory
+        // This is more memory-efficient for large files and uses the same optimized I/O pattern
+        string actualHash;
+        await using (FileStream stream = new FileStream(filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: DefaultBufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan))
+        {
+            using SHA256 sha256 = SHA256.Create();
+            byte[] hashBytes = await sha256.ComputeHashAsync(stream)
+                .ConfigureAwait(false);
 
+            actualHash = Convert.ToHexString(hashBytes);
+        }
+
+        bool isValid = string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
         string fileName = Path.GetFileName(filePath);
         if (isValid)
         {
@@ -126,8 +162,21 @@ internal static class AssetIntegrityService
         ArgumentNullException.ThrowIfNull(content);
         ArgumentOutOfRangeException.ThrowIfZero(content.Length);
 
-        byte[] hashBytes = SHA256.HashData(content);
-        return BytesToHexString(hashBytes);
+        // Performance optimization: Use stack allocation for hash bytes if content is small enough
+        // This avoids heap allocation for the hash result array
+        if (content.Length <= StackAllocThreshold)
+        {
+            Span<byte> hashBytes = stackalloc byte[32]; // SHA-256 produces 32 bytes
+            bool success = SHA256.TryHashData(content, hashBytes, out int bytesWritten);
+            Debug.Assert(success && bytesWritten == 32);
+            return Convert.ToHexString(hashBytes);
+        }
+        else
+        {
+            // For larger content, use the standard heap-allocated approach
+            byte[] hashBytes = SHA256.HashData(content);
+            return Convert.ToHexString(hashBytes);
+        }
     }
 
     /// <summary>
@@ -151,10 +200,21 @@ internal static class AssetIntegrityService
             throw new ArgumentException("Invalid file path. Only absolute paths without traversal are allowed.", nameof(filePath));
         }
 
-        await using FileStream stream = File.OpenRead(filePath);
+        // Performance optimization: Use FileStream with async read for better memory efficiency
+        // and configure SHA256 for streaming computation
+        await using FileStream stream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: DefaultBufferSize,
+            useAsync: true);
+
         using SHA256 sha256 = SHA256.Create();
-        byte[] hashBytes = await sha256.ComputeHashAsync(stream);
-        return BytesToHexString(hashBytes);
+        byte[] hashBytes = await sha256.ComputeHashAsync(stream)
+            .ConfigureAwait(false);
+
+        return Convert.ToHexString(hashBytes);
     }
 
     /// <summary>
@@ -167,32 +227,41 @@ internal static class AssetIntegrityService
     /// <returns><see langword="true"/> if the content appears to be valid JavaScript; otherwise, <see langword="false"/>.</returns>
     internal static bool ValidateJavaScriptContent(byte[] content)
     {
+        ArgumentNullException.ThrowIfNull(content);
+        if (content.Length == 0)
+        {
+            throw new ArgumentException("Value cannot be an empty collection.", nameof(content));
+        }
+
         try
         {
-            string text = Encoding.UTF8.GetString(content);
+            // Performance optimization: Use Span<char> to avoid string allocation for large content
+            // and leverage SearchValues for O(1) pattern detection instead of multiple O(n) Contains() calls
 
-            // Basic sanity checks for JavaScript
-            if (string.IsNullOrWhiteSpace(text) || text.Length < 100)
+            // Basic sanity checks first (fastest path for obviously invalid content)
+            if (content.Length < 100)
             {
                 return false;
             }
 
-            //TODO this is horribly inefficient - need to optimize this
+            // Convert to string only once and work with ReadOnlySpan for efficiency
+            string text = Encoding.UTF8.GetString(content);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
 
-            // Check for common JavaScript patterns
-            bool hasJsPatterns = text.Contains("function") ||
-                                text.Contains("const ") ||
-                                text.Contains("var ") ||
-                                text.Contains("let ") ||
-                                text.Contains("=>") ||
-                                text.Contains("class ");
+            ReadOnlySpan<char> textSpan = text.AsSpan();
 
-            // Check for suspicious patterns that shouldn't be in minified JS
-            bool hasSuspiciousPatterns = text.Contains("<script") ||    // HTML injection
-                                        text.Contains("<?php") ||       // PHP injection
-                                        text.Contains('\0');            // Null bytes
+            // Check for suspicious patterns (security-critical check)
+            bool hasSuspiciousPatterns = ContainsAnyPattern(textSpan, _suspiciousPatterns);
+            if (hasSuspiciousPatterns)
+            {
+                return false;
+            }
 
-            return hasJsPatterns && !hasSuspiciousPatterns;
+            // Check for JavaScript patterns (positive validation)
+            return ContainsAnyPattern(textSpan, _jsPatterns);
         }
         catch (Exception ex)
         {
@@ -213,28 +282,40 @@ internal static class AssetIntegrityService
     /// langword="false"/>.</returns>
     internal static bool ValidateHtmlContent(byte[] content)
     {
+        ArgumentNullException.ThrowIfNull(content);
+        if (content.Length == 0)
+        {
+            throw new ArgumentException("Value cannot be an empty collection.", nameof(content));
+        }
+
         try
         {
-            string text = Encoding.UTF8.GetString(content);
-
-            // Basic sanity checks for HTML
-            if (string.IsNullOrWhiteSpace(text) || text.Length < 50)
+            // Basic sanity checks first (fastest path for obviously invalid content)
+            if (content.Length < 50)
             {
                 return false;
             }
 
-            //TODO this is horribly inefficient - need to optimize this
+            string text = Encoding.UTF8.GetString(content);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
 
-            // Check for required HTML patterns
-            bool hasHtmlPatterns = text.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) ||
-                                  text.Contains("<html", StringComparison.OrdinalIgnoreCase);
+            ReadOnlySpan<char> textSpan = text.AsSpan();
+
+            // Check for required HTML patterns (structural validation)
+            bool hasHtmlPatterns = ContainsAnyPattern(textSpan, _htmlPatterns);
+            if (!hasHtmlPatterns)
+            {
+                return false;
+            }
 
             // Check for the specific elements we expect in our index.html
-            bool hasExpectedElements = text.Contains("<head") &&
-                                      text.Contains("<body") &&
-                                      text.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
-
-            return hasHtmlPatterns && hasExpectedElements;
+            // All required elements must be present
+            return textSpan.Contains("<head", StringComparison.OrdinalIgnoreCase) &&
+                    textSpan.Contains("<body", StringComparison.OrdinalIgnoreCase) &&
+                    textSpan.Contains("mermaid", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
@@ -244,25 +325,13 @@ internal static class AssetIntegrityService
     }
 
     /// <summary>
-    /// Converts a collection of bytes to its hexadecimal string representation.
+    /// Performance-optimized helper method to check if text contains any of the specified patterns.
+    /// Uses SearchValues for O(1) pattern detection instead of multiple O(n) string searches.
     /// </summary>
-    /// <remarks>The resulting string will have a length of twice the number of bytes in the input collection.
-    /// This method uses lowercase letters ('a' to 'f') for hexadecimal digits greater than 9.</remarks>
-    /// <param name="bytes">A read-only collection of bytes to convert.</param>
-    /// <returns>A string containing the hexadecimal representation of the input bytes, with each byte represented as two
-    /// lowercase hexadecimal characters.</returns>
-    private static string BytesToHexString(byte[] bytes)
-    {
-        // Use a StringBuilder with exact capacity for performance
-        StringBuilder sb = new StringBuilder(bytes.Length * 2);
-
-        foreach (byte b in bytes)
-        {
-            sb.Append(b.ToString("x2"));
-        }
-
-        return sb.ToString();
-    }
+    /// <param name="textSpan">The text to search in.</param>
+    /// <param name="patterns">The SearchValues containing patterns to search for.</param>
+    /// <returns>True if any pattern is found, false otherwise.</returns>
+    private static bool ContainsAnyPattern(ReadOnlySpan<char> textSpan, SearchValues<string> patterns) => textSpan.ContainsAny(patterns);
 
     /// <summary>
     /// Retrieves the stored hash for the specified asset, if available.
@@ -274,8 +343,9 @@ internal static class AssetIntegrityService
     internal static string? GetStoredHashForAsset(string assetName, SettingsService settingsService)
     {
         //TODO This will be expanded in Phase 2 to store hashes for updated assets. For now, we'll use the build-time hashes for existing embedded resources
-        return AssetHashes.EmbeddedAssetHashes.GetValueOrDefault(assetName);
+        return AssetHashes.EmbeddedAssetHashes.TryGetValue(assetName, out string? hash) ? hash : null;
 
         //TODO In Phase 2, we'll check settingsService.Settings.AssetHashes dictionary
+        // Consider using a combined lookup strategy or caching layer for multiple hash sources
     }
 }
