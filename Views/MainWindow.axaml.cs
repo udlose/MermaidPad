@@ -422,13 +422,6 @@ public sealed partial class MainWindow : Window
             stopwatch.Stop();
             SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: true);
             SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
-
-            // Re-enable live preview after WebView is ready
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                _vm.LivePreviewEnabled = originalLivePreview;
-                SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
-            });
         }
         catch (AssetIntegrityException)
         {
@@ -443,6 +436,15 @@ public sealed partial class MainWindow : Window
             stopwatch.Stop();
             SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
             SimpleLogger.LogError("WebView initialization failed", ex);
+        }
+        finally
+        {
+            // Re-enable live preview after WebView is ready
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _vm.LivePreviewEnabled = originalLivePreview;
+                SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
+            });
         }
     }
 
