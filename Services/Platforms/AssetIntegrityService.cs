@@ -208,7 +208,7 @@ internal static class AssetIntegrityService
             FileAccess.Read,
             FileShare.Read,
             bufferSize: DefaultBufferSize,
-            useAsync: true);
+            options: FileOptions.SequentialScan | FileOptions.Asynchronous);
 
         using SHA256 sha256 = SHA256.Create();
         byte[] hashBytes = await sha256.ComputeHashAsync(stream)
