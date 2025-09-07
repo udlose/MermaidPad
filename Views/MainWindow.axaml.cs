@@ -1,8 +1,28 @@
+// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,16 +31,14 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
-
-public partial class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
 
-    private bool _suppressEditorTextChanged = false;
-    private bool _suppressEditorStateSync = false; // Prevent circular updates
+    private bool _suppressEditorTextChanged;     // Prevent circular updates
 
     public MainWindow()
     {
@@ -381,15 +399,7 @@ public partial class MainWindow : Window
             stopwatch.Stop();
             SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: true);
             SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
-            SimpleLogger.LogError("WebView initialization failed", ex);
-        }
-        finally
-        {
+
             // Re-enable live preview after WebView is ready
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -397,8 +407,23 @@ public partial class MainWindow : Window
                 SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
             });
         }
+        catch (AssetIntegrityException)
+        {
+            throw;
+        }
+        catch (MissingAssetException)
+        {
+            throw;
+    }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
+            SimpleLogger.LogError("WebView initialization failed", ex);
+        }
     }
 
+    [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
         SimpleLogger.Log("Close button clicked");
