@@ -148,35 +148,53 @@ public static class AssetHelper
             throw new SecurityException(errorMessage);
         }
 
-        // Step 7: Read the file with proper sharing mode
+        // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
+        if (App.Services.GetService(typeof(SettingsService)) is SettingsService settingsService)
+        {
+            string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName, settingsService);
+            if (expectedHash is not null)
+            {
+                bool integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                    .ConfigureAwait(false);
+
+                if (!integrityValid)
+                {
+                    // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
+                    SimpleLogger.Log($"WARNING: Asset '{validatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources.");
+                    ExtractResourceToDisk($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath);
+
+                    // Re-verify integrity after extraction
+                    integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                        .ConfigureAwait(false);
+
+                    if (!integrityValid)
+                    {
+                        throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification after re-extraction");
+                    }
+
+                    // Refresh file info as the file has been replaced
+                    fileInfo.Refresh();
+                }
+            }
+        }
+
+        // Step 8: Read the file with proper sharing mode
         try
         {
             // Use FileShare.Read to allow other processes to read but not write
-            await using FileStream stream = SecurityService.CreateSecureFileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.Read, DefaultBufferSize);
+            await using FileStream stream = SecurityService.CreateSecureFileStream(
+                assetPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                DefaultBufferSize);
 
-            // Step 8: Validate stream properties match file info (TOCTOU protection)
+            // Step 9: Validate stream properties match file info (TOCTOU protection)
             if (stream.Length != fileInfo.Length)
             {
                 string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}' - possible TOCTOU attack";
                 SimpleLogger.LogError(errorMessage);
                 throw new SecurityException(errorMessage);
-            }
-
-            // Step 9: Verify asset integrity if we have a known hash
-            // For disk assets, we check against stored hashes
-            if (App.Services.GetService(typeof(SettingsService)) is SettingsService settingsService)
-            {
-                string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName, settingsService);
-                if (expectedHash is not null)
-                {
-                    bool integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
-                        .ConfigureAwait(false);
-                    if (!integrityValid)
-                    {
-                        SimpleLogger.LogError($"Integrity check failed for asset '{validatedAssetName}'. File may be corrupted or tampered.");
-                        throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification");
-                    }
-                }
             }
 
             byte[] buffer = new byte[stream.Length];
