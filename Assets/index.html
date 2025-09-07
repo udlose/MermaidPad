@@ -3,8 +3,14 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <meta name="color-scheme" content="light dark">
     <title>MermaidPad Preview</title>
     <style>
+        /* Paint correctly on first frame based on OS theme */
+        html, body { margin: 0; height: 100%; background: #fff; color: #222; }
+        @media (prefers-color-scheme: dark) {
+            html, body { background: #1e1e1e; color: #ddd; }
+        }
         body.dark-theme { background: #1e1e1e; color: #ddd; }
         body.light-theme { background: #fff; color: #222; }
         #output { padding: 8px; overflow: auto; height: 100vh; box-sizing: border-box; }
