@@ -27,6 +27,7 @@ public static class ServiceConfiguration
 
         // Core singletons
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<SecurityService>();
         services.AddSingleton(sp =>
         {
             Models.AppSettings settings = sp.GetRequiredService<SettingsService>().Settings;
