@@ -38,7 +38,8 @@ public sealed partial class MainWindow : Window
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
 
-    private bool _suppressEditorTextChanged;     // Prevent circular updates
+    private bool _suppressEditorTextChanged;
+    private bool _suppressEditorStateSync; // Prevent circular updates
 
     public MainWindow()
     {
@@ -293,7 +294,14 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
-            // TODO - show a message to the user
+
+            //TODO - show a message to the user
+            //await Dispatcher.UIThread.InvokeAsync(async () =>
+            //{
+            //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
+            //});
+
+            throw;
         }
     }
 
@@ -414,7 +422,7 @@ public sealed partial class MainWindow : Window
         catch (MissingAssetException)
         {
             throw;
-    }
+        }
         catch (Exception ex)
         {
             stopwatch.Stop();
