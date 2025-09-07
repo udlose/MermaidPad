@@ -365,15 +365,34 @@ public static class SimpleLogger
     private static int ExponentialBackoff(int delay) => Math.Min(delay * 2, MaxRetryDelayMs);
 
     /// <summary>
-    /// Validates that the log and lock file paths are within the specified base directory.
+    /// Validates that the specified path is within the specified base directory.
     /// </summary>
-    /// <remarks>This method ensures that the log and lock file paths do not point to locations outside the
-    /// base directory. If either path is outside the base directory, a <see cref="System.Security.SecurityException"/>
-    /// is thrown.</remarks>
+    /// <param name="path">The path to validate. This must be an absolute or relative path.</param>
+    /// <param name="baseDir">The base directory against which the path is validated. This must be an absolute or relative path.</param>
+    /// <param name="description">A description of the path being validated, used in the exception message if validation fails.</param>
+    /// <exception cref="SecurityException">Thrown if the specified <paramref name="path"/> is outside the specified <paramref name="baseDir"/>.</exception>
+    private static void ValidatePathWithinBaseDir(string path, string baseDir, string description)
+    {
+        string fullPath = Path.GetFullPath(path);
+        string fullBaseDir = Path.GetFullPath(baseDir);
+        if (!fullPath.StartsWith(fullBaseDir, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SecurityException($"{description} '{fullPath}' is outside base directory");
+        }
+    }
+
+    /// <summary>
+    /// Validates that the log and lock paths are within the specified base directory.
+    /// </summary>
+    /// <remarks>This method ensures that the log and lock paths are securely contained within the base
+    /// directory. If either path is outside the base directory, a <see cref="System.Security.SecurityException"/> is
+    /// thrown.</remarks>
     /// <exception cref="SecurityException">Thrown if the log path or lock path is outside the base directory.</exception>
     private static void ValidateLogPaths()
     {
-        // Validate log path
+        // Validate log paths
+        ValidatePathWithinBaseDir(_logPath, _baseDir, "Log path");
+        ValidatePathWithinBaseDir(_lockPath, _baseDir, "Lock path");
         string fullLogPath = Path.GetFullPath(_logPath);
         string fullBaseDir = Path.GetFullPath(_baseDir);
 
