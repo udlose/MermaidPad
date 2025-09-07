@@ -58,9 +58,9 @@ public sealed class SettingsService
             // Validate that the settings path is within the expected config directory
             string configDir = GetConfigDirectory();
             string fullSettingsPath = Path.GetFullPath(_settingsPath);
-            string fullConfigDir = Path.GetFullPath(configDir);
 
-            if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
+            // Use SecurityService for all validation
+            if (!SecurityService.IsPathWithinDirectory(fullSettingsPath, configDir))
             {
                 Debug.WriteLine("Settings path validation failed.");
                 return new AppSettings();
@@ -75,39 +75,22 @@ public sealed class SettingsService
 
             if (File.Exists(fullSettingsPath))
             {
-                // Extra validation: ensure the file is not a symlink or reparse point
-                FileInfo fileInfo = new FileInfo(fullSettingsPath);
-                if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                // Use SecurityService for comprehensive validation
+                if (!SecurityService.IsFilePathSecure(fullSettingsPath, configDir))
                 {
-                    Debug.WriteLine("Settings file is a reparse point (symlink/junction), aborting read.");
+                    Debug.WriteLine("Settings file failed security validation.");
                     return new AppSettings();
                 }
 
-                // SEC0112 fix: Use a whitelist approach to validate the file path before opening
-                // Only allow reading if the path is exactly the expected settings.json in the config directory
-                string expectedSettingsPath = Path.Combine(fullConfigDir, SettingsFileName);
-                if (string.Equals(fullSettingsPath, expectedSettingsPath, StringComparison.OrdinalIgnoreCase))
+                // Use SecurityService for secure file stream creation
+                string json;
+                using (FileStream fs = SecurityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
+                using (StreamReader reader = new StreamReader(fs))
                 {
-                    // Extra validation: ensure the file is not a symlink or reparse point (already done above)
-                    // Additional validation: ensure the file is not a hard link
-                    if (IsSingleLink(expectedSettingsPath))
-                    {
-                        // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
-                        string json;
-                        using (FileStream fs = File.OpenRead(expectedSettingsPath))
-                        using (StreamReader reader = new StreamReader(fs))
-                        {
-                            json = reader.ReadToEnd();
-                        }
-                        return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
-                    }
-
-                    SimpleLogger.LogError("Settings file is a hard link, aborting read.");
-                    return new AppSettings();
+                    json = reader.ReadToEnd();
                 }
 
-                SimpleLogger.LogError("Settings file path is not the expected config file, aborting read.");
-                return new AppSettings();
+                return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
             }
         }
         catch (Exception ex)
@@ -116,6 +99,71 @@ public sealed class SettingsService
         }
         return new AppSettings();
     }
+    //private AppSettings Load()
+    //{
+    //    try
+    //    {
+    //        // Validate that the settings path is within the expected config directory
+    //        string configDir = GetConfigDirectory();
+    //        string fullSettingsPath = Path.GetFullPath(_settingsPath);
+    //        string fullConfigDir = Path.GetFullPath(configDir);
+
+    //        if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
+    //        {
+    //            Debug.WriteLine("Settings path validation failed.");
+    //            return new AppSettings();
+    //        }
+
+    //        // Additional validation: ensure the file name is exactly "settings.json"
+    //        if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
+    //        {
+    //            Debug.WriteLine("Settings file name validation failed on load.");
+    //            return new AppSettings();
+    //        }
+
+    //        if (File.Exists(fullSettingsPath))
+    //        {
+    //            // Extra validation: ensure the file is not a symlink or reparse point
+    //            FileInfo fileInfo = new FileInfo(fullSettingsPath);
+    //            if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+    //            {
+    //                Debug.WriteLine("Settings file is a reparse point (symlink/junction), aborting read.");
+    //                return new AppSettings();
+    //            }
+
+    //            // SEC0112 fix: Use a whitelist approach to validate the file path before opening
+    //            // Only allow reading if the path is exactly the expected settings.json in the config directory
+    //            string expectedSettingsPath = Path.Combine(fullConfigDir, SettingsFileName);
+    //            if (string.Equals(fullSettingsPath, expectedSettingsPath, StringComparison.OrdinalIgnoreCase))
+    //            {
+    //                // Extra validation: ensure the file is not a symlink or reparse point (already done above)
+    //                // Additional validation: ensure the file is not a hard link
+    //                if (IsSingleLink(expectedSettingsPath))
+    //                {
+    //                    // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
+    //                    string json;
+    //                    using (FileStream fs = File.OpenRead(expectedSettingsPath))
+    //                    using (StreamReader reader = new StreamReader(fs))
+    //                    {
+    //                        json = reader.ReadToEnd();
+    //                    }
+    //                    return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+    //                }
+
+    //                SimpleLogger.LogError("Settings file is a hard link, aborting read.");
+    //                return new AppSettings();
+    //            }
+
+    //            SimpleLogger.LogError("Settings file path is not the expected config file, aborting read.");
+    //            return new AppSettings();
+    //        }
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        SimpleLogger.LogError($"Settings load failed: {ex}");
+    //    }
+    //    return new AppSettings();
+    //}
 
     public void Save()
     {

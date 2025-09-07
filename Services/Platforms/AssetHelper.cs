@@ -128,22 +128,14 @@ public static class AssetHelper
         // Step 4: Validate the final path is within bounds
         ValidatePathIsWithinAssetsDirectory(assetPath, assetsDirectory);
 
-        // Step 5: Additional validation - ensure it's a file, not a directory or symlink
+        // Step 5: Check file existence and attributes
         FileInfo fileInfo = new FileInfo(assetPath);
         if (!fileInfo.Exists)
         {
             throw new MissingAssetException($"Asset '{validatedAssetName}' not found at '{assetPath}'");
         }
 
-        // Check for symbolic links / reparse points
-        if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
-        {
-            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' is a symbolic link or reparse point";
-            SimpleLogger.LogError(errorMessage);
-            throw new SecurityException(errorMessage);
-        }
-
-        // Check file size to prevent resource exhaustion
+        // Step 6: Check file size to prevent resource exhaustion
         const long maxFileSize = 50 * 1_024 * 1_024; // 50MB max
         if (fileInfo.Length > maxFileSize)
         {
@@ -152,7 +144,15 @@ public static class AssetHelper
             throw new SecurityException(errorMessage);
         }
 
-        // Step 6: Read the file with proper sharing mode
+        // Step 7: Additional validation - ensure it's a file, not a directory or symlink
+        if (!SecurityService.IsFilePathSecure(assetPath, assetsDirectory, isAssetFile: true))
+        {
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' failed security validation (symlink detected)";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
+        }
+
+        // Step 8: Read the file with proper sharing mode
         try
         {
             // Use FileShare.Read to allow other processes to read but not write
@@ -162,15 +162,19 @@ public static class AssetHelper
                 FileAccess.Read,
                 FileShare.Read,
                 bufferSize: DefaultBufferSize,
-                useAsync: true
+                FileOptions.SequentialScan | FileOptions.Asynchronous
             );
 
-            byte[] buffer = new byte[stream.Length];
-            await stream.ReadExactlyAsync(buffer)
-                .ConfigureAwait(false);
+            // Step 9: Validate stream properties match file info (TOCTOU protection)
+            if (stream.Length != fileInfo.Length)
+            {
+                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}' - possible TOCTOU attack";
+                SimpleLogger.LogError(errorMessage);
+                throw new SecurityException(errorMessage);
+            }
 
-            // Step 7: Verify integrity if we have a known hash
-            // For disk assets, we check against stored hashes (will be expanded in Phase 2)
+            // Step 10: Verify asset integrity if we have a known hash
+            // For disk assets, we check against stored hashes
             if (App.Services.GetService(typeof(SettingsService)) is SettingsService settingsService)
             {
                 string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName, settingsService);
@@ -186,12 +190,29 @@ public static class AssetHelper
                 }
             }
 
-            SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes)");
+            byte[] buffer = new byte[stream.Length];
+            await stream.ReadExactlyAsync(buffer)
+                .ConfigureAwait(false);
+
+            SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes) with cross-platform security validation");
             return buffer;
         }
         catch (UnauthorizedAccessException ex)
         {
-            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}'";
+            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}' - possible permission or symlink issue";
+            SimpleLogger.LogError(errorMessage, ex);
+            throw new SecurityException(errorMessage, ex);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}' - possible symlink manipulation";
+            SimpleLogger.LogError(errorMessage, ex);
+            throw new SecurityException(errorMessage, ex);
+        }
+        catch (IOException ex)
+        {
+            // Handle platform-specific IO errors that might indicate symlink issues
+            string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}' - possible symlink or filesystem issue";
             SimpleLogger.LogError(errorMessage, ex);
             throw new SecurityException(errorMessage, ex);
         }
