@@ -20,11 +20,11 @@
 
 using System.Buffers;
 using System.Diagnostics;
+using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace MermaidPad.Services.Platforms;
-
 /// <summary>
 /// Provides methods for verifying the integrity of assets, including embedded resources and files on disk, as well as
 /// validating the content of JavaScript and HTML files.
@@ -35,8 +35,8 @@ namespace MermaidPad.Services.Platforms;
 /// applicable.</remarks>
 internal static class AssetIntegrityService
 {
-    private const int StackAllocThreshold = 8_192; // 8KB threshold for stack vs heap allocation
-    private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
+    private const int StackAllocThreshold = 8_192;  // 8KB threshold for stack vs heap allocation
+    private const int HashPreviewLength = 8;        // Number of characters to show in hash previews
     private static readonly SearchValues<string> _jsPatterns = SearchValues.Create(
     [
         "function", "const ", "var ", "let ", "=>", "class ", "import ", "export "
@@ -53,12 +53,12 @@ internal static class AssetIntegrityService
     ], StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Verifies the integrity of an embedded asset by comparing its computed SHA-256 hash  against a pre-stored hash
+    /// Verifies the integrity of an embedded asset by comparing its computed SHA-256 hash against a pre-stored hash
     /// value.
     /// </summary>
     /// <remarks>This method computes the SHA-256 hash of the provided asset content and validates it  against
-    /// a pre-stored hash associated with the specified asset name. If the hash matches,  the asset is considered valid,
-    /// and a log entry is created to indicate successful verification.  If the hash does not match, an error is logged,
+    /// a pre-stored hash associated with the specified asset name. If the hash matches, the asset is considered valid,
+    /// and a log entry is created to indicate successful verification. If the hash does not match, an error is logged,
     /// and the method returns <see langword="false"/>. <para> In the event of an exception during the verification
     /// process, the method logs the error  and returns <see langword="false"/>. </para></remarks>
     /// <param name="assetName">The name of the asset to verify. Cannot be null, empty, or whitespace.</param>
@@ -81,7 +81,7 @@ internal static class AssetIntegrityService
 
             if (isValid)
             {
-                SimpleLogger.Log($"Asset integrity verified: {assetName} (SHA-256: {actualHash[..8]}...)");
+                SimpleLogger.Log($"Asset integrity verified: {assetName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
             }
             else
             {
@@ -115,68 +115,34 @@ internal static class AssetIntegrityService
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedHash);
 
-        if (!File.Exists(filePath))
+        (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(filePath);
+        if (!isSecure && !string.IsNullOrEmpty(reason))
         {
-            SimpleLogger.LogError($"File not found for integrity check: {filePath}");
-            return false;
+            string errorMessage = $"Insecure file path detected: {filePath}. Reason: {reason}";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
-        // Performance optimization: Use streaming hash computation instead of loading entire file into memory
-        // This is more memory-efficient for large files and uses the same optimized I/O pattern
-        string actualHash;
-        await using (FileStream stream = new FileStream(filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: DefaultBufferSize,
-            FileOptions.Asynchronous | FileOptions.SequentialScan))
-        {
-            using SHA256 sha256 = SHA256.Create();
-            byte[] hashBytes = await sha256.ComputeHashAsync(stream)
-                .ConfigureAwait(false);
+        await using FileStream stream = SecurityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using SHA256 sha256 = SHA256.Create();
+        byte[] hashBytes = await sha256.ComputeHashAsync(stream)
+            .ConfigureAwait(false);
 
-            actualHash = Convert.ToHexString(hashBytes);
-        }
+        string actualHash = Convert.ToHexString(hashBytes);
 
         bool isValid = string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
         string fileName = Path.GetFileName(filePath);
         if (isValid)
         {
-            SimpleLogger.Log($"File integrity verified: {fileName} (SHA-256: {actualHash[..8]}...)");
+            SimpleLogger.Log($"File integrity verified: {fileName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
         }
         else
         {
-            SimpleLogger.LogError($"File integrity check FAILED for {fileName} from {filePath}. Expected: {expectedHash[..8]}..., Actual: {actualHash[..8]}...");
+            int expectedHashPreviewLength = Math.Min(HashPreviewLength, expectedHash.Length);
+            SimpleLogger.LogError($"File integrity check FAILED for {fileName} from {filePath}. Expected: {expectedHash[..expectedHashPreviewLength]}..., Actual: {actualHash[..HashPreviewLength]}...");
         }
 
         return isValid;
-    }
-
-    /// <summary>
-    /// Computes the SHA-256 hash of the specified byte array and returns the result as a hexadecimal string.
-    /// </summary>
-    /// <param name="content">The byte array to compute the hash for. Must not be <see langword="null"/> or empty.</param>
-    /// <returns>A hexadecimal string representation of the SHA-256 hash.</returns>
-    private static string ComputeSha256Hash(byte[] content)
-    {
-        ArgumentNullException.ThrowIfNull(content);
-        ArgumentOutOfRangeException.ThrowIfZero(content.Length);
-
-        // Performance optimization: Use stack allocation for hash bytes if content is small enough
-        // This avoids heap allocation for the hash result array
-        if (content.Length <= StackAllocThreshold)
-        {
-            Span<byte> hashBytes = stackalloc byte[32]; // SHA-256 produces 32 bytes
-            bool success = SHA256.TryHashData(content, hashBytes, out int bytesWritten);
-            Debug.Assert(success && bytesWritten == 32);
-            return Convert.ToHexString(hashBytes);
-        }
-        else
-        {
-            // For larger content, use the standard heap-allocated approach
-            byte[] hashBytes = SHA256.HashData(content);
-            return Convert.ToHexString(hashBytes);
-        }
     }
 
     /// <summary>
@@ -194,22 +160,15 @@ internal static class AssetIntegrityService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        // Validate that the file path is absolute and does not contain traversal sequences
-        if (!Path.IsPathRooted(filePath) || filePath.Contains(".."))
+        (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(filePath);
+        if (!isSecure && !string.IsNullOrEmpty(reason))
         {
-            throw new ArgumentException("Invalid file path. Only absolute paths without traversal are allowed.", nameof(filePath));
+            string errorMessage = $"Insecure file path detected: {filePath}. Reason: {reason}";
+            SimpleLogger.LogError(errorMessage);
+            throw new SecurityException(errorMessage);
         }
 
-        // Performance optimization: Use FileStream with async read for better memory efficiency
-        // and configure SHA256 for streaming computation
-        await using FileStream stream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: DefaultBufferSize,
-            options: FileOptions.SequentialScan | FileOptions.Asynchronous);
-
+        await using FileStream stream = SecurityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using SHA256 sha256 = SHA256.Create();
         byte[] hashBytes = await sha256.ComputeHashAsync(stream)
             .ConfigureAwait(false);
@@ -347,5 +306,29 @@ internal static class AssetIntegrityService
 
         //TODO In Phase 2, we'll check settingsService.Settings.AssetHashes dictionary
         // Consider using a combined lookup strategy or caching layer for multiple hash sources
+    }
+
+    /// <summary>
+    /// Computes the SHA-256 hash of the specified byte array and returns the result as a hexadecimal string.
+    /// </summary>
+    /// <param name="content">The byte array to compute the hash for. Must not be <see langword="null"/> or empty.</param>
+    /// <returns>A hexadecimal string representation of the SHA-256 hash.</returns>
+    private static string ComputeSha256Hash(byte[] content)
+    {
+        // Performance optimization: Use stack allocation for hash bytes if content is small enough
+        // This avoids heap allocation for the hash result array
+        if (content.Length <= StackAllocThreshold)
+        {
+            Span<byte> hashBytes = stackalloc byte[32]; // SHA-256 produces 32 bytes
+            bool success = SHA256.TryHashData(content, hashBytes, out int bytesWritten);
+            Debug.Assert(success && bytesWritten == 32);
+            return Convert.ToHexString(hashBytes);
+        }
+        else
+        {
+            // For larger content, use the standard heap-allocated approach
+            byte[] hashBytes = SHA256.HashData(content);
+            return Convert.ToHexString(hashBytes);
+        }
     }
 }
