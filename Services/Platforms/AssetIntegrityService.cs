@@ -315,13 +315,19 @@ internal static class AssetIntegrityService
     /// <returns>A hexadecimal string representation of the SHA-256 hash.</returns>
     private static string ComputeSha256Hash(byte[] content)
     {
+        const int expectedByteLength = 32; // SHA-256 produces a 32-byte hash
+
         // Performance optimization: Use stack allocation for hash bytes if content is small enough
         // This avoids heap allocation for the hash result array
         if (content.Length <= StackAllocThreshold)
         {
-            Span<byte> hashBytes = stackalloc byte[32]; // SHA-256 produces 32 bytes
+            Span<byte> hashBytes = stackalloc byte[expectedByteLength]; // SHA-256 produces 32 bytes
             bool success = SHA256.TryHashData(content, hashBytes, out int bytesWritten);
-            Debug.Assert(success && bytesWritten == 32);
+            if (!success || bytesWritten != expectedByteLength)
+            {
+                throw new CryptographicException($"Failed to compute SHA-256 hash: {nameof(SHA256.TryHashData)} did not succeed or wrote an unexpected number of bytes. Expected number of bytes: {expectedByteLength}");
+            }
+
             return Convert.ToHexString(hashBytes);
         }
         else
