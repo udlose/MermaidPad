@@ -31,6 +31,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
+
 public sealed partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
@@ -125,7 +126,7 @@ public sealed partial class MainWindow : Window
 
     private void SetupEditorViewModelSync()
     {
-        // Editor -> ViewModel synchronization
+        // Editor -> ViewModel synchronization (text)
         Editor.TextChanged += (_, _) =>
         {
             if (_suppressEditorTextChanged)
@@ -134,7 +135,7 @@ public sealed partial class MainWindow : Window
             }
 
             // Debounce to avoid excessive updates
-            _editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+            _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
                 if (_vm.DiagramText != Editor.Text)
                 {
@@ -148,20 +149,28 @@ public sealed partial class MainWindow : Window
                         _suppressEditorStateSync = false;
                     }
                 }
-            });
+            },
+            DispatcherPriority.Background);
         };
 
-        // Editor selection/caret -> ViewModel synchronization
-        // Subscribe to both but coalesce into one update
+        // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
         Editor.TextArea.SelectionChanged += (_, _) =>
         {
-            if (_suppressEditorStateSync) return;
+            if (_suppressEditorStateSync)
+            {
+                return;
+            }
+
             ScheduleEditorStateSyncIfNeeded();
         };
 
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
         {
-            if (_suppressEditorStateSync) return;
+            if (_suppressEditorStateSync)
+            {
+                return;
+            }
+
             ScheduleEditorStateSyncIfNeeded();
         };
 
@@ -180,10 +189,10 @@ public sealed partial class MainWindow : Window
             selectionLength == _vm.EditorSelectionLength &&
             caretOffset == _vm.EditorCaretOffset)
         {
-            return; // no-op
+            return; // nothing changed
         }
 
-        _editorDebouncer.Debounce("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+        _editorDebouncer.DebounceOnUI("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
         {
             _suppressEditorStateSync = true;
             try
@@ -197,19 +206,23 @@ public sealed partial class MainWindow : Window
             {
                 _suppressEditorStateSync = false;
             }
-        });
+        },
+        DispatcherPriority.Background);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressEditorStateSync) return;
+        if (_suppressEditorStateSync)
+        {
+            return;
+        }
 
         switch (e.PropertyName)
         {
             case nameof(_vm.DiagramText):
                 if (Editor.Text != _vm.DiagramText)
                 {
-                    _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+                    _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
                         _suppressEditorTextChanged = true;
                         _suppressEditorStateSync = true;
@@ -222,14 +235,15 @@ public sealed partial class MainWindow : Window
                             _suppressEditorTextChanged = false;
                             _suppressEditorStateSync = false;
                         }
-                    });
+                    },
+                    DispatcherPriority.Background);
                 }
                 break;
 
             case nameof(_vm.EditorSelectionStart):
             case nameof(_vm.EditorSelectionLength):
             case nameof(_vm.EditorCaretOffset):
-                _editorDebouncer.Debounce("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+                _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
                 {
                     _suppressEditorStateSync = true;
                     try
@@ -253,7 +267,8 @@ public sealed partial class MainWindow : Window
                     {
                         _suppressEditorStateSync = false;
                     }
-                });
+                },
+                DispatcherPriority.Background);
                 break;
         }
     }
