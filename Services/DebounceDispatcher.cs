@@ -56,12 +56,12 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
     /// <summary>
     /// The default debounce delay in milliseconds, for text input operations: typing, pasting, etc.
     /// </summary>
-    public const int DefaultTextDebounceMilliseconds = 500;
+    public const int DefaultTextDebounceMilliseconds = 325;
 
     /// <summary>
     /// The default debounce delay, in milliseconds, for caret-related operations.
     /// </summary>
-    public const int DefaultCaretDebounceMilliseconds = 100;
+    public const int DefaultCaretDebounceMilliseconds = 200;
 
     private readonly Lock _gate = new Lock();
     private readonly Dictionary<string, CancellationTokenSource> _tokens = new Dictionary<string, CancellationTokenSource>();
