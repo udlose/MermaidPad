@@ -138,7 +138,6 @@ public sealed partial class MainWindow : Window
             {
                 if (_vm.DiagramText != Editor.Text)
                 {
-                    SimpleLogger.Log($"Editor text changed, updating ViewModel ({_vm.DiagramText.Length} -> {Editor.Text.Length} chars)");
                     _suppressEditorStateSync = true;
                     try
                     {
@@ -153,53 +152,52 @@ public sealed partial class MainWindow : Window
         };
 
         // Editor selection/caret -> ViewModel synchronization
-        // Hook into TextArea events since TextEditor doesn't expose SelectionChanged directly
+        // Subscribe to both but coalesce into one update
         Editor.TextArea.SelectionChanged += (_, _) =>
         {
             if (_suppressEditorStateSync) return;
-
-            _editorDebouncer.Debounce("editor-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
-            {
-                _suppressEditorStateSync = true;
-                try
-                {
-                    _vm.EditorSelectionStart = Editor.SelectionStart;
-                    _vm.EditorSelectionLength = Editor.SelectionLength;
-                    _vm.EditorCaretOffset = Editor.CaretOffset;
-
-                    SimpleLogger.Log($"Editor selection synced to ViewModel: Start={Editor.SelectionStart}, Length={Editor.SelectionLength}, Caret={Editor.CaretOffset}");
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            });
+            ScheduleEditorStateSyncIfNeeded();
         };
 
-        // Also hook into caret position changes for more comprehensive coverage
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
         {
             if (_suppressEditorStateSync) return;
-
-            _editorDebouncer.Debounce("editor-caret", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
-            {
-                _suppressEditorStateSync = true;
-                try
-                {
-                    // Update caret offset when caret position changes
-                    _vm.EditorCaretOffset = Editor.CaretOffset;
-
-                    SimpleLogger.Log($"Editor caret synced to ViewModel: Caret={Editor.CaretOffset}");
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            });
+            ScheduleEditorStateSyncIfNeeded();
         };
 
         // ViewModel -> Editor synchronization
         _vm.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    // Coalesce caret + selection updates, and skip no-ops
+    private void ScheduleEditorStateSyncIfNeeded()
+    {
+        int selectionStart = Editor.SelectionStart;
+        int selectionLength = Editor.SelectionLength;
+        int caretOffset = Editor.CaretOffset;
+
+        if (selectionStart == _vm.EditorSelectionStart &&
+            selectionLength == _vm.EditorSelectionLength &&
+            caretOffset == _vm.EditorCaretOffset)
+        {
+            return; // no-op
+        }
+
+        _editorDebouncer.Debounce("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+        {
+            _suppressEditorStateSync = true;
+            try
+            {
+                // Take the latest values at execution time to coalesce multiple events
+                _vm.EditorSelectionStart = Editor.SelectionStart;
+                _vm.EditorSelectionLength = Editor.SelectionLength;
+                _vm.EditorCaretOffset = Editor.CaretOffset;
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
+        });
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -213,7 +211,6 @@ public sealed partial class MainWindow : Window
                 {
                     _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
-                        SimpleLogger.Log($"ViewModel text changed, updating Editor ({Editor.Text.Length} -> {_vm.DiagramText.Length} chars)");
                         _suppressEditorTextChanged = true;
                         _suppressEditorStateSync = true;
                         try
@@ -250,8 +247,6 @@ public sealed partial class MainWindow : Window
                             Editor.SelectionStart = validSelectionStart;
                             Editor.SelectionLength = validSelectionLength;
                             Editor.CaretOffset = validCaretOffset;
-
-                            SimpleLogger.Log($"ViewModel selection synced to Editor: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset}");
                         }
                     }
                     finally
@@ -267,18 +262,25 @@ public sealed partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            // Make sure caret is visible:
-            Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
-
-            // Ensure selection is visible
-            Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
-            if (!Editor.IsFocused)
+            // Suppress event reactions during programmatic focus/caret adjustments
+            _suppressEditorStateSync = true;
+            try
             {
-                Editor.Focus();
-            }
+                // Make sure caret is visible:
+                Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
-            // after focusing, ensure the caret is visible
-            Editor.TextArea.Caret.BringCaretToView();
+                // Ensure selection is visible
+                Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+                if (!Editor.IsFocused)
+                {
+                    Editor.Focus();
+                }
+                Editor.TextArea.Caret.BringCaretToView();
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
         }, DispatcherPriority.Background);
     }
 
@@ -300,8 +302,6 @@ public sealed partial class MainWindow : Window
             //{
             //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
             //});
-
-            throw;
         }
     }
 
