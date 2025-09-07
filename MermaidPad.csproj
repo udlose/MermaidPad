@@ -111,4 +111,11 @@
 		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
+	<!-- Import custom targets for asset hash generation -->
+	<Import Project="MermaidPad.csproj.targets" />
+	<ItemGroup>
+		<!-- No need to explicitly include generated asset hash file in compilation -->
+		<!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
+		<!--<Compile Include="Services\Platforms\AssetHashes.Generated.cs" Condition="Exists('Services\Platforms\AssetHashes.Generated.cs')" />-->
+	</ItemGroup>
 </Project>
