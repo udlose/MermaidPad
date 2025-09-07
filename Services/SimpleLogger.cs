@@ -309,6 +309,32 @@ public static class SimpleLogger
     private static int ExponentialBackoff(int delay) => Math.Min(delay * 2, MaxRetryDelayMs);
 
     /// <summary>
+    /// Validates that the log and lock file paths are within the specified base directory.
+    /// </summary>
+    /// <remarks>This method ensures that the log and lock file paths do not point to locations outside the
+    /// base directory. If either path is outside the base directory, a <see cref="System.Security.SecurityException"/>
+    /// is thrown.</remarks>
+    /// <exception cref="SecurityException">Thrown if the log path or lock path is outside the base directory.</exception>
+    private static void ValidateLogPaths()
+    {
+        // Validate log path
+        string fullLogPath = Path.GetFullPath(_logPath);
+        string fullBaseDir = Path.GetFullPath(_baseDir);
+
+        if (!fullLogPath.StartsWith(fullBaseDir, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SecurityException($"Log path '{fullLogPath}' is outside base directory");
+        }
+
+        // Validate lock path
+        string fullLockPath = Path.GetFullPath(_lockPath);
+        if (!fullLockPath.StartsWith(fullBaseDir, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new SecurityException($"Lock path '{fullLockPath}' is outside base directory");
+        }
+    }
+
+    /// <summary>
     /// Attempts to acquire an exclusive lock on the log file by creating a lock file.
     /// Returns a FileStream if successful, or null if the lock is held by another process or access is denied.
     /// </summary>
@@ -319,10 +345,23 @@ public static class SimpleLogger
     {
         try
         {
+            // Re-validate before each operation
+            ValidateLogPaths();
+
+            // Additional check for symbolic links
+            if (File.Exists(_lockPath))
+            {
+                FileInfo lockInfo = new FileInfo(_lockPath);
+                if ((lockInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    Debug.WriteLine("Lock file is a symbolic link - aborting");
+                    return null;
+                }
+            }
+
             // Try to create the lock file with exclusive access
             // FileShare.None ensures only one process can open it at a time
             FileStream lockStream = new FileStream(_lockPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
             return lockStream;
         }
         catch (IOException)
@@ -373,6 +412,20 @@ public static class SimpleLogger
     /// <param name="content">The content to write to the log file.</param>
     private static void WriteToLogFile(string content)
     {
+        // Validate before writing
+        ValidateLogPaths();
+
+        // Check for symbolic links
+        if (File.Exists(_logPath))
+        {
+            FileInfo logInfo = new FileInfo(_logPath);
+            if ((logInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                Debug.WriteLine("Log file is a symbolic link - aborting write");
+                return;
+            }
+        }
+
         // If content is empty, clear the file instead of appending
         if (string.IsNullOrEmpty(content))
         {
