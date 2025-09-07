@@ -84,9 +84,12 @@ public static class AssetHelper
     #region Get assets from disk
 
     /// <summary>
-    /// Asynchronously retrieves the binary content of an asset from disk by its name.
+    /// Asynchronously retrieves the specified asset from disk as a byte array.
     /// </summary>
-    /// <remarks>This method performs several validations to ensure the asset is safe to access:
+    /// <remarks>This method performs several security and integrity checks to ensure the asset is safe to
+    /// use. These include validating the file path, verifying the file's integrity, and ensuring the file size does not
+    /// exceed the maximum allowed limit. If the asset fails integrity verification, the method attempts to restore it
+    /// from embedded resources.
     ///     <list type="bullet">
     ///         <item>
     ///             <description>Validates that the asset name is not null, empty, or invalid.</description>
@@ -104,12 +107,14 @@ public static class AssetHelper
     ///             <description>Verifies the file's integrity against a known hash.</description>
     ///         </item>
     ///     </list>
-    /// If the asset cannot be found, is inaccessible, or fails validation, an appropriate exception is thrown.</remarks>
-    /// <param name="assetName">The name of the asset to retrieve. Must not be null, empty, or consist only of whitespace.</param>
-    /// <returns>A byte array containing the binary content of the asset. The array will contain the full content of the file.</returns>
-    /// <exception cref="MissingAssetException">Thrown if the specified asset does not exist on disk.</exception>
-    /// <exception cref="SecurityException">Thrown if the asset is a symbolic link, exceeds the maximum allowed size, or fails integrity verification.</exception>
-    /// <exception cref="AssetIntegrityException">Thrown if the asset fails integrity verification.</exception>
+    /// </remarks>
+    /// <param name="assetName">The name of the asset to retrieve. This value cannot be <see langword="null"/> or whitespace.</param>
+    /// <returns>A byte array containing the contents of the asset. The array will contain the asset's data if the file is found,
+    /// valid, and passes all security and integrity checks.</returns>
+    /// <exception cref="MissingAssetException">Thrown if the specified asset does not exist at the expected location.</exception>
+    /// <exception cref="SecurityException">Thrown if the asset fails security checks, such as being outside the assets directory, exceeding the maximum
+    /// allowed size, or being tampered with.</exception>
+    /// <exception cref="AssetIntegrityException">Thrown if the asset fails integrity verification, even after attempting to restore it from embedded resources.</exception>
     internal static async Task<byte[]> GetAssetFromDiskAsync(string assetName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
@@ -197,10 +202,31 @@ public static class AssetHelper
                 throw new SecurityException(errorMessage);
             }
 
-            byte[] buffer = new byte[stream.Length];
-            await stream.ReadExactlyAsync(buffer)
-                .ConfigureAwait(false);
+            // Copy using an intermediate buffer of DefaultBufferSize. This reads/writes in chunks, but the MemoryStream still
+            // produces a single contiguous buffer. We pre-size the MemoryStream to avoid internal growth reallocations.
+            int expectedLength = checked((int)fileInfo.Length);
+            await using var ms = new MemoryStream(capacity: expectedLength);
 
+            await stream.CopyToAsync(ms, DefaultBufferSize).ConfigureAwait(false);
+
+            // Optional: post-read consistency check
+            if (ms.Length != expectedLength)
+            {
+                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}' - possible TOCTOU attack";
+                SimpleLogger.LogError(errorMessage);
+                throw new SecurityException(errorMessage);
+            }
+
+            // Return the underlying buffer when possible to avoid an extra copy
+            if (ms.TryGetBuffer(out ArraySegment<byte> segment) &&
+                segment is { Offset: 0, Array: not null } &&
+                segment.Count == segment.Array.Length)
+            {
+                SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({segment.Count} bytes) with cross-platform security validation");
+                return segment.Array;
+            }
+
+            byte[] buffer = ms.ToArray(); // fallback (copies)
             SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes) with cross-platform security validation");
             return buffer;
         }
