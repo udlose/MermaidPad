@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
+
 namespace MermaidPad.Services;
 
 /// <summary>
@@ -148,5 +150,30 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
                 }
             }
         }
+    }
+}
+
+/// <summary>
+/// Provides extension methods for <see cref="IDebounceDispatcher"/> to support UI-thread aware debouncing.
+/// </summary>
+public static class DebounceDispatcherExtensions
+{
+    /// <summary>
+    /// Executes the specified action on the UI thread after a delay, ensuring that only the most recent invocation for the given key is executed.
+    /// </summary>
+    /// <remarks>This method is useful for debouncing actions that update the UI, ensuring that the UI is not updated too frequently.</remarks>
+    /// <param name="dispatcher">The <see cref="IDebounceDispatcher"/> instance.</param>
+    /// <param name="key">A unique identifier for the debounce operation. Cannot be null, empty, or consist only of whitespace.</param>
+    /// <param name="delay">The amount of time to wait before executing the action. Must be a non-negative <see cref="TimeSpan"/>.</param>
+    /// <param name="action">The action to execute after the delay, on the UI thread. Cannot be null.</param>
+    /// <param name="priority">The priority with which the action is invoked on the UI thread. Defaults to <see cref="DispatcherPriority.Background"/>.</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="key"/> is null, empty, or consists only of whitespace.</exception>
+    public static void DebounceOnUI(this IDebounceDispatcher dispatcher, string key, TimeSpan delay, Action action, DispatcherPriority priority)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(action);
+
+        dispatcher.Debounce(key, delay, () => Dispatcher.UIThread.Post(action, priority));
     }
 }
