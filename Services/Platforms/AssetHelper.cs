@@ -207,7 +207,8 @@ public static class AssetHelper
             int expectedLength = checked((int)fileInfo.Length);
             await using var ms = new MemoryStream(capacity: expectedLength);
 
-            await stream.CopyToAsync(ms, DefaultBufferSize).ConfigureAwait(false);
+            await stream.CopyToAsync(ms, DefaultBufferSize)
+                .ConfigureAwait(false);
 
             // Optional: post-read consistency check
             if (ms.Length != expectedLength)
@@ -217,10 +218,13 @@ public static class AssetHelper
                 throw new SecurityException(errorMessage);
             }
 
-            // Return the underlying buffer when possible to avoid an extra copy
+            // Return the underlying buffer when possible to avoid an extra copy.
+            // Ensure we don't return an oversized internal buffer.
             if (ms.TryGetBuffer(out ArraySegment<byte> segment) &&
-                segment is { Offset: 0, Array: not null } &&
-                segment.Count == segment.Array.Length)
+                segment.Array is not null &&
+                segment.Offset == 0 &&
+                segment.Count == expectedLength &&
+                segment.Array.Length == expectedLength)
             {
                 SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({segment.Count} bytes) with cross-platform security validation");
                 return segment.Array;
