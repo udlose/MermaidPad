@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
     <title>MermaidPad Preview</title>
     <style>
         body.dark-theme { background: #1e1e1e; color: #ddd; }
@@ -71,6 +72,29 @@
             window.lastMermaidSource = source; // Save for re-rendering on theme change
             const output = document.getElementById('output');
 
+            // Helper functions for safe DOM manipulation
+            const createErrorElement = (message) => {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = message; // XSS-safe
+                return errorDiv;
+            };
+
+            const showError = (message) => {
+                output.innerHTML = '';
+                output.appendChild(createErrorElement(message));
+            };
+
+            const setSafeSVG = (htmlContent) => {
+                // Validate SVG content structure
+                const trimmed = htmlContent.trim();
+                if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
+                    output.innerHTML = htmlContent;
+                } else {
+                    showError('Invalid diagram content received');
+                }
+            };
+
             if (!window.mermaid) {
                 // Retry a few times before showing error
                 let retries = window._mermaidRetries || 0;
@@ -79,7 +103,7 @@
                     setTimeout(() => window.renderMermaid(source), 100);
                     return;
                 }
-                output.innerHTML = '<div class="error">Mermaid library is not loaded.</div>';
+                showError('Mermaid library is not loaded.'); // XSS-safe
                 return;
             }
             window._mermaidRetries = 0;
@@ -99,7 +123,7 @@
                     // STEP 3: Get rest of the source.
                     diagramSource = source.replace(fmRegex, "");
                 } catch (err) {
-                    output.innerHTML = `<div class="error">YAML parse error: ${err.message}</div>`;
+                    showError(`YAML parse error: ${err.message}`); // XSS-safe
                     return;
                 }
             }
@@ -108,13 +132,13 @@
             const id = `mermaid-svg-${Date.now()}`;
             window.mermaid.render(id, diagramSource)
                 .then(result => {
-                    output.innerHTML = result.svg;
+                    setSafeSVG(result.svg); // Validated SVG insertion
                     if (typeof result.bindFunctions === 'function') {
                         result.bindFunctions(output);
                     }
                 })
                 .catch(e => {
-                    output.innerHTML = `<div class="error">${e.message}</div>`;
+                    showError(e.message); // XSS-safe
                 });
         };
 
