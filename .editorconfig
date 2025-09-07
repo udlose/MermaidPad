@@ -147,3 +147,4 @@ dotnet_style_namespace_match_folder = true:suggestion
 # Resharper
 # Use preferred style of 'new' expression when created type is evident
 resharper_arrange_object_creation_when_type_evident_highlighting = none
+resharper_can_simplify_dictionary_try_get_value_with_get_value_or_default_highlighting = none
