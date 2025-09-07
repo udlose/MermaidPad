@@ -1,3 +1,23 @@
+// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 using MermaidPad.Models;
 using System.Diagnostics;
 using System.Text.Json;
@@ -81,22 +101,18 @@ public sealed class SettingsService
                         }
                         return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
                     }
-                    else
-                    {
-                        Debug.WriteLine("Settings file is a hard link, aborting read.");
-                        return new AppSettings();
-                    }
-                }
-                else
-                {
-                    Debug.WriteLine("Settings file path is not the expected config file, aborting read.");
+
+                    SimpleLogger.LogError("Settings file is a hard link, aborting read.");
                     return new AppSettings();
                 }
+
+                SimpleLogger.LogError("Settings file path is not the expected config file, aborting read.");
+                return new AppSettings();
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings load failed: {ex}");
+            SimpleLogger.LogError($"Settings load failed: {ex}");
         }
         return new AppSettings();
     }
@@ -136,24 +152,47 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings save failed: {ex}");
+            SimpleLogger.LogError($"Settings save failed: {ex}");
         }
     }
 
     private static bool IsSingleLink(string filePath)
     {
+        // Add validation before using the path
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        // Ensure it's an absolute path without traversal
+        if (!Path.IsPathRooted(filePath) || filePath.Contains(".."))
+        {
+            return false;
+        }
+
+        // Validate it's within expected directory
+        string configDir = GetConfigDirectory();
+        string fullPath = Path.GetFullPath(filePath);
+        string fullConfigDir = Path.GetFullPath(configDir);
+
+        if (!fullPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         // On Windows, check if the file has only one hard link
         // This is a simple check to see if the file is not a symlink or reparse point
         if (OperatingSystem.IsWindows())
         {
             try
             {
-                FileInfo fileInfo = new FileInfo(filePath);
-                return fileInfo.Exists && fileInfo.LinkTarget is null && !fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
+                //SEC0112 fix: Use validated path
+                FileInfo fileInfo = new FileInfo(fullPath);
+                return fileInfo is { Exists: true, LinkTarget: null } && !fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error checking file links: {ex}");
+                SimpleLogger.LogError($"Error checking file links: {ex}");
                 return false;
             }
         }
