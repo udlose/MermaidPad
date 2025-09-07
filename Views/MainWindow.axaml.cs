@@ -395,7 +395,6 @@ public sealed partial class MainWindow : Window
     private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-
         SimpleLogger.Log("=== WebView Initialization Started ===");
 
         // Temporarily disable live preview during WebView initialization
@@ -406,6 +405,7 @@ public sealed partial class MainWindow : Window
             SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
         });
 
+        bool success = false;
         try
         {
             // Step 1: Initialize the MermaidRenderer
@@ -419,27 +419,32 @@ public sealed partial class MainWindow : Window
             SimpleLogger.Log("Performing initial Mermaid render...");
             await _renderer.RenderAsync(_vm.DiagramText);
 
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: true);
+            success = true;
             SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
         }
-        catch (AssetIntegrityException)
+        catch (OperationCanceledException)
         {
+            // Treat cancellations distinctly; still propagate
+            SimpleLogger.Log("WebView initialization was canceled.");
             throw;
         }
-        catch (MissingAssetException)
+        catch (Exception ex) when (ex is AssetIntegrityException or MissingAssetException)
         {
+            // Let asset-related exceptions bubble up for higher-level handling
             throw;
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
+            // Log and rethrow so OnOpenedAsync observes the failure and can abort the sequence
             SimpleLogger.LogError("WebView initialization failed", ex);
+            throw;
         }
         finally
         {
-            // Re-enable live preview after WebView is ready
+            stopwatch.Stop();
+            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
+
+            // Re-enable live preview after WebView is ready (or on failure)
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.LivePreviewEnabled = originalLivePreview;
