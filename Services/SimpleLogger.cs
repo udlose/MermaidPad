@@ -393,20 +393,6 @@ public static class SimpleLogger
         // Validate log paths
         ValidatePathWithinBaseDir(_logPath, _baseDir, "Log path");
         ValidatePathWithinBaseDir(_lockPath, _baseDir, "Lock path");
-        string fullLogPath = Path.GetFullPath(_logPath);
-        string fullBaseDir = Path.GetFullPath(_baseDir);
-
-        if (!fullLogPath.StartsWith(fullBaseDir, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new SecurityException($"Log path '{fullLogPath}' is outside base directory");
-        }
-
-        // Validate lock path
-        string fullLockPath = Path.GetFullPath(_lockPath);
-        if (!fullLockPath.StartsWith(fullBaseDir, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new SecurityException($"Lock path '{fullLockPath}' is outside base directory");
-        }
     }
 
     /// <summary>
