@@ -1,3 +1,4 @@
+using System.Reflection;
 namespace MermaidPad.Models;
 
 public sealed class AppSettings
