@@ -33,6 +33,7 @@ public partial class MainWindow : Window
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
         DataContext = _vm;
 
+        SimpleLogger.Log((_vm.LatestMermaidVersion == null).ToString());
         SimpleLogger.Log("=== MainWindow Initialization Started ===");
         SimpleLogger.Log("Window created, services resolved from DI container");
 

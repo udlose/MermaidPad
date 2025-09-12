@@ -5,6 +5,9 @@ using MermaidPad.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using MermaidPad.Services.Platforms;
+using Octokit;
 
 namespace MermaidPad.ViewModels;
 
@@ -18,7 +21,6 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
-
     /// <summary>
     /// Gets or sets the current diagram text.
     /// </summary>
@@ -77,7 +79,6 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
-
         // Initialize properties from settings
         DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
@@ -86,6 +87,41 @@ public sealed partial class MainViewModel : ViewModelBase
         EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
         EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
         EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
+        // Get the app version
+        Version? version = Assembly.GetEntryAssembly().GetName().Version;
+        if (version is not null)
+        {
+            _ = CheckVersionAsync(version);
+        }
+    }
+
+    /// <summary>
+    /// Sends the dialog showing that there is a new version
+    /// </summary>
+    /// <param name="version">The version that the user is running :D</param>
+    private void SendNewVersionDiag(string version)
+    {
+        var platformServ = PlatformServiceFactory.Instance;
+        _ = Task.Run(() => platformServ.ShowNativeDialog("New Version", "A new version of MermaidPad is available. \n Get the neweste version at https://github.com/udlose/MermaidPad/releases/tag/v"+version));
+    }
+
+    ///<summary>
+    /// Checks if the current app version is the latest
+    /// </summary>
+    /// <param name="version">The current version</param>
+    private async Task CheckVersionAsync(Version version)
+    {
+        var client = new GitHubClient(new ProductHeaderValue("MermaidPad"));
+        var releases = await client.Repository.Release.GetAll("udlose", "MermaidPad");
+        var latest = releases[0];
+        // Since TagName comes with a v in front of the version (eg: v1.0.6) I made a substring to remove it 
+        string vLessVersion = latest.TagName.Substring(1, latest.TagName.Length - 1);
+        var latestVers = new Version(vLessVersion);
+
+        if (latestVers.CompareTo(version) > 0)
+        {
+            SendNewVersionDiag(vLessVersion);
+        }
     }
 
     /// <summary>
@@ -211,13 +247,13 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets sample Mermaid diagram text.
     /// </summary>
     private static string SampleText => """
-graph TD
-  A[Start] --> B{Decision}
-  B -->|Yes| C[Render Diagram]
-  B -->|No| D[Edit Text]
-  C --> E[Done]
-  D --> B
-""";
+                                        graph TD
+                                          A[Start] --> B{Decision}
+                                          B -->|Yes| C[Render Diagram]
+                                          B -->|No| D[Edit Text]
+                                          C --> E[Done]
+                                          D --> B
+                                        """;
 
     // Future stubs:
     // [ObservableProperty] private bool autoUpdateEnabled; //TODO - add implementation
