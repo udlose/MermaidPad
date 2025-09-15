@@ -27,8 +27,8 @@
 	<ItemGroup>
 		<PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
 		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
-		<PackageReference Include="Avalonia" Version="11.3.4" />
-		<PackageReference Include="Avalonia.Desktop" Version="11.3.4" />
+		<PackageReference Include="Avalonia" Version="11.3.6" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.6" />
 		<PackageReference Include="Avalonia.ReactiveUI" Version="11.3.4" />
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.4" />
 		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.304" />
