@@ -42,7 +42,7 @@
 		</PackageReference>
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
-		<PackageReference Include="System.Text.Json" Version="9.0.8" />
+		<PackageReference Include="System.Text.Json" Version="9.0.9" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" Version="8.0.0" />
