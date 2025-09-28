@@ -63,6 +63,9 @@ csharp_style_expression_bodied_lambdas = true:silent
 csharp_style_expression_bodied_local_functions = true:suggestion
 csharp_indent_labels = one_less_than_current
 
+#IDE0073: Require file header
+dotnet_diagnostic.IDE0073.severity = warning
+
 # IDE0079: Remove unnecessary suppression
 dotnet_diagnostic.IDE0079.severity = none
 csharp_style_throw_expression = true:suggestion
