@@ -20,7 +20,7 @@
 
 using JetBrains.Annotations;
 using MermaidPad.Exceptions.Assets;
-
+using System.Diagnostics.CodeAnalysis;
 using System.Security;
 
 namespace MermaidPad.Services;
@@ -31,6 +31,8 @@ namespace MermaidPad.Services;
 /// practices by providing utilities for validating file paths, detecting symbolic links, enforcing directory
 /// boundaries, and creating secure file streams. It includes methods to prevent common security vulnerabilities such as
 /// path traversal attacks, unauthorized access via symbolic links, and improper file name validation.</remarks>
+[SuppressMessage("ReSharper", "ConvertToStaticClass", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("Major Code Smell", "S1118:Utility classes should not have public constructors", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 public sealed class SecurityService
 {
     private const string SecurityLogCategory = "Security: ";
