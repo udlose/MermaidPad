@@ -493,7 +493,7 @@ public static class SimpleLogger
     private static void AppendLinuxDialogToolVersion(StringBuilder sb, string command, string[] argCandidates)
     {
         string? version = null;
-        for (int i = 0; i < argCandidates.Length && string.IsNullOrEmpty(version); i++)
+        for (int i = 0; i < argCandidates.Length && string.IsNullOrWhiteSpace(version); i++)
         {
             version = RunCommandAndCapture(command, argCandidates[i], 1_500);
         }
