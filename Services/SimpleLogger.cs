@@ -22,6 +22,7 @@ using JetBrains.Annotations;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 
@@ -61,6 +62,20 @@ public static class SimpleLogger
     private static readonly string _lockPath = Path.Combine(_baseDir, "debug.log.lock");
 
     /// <summary>
+    /// Represents an array of command-line parameters commonly used to retrieve version information on Linux systems.
+    /// </summary>
+    /// <remarks>This array includes parameters such as <c>--version</c> and <c>-v</c>, which are typically
+    /// used in Linux command-line tools to display version details.</remarks>
+    private static readonly string[] _linuxParamArray = ["--version", "-v"];
+
+    /// <summary>
+    /// Represents the set of characters used to identify line breaks.
+    /// </summary>
+    /// <remarks>This array contains the carriage return <c>\r</c> and newline <c>\n</c> characters, which are
+    /// commonly used to detect or handle line breaks in text processing.</remarks>
+    private static readonly char[] _lineBreakChars = ['\r', '\n'];
+
+    /// <summary>
     /// Initial delay in milliseconds for retrying lock acquisition.
     /// </summary>
     private const int InitialRetryDelayMs = 25;
@@ -69,6 +84,13 @@ public static class SimpleLogger
     /// Maximum delay in milliseconds for retrying lock acquisition.
     /// </summary>
     private const int MaxRetryDelayMs = 1_000;
+
+    /// <summary>
+    /// The default timeout, in milliseconds, for executing commands.
+    /// </summary>
+    /// <remarks>This constant defines the maximum time a command is allowed to execute before timing out. It
+    /// is intended for internal use and should not be modified at runtime.</remarks>
+    private const int CommandTimeoutMs = 3_000;
 
     /// <summary>
     /// Static constructor. Validates log and lock file paths, cleans up stale lock files, and writes the session header.
@@ -258,15 +280,332 @@ public static class SimpleLogger
         sb.AppendLine($"Version: {version ?? "Unknown"}");
         sb.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine($"PID: {Environment.ProcessId}");
-        sb.AppendLine($"OS: {Environment.OSVersion}");
+        sb.AppendLine($"OS Version: {Environment.OSVersion}");
+        sb.AppendLine($"64-bit OS: {Environment.Is64BitOperatingSystem}");
+        sb.AppendLine($"64-bit Process: {Environment.Is64BitProcess}");
         sb.AppendLine($".NET: {Environment.Version}");
         sb.AppendLine($"Working Directory: {Environment.CurrentDirectory}");
+        sb.AppendLine();
+        sb.AppendLine($".NET Runtime Version: {RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"OS Architecture: {RuntimeInformation.OSArchitecture}");
+        sb.AppendLine($"RuntimeInfo: {RuntimeInformation.OSDescription}");
+        sb.AppendLine($"Process Architecture: {RuntimeInformation.ProcessArchitecture}");
+        sb.AppendLine($"RID: {RuntimeInformation.RuntimeIdentifier}");
+        sb.AppendLine();
+
+        // New: Append platform dependency versions
+        AppendPlatformDependencyInfo(sb);
+        sb.AppendLine();
+
         sb.AppendLine($"Log File: {_logPath}");
         sb.AppendLine($"Lock File: {_lockPath}");
         sb.AppendLine("============================================");
         sb.AppendLine();
 
         WriteEntryWithLock(sb.ToString());
+    }
+
+    /// <summary>
+    /// Appends platform-specific dependency information (versions and availability) to the session header.
+    /// </summary>
+    private static void AppendPlatformDependencyInfo(StringBuilder sb)
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                sb.AppendLine("Platform Dependencies (Windows):");
+                string webView2 = TryGetWindowsWebView2Version() ?? "Not found";
+                sb.AppendLine($"  WebView2 Runtime: {webView2}");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                sb.AppendLine("Platform Dependencies (Linux):");
+                string webkit = TryGetLinuxWebKitGtkVersion() ?? "Not found";
+                sb.AppendLine($"  WebKitGTK (webkit2gtk): {webkit}");
+
+                // Common graphical dialog helpers
+                AppendLinuxDialogToolVersion(sb, "zenity", _linuxParamArray);
+                AppendLinuxDialogToolVersion(sb, "kdialog", _linuxParamArray);
+                AppendLinuxDialogToolVersion(sb, "yad", _linuxParamArray);
+                AppendLinuxDialogToolVersion(sb, "Xdialog", _linuxParamArray);
+                AppendLinuxDialogToolVersion(sb, "gxmessage", _linuxParamArray);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                sb.AppendLine("Platform Dependencies (macOS):");
+                string webkit = TryGetMacWebKitFrameworkVersion() ?? "Unknown (system-provided)";
+                sb.AppendLine($"  WebKit.framework: {webkit}");
+            }
+            else
+            {
+                sb.AppendLine("Platform Dependencies: Unknown OS");
+            }
+        }
+        catch (Exception ex)
+        {
+            sb.AppendLine($"Platform dependency detection error: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Attempts to retrieve the WebView2 Runtime version on Windows.
+    /// Prefers the WebView2 API (if available), otherwise scans known install locations.
+    /// </summary>
+    private static string? TryGetWindowsWebView2Version()
+    {
+        try
+        {
+            // Try via WebView2 API without a hard compile-time dependency (reflection).
+            // Microsoft.Web.WebView2.Core.CoreWebView2Environment.GetAvailableBrowserVersionString()
+            const string typeName = "Microsoft.Web.WebView2.Core.CoreWebView2Environment, Microsoft.Web.WebView2.Core";
+            Type? envType = Type.GetType(typeName, throwOnError: false);
+            if (envType is not null)
+            {
+                MethodInfo? method = envType.GetMethod("GetAvailableBrowserVersionString", Type.EmptyTypes);
+                object? result = method?.Invoke(null, null);
+                if (result is string s && !string.IsNullOrWhiteSpace(s))
+                {
+                    return s.Trim();
+                }
+
+                // Newer signature with optional parameter exists on some versions: string? GetAvailableBrowserVersionString(string? folder)
+                MethodInfo? methodWithArg = envType.GetMethod("GetAvailableBrowserVersionString", new[] { typeof(string) });
+                object? result2 = methodWithArg?.Invoke(null, new object?[] { null });
+                if (result2 is string s2 && !string.IsNullOrWhiteSpace(s2))
+                {
+                    return s2.Trim();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore and fallback to disk probing.
+        }
+
+        try
+        {
+            // Fallback: probe standard Evergreen runtime locations
+            string? ver =
+                ProbeWebView2FromInstallRoot(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)) ??
+                ProbeWebView2FromInstallRoot(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+            return string.IsNullOrWhiteSpace(ver) ? null : ver;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Scans the Evergreen WebView2 Application folder for the highest version present.
+    /// </summary>
+    private static string? ProbeWebView2FromInstallRoot(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return null;
+        }
+
+        string appDir = Path.Combine(root, "Microsoft", "EdgeWebView", "Application");
+        if (!Directory.Exists(appDir))
+        {
+            return null;
+        }
+
+        Version? best = null;
+        string? bestDir = null;
+
+        foreach (string dir in Directory.GetDirectories(appDir))
+        {
+            string name = Path.GetFileName(dir);
+            if (Version.TryParse(name, out Version? v) && (best is null || v > best))
+            {
+                best = v;
+                bestDir = dir;
+            }
+        }
+
+        if (bestDir is null)
+        {
+            return null;
+        }
+
+        // Prefer the file version of the actual executable if present
+        string exePath = Path.Combine(bestDir, "msedgewebview2.exe");
+        if (File.Exists(exePath))
+        {
+            try
+            {
+                FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(exePath);
+                if (!string.IsNullOrWhiteSpace(fvi.FileVersion))
+                {
+                    return fvi.FileVersion;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return best?.ToString();
+    }
+
+    /// <summary>
+    /// Attempts to get the installed WebKitGTK (webkit2gtk) version on Linux using pkg-config, dpkg or rpm.
+    /// </summary>
+    private static string? TryGetLinuxWebKitGtkVersion()
+    {
+        // Try pkg-config first (most portable)
+        string? version =
+            RunCommandAndCapture("pkg-config", "--modversion webkit2gtk-4.1", CommandTimeoutMs) ??
+            RunCommandAndCapture("pkg-config", "--modversion webkit2gtk-4.0", CommandTimeoutMs);
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            return version;
+        }
+
+        // Debian/Ubuntu
+        version =
+            RunCommandAndCapture("dpkg-query", "-W -f=${Version} libwebkit2gtk-4.1-0", CommandTimeoutMs) ??
+            RunCommandAndCapture("dpkg-query", "-W -f=${Version} libwebkit2gtk-4.0-37", CommandTimeoutMs);
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            return version;
+        }
+
+        // RPM-based
+        version =
+            RunCommandAndCapture("rpm", "-q --qf %{VERSION}-%{RELEASE} webkit2gtk4.1", CommandTimeoutMs) ??
+            RunCommandAndCapture("rpm", "-q --qf %{VERSION}-%{RELEASE} webkit2gtk4.0", CommandTimeoutMs);
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            return version;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Appends a Linux dialog tool's version if available.
+    /// </summary>
+    private static void AppendLinuxDialogToolVersion(StringBuilder sb, string command, string[] argCandidates)
+    {
+        string? version = null;
+        for (int i = 0; i < argCandidates.Length && string.IsNullOrEmpty(version); i++)
+        {
+            version = RunCommandAndCapture(command, argCandidates[i], 1_500);
+        }
+
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            sb.AppendLine($"  {command}: Not found");
+        }
+        else
+        {
+            // Only keep the first line for readability
+            int idx = version.IndexOfAny(_lineBreakChars);
+            string firstLine = idx >= 0 ? version[..idx] : version;
+            sb.AppendLine($"  {command}: {firstLine.Trim()}");
+        }
+    }
+
+    /// <summary>
+    /// Attempts to get the system WebKit.framework version on macOS using 'defaults read'.
+    /// </summary>
+    private static string? TryGetMacWebKitFrameworkVersion()
+    {
+        // Read CFBundleShortVersionString from the framework's Info.plist (handled by 'defaults' for binary or XML plists)
+        const string path = "/System/Library/Frameworks/WebKit.framework/Versions/Current/Resources/Info";
+        string? shortVer = RunCommandAndCapture("defaults", $"read {path} CFBundleShortVersionString", CommandTimeoutMs);
+        string? bundleVer = RunCommandAndCapture("defaults", $"read {path} CFBundleVersion", CommandTimeoutMs);
+
+        if (!string.IsNullOrWhiteSpace(shortVer) && !string.IsNullOrWhiteSpace(bundleVer))
+        {
+            return $"{shortVer.Trim()} ({bundleVer.Trim()})";
+        }
+
+        if (!string.IsNullOrWhiteSpace(shortVer))
+        {
+            return shortVer.Trim();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Runs a command and captures trimmed stdout if the process exits successfully.
+    /// Returns null if the command cannot be started, times out, or exits non-zero.
+    /// If stdout is empty but stderr has content, returns stderr (trimmed) as a best-effort fallback.
+    /// </summary>
+    private static string? RunCommandAndCapture(string fileName, string arguments, int timeoutMs)
+    {
+        try
+        {
+            using Process p = new Process();
+            p.StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+                CreateNoWindow = true
+            };
+
+            StringBuilder stdout = new StringBuilder();
+            StringBuilder stderr = new StringBuilder();
+
+            if (!p.Start())
+            {
+                return null;
+            }
+
+            p.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
+            p.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+
+            bool exited = p.WaitForExit(timeoutMs);
+            if (!exited)
+            {
+                try { p.Kill(entireProcessTree: true); } catch { /* ignore */ }
+            }
+
+            // Ensure process exit and give async reads time to finish
+            try { p.WaitForExit(); } catch { /* ignore */ }
+            try { p.CancelOutputRead(); } catch { /* ignore */ }
+            try { p.CancelErrorRead(); } catch { /* ignore */ }
+
+            if (!exited)
+            {
+                return null;
+            }
+
+            string outText = stdout.ToString().Trim();
+            string errText = stderr.ToString().Trim();
+
+            if (p.ExitCode != 0)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(outText))
+            {
+                return outText;
+            }
+
+            return !string.IsNullOrWhiteSpace(errText) ? errText : // some tools print version to stderr
+                null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
