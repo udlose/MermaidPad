@@ -22,6 +22,7 @@ using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Services.Platforms;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
 
@@ -31,6 +32,7 @@ namespace MermaidPad.Services;
 /// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
+[SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
     private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFileName}";
@@ -230,22 +232,22 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Separate file handling is needed to avoid JavaScript injection issues
             if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
             {
-                        responseBytes = _mermaidJs;
-                        contentType = "application/javascript; charset=utf-8";
-                    }
+                responseBytes = _mermaidJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
             else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        context.Response.StatusCode = 404;
-                    }
+            {
+                context.Response.StatusCode = 404;
+            }
             else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
-                        contentType = "text/html; charset=utf-8";
-                    }
+            {
+                responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
+                contentType = "text/html; charset=utf-8";
+            }
             else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
-                    {
-                        responseBytes = _jsYamlJs;
-                        contentType = "application/javascript; charset=utf-8";
+            {
+                responseBytes = _jsYamlJs;
+                contentType = "application/javascript; charset=utf-8";
             }
             else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
             {
@@ -263,11 +265,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             {
                 responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
                 contentType = "application/javascript; charset=utf-8";
-                    }
+            }
             else
-                    {
-                        context.Response.StatusCode = 404;
-                        SimpleLogger.Log($"404 for: {requestPath}");
+            {
+                context.Response.StatusCode = 404;
+                SimpleLogger.Log($"404 for: {requestPath}");
             }
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
