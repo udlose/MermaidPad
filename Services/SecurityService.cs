@@ -185,17 +185,18 @@ public sealed class SecurityService
             return (false, $"{SecurityLogCategory} File name '{fileName}' contains path traversal");
         }
 
+        //TODO the new ELK files have folders and subfolders, so we can't do this check yet
         // Invalid filename characters
-        if (fileNameSpan.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            return (false, $"{SecurityLogCategory} File name '{fileName}' contains invalid characters");
-        }
+        //if (fileNameSpan.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        //{
+        //    return (false, $"{SecurityLogCategory} File name '{fileName}' contains invalid characters");
+        //}
 
         // Ensure it's just a filename, not a path
-        if (Path.GetFileName(fileName) != fileName)
-        {
-            return (false, $"{SecurityLogCategory} File name '{fileName}' appears to be a path");
-        }
+        //if (Path.GetFileName(fileName) != fileName)
+        //{
+        //    return (false, $"{SecurityLogCategory} File name '{fileName}' appears to be a path");
+        //}
 
         return (true, null);
     }

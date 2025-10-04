@@ -74,6 +74,15 @@
 		<EmbeddedResource Include="Assets\js-yaml.min.js">
 			<LogicalName>MermaidPad.Assets.js-yaml.min.js</LogicalName>
 		</EmbeddedResource>
+		<EmbeddedResource Include="Assets\mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs">
+			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.mermaid-layout-elk.esm.min.mjs</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Include="Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs">
+			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.chunk-SP2CHFBE.mjs</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Include="Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs">
+			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.render-AVRWSH4D.mjs</LogicalName>
+		</EmbeddedResource>
 	</ItemGroup>
 
 	<ItemGroup>
