@@ -10,7 +10,7 @@
         html, body { margin: 0; height: 100%; background: #fff; color: #222; }
         @media (prefers-color-scheme: dark) {
             html, body { background: #1e1e1e; color: #ddd; }
-        }
+            }
         body.dark-theme { background: #1e1e1e; color: #ddd; }
         body.light-theme { background: #fff; color: #222; }
         #output { padding: 8px; overflow: auto; height: 100vh; box-sizing: border-box; }
@@ -26,125 +26,187 @@
         body.dark-theme #output svg text,
         body.dark-theme #output svg .messageText { fill: #e0e0e0 !important; }
     </style>
-    
-    <!-- Load js-yaml first (regular script) -->
-    <script src="js-yaml.min.js"></script>
-    
-    <!-- Load Mermaid (UMD/IIFE format) -->
-    <script src="mermaid.min.js"></script>
-    
-    <!-- Load and register ELK layout after Mermaid is loaded -->
-    <script type="module">
-        // Theme helper functions
-        window.getSystemTheme = () => {
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
-                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
-            }
-            return 'default';
-        };
-        
-        window.applyTheme = theme => {
-            document.body.classList.toggle('dark-theme', theme === 'dark');
-            document.body.classList.toggle('light-theme', theme === 'default');
-        };
-        
-        // Wait for mermaid to be available globally, then load ELK
-        function initializeMermaidWithElk() {
-            if (typeof window.mermaid !== 'undefined') {
-                // Import the ELK layout module
-                import('./mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs')
-                    .then(module => {
-                        const elkLayouts = module.default;
-                        // Register ELK layouts with Mermaid
-                        window.mermaid.registerLayoutLoaders(elkLayouts);
-                        console.log('ELK layout registered successfully');
-                        
-                        // Initialize mermaid after ELK is registered
-                        const currentTheme = window.getSystemTheme();
-                        window.mermaid.initialize({ 
-                            startOnLoad: false, 
-                            theme: currentTheme
-                            // Note: defaultRenderer can be set per-diagram or via config frontmatter
-                        });
-                        
-                        // Set flag that initialization is complete
-                        window.mermaidInitialized = true;
-                        
-                        // Trigger any pending renders
-                        if (window.pendingMermaidRender) {
-                            window.renderMermaid(window.pendingMermaidRender);
-                            window.pendingMermaidRender = null;
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Failed to load ELK layout:', err);
-                        // Fall back to standard mermaid initialization without ELK
-                        const currentTheme = window.getSystemTheme();
-                        window.mermaid.initialize({ 
-                            startOnLoad: false, 
-                            theme: currentTheme
-                        });
-                        window.mermaidInitialized = true;
-                    });
+
+    <!-- Apply theme immediately before any scripts load -->
+    <script>
+        // Immediate theme application to prevent flash
+        (function() {
+            const getSystemTheme = () => {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
+                    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
+                }
+                return 'default';
+            };
+
+            const applyTheme = theme => {
+                document.body.classList.toggle('dark-theme', theme === 'dark');
+                document.body.classList.toggle('light-theme', theme === 'default');
+            };
+
+            // Store functions globally for reuse
+            window.getSystemTheme = getSystemTheme;
+            window.applyTheme = applyTheme;
+            window.currentTheme = getSystemTheme();
+
+            // Apply theme immediately if body exists
+            if (document.body) {
+                applyTheme(window.currentTheme);
             } else {
-                // Retry if mermaid isn't loaded yet
-                setTimeout(initializeMermaidWithElk, 50);
+                // If body doesn't exist yet, apply on DOMContentLoaded
+                document.addEventListener('DOMContentLoaded', function() {
+                    applyTheme(window.currentTheme);
+                }, { once: true });
+            }
+        })();
+    </script>
+
+    <!-- Load js-yaml first, no defer to avoid races -->
+    <script src="js-yaml.min.js" id="jsyaml-script"></script>
+
+    <!-- Load Mermaid, no defer to avoid races -->
+    <script src="mermaid.min.js" id="mermaid-script"></script>
+
+    <!-- Main initialization with proper event-driven loading -->
+    <script type="module">
+        // Global flags
+        window.elkLayoutAvailable = false;
+        window.mermaidInitialized = false;
+
+        // Promise-based script loading with timeout
+        function waitForScriptLoad(scriptId, timeout = 5000) {
+            return new Promise((resolve, reject) => {
+                const script = document.getElementById(scriptId);
+
+                if (!script) {
+                    reject(new Error(`Script element with id '${scriptId}' not found`));
+                    return;
+                }
+
+                // Check if already loaded
+                if (scriptId === 'mermaid-script' && typeof window.mermaid !== 'undefined') {
+                    resolve();
+                    return;
+                }
+                if (scriptId === 'jsyaml-script' && typeof window.jsyaml !== 'undefined') {
+                    resolve();
+                    return;
+                }
+
+                // Set up timeout
+                const timeoutId = setTimeout(() => {
+                    reject(new Error(`Script '${scriptId}' load timeout after ${timeout}ms`));
+                }, timeout);
+
+                // Set up load event listener
+                const handleLoad = () => {
+                    clearTimeout(timeoutId);
+                    resolve();
+                };
+
+                const handleError = (error) => {
+                    clearTimeout(timeoutId);
+                    reject(new Error(`Script '${scriptId}' failed to load: ${error.message || 'Unknown error'}`));
+                };
+
+                script.addEventListener('load', handleLoad, { once: true });
+                script.addEventListener('error', handleError, { once: true });
+            });
+        }
+
+        // Load ELK layout module
+        async function loadElkLayout() {
+            try {
+                const elkModule = await import('./mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs');
+                const elkLayouts = elkModule.default;
+
+                // Register ELK layouts with Mermaid
+                window.mermaid.registerLayoutLoaders(elkLayouts);
+                window.elkLayoutAvailable = true;
+                console.log('ELK layout registered successfully');
+                return true;
+            } catch (err) {
+                console.error('Failed to load ELK layout:', err);
+                console.log('Continuing without ELK layout support');
+                return false;
             }
         }
-        
-        // Start the initialization process
-        initializeMermaidWithElk();
-    </script>
-    <script>
-        let currentTheme = window.getSystemTheme ? window.getSystemTheme() : 'default';
-        
-        // ReSharper disable PossiblyUnassignedProperty
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.applyTheme) {
-                window.applyTheme(currentTheme);
+
+        // Main initialization function
+        async function initializeApplication() {
+            try {
+                // Wait for both scripts to load
+                console.log('Waiting for scripts to load...');
+                await Promise.all([
+                    waitForScriptLoad('jsyaml-script'),
+                    waitForScriptLoad('mermaid-script')
+                ]);
+
+                console.log('Scripts loaded, initializing Mermaid...');
+
+                // Try to load ELK layout
+                await loadElkLayout();
+
+                // Initialize mermaid (with or without ELK)
+                window.mermaid.initialize({
+                    startOnLoad: false,
+                    theme: window.currentTheme
+                });
+
+                // Set initialization flag
+                window.mermaidInitialized = true;
+                console.log('Mermaid initialized successfully');
+
+                // Process any pending render
+                if (window.pendingMermaidRender) {
+                    console.log('Processing pending render...');
+                    window.renderMermaid(window.pendingMermaidRender);
+                    window.pendingMermaidRender = null;
+                }
+            } catch (error) {
+                console.error('Failed to initialize application:', error);
+                // Set flag to prevent infinite retries
+                window.mermaidInitializationFailed = true;
+
+                // Show error in output if available
+                const output = document.getElementById('output');
+                if (output) {
+                    output.innerHTML = `<div class="error">Failed to initialize: ${error.message}</div>`;
+                }
             }
-            
-            // Listen for theme changes
+        }
+
+        // Start initialization
+        initializeApplication();
+
+        // Setup theme change listener
+        document.addEventListener('DOMContentLoaded', () => {
+            // Theme is already applied, but listen for changes
             if (window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                    currentTheme = e.matches ? 'dark' : 'default';
-                    if (window.applyTheme) {
-                        window.applyTheme(currentTheme);
-                    }
-                    // Re-render with new theme
-                    if (window.lastMermaidSource) {
-                        // Re-initialize mermaid with new theme before rendering
-                        if (window.mermaid && window.mermaidInitialized) {
-                            // Extract config from the source if present
-                            const fmRegex = /^---\s*([\s\S]*?)---\s*/;
-                            const match = window.lastMermaidSource.match(fmRegex);
-                            let config = { startOnLoad: false, theme: currentTheme };
-                            
-                            if (match) {
-                                try {
-                                    const parsed = window.jsyaml.load(match[1]);
-                                    if (parsed && parsed.config) {
-                                        config = { ...config, ...parsed.config, theme: currentTheme };
-                                    }
-                                } catch (err) {
-                                    // Keep default config if parsing fails
-                                }
-                            }
-                            
-                            window.mermaid.initialize(config);
-                        }
+                    window.currentTheme = e.matches ? 'dark' : 'default';
+                    window.applyTheme(window.currentTheme);
+
+                    // Re-render if we have content and Mermaid is initialized
+                    if (window.lastMermaidSource && window.mermaidInitialized) {
+                        // Re-initialize Mermaid with new theme
+                        window.mermaid.initialize({
+                            startOnLoad: false,
+                            theme: window.currentTheme
+                        });
                         window.renderMermaid(window.lastMermaidSource);
                     }
                 });
             }
         });
-        // ReSharper enable PossiblyUnassignedProperty
-
+    </script>
+    <!-- Render functions in separate script -->
+    <script>
+        // Render function with proper error handling
         window.renderMermaid = source => {
-            window.lastMermaidSource = source; // Save for re-rendering on theme change
+            window.lastMermaidSource = source; // Save for re-rendering
             const output = document.getElementById('output');
 
-            // Helper functions for safe DOM manipulation
+            // Helper functions
             const createErrorElement = (message) => {
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error';
@@ -157,8 +219,8 @@
                 output.appendChild(createErrorElement(message));
             };
 
+            // ReSharper disable once InconsistentNaming
             const setSafeSVG = (htmlContent) => {
-                // Validate SVG content structure
                 const trimmed = htmlContent.trim();
                 if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
                     output.innerHTML = htmlContent;
@@ -167,73 +229,89 @@
                 }
             };
 
-            // Check if mermaid is initialized with ELK support
-            if (!window.mermaidInitialized) {
-                // Store the source to render after initialization
-                window.pendingMermaidRender = source;
-                
-                // Check if mermaid is at least available
-                if (!window.mermaid) {
-                    // Retry a few times before showing error
-                    const retryLimit = 20;
-                    let retries = window._mermaidRetries || 0;
-                    if (retries < retryLimit) {
-                        window._mermaidRetries = retries + 1;
-                        setTimeout(() => window.renderMermaid(source), 100);
-                        return;
-                    }
-                    showError('Mermaid library is not loaded.'); // XSS-safe
-                    return;
-                }
-                // If mermaid exists but not initialized, wait a bit more
-                setTimeout(() => window.renderMermaid(source), 100);
+            // Check if initialization failed
+            if (window.mermaidInitializationFailed) {
+                showError('Mermaid initialization failed. Please refresh the page.');
                 return;
             }
-            window._mermaidRetries = 0;
 
-            // STEP 1: Check for config
+            // Check if mermaid is initialized
+            if (!window.mermaidInitialized) {
+                // Store for later rendering
+                window.pendingMermaidRender = source;
+
+                // Check if we should retry (with limit)
+                if (!window.renderRetryCount) {
+                    window.renderRetryCount = 0;
+                }
+
+                if (window.renderRetryCount < 10) {
+                    window.renderRetryCount++;
+                    setTimeout(() => window.renderMermaid(source), 200);
+                    return;
+                } else {
+                    showError('Mermaid is still loading. Please try again.');
+                    window.renderRetryCount = 0;
+                    return;
+                }
+            }
+
+            // Reset retry count on successful initialization
+            window.renderRetryCount = 0;
+
+            // Parse front-matter config if present
             const fmRegex = /^---\s*([\s\S]*?)---\s*/;
             let diagramSource = source;
             const match = source.match(fmRegex);
-            let configToApply = null;
+            let customConfig = null;
 
             if (match) {
                 try {
-                    // STEP 2: Parsing config
                     const parsed = window.jsyaml.load(match[1]);
                     if (parsed && parsed.config) {
-                        configToApply = parsed.config;
-                        // Apply config with current theme
-                        window.mermaid.initialize({ 
-                            ...configToApply, 
-                            theme: configToApply.theme || currentTheme,
-                            startOnLoad: false 
-                        });
+                        customConfig = parsed.config;
+
+                        // Re-initialize with new config
+                        const configWithTheme = {
+                            ...customConfig,
+                            theme: customConfig.theme || window.currentTheme,
+                            startOnLoad: false
+                        };
+
+                        // Log config for debugging if using ELK
+                        if (window.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
+                            console.log('Using ELK layout with config:', configWithTheme);
+                        }
+
+                        window.mermaid.initialize(configWithTheme);
                     }
-                    // STEP 3: Get rest of the source
+                    // Remove front-matter from diagram source
                     diagramSource = source.replace(fmRegex, "");
                 } catch (err) {
-                    showError(`YAML parse error: ${err.message}`); // XSS-safe
+                    showError(`YAML parse error: ${err.message}`);
                     return;
                 }
             }
 
-            // STEP 4: Render with clean diagram source
+            // Render the diagram
             const id = `mermaid-svg-${Date.now()}`;
             window.mermaid.render(id, diagramSource)
                 .then(result => {
-                    setSafeSVG(result.svg); // Validated SVG insertion
+                    setSafeSVG(result.svg);
                     if (typeof result.bindFunctions === 'function') {
                         result.bindFunctions(output);
                     }
                 })
                 .catch(e => {
-                    showError(e.message); // XSS-safe
+                    showError(e.message);
                 });
         };
 
         window.clearOutput = () => {
-            document.getElementById('output').innerHTML = '';
+            const output = document.getElementById('output');
+            if (output) {
+                output.innerHTML = '';
+            }
         };
     </script>
 </head>
