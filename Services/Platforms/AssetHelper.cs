@@ -148,7 +148,7 @@ public static class AssetHelper
         const long maxFileSize = 10 * 1_024 * 1_024; // 10MB max
         if (fileInfo.Length > maxFileSize)
         {
-            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds maximum size ({fileInfo.Length} > {maxFileSize})";
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {maxFileSize})";
             SimpleLogger.LogError(errorMessage);
             throw new SecurityException(errorMessage);
         }
@@ -197,7 +197,7 @@ public static class AssetHelper
             // Step 9: Validate stream properties match file info (TOCTOU protection)
             if (stream.Length != fileInfo.Length)
             {
-                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}' - possible TOCTOU attack";
+                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
                 SimpleLogger.LogError(errorMessage);
                 throw new SecurityException(errorMessage);
             }
@@ -213,7 +213,7 @@ public static class AssetHelper
             // Optional: post-read consistency check
             if (ms.Length != expectedLength)
             {
-                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}' - possible TOCTOU attack";
+                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
                 SimpleLogger.LogError(errorMessage);
                 throw new SecurityException(errorMessage);
             }
@@ -226,30 +226,30 @@ public static class AssetHelper
                 segment.Count == expectedLength &&
                 segment.Array.Length == expectedLength)
             {
-                SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({segment.Count} bytes) with cross-platform security validation");
+                SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({segment.Count} bytes)");
                 return segment.Array;
             }
 
             byte[] buffer = ms.ToArray(); // fallback (copies)
-            SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes) with cross-platform security validation");
+            SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes)");
             return buffer;
         }
         catch (UnauthorizedAccessException ex)
         {
-            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}' - possible permission or symlink issue";
+            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}': possible permission or symlink issue";
             SimpleLogger.LogError(errorMessage, ex);
             throw new SecurityException(errorMessage, ex);
         }
         catch (DirectoryNotFoundException ex)
         {
-            string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}' - possible symlink manipulation";
+            string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}': possible symlink manipulation";
             SimpleLogger.LogError(errorMessage, ex);
             throw new SecurityException(errorMessage, ex);
         }
         catch (IOException ex)
         {
             // Handle platform-specific IO errors that might indicate symlink issues
-            string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}' - possible symlink or filesystem issue";
+            string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}': possible symlink or filesystem issue";
             SimpleLogger.LogError(errorMessage, ex);
             throw new SecurityException(errorMessage, ex);
         }
