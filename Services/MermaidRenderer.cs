@@ -66,7 +66,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
 
-        await InitializeWithHttpServerAsync();
+        await InitializeWithHttpServerAsync();  // NO ConfigureAwait - caller expects to continue on UI thread
     }
 
     /// <summary>
@@ -76,21 +76,23 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private async Task InitializeWithHttpServerAsync()
     {
         // Step 1: Prepare content (HTML and JS separately)
-        await PrepareContentFromDiskAsync();
+        await PrepareContentFromDiskAsync()
+            .ConfigureAwait(false);
 
         // Step 2: Start HTTP server
         StartHttpServer();
 
         // Step 3: Wait for server ready
         SimpleLogger.Log("Waiting for HTTP server to be ready...");
-        bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10));
+        bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10))
+            .ConfigureAwait(false);
         if (!serverReady)
         {
             throw new TimeoutException("HTTP server failed to start within timeout");
         }
 
         // Step 4: Navigate to server
-        await NavigateToServerAsync();
+        await NavigateToServerAsync();  // Navigation needs UI context, so no ConfigureAwait(false) here
     }
 
     /// <summary>
@@ -108,13 +110,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
         Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
         Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask);
-        _htmlContent = await indexHtmlTask;
-        _mermaidJs = await jsTask;
-        _jsYamlJs = await jsYamlTask;
-        _mermaidLayoutElkJs = await mermaidLayoutElkTask;
-        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask;
-        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask;
+        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
+            .ConfigureAwait(false);
+        _htmlContent = await indexHtmlTask.ConfigureAwait(false);
+        _mermaidJs = await jsTask.ConfigureAwait(false);
+        _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
+        _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
+        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
+        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
 
         sw.Stop();
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
@@ -174,8 +177,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 try
                 {
                     // Use WaitAsync for responsive cancellation while waiting for requests
-                    context = await _httpListener.GetContextAsync().WaitAsync(cancellationToken);
-                    await ProcessRequestAsync(context);
+                    context = await _httpListener.GetContextAsync()
+                        .WaitAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    await ProcessRequestAsync(context)
+                        .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -274,9 +281,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
             {
+                // set the response code before writing to the output stream
+                context.Response.StatusCode = 200;
                 context.Response.ContentType = contentType;
                 context.Response.ContentLength64 = responseBytes.Length;
-                await context.Response.OutputStream.WriteAsync(responseBytes);
+                await context.Response.OutputStream.WriteAsync(responseBytes)
+                    .ConfigureAwait(false);
+
                 SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
             }
         }
@@ -325,7 +336,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         // Wait for navigation
         for (int i = 0; i < 50 && !navigationCompleted; i++)
         {
-            await Task.Delay(100);
+            await Task.Delay(100);  // NO ConfigureAwait - caller needs UI context
         }
 
         if (navigationCompleted)
@@ -464,7 +475,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Cancel server operations
             if (_serverCancellation is not null)
             {
-                await _serverCancellation.CancelAsync();
+                await _serverCancellation.CancelAsync()
+                    .ConfigureAwait(false);
             }
 
             // Stop and close HTTP listener
@@ -480,7 +492,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 try
                 {
                     const int maxWaitSeconds = 5;
-                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds));
+                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
+                        .ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
