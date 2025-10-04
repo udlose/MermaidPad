@@ -145,7 +145,7 @@ public static class AssetHelper
         }
 
         // Step 6: Check file size to prevent resource exhaustion
-        const long maxFileSize = 50 * 1_024 * 1_024; // 50MB max
+        const long maxFileSize = 10 * 1_024 * 1_024; // 10MB max
         if (fileInfo.Length > maxFileSize)
         {
             string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds maximum size ({fileInfo.Length} > {maxFileSize})";
@@ -205,7 +205,7 @@ public static class AssetHelper
             // Copy using an intermediate buffer of DefaultBufferSize. This reads/writes in chunks, but the MemoryStream still
             // produces a single contiguous buffer. We pre-size the MemoryStream to avoid internal growth reallocations.
             int expectedLength = checked((int)fileInfo.Length);
-            await using var ms = new MemoryStream(capacity: expectedLength);
+            await using MemoryStream ms = new MemoryStream(capacity: expectedLength);
 
             await stream.CopyToAsync(ms, DefaultBufferSize)
                 .ConfigureAwait(false);
