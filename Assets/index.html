@@ -175,8 +175,9 @@
                 // Check if mermaid is at least available
                 if (!window.mermaid) {
                     // Retry a few times before showing error
+                    const retryLimit = 20;
                     let retries = window._mermaidRetries || 0;
-                    if (retries < 20) {
+                    if (retries < retryLimit) {
                         window._mermaidRetries = retries + 1;
                         setTimeout(() => window.renderMermaid(source), 100);
                         return;
