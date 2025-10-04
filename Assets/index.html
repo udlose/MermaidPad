@@ -26,53 +26,119 @@
         body.dark-theme #output svg text,
         body.dark-theme #output svg .messageText { fill: #e0e0e0 !important; }
     </style>
-    <script src="mermaid.min.js" defer></script>
-    <script src="js-yaml.min.js" defer></script>
-    <script>
-        const getSystemTheme = () => {
+    
+    <!-- Load js-yaml first (regular script) -->
+    <script src="js-yaml.min.js"></script>
+    
+    <!-- Load Mermaid (UMD/IIFE format) -->
+    <script src="mermaid.min.js"></script>
+    
+    <!-- Load and register ELK layout after Mermaid is loaded -->
+    <script type="module">
+        // Theme helper functions
+        window.getSystemTheme = () => {
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
                 return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
             }
             return 'default';
         };
-
-        const applyTheme = theme => {
+        
+        window.applyTheme = theme => {
             document.body.classList.toggle('dark-theme', theme === 'dark');
             document.body.classList.toggle('light-theme', theme === 'default');
         };
-
-        let currentTheme = getSystemTheme();
-
-        // Wait for both DOMContentLoaded and Mermaid to be available
-        // ReSharper disable PossiblyUnassignedProperty
-        function initializeMermaidIfReady() {
-            if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                if (window.mermaid) {
-                    applyTheme(currentTheme);
-                    window.mermaid.initialize({ startOnLoad: false, theme: currentTheme });
-                }
+        
+        // Wait for mermaid to be available globally, then load ELK
+        function initializeMermaidWithElk() {
+            if (typeof window.mermaid !== 'undefined') {
+                // Import the ELK layout module
+                import('./mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs')
+                    .then(module => {
+                        const elkLayouts = module.default;
+                        // Register ELK layouts with Mermaid
+                        window.mermaid.registerLayoutLoaders(elkLayouts);
+                        console.log('ELK layout registered successfully');
+                        
+                        // Initialize mermaid after ELK is registered
+                        const currentTheme = window.getSystemTheme();
+                        window.mermaid.initialize({ 
+                            startOnLoad: false, 
+                            theme: currentTheme
+                            // Note: defaultRenderer can be set per-diagram or via config frontmatter
+                        });
+                        
+                        // Set flag that initialization is complete
+                        window.mermaidInitialized = true;
+                        
+                        // Trigger any pending renders
+                        if (window.pendingMermaidRender) {
+                            window.renderMermaid(window.pendingMermaidRender);
+                            window.pendingMermaidRender = null;
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to load ELK layout:', err);
+                        // Fall back to standard mermaid initialization without ELK
+                        const currentTheme = window.getSystemTheme();
+                        window.mermaid.initialize({ 
+                            startOnLoad: false, 
+                            theme: currentTheme
+                        });
+                        window.mermaidInitialized = true;
+                    });
+            } else {
+                // Retry if mermaid isn't loaded yet
+                setTimeout(initializeMermaidWithElk, 50);
             }
         }
         
-        // ReSharper enable PossiblyUnassignedProperty
+        // Start the initialization process
+        initializeMermaidWithElk();
+    </script>
+    <script>
+        let currentTheme = window.getSystemTheme ? window.getSystemTheme() : 'default';
+        
+        // ReSharper disable PossiblyUnassignedProperty
         document.addEventListener('DOMContentLoaded', () => {
-            applyTheme(currentTheme);
-            initializeMermaidIfReady();
-
+            if (window.applyTheme) {
+                window.applyTheme(currentTheme);
+            }
+            
             // Listen for theme changes
             if (window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
                     currentTheme = e.matches ? 'dark' : 'default';
-                    applyTheme(currentTheme);
+                    if (window.applyTheme) {
+                        window.applyTheme(currentTheme);
+                    }
+                    // Re-render with new theme
                     if (window.lastMermaidSource) {
+                        // Re-initialize mermaid with new theme before rendering
+                        if (window.mermaid && window.mermaidInitialized) {
+                            // Extract config from the source if present
+                            const fmRegex = /^---\s*([\s\S]*?)---\s*/;
+                            const match = window.lastMermaidSource.match(fmRegex);
+                            let config = { startOnLoad: false, theme: currentTheme };
+                            
+                            if (match) {
+                                try {
+                                    const parsed = window.jsyaml.load(match[1]);
+                                    if (parsed && parsed.config) {
+                                        config = { ...config, ...parsed.config, theme: currentTheme };
+                                    }
+                                } catch (err) {
+                                    // Keep default config if parsing fails
+                                }
+                            }
+                            
+                            window.mermaid.initialize(config);
+                        }
                         window.renderMermaid(window.lastMermaidSource);
                     }
                 });
             }
         });
-
-        // Also try to initialize when Mermaid loads
-        window.addEventListener('load', initializeMermaidIfReady);
+        // ReSharper enable PossiblyUnassignedProperty
 
         window.renderMermaid = source => {
             window.lastMermaidSource = source; // Save for re-rendering on theme change
@@ -101,15 +167,25 @@
                 }
             };
 
-            if (!window.mermaid) {
-                // Retry a few times before showing error
-                let retries = window._mermaidRetries || 0;
-                if (retries < 10) {
-                    window._mermaidRetries = retries + 1;
-                    setTimeout(() => window.renderMermaid(source), 100);
+            // Check if mermaid is initialized with ELK support
+            if (!window.mermaidInitialized) {
+                // Store the source to render after initialization
+                window.pendingMermaidRender = source;
+                
+                // Check if mermaid is at least available
+                if (!window.mermaid) {
+                    // Retry a few times before showing error
+                    let retries = window._mermaidRetries || 0;
+                    if (retries < 20) {
+                        window._mermaidRetries = retries + 1;
+                        setTimeout(() => window.renderMermaid(source), 100);
+                        return;
+                    }
+                    showError('Mermaid library is not loaded.'); // XSS-safe
                     return;
                 }
-                showError('Mermaid library is not loaded.'); // XSS-safe
+                // If mermaid exists but not initialized, wait a bit more
+                setTimeout(() => window.renderMermaid(source), 100);
                 return;
             }
             window._mermaidRetries = 0;
@@ -118,15 +194,22 @@
             const fmRegex = /^---\s*([\s\S]*?)---\s*/;
             let diagramSource = source;
             const match = source.match(fmRegex);
+            let configToApply = null;
 
             if (match) {
                 try {
                     // STEP 2: Parsing config
                     const parsed = window.jsyaml.load(match[1]);
                     if (parsed && parsed.config) {
-                        window.mermaid.initialize(parsed.config); // apply config
+                        configToApply = parsed.config;
+                        // Apply config with current theme
+                        window.mermaid.initialize({ 
+                            ...configToApply, 
+                            theme: configToApply.theme || currentTheme,
+                            startOnLoad: false 
+                        });
                     }
-                    // STEP 3: Get rest of the source.
+                    // STEP 3: Get rest of the source
                     diagramSource = source.replace(fmRegex, "");
                 } catch (err) {
                     showError(`YAML parse error: ${err.message}`); // XSS-safe

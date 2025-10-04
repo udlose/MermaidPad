@@ -21,9 +21,21 @@
 		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\js-yaml.min.js" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="JsYamlHash" />
 		</GetFileHash>
+		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs" Algorithm="SHA256">
+			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutHash" />
+		</GetFileHash>
+		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs" Algorithm="SHA256">
+			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutChunkSP2CHFBEHash" />
+		</GetFileHash>
+		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs" Algorithm="SHA256">
+			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutChunkRenderAVRWSH4DHash" />
+		</GetFileHash>
 		<Message Importance="High" Text="Index.html Hash: $(IndexHtmlHash)" />
 		<Message Importance="High" Text="Mermaid.min.js Hash: $(MermaidJsHash)" />
 		<Message Importance="High" Text="Js-YAML.min.js Hash: $(JsYamlHash)" />
+		<Message Importance="High" Text="Mermaid-ELK-Layout Hash: $(MermaidElkLayoutHash)" />
+		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-SP2CHFBE Hash: $(MermaidElkLayoutChunkSP2CHFBEHash)" />
+		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-Render-AVRWSH4D Hash: $(MermaidElkLayoutChunkRenderAVRWSH4DHash)" />
 
 		<!-- Use a custom task to write the file properly -->
 		<ItemGroup>
@@ -48,7 +60,10 @@
 			<AssetHashLines Include="    {" />
 			<AssetHashLines Include="        [&quot;index.html&quot;] = &quot;$(IndexHtmlHash)&quot;," />
 			<AssetHashLines Include="        [&quot;mermaid.min.js&quot;] = &quot;$(MermaidJsHash)&quot;," />
-			<AssetHashLines Include="        [&quot;js-yaml.min.js&quot;] = &quot;$(JsYamlHash)&quot;" />
+			<AssetHashLines Include="        [&quot;js-yaml.min.js&quot;] = &quot;$(JsYamlHash)&quot;," />
+			<AssetHashLines Include="        [&quot;mermaid-layout-elk.esm.min.mjs&quot;] = &quot;$(MermaidElkLayoutHash)&quot;," />
+			<AssetHashLines Include="        [&quot;chunk-SP2CHFBE.mjs&quot;] = &quot;$(MermaidElkLayoutChunkSP2CHFBEHash)&quot;," />
+			<AssetHashLines Include="        [&quot;render-AVRWSH4D.mjs&quot;] = &quot;$(MermaidElkLayoutChunkRenderAVRWSH4DHash)&quot;," />
 			<AssetHashLines Include="    }.ToFrozenDictionary()%3B" />
 			<AssetHashLines Include=" " />
 			<AssetHashLines Include="    /// &lt;summary&gt;" />
@@ -63,10 +78,7 @@
 		</ItemGroup>
 
 		<!-- Write the generated file -->
-		<WriteLinesToFile Encoding="utf-8"
-		File="$(AssetHashesFile)"
-		Lines="@(AssetHashLines)"
-		Overwrite="true" />
+		<WriteLinesToFile Encoding="utf-8" File="$(AssetHashesFile)" Lines="@(AssetHashLines)" Overwrite="true" />
 
 		<Message Importance="high" Text="Generated asset hashes file: $(AssetHashesFile)" />
 	</Target>

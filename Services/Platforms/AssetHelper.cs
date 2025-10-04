@@ -20,6 +20,7 @@
 
 using MermaidPad.Exceptions.Assets;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Security;
 
@@ -38,6 +39,7 @@ namespace MermaidPad.Services.Platforms;
 /// is intended for internal use within the application to manage assets securely and efficiently.
 /// Designed for single-file publishing scenarios where Content files are unreliable.
 /// IL3000-safe: Does not use Assembly.Location for single-file compatibility.</remarks>
+[SuppressMessage("ReSharper", "InconsistentNaming")]
 public static class AssetHelper
 {
     /// <summary>
@@ -55,6 +57,12 @@ public static class AssetHelper
     /// </summary>
     internal const string JsYamlFileName = "js-yaml.min.js";
 
+    internal const string MermaidLayoutElkPath = @"mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs";
+
+    internal const string MermaidLayoutElkChunkSP2CHFBEPath = @"mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs";
+
+    internal const string MermaidLayoutElkRenderAVRWSH4DPath = @"mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs";
+
     /// <summary>
     /// The prefix used for embedded resource names within the assembly.
     /// </summary>
@@ -69,13 +77,24 @@ public static class AssetHelper
     /// Represents a collection of asset file names that are allowed for processing.
     /// </summary>
     /// <remarks>The collection is case-insensitive, as determined by <see
-    /// cref="StringComparer.OrdinalIgnoreCase"/>. It includes predefined file names such as <c>IndexHtmlFileName</c>,
-    /// <c>MermaidMinJsFileName</c>, and <c>JsYamlFileName</c>.</remarks>
+    /// cref="StringComparer.OrdinalIgnoreCase"/>. It includes predefined file names such as:
+    /// <list type="bullet">
+    ///     <item><c>IndexHtmlFileName</c></item>
+    ///     <item><c>MermaidMinJsFileName</c></item>
+    ///     <item><c>JsYamlFileName</c></item>
+    ///     <item><c>MermaidLayoutElkPath</c></item>
+    ///     <item><c>MermaidLayoutElkChunkSP2CHFBEPath</c></item>
+    ///     <item><c>MermaidLayoutElkRenderAVRWSH4DPath</c></item>
+    /// </list>
+    /// </remarks>
     private static readonly HashSet<string> _allowedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         IndexHtmlFileName,
         MermaidMinJsFileName,
-        JsYamlFileName
+        JsYamlFileName,
+        MermaidLayoutElkPath,
+        MermaidLayoutElkChunkSP2CHFBEPath,
+        MermaidLayoutElkRenderAVRWSH4DPath
     };
 
     private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
@@ -375,7 +394,8 @@ public static class AssetHelper
         // Extract all required assets
         foreach (string asset in _allowedAssets)
         {
-            ExtractResourceToDisk($"{EmbeddedResourcePrefix}{asset}", Path.Combine(targetDirectory, asset));
+            string normalizedAssetName = asset.Replace('\\', '.');
+            ExtractResourceToDisk($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset));
         }
 
         // Write version marker for future cache validation
@@ -447,7 +467,7 @@ public static class AssetHelper
                 }
 
                 // Additional content validation for extra security
-                if (assetName.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+                if (assetName.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || assetName.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!AssetIntegrityService.ValidateJavaScriptContent(extractedContent))
                     {
@@ -462,9 +482,21 @@ public static class AssetHelper
                     }
                 }
 
+                // Ensure target directory exists
+                string? targetDirectory = Path.GetDirectoryName(targetPath);
+                if (!Directory.Exists(targetDirectory))
+                {
+                    Directory.CreateDirectory(targetDirectory!);
+                }
+
                 // Atomic move to final location
                 File.Move(tempFile, targetPath, overwrite: true);
                 SimpleLogger.Log($"Extracted and verified: {assetName} ({stream.Length:N0} bytes)");
+            }
+            catch (Exception ex) when (ex is not SecurityException and not AssetIntegrityException and not MissingAssetException)
+            {
+                SimpleLogger.LogError($"Failed to extract resource '{resourceName}' to '{targetPath}': {ex.Message}");
+                throw;
             }
             finally
             {
