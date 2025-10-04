@@ -20,6 +20,7 @@
 
 using JetBrains.Annotations;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -556,51 +557,52 @@ public static class SimpleLogger
                 CreateNoWindow = true
             };
 
-            StringBuilder stdout = new StringBuilder();
-            StringBuilder stderr = new StringBuilder();
-
             if (!p.Start())
             {
                 return null;
             }
 
-            p.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
-            p.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+            // Avoid lambda captures and detach handlers on exit.
+            ProcOutputCollector collector = new ProcOutputCollector();
+            p.OutputDataReceived += collector.OnOutput;
+            p.ErrorDataReceived += collector.OnError;
 
-            p.BeginOutputReadLine();
-            p.BeginErrorReadLine();
-
-            bool exited = p.WaitForExit(timeoutMs);
-            if (!exited)
+            try
             {
-                try { p.Kill(entireProcessTree: true); } catch { /* ignore */ }
-            }
+                p.BeginOutputReadLine();
+                p.BeginErrorReadLine();
 
-            // Ensure process exit and give async reads time to finish
-            try { p.WaitForExit(); } catch { /* ignore */ }
-            try { p.CancelOutputRead(); } catch { /* ignore */ }
-            try { p.CancelErrorRead(); } catch { /* ignore */ }
+                bool exited = p.WaitForExit(timeoutMs);
+                if (!exited)
+                {
+                    try { p.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                }
 
-            if (!exited)
-            {
+                // Ensure process exit and give async reads time to finish
+                try { p.WaitForExit(); } catch { /* ignore */ }
+                try { p.CancelOutputRead(); } catch { /* ignore */ }
+                try { p.CancelErrorRead(); } catch { /* ignore */ }
+
+                if (!exited)
+                {
+                    return null;
+                }
+
+                string outText = collector.Stdout.ToString().Trim();
+                string errText = collector.Stderr.ToString().Trim();
+
+                if (p.ExitCode != 0) return null;
+                if (!string.IsNullOrWhiteSpace(outText)) return outText;
+                if (!string.IsNullOrWhiteSpace(errText)) return errText; // some tools print version to stderr
+
                 return null;
             }
-
-            string outText = stdout.ToString().Trim();
-            string errText = stderr.ToString().Trim();
-
-            if (p.ExitCode != 0)
+            finally
             {
-                return null;
+                // Detach handlers to satisfy analyzers and avoid retaining state longer than necessary.
+                p.OutputDataReceived -= collector.OnOutput;
+                p.ErrorDataReceived -= collector.OnError;
             }
-
-            if (!string.IsNullOrWhiteSpace(outText))
-            {
-                return outText;
-            }
-
-            return !string.IsNullOrWhiteSpace(errText) ? errText : // some tools print version to stderr
-                null;
         }
         catch
         {
@@ -820,6 +822,7 @@ public static class SimpleLogger
     /// file is a symbolic link, the write operation is aborted.</remarks>
     /// <param name="content">The content to write to the log file. If <paramref name="content"/> is <see langword="null"/> or empty, the log
     /// file is cleared.</param>
+    [SuppressMessage("Security", "SEC0016:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void WriteToLogFile(string content)
     {
         // Validate before writing
@@ -859,10 +862,14 @@ public static class SimpleLogger
     /// <remarks>This method checks for the presence of a lock file at the predefined path and deletes it if
     /// found. Any exceptions encountered during the operation are logged for debugging purposes but do not interrupt
     /// the program's execution.</remarks>
+    [SuppressMessage("Security", "SEC0016:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void CleanupStaleLockFile()
     {
         try
         {
+            // Validate the lock path before deleting
+            ValidatePathWithinBaseDir(_lockPath, _baseDir, "Lock path");
+
             if (File.Exists(_lockPath))
             {
                 File.Delete(_lockPath);
@@ -873,6 +880,34 @@ public static class SimpleLogger
         {
             Debug.WriteLine($"Failed to cleanup stale lock file: {ex.Message}");
             // Not critical - continue with normal operation
+        }
+    }
+
+    /// <summary>
+    /// Collects and stores the standard output and error streams of a process to avoid lambda captures.
+    /// </summary>
+    /// <remarks>This class provides mechanisms to capture and store the output and error data received from a
+    /// process in real-time. The collected data is stored in separate <see cref="StringBuilder"/> instances for
+    /// standard output and standard error.</remarks>
+    private sealed class ProcOutputCollector
+    {
+        public readonly StringBuilder Stdout = new StringBuilder();
+        public readonly StringBuilder Stderr = new StringBuilder();
+
+        public void OnOutput(object? sender, DataReceivedEventArgs e)
+        {
+            if (e.Data is not null)
+            {
+                Stdout.AppendLine(e.Data);
+            }
+        }
+
+        public void OnError(object? sender, DataReceivedEventArgs e)
+        {
+            if (e.Data is not null)
+            {
+                Stderr.AppendLine(e.Data);
+            }
         }
     }
 }
