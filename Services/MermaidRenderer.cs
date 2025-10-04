@@ -36,12 +36,19 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFileName}";
     private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFileName}";
     private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFileName}";
+    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace('\\', '/');
+    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace('\\', '/');
+    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace('\\', '/');
+
     private WebView? _webView;
     private int _renderAttemptCount;
     private HttpListener? _httpListener;
     private byte[]? _htmlContent;
     private byte[]? _mermaidJs;
     private byte[]? _jsYamlJs;
+    private byte[]? _mermaidLayoutElkJs;
+    private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
+    private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
     private int _serverPort;
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
@@ -96,15 +103,24 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFileName);
         Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFileName);
         Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFileName);
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask);
+        Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
+        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
+        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
+        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask);
         _htmlContent = await indexHtmlTask;
         _mermaidJs = await jsTask;
         _jsYamlJs = await jsYamlTask;
+        _mermaidLayoutElkJs = await mermaidLayoutElkTask;
+        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask;
+        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask;
 
         sw.Stop();
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
         SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
 
         SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
@@ -212,37 +228,46 @@ public sealed class MermaidRenderer : IAsyncDisposable
             string? contentType = null;
 
             // Separate file handling is needed to avoid JavaScript injection issues
-            switch (requestPath)
+            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
             {
-                case MermaidRequestPath when _mermaidJs is not null:
-                    {
                         responseBytes = _mermaidJs;
                         contentType = "application/javascript; charset=utf-8";
-                        break;
                     }
-                case MermaidRequestPath:
+            else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
                     {
                         context.Response.StatusCode = 404;
-                        break;
                     }
-                case "/" or IndexRequestPath:
+            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
                     {
                         responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
                         contentType = "text/html; charset=utf-8";
-                        break;
                     }
-                case JsYamlRequestPath when _jsYamlJs is not null:
+            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
                     {
                         responseBytes = _jsYamlJs;
                         contentType = "application/javascript; charset=utf-8";
-                        break;
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
+                     _mermaidLayoutElkChunkSP2CHFBEJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
+                     _mermaidLayoutElkRenderAVRWSH4DJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
+                contentType = "application/javascript; charset=utf-8";
                     }
-                default:
+            else
                     {
                         context.Response.StatusCode = 404;
                         SimpleLogger.Log($"404 for: {requestPath}");
-                        break;
-                    }
             }
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
