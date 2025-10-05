@@ -55,63 +55,63 @@
 	<ItemGroup>
 		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
 		<!--        This line important \/-->
-		<AvaloniaXaml Remove="**\*.axaml" />
+		<AvaloniaXaml Remove="**/*.axaml" />
 		<!--        This line important /\-->
 	</ItemGroup>
 	<ItemGroup>
-		<AvaloniaResource Include="Assets\AppIcon.ico" />
-		<AdditionalFiles Include="**\*.xaml" />
-		<AdditionalFiles Include="**\*.axaml" />
+		<AvaloniaResource Include="Assets/AppIcon.ico" />
+		<AdditionalFiles Include="**/*.xaml" />
+		<AdditionalFiles Include="**/*.axaml" />
 	</ItemGroup>
 	<ItemGroup>
-		<EmbeddedResource Include="Assets\index.html">
+		<EmbeddedResource Include="Assets/index.html">
 			<LogicalName>MermaidPad.Assets.index.html</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Assets\mermaid.min.js">
+		<EmbeddedResource Include="Assets/mermaid.min.js">
 			<LogicalName>MermaidPad.Assets.mermaid.min.js</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Assets\js-yaml.min.js">
+		<EmbeddedResource Include="Assets/js-yaml.min.js">
 			<LogicalName>MermaidPad.Assets.js-yaml.min.js</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Assets\mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs">
+		<EmbeddedResource Include="Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs">
 			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.mermaid-layout-elk.esm.min.mjs</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs">
+		<EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/chunk-SP2CHFBE.mjs">
 			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.chunk-SP2CHFBE.mjs</LogicalName>
 		</EmbeddedResource>
-		<EmbeddedResource Include="Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs">
+		<EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/render-AVRWSH4D.mjs">
 			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.render-AVRWSH4D.mjs</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
 
 	<ItemGroup>
-		<Compile Update="**\*.xaml.cs">
+		<Compile Update="**/*.xaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
 		</Compile>
-		<Compile Update="**\*.axaml.cs">
+		<Compile Update="**/*.axaml.cs">
 			<DependentUpon>%(Filename)</DependentUpon>
 		</Compile>
-		<AvaloniaResource Include="**\*.xaml">
+		<AvaloniaResource Include="**/*.xaml">
 			<SubType>Designer</SubType>
 		</AvaloniaResource>
-		<AvaloniaResource Include="**\*.axaml">
+		<AvaloniaResource Include="**/*.axaml">
 			<SubType>Designer</SubType>
 		</AvaloniaResource>
 	</ItemGroup>
 
 	<ItemGroup>
-		<AvaloniaResource Remove="**\*.axaml" />
+		<AvaloniaResource Remove="**/*.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<AvaloniaXaml Include="**\*.axaml" />
+		<AvaloniaXaml Include="**/*.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include=".github\workflows\build-and-release.yml" />
-		<None Include=".github\workflows\macos-universal-dmg.yml" />
-		<None Include=".github\workflows\macos-bundle.yml" />
-		<None Include=".github\workflows\README.md" />
+		<None Include=".github/workflows/build-and-release.yml" />
+		<None Include=".github/workflows/macos-universal-dmg.yml" />
+		<None Include=".github/workflows/macos-bundle.yml" />
+		<None Include=".github/workflows/README.md" />
 	</ItemGroup>
 
 	<!-- macOS app bundle support -->
@@ -125,6 +125,6 @@
 	<ItemGroup>
 		<!-- No need to explicitly include generated asset hash file in compilation -->
 		<!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
-		<!--<Compile Include="Services\Platforms\AssetHashes.Generated.cs" Condition="Exists('Services\Platforms\AssetHashes.Generated.cs')" />-->
+		<!--<Compile Include="Services/Platforms/AssetHashes.Generated.cs" Condition="Exists('Services/Platforms/AssetHashes.Generated.cs')" />-->
 	</ItemGroup>
 </Project>
