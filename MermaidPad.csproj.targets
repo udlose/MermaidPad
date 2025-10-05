@@ -8,26 +8,26 @@
 	<!-- Generate asset hashes at build time for integrity verification -->
 	<Target Name="GenerateAssetHashes" BeforeTargets="BeforeBuild">
 		<PropertyGroup>
-			<AssetHashesFile>$(MSBuildProjectDirectory)\Services\Platforms\AssetHashes.Generated.cs</AssetHashesFile>
+			<AssetHashesFile>$(MSBuildProjectDirectory)/Generated/AssetHashes.cs</AssetHashesFile>
 		</PropertyGroup>
 
 		<!-- Calculate SHA256 for each asset file -->
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\index.html" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/index.html" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="IndexHtmlHash" />
 		</GetFileHash>
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid.min.js" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid.min.js" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidJsHash" />
 		</GetFileHash>
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\js-yaml.min.js" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/js-yaml.min.js" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="JsYamlHash" />
 		</GetFileHash>
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutHash" />
 		</GetFileHash>
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/chunk-SP2CHFBE.mjs" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutChunkSP2CHFBEHash" />
 		</GetFileHash>
-		<GetFileHash Files="$(MSBuildProjectDirectory)\Assets\mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs" Algorithm="SHA256">
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/render-AVRWSH4D.mjs" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutChunkRenderAVRWSH4DHash" />
 		</GetFileHash>
 		<Message Importance="High" Text="Index.html Hash: $(IndexHtmlHash)" />
@@ -45,7 +45,7 @@
 			<AssetHashLines Include=" " />
 			<AssetHashLines Include="using System.Collections.Frozen%3B" />
 			<AssetHashLines Include=" " />
-			<AssetHashLines Include="namespace MermaidPad.Services.Platforms%3B" />
+			<AssetHashLines Include="namespace MermaidPad.Generated%3B" />
 			<AssetHashLines Include=" " />
 			<AssetHashLines Include="/// &lt;summary&gt;" />
 			<AssetHashLines Include="/// Contains SHA-256 hashes of embedded assets for integrity verification." />
@@ -85,7 +85,7 @@
 
 	<!-- Clean up generated files -->
 	<Target Name="CleanAssetHashes" BeforeTargets="Clean">
-		<Delete Files="$(MSBuildProjectDirectory)\Services\Platforms\AssetHashes.Generated.cs" TreatErrorsAsWarnings="true" />
+		<Delete Files="$(MSBuildProjectDirectory)/Generated/AssetHashes.cs" TreatErrorsAsWarnings="true" />
 	</Target>
 
 </Project>

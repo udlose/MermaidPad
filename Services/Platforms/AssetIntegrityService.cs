@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Generated;
 using System.Buffers;
 using System.Diagnostics;
 using System.Security;
