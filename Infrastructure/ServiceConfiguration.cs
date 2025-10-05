@@ -54,10 +54,8 @@ public static class ServiceConfiguration
             return new MermaidUpdateService(settings, assetsDirectory);
         });
 
-        // Renderer (WebView assigned later)
         services.AddSingleton<MermaidRenderer>();
-
-        // Debounce dispatcher
+        services.AddSingleton<ExportService>();
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
 
         // ViewModel: transient (one per window)
