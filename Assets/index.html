@@ -218,6 +218,8 @@
     // Main initialization function
     async function initializeApplication() {
         try {
+            window.updateLoadingStatus('Loading rendering engine...');
+
             // Wait for both scripts to load
             console.log('Waiting for scripts to load...');
             await Promise.all([
@@ -226,9 +228,6 @@
             ]);
 
             console.log('Scripts loaded, initializing Mermaid...');
-
-            // Update loading status
-            window.updateLoadingStatus('Loading diagram engine...');
 
             // Try to load ELK layout
             await loadElkLayout();
