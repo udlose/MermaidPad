@@ -13,8 +13,54 @@
             }
         body.dark-theme { background: #1e1e1e; color: #ddd; }
         body.light-theme { background: #fff; color: #222; }
-        #output { padding: 8px; overflow: auto; height: 100vh; box-sizing: border-box; }
+        #output { padding: 8px; overflow: auto; height: 100vh; box-sizing: border-box; display: none; }
+        #output.visible { display: block; }
         .error { color: #ff6f6f; white-space: pre; font-family: Consolas,monospace; }
+
+        /* Loading indicator styles */
+        #loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            gap: 1rem;
+            transition: opacity 0.3s ease-out;
+        }
+
+        #loading-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 2.5rem;
+            height: 2.5rem;
+            border: 0.1875rem solid rgba(0, 0, 0, 0.1);
+            border-top-color: #007acc;
+            border-radius: 50%;
+            animation: spinner-rotate 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        body.dark-theme .spinner {
+            border-color: rgba(255, 255, 255, 0.1);
+            border-top-color: #4db8ff;
+        }
+
+        @keyframes spinner-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loading-status {
+            font-size: 1rem;
+            color: #666;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body.dark-theme #loading-status {
+            color: #aaa;
+        }
 
         /* Mermaid dark theme overrides */
         body.dark-theme #output svg .messageLine,
@@ -142,6 +188,9 @@
 
                 console.log('Scripts loaded, initializing Mermaid...');
 
+                // Update loading status
+                window.updateLoadingStatus('Loading diagram engine...');
+
                 // Try to load ELK layout
                 await loadElkLayout();
 
@@ -155,6 +204,9 @@
                 window.mermaidInitialized = true;
                 console.log('Mermaid initialized successfully');
 
+                // Hide loading indicator
+                window.hideLoadingIndicator();
+
                 // Process any pending render
                 if (window.pendingMermaidRender) {
                     console.log('Processing pending render...');
@@ -166,9 +218,12 @@
                 // Set flag to prevent infinite retries
                 window.mermaidInitializationFailed = true;
 
-                // Show error in output if available
+                // Hide loading indicator and show error
+                window.hideLoadingIndicator();
+
                 const output = document.getElementById('output');
                 if (output) {
+                    output.classList.add('visible');
                     output.innerHTML = `<div class="error">Failed to initialize: ${error.message}</div>`;
                 }
             }
@@ -200,8 +255,36 @@
     </script>
     <!-- Render functions in separate script -->
     <script>
+        // Loading indicator management
+        window.updateLoadingStatus = (message) => {
+            const statusElement = document.getElementById('loading-status');
+            if (statusElement) {
+                statusElement.textContent = message;
+            }
+        };
+
+        window.hideLoadingIndicator = () => {
+            const loadingContainer = document.getElementById('loading-container');
+            const output = document.getElementById('output');
+
+            if (loadingContainer) {
+                loadingContainer.classList.add('hidden');
+                // Remove from DOM after transition completes
+                setTimeout(() => {
+                    loadingContainer.style.display = 'none';
+                }, 300);
+            }
+
+            if (output) {
+                output.classList.add('visible');
+            }
+        };
+
         // Render function with proper error handling
         window.renderMermaid = source => {
+            // Hide loading indicator on first render
+            window.hideLoadingIndicator();
+
             window.lastMermaidSource = source; // Save for re-rendering
             const output = document.getElementById('output');
 
@@ -315,6 +398,10 @@
     </script>
 </head>
 <body>
-    <div id="output">Click 'Render' or 'Enable Live Preview'</div>
+    <div id="loading-container">
+        <div class="spinner"></div>
+        <div id="loading-status">Initializing...</div>
+    </div>
+    <div id="output"></div>
 </body>
 </html>
