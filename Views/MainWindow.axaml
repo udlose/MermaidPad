@@ -37,6 +37,10 @@
         Content="Clear" />
       <Button
         Width="80"
+        Command="{Binding ExportCommand}"
+        Content="Export" />
+      <Button
+        Width="80"
         Click="OnCloseClick"
         Content="Close" />
       <CheckBox

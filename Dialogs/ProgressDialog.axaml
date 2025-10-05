@@ -1,0 +1,32 @@
+<Window
+  x:Class="MermaidPad.Dialogs.ProgressDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Title="Exporting..."
+  Width="300"
+  Height="120"
+  CanResize="False"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner">
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <TextBlock
+      x:Name="MessageText"
+      Grid.Row="0"
+      Margin="0,0,0,10"
+      HorizontalAlignment="Center"
+      FontSize="14"
+      Text="Processing..." />
+
+    <ProgressBar
+      Grid.Row="1"
+      Height="20"
+      VerticalAlignment="Center"
+      IsIndeterminate="True" />
+  </Grid>
+</Window>
