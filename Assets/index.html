@@ -39,9 +39,9 @@
       display: none;
     }
 
-      #output.visible {
-        display: block;
-      }
+    #output.visible {
+      display: block;
+    }
 
     .error {
       color: #ff6f6f;
@@ -51,19 +51,21 @@
 
     /* Loading indicator styles */
     #loading-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
       gap: 1rem;
-      transition: opacity 0.3s ease-out;
     }
 
-      #loading-container.hidden {
-        opacity: 0;
-        pointer-events: none;
-      }
+    #loading-container.hidden {
+      display: none;
+    }
 
     .spinner {
       width: 2.5rem;
@@ -90,9 +92,15 @@
     }
 
     #loading-status {
+      position: absolute;
+      top: calc(50% + 3rem);
+      left: 50%;
+      transform: translate(-50%, 0);
       font-size: 1rem;
       color: #666;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      white-space: nowrap;
+      will-change: transform;
     }
 
     body.dark-theme #loading-status {
@@ -146,10 +154,13 @@
         }
     })();
   </script>
+
   <!-- Load js-yaml first, no defer to avoid races -->
   <script src="js-yaml.min.js" id="jsyaml-script"></script>
+
   <!-- Load Mermaid, no defer to avoid races -->
   <script src="mermaid.min.js" id="mermaid-script"></script>
+
   <!-- Main initialization with proper event-driven loading -->
   <script type="module">
     // Global flags
@@ -218,6 +229,7 @@
     // Main initialization function
     async function initializeApplication() {
         try {
+            // Update loading status
             window.updateLoadingStatus('Loading rendering engine...');
 
             // Wait for both scripts to load
@@ -303,11 +315,7 @@
         const output = document.getElementById('output');
 
         if (loadingContainer) {
-            loadingContainer.classList.add('hidden');
-            // Remove from DOM after transition completes
-            setTimeout(() => {
-                loadingContainer.style.display = 'none';
-            }, 300);
+            loadingContainer.style.display = 'none';
         }
 
         if (output) {
@@ -329,6 +337,7 @@
         };
 
         const showError = (message) => {
+            // Hide loading indicator and show error
             window.hideLoadingIndicator();
             output.innerHTML = '';
             output.appendChild(createErrorElement(message));
@@ -378,12 +387,12 @@
         const fmRegex = /^---\s*([\s\S]*?)---\s*/;
         let diagramSource = source;
         const match = source.match(fmRegex);
+        let customConfig = null;
 
         if (match) {
             try {
                 const parsed = window.jsyaml.load(match[1]);
                 if (parsed && parsed.config) {
-                    let customConfig = null;
                     customConfig = parsed.config;
 
                     // Re-initialize with new config
@@ -412,12 +421,13 @@
         const id = `mermaid-svg-${Date.now()}`;
         window.mermaid.render(id, diagramSource)
             .then(result => {
+                // Hide loading indicator before inserting diagram
+                window.hideLoadingIndicator();
+
                 setSafeSVG(result.svg);
                 if (typeof result.bindFunctions === 'function') {
                     result.bindFunctions(output);
                 }
-                // Hide loading indicator only after diagram is successfully rendered
-                window.hideLoadingIndicator();
             })
             .catch(e => {
                 showError(e.message);
@@ -433,9 +443,9 @@
   </script>
 </head>
 <body>
-  <div id="loading-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 1rem;">
-    <div class="spinner" style="width: 2.5rem; height: 2.5rem; border: 0.1875rem solid rgba(0, 0, 0, 0.1); border-top-color: #007acc; border-radius: 50%;"></div>
-    <div id="loading-status" style="font-size: 1rem; color: #666; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Initializing...</div>
+  <div id="loading-container">
+    <div class="spinner"></div>
+    <div id="loading-status">Initializing...</div>
   </div>
   <div id="output"></div>
 </body>
