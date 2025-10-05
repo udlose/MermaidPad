@@ -54,9 +54,9 @@
 
 	<ItemGroup>
 		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
-		<!--        This line important \/-->
+		<!--        This line important -->
 		<AvaloniaXaml Remove="**/*.axaml" />
-		<!--        This line important /\-->
+		<!--        This line important -->
 	</ItemGroup>
 	<ItemGroup>
 		<AvaloniaResource Include="Assets/AppIcon.ico" />
@@ -125,6 +125,6 @@
 	<ItemGroup>
 		<!-- No need to explicitly include generated asset hash file in compilation -->
 		<!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
-		<!--<Compile Include="Services/Platforms/AssetHashes.Generated.cs" Condition="Exists('Services/Platforms/AssetHashes.Generated.cs')" />-->
+		<!--<Compile Include="Generated/AssetHashes.cs" Condition="Exists('Generated/AssetHashes.cs')" />-->
 	</ItemGroup>
 </Project>

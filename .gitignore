@@ -417,5 +417,6 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# Generated asset hash files
-**/AssetHashes.Generated.cs
+# Generated files (except for NamespacePlaceholder.cs)
+Generated/*
+!Generated/NamespacePlaceholder.cs
