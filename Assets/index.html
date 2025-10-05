@@ -31,6 +31,11 @@
       color: #222;
     }
 
+    /* CSS custom property for transition duration */
+    :root {
+      --loading-transition-duration: 300ms;
+    }
+
     #output {
       padding: 8px;
       overflow: auto;
@@ -61,10 +66,13 @@
       align-items: center;
       justify-content: center;
       gap: 1rem;
+      transition: opacity var(--loading-transition-duration) ease-out, visibility 0s var(--loading-transition-duration);
     }
 
     #loading-container.hidden {
-      display: none;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
 
     .spinner {
@@ -79,6 +87,10 @@
     body.dark-theme .spinner {
       border-color: rgba(255, 255, 255, 0.1);
       border-top-color: #4db8ff;
+    }
+
+    #loading-container.hidden .spinner {
+      animation: none;
     }
 
     @keyframes spinner-rotate {
@@ -229,9 +241,6 @@
     // Main initialization function
     async function initializeApplication() {
         try {
-            // Update loading status
-            window.updateLoadingStatus('Loading rendering engine...');
-
             // Wait for both scripts to load
             console.log('Waiting for scripts to load...');
             await Promise.all([
@@ -240,6 +249,9 @@
             ]);
 
             console.log('Scripts loaded, initializing Mermaid...');
+
+            // Update loading status
+            window.updateLoadingStatus('Loading rendering engine...');
 
             // Try to load ELK layout
             await loadElkLayout();
@@ -302,6 +314,14 @@
   </script>
   <!-- Render functions in separate script -->
   <script>
+    // Get transition duration from CSS custom property
+    const getTransitionDuration = () => {
+        const duration = getComputedStyle(document.documentElement)
+            .getPropertyValue('--loading-transition-duration')
+            .trim();
+        return parseInt(duration) || 300; // Fallback to 300ms if not found
+    };
+
     // Loading indicator management
     window.updateLoadingStatus = (message) => {
         const statusElement = document.getElementById('loading-status');
@@ -315,7 +335,11 @@
         const output = document.getElementById('output');
 
         if (loadingContainer) {
-            loadingContainer.style.display = 'none';
+            loadingContainer.classList.add('hidden');
+            // Remove from DOM after transition completes (duration from CSS variable)
+            setTimeout(() => {
+                loadingContainer.style.display = 'none';
+            }, getTransitionDuration());
         }
 
         if (output) {
@@ -387,13 +411,12 @@
         const fmRegex = /^---\s*([\s\S]*?)---\s*/;
         let diagramSource = source;
         const match = source.match(fmRegex);
-        let customConfig = null;
 
         if (match) {
             try {
                 const parsed = window.jsyaml.load(match[1]);
                 if (parsed && parsed.config) {
-                    customConfig = parsed.config;
+                    const customConfig = parsed.config;
 
                     // Re-initialize with new config
                     const configWithTheme = {
@@ -421,13 +444,12 @@
         const id = `mermaid-svg-${Date.now()}`;
         window.mermaid.render(id, diagramSource)
             .then(result => {
-                // Hide loading indicator before inserting diagram
-                window.hideLoadingIndicator();
-
                 setSafeSVG(result.svg);
                 if (typeof result.bindFunctions === 'function') {
                     result.bindFunctions(output);
                 }
+                // Hide loading indicator after diagram is successfully rendered
+                window.hideLoadingIndicator();
             })
             .catch(e => {
                 showError(e.message);
