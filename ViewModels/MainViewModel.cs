@@ -25,6 +25,7 @@ using MermaidPad.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace MermaidPad.ViewModels;
 
@@ -64,6 +65,12 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial string? LatestMermaidVersion { get; set; }
 
     /// <summary>
+    /// Gets or sets the current installed version of MermaidPad.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? CurrentMermaidPadVersion { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether live preview is enabled.
     /// </summary>
     [ObservableProperty]
@@ -97,6 +104,8 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
+
+        InitializeCurrentMermaidPadVersion();
 
         // Initialize properties from settings
         DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
@@ -210,6 +219,24 @@ public sealed partial class MainViewModel : ViewModelBase
         await _updateService.CheckAndUpdateAsync();
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+    }
+
+    private void InitializeCurrentMermaidPadVersion()
+    {
+        try
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            if (version is not null)
+            {
+                // Display 3 version fields as Major.Minor.Build (e.g., 1.2.3)
+                CurrentMermaidPadVersion = version.ToString(3);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to get current MermaidPad version: {ex}");
+            CurrentMermaidPadVersion = "Unknown";
+        }
     }
 
     /// <summary>
