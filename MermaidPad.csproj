@@ -37,7 +37,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
@@ -108,6 +108,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
+	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
+	  <AdditionalFiles Remove="Dialogs/ProgressDialog.axaml" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<None Include=".github/workflows/build-and-release.yml" />
 		<None Include=".github/workflows/macos-universal-dmg.yml" />
 		<None Include=".github/workflows/macos-bundle.yml" />
@@ -118,6 +124,17 @@
 	<ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'">
 		<None Include="Info.plist" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+	<ItemGroup>
+	  <AvaloniaXaml Update="Dialogs/MessageDialog.axaml">
+	    <SubType>Designer</SubType>
+	  </AvaloniaXaml>
+	  <AvaloniaXaml Update="Dialogs\ExportDialog.axaml">
+	    <SubType>Designer</SubType>
+	  </AvaloniaXaml>
+	  <AvaloniaXaml Update="Dialogs\ProgressDialog.axaml">
+	    <SubType>Designer</SubType>
+	  </AvaloniaXaml>
 	</ItemGroup>
 
 	<!-- Import custom targets for asset hash generation -->

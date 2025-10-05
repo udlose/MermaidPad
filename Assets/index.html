@@ -314,156 +314,297 @@
   </script>
   <!-- Render functions in separate script -->
   <script>
-    // Get transition duration from CSS custom property
-    const getTransitionDuration = () => {
-        const duration = getComputedStyle(document.documentElement)
-            .getPropertyValue('--loading-transition-duration')
-            .trim();
-        // Remove 'ms' suffix and convert to number
-        const numericValue = parseFloat(duration.replace('ms', ''));
-        return isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
-    };
+        // Important SVG properties to inline (module-level constant)
+        const inlineStyleSVGProps = Object.freeze([
+            'fill',
+            'stroke',
+            'stroke-width',
+            'font-family',
+            'font-size',
+            'text-anchor',
+            'dominant-baseline'
+        ]);
 
-    // Loading indicator management
-    window.updateLoadingStatus = (message) => {
-        const statusElement = document.getElementById('loading-status');
-        if (statusElement) {
-            statusElement.textContent = message;
-        }
-    };
-
-    window.hideLoadingIndicator = () => {
-        const loadingContainer = document.getElementById('loading-container');
-        const output = document.getElementById('output');
-
-        if (loadingContainer) {
-            loadingContainer.classList.add('hidden');
-            // Remove from DOM after transition completes (duration from CSS variable)
-            setTimeout(() => {
-                loadingContainer.style.display = 'none';
-            }, getTransitionDuration());
-        }
-
-        if (output) {
-            output.classList.add('visible');
-        }
-    };
-
-    // Render function with proper error handling
-    window.renderMermaid = source => {
-        window.lastMermaidSource = source; // Save for re-rendering
-        const output = document.getElementById('output');
-
-        // Helper functions
-        const createErrorElement = (message) => {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message; // XSS-safe
-            return errorDiv;
+        // Get transition duration from CSS custom property
+        const getTransitionDuration = () => {
+            const duration = getComputedStyle(document.documentElement)
+                .getPropertyValue('--loading-transition-duration')
+                .trim();
+            // Remove 'ms' suffix and convert to number
+            const numericValue = parseFloat(duration.replace('ms', ''));
+            return isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
         };
 
-        const showError = (message) => {
-            // Hide loading indicator and show error
-            window.hideLoadingIndicator();
-            output.innerHTML = '';
-            output.appendChild(createErrorElement(message));
-        };
-
-        // ReSharper disable once InconsistentNaming
-        const setSafeSVG = (htmlContent) => {
-            const trimmed = htmlContent.trim();
-            if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
-                output.innerHTML = htmlContent;
-            } else {
-                showError('Invalid diagram content received');
+        // Loading indicator management
+        window.updateLoadingStatus = (message) => {
+            const statusElement = document.getElementById('loading-status');
+            if (statusElement) {
+                statusElement.textContent = message;
             }
         };
 
-        // Check if initialization failed
-        if (window.mermaidInitializationFailed) {
-            showError('Mermaid initialization failed. Please refresh the page.');
-            return;
-        }
+        window.hideLoadingIndicator = () => {
+            const loadingContainer = document.getElementById('loading-container');
+            const output = document.getElementById('output');
 
-        // Check if mermaid is initialized
-        if (!window.mermaidInitialized) {
-            // Store for later rendering
-            window.pendingMermaidRender = source;
-
-            // Check if we should retry (with limit)
-            if (!window.renderRetryCount) {
-                window.renderRetryCount = 0;
+            if (loadingContainer) {
+                loadingContainer.classList.add('hidden');
+                // Remove from DOM after transition completes (duration from CSS variable)
+                setTimeout(() => {
+                    loadingContainer.style.display = 'none';
+                }, getTransitionDuration());
             }
 
-            if (window.renderRetryCount < 10) {
-                window.renderRetryCount++;
-                setTimeout(() => window.renderMermaid(source), 200);
-                return;
-            } else {
-                showError('Mermaid is still loading. Please try again.');
-                window.renderRetryCount = 0;
+            if (output) {
+                output.classList.add('visible');
+            }
+        };
+
+        // Render function with proper error handling
+        window.renderMermaid = source => {
+            window.lastMermaidSource = source; // Save for re-rendering
+            const output = document.getElementById('output');
+
+            // Helper functions
+            const createErrorElement = (message) => {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = message; // XSS-safe
+                return errorDiv;
+            };
+
+            const showError = (message) => {
+                // Hide loading indicator and show error
+                window.hideLoadingIndicator();
+                output.innerHTML = '';
+                output.appendChild(createErrorElement(message));
+            };
+
+            // ReSharper disable once InconsistentNaming
+            const setSafeSVG = (htmlContent) => {
+                const trimmed = htmlContent.trim();
+                if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
+                    output.innerHTML = htmlContent;
+                } else {
+                    showError('Invalid diagram content received');
+                }
+            };
+
+            // Check if initialization failed
+            if (window.mermaidInitializationFailed) {
+                showError('Mermaid initialization failed. Please refresh the page.');
                 return;
             }
-        }
 
-        // Reset retry count on successful initialization
-        window.renderRetryCount = 0;
+            // Check if mermaid is initialized
+            if (!window.mermaidInitialized) {
+                // Store for later rendering
+                window.pendingMermaidRender = source;
 
-        // Parse front-matter config if present
-        const fmRegex = /^---\s*([\s\S]*?)---\s*/;
-        let diagramSource = source;
-        const match = source.match(fmRegex);
+                // Check if we should retry (with limit)
+                if (!window.renderRetryCount) {
+                    window.renderRetryCount = 0;
+                }
 
-        if (match) {
+                if (window.renderRetryCount < 10) {
+                    window.renderRetryCount++;
+                    setTimeout(() => window.renderMermaid(source), 200);
+                    return;
+                } else {
+                    showError('Mermaid is still loading. Please try again.');
+                    window.renderRetryCount = 0;
+                    return;
+                }
+            }
+
+            // Reset retry count on successful initialization
+            window.renderRetryCount = 0;
+
+            // Parse front-matter config if present
+            const fmRegex = /^---\s*([\s\S]*?)---\s*/;
+            let diagramSource = source;
+            const match = source.match(fmRegex);
+
+            if (match) {
+                try {
+                    const parsed = window.jsyaml.load(match[1]);
+                    if (parsed && parsed.config) {
+                        const customConfig = parsed.config;
+
+                        // Re-initialize with new config
+                        const configWithTheme = {
+                            ...customConfig,
+                            theme: customConfig.theme || window.currentTheme,
+                            startOnLoad: false
+                        };
+
+                        // Log config for debugging if using ELK
+                        if (window.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
+                            console.log('Using ELK layout with config:', configWithTheme);
+                        }
+
+                        window.mermaid.initialize(configWithTheme);
+                    }
+                    // Remove front-matter from diagram source
+                    diagramSource = source.replace(fmRegex, "");
+                } catch (err) {
+                    showError(`YAML parse error: ${err.message}`);
+                    return;
+                }
+            }
+
+            // Render the diagram
+            const id = `mermaid-svg-${Date.now()}`;
+            window.mermaid.render(id, diagramSource)
+                .then(result => {
+                    setSafeSVG(result.svg);
+                    if (typeof result.bindFunctions === 'function') {
+                        result.bindFunctions(output);
+                    }
+                    // Hide loading indicator after diagram is successfully rendered
+                    window.hideLoadingIndicator();
+                })
+                .catch(e => {
+                    showError(e.message);
+                });
+        };
+
+        window.clearOutput = () => {
+            const output = document.getElementById('output');
+            if (output) {
+                output.innerHTML = '';
+            }
+        };
+
+        // Export functionality
+        window.exportDiagram = {
+        getSVG: () => {
             try {
-                const parsed = window.jsyaml.load(match[1]);
-                if (parsed && parsed.config) {
-                    const customConfig = parsed.config;
+                const svg = document.querySelector('#output svg');
+                if (!svg) {
+                    console.error('No SVG found in output');
+                    return null;
+                }
 
-                    // Re-initialize with new config
-                    const configWithTheme = {
-                        ...customConfig,
-                        theme: customConfig.theme || window.currentTheme,
-                        startOnLoad: false
-                    };
+                // Clone to avoid modifying the original
+                const clone = svg.cloneNode(true);
 
-                    // Log config for debugging if using ELK
-                    if (window.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
-                        console.log('Using ELK layout with config:', configWithTheme);
+                // Ensure SVG has proper namespace
+                clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+                // Get computed styles and inline them
+                const inlineStyles = (element) => {
+                    const styles = window.getComputedStyle(element);
+                    let styleStr = '';
+
+                    // Important SVG properties to inline
+                    inlineStyleSVGProps.forEach(prop => {
+                        const value = styles.getPropertyValue(prop);
+                        if (value && value !== 'none' && value !== 'auto') {
+                            styleStr += `${prop}:${value};`;
+                        }
+                    });
+
+                    if (styleStr) {
+                        element.setAttribute('style', styleStr);
                     }
 
-                    window.mermaid.initialize(configWithTheme);
-                }
-                // Remove front-matter from diagram source
-                diagramSource = source.replace(fmRegex, "");
-            } catch (err) {
-                showError(`YAML parse error: ${err.message}`);
-                return;
+                    // Recursively process children
+                    Array.from(element.children).forEach(child => inlineStyles(child));
+                };
+
+                inlineStyles(clone);
+
+                // Serialize to string
+                const serializer = new XMLSerializer();
+                return serializer.serializeToString(clone);
+            } catch (error) {
+                console.error('Error getting SVG:', error);
+                return null;
             }
-        }
+        },
 
-        // Render the diagram
-        const id = `mermaid-svg-${Date.now()}`;
-        window.mermaid.render(id, diagramSource)
-            .then(result => {
-                setSafeSVG(result.svg);
-                if (typeof result.bindFunctions === 'function') {
-                    result.bindFunctions(output);
+        getPNG: async (scale = 2) => {
+            try {
+                const svg = document.querySelector('#output svg');
+                if (!svg) {
+                    console.error('No SVG found in output');
+                    return null;
                 }
-                // Hide loading indicator after diagram is successfully rendered
-                window.hideLoadingIndicator();
-            })
-            .catch(e => {
-                showError(e.message);
-            });
-    };
 
-    window.clearOutput = () => {
-        const output = document.getElementById('output');
-        if (output) {
-            output.innerHTML = '';
-        }
-    };
+                // Get SVG dimensions
+                const bbox = svg.getBoundingClientRect();
+                const width = bbox.width || 800;
+                const height = bbox.height || 600;
+
+                // Create canvas with scale factor
+                const canvas = document.createElement('canvas');
+                canvas.width = width * scale;
+                canvas.height = height * scale;
+
+                const ctx = canvas.getContext('2d');
+                ctx.scale(scale, scale);
+
+                // Set background if not transparent
+                const bgColor = window.exportDiagram.backgroundColor || 'white';
+                if (bgColor !== 'transparent') {
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(0, 0, width, height);
+                }
+
+                // Convert SVG to image
+                const svgData = window.exportDiagram.getSVG();
+                if (!svgData) return null;
+
+                const img = new Image();
+                const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                return new Promise((resolve, reject) => {
+                    img.onload = () => {
+                        try {
+                            ctx.drawImage(img, 0, 0, width, height);
+                            URL.revokeObjectURL(url);
+
+                            // Convert to base64
+                            canvas.toBlob((blob) => {
+                                if (!blob) {
+                                    reject(new Error('Failed to create blob'));
+                                    return;
+                                }
+
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    // Return base64 without data URL prefix
+                                    const base64 = reader.result.split(',')[1];
+                                    resolve(base64);
+                                };
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            }, 'image/png');
+                        } catch (error) {
+                            URL.revokeObjectURL(url);
+                            reject(error);
+                        }
+                    };
+
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        reject(new Error('Failed to load SVG as image'));
+                    };
+
+                    img.src = url;
+                });
+            } catch (error) {
+                console.error('Error creating PNG:', error);
+                return null;
+            }
+        },
+
+        // Configuration properties
+        backgroundColor: 'white'
+      };
   </script>
 </head>
 <body>
