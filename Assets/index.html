@@ -44,9 +44,9 @@
       display: none;
     }
 
-    #output.visible {
-      display: block;
-    }
+      #output.visible {
+        display: block;
+      }
 
     .error {
       color: #ff6f6f;
@@ -66,14 +66,14 @@
       align-items: center;
       justify-content: center;
       gap: 1rem;
-      transition: opacity var(--loading-transition-duration) ease-out, visibility 0s var(--loading-transition-duration);
+      transition: opacity var(--loading-transition-duration) ease-out, visibility 0s ease-out var(--loading-transition-duration);
     }
 
-    #loading-container.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
+      #loading-container.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
 
     .spinner {
       width: 2.5rem;
@@ -319,7 +319,9 @@
         const duration = getComputedStyle(document.documentElement)
             .getPropertyValue('--loading-transition-duration')
             .trim();
-        return parseInt(duration) || 300; // Fallback to 300ms if not found
+        // Remove 'ms' suffix and convert to number
+        const numericValue = parseFloat(duration.replace('ms', ''));
+        return isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
     };
 
     // Loading indicator management
