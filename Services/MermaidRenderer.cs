@@ -35,12 +35,12 @@ namespace MermaidPad.Services;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
-    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFileName}";
-    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFileName}";
-    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFileName}";
-    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace('\\', '/');
-    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace('\\', '/');
-    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace('\\', '/');
+    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFilePath}";
+    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFilePath}";
+    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFilePath}";
+    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
 
     private WebView? _webView;
     private int _renderAttemptCount;
@@ -104,9 +104,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Stopwatch sw = Stopwatch.StartNew();
 
         // Get assets in parallel
-        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFileName);
-        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFileName);
-        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFileName);
+        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
+        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
+        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
         Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
         Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
         Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
