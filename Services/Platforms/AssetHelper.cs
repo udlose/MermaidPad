@@ -45,23 +45,40 @@ public static class AssetHelper
     /// <summary>
     /// The file name for the main HTML index asset.
     /// </summary>
-    internal const string IndexHtmlFileName = "index.html";
+    internal const string IndexHtmlFilePath = "index.html";
 
     /// <summary>
     /// The file name for the minified Mermaid JavaScript asset.
     /// </summary>
-    internal const string MermaidMinJsFileName = "mermaid.min.js";
+    internal const string MermaidMinJsFilePath = "mermaid.min.js";
 
     /// <summary>
     /// The file name for the minified js-yaml JavaScript asset.
     /// </summary>
-    internal const string JsYamlFileName = "js-yaml.min.js";
+    internal const string JsYamlFilePath = "js-yaml.min.js";
 
-    internal const string MermaidLayoutElkPath = @"mermaid-elk-layout\mermaid-layout-elk.esm.min.mjs";
+    /// <summary>
+    /// Represents the relative path to the Mermaid ELK layout module file.
+    /// </summary>
+    /// <remarks>This path is used to locate the Mermaid ELK layout module, which is required for rendering
+    /// diagrams with the ELK layout engine.</remarks>
+    internal static readonly string MermaidLayoutElkPath = Path.Join("mermaid-elk-layout", "mermaid-layout-elk.esm.min.mjs");
 
-    internal const string MermaidLayoutElkChunkSP2CHFBEPath = @"mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\chunk-SP2CHFBE.mjs";
+    /// <summary>
+    /// Represents the file path to the "chunk-SP2CHFBE.mjs" module within the "mermaid-elk-layout" package.
+    /// </summary>
+    /// <remarks>This path is constructed using the Path.Join method to ensure compatibility
+    /// across different operating systems. The file is part of the "mermaid-layout-elk.esm.min" directory
+    /// structure.</remarks>
+    internal static readonly string MermaidLayoutElkChunkSP2CHFBEPath = Path.Join("mermaid-elk-layout", "chunks", "mermaid-layout-elk.esm.min", "chunk-SP2CHFBE.mjs");
 
-    internal const string MermaidLayoutElkRenderAVRWSH4DPath = @"mermaid-elk-layout\chunks\mermaid-layout-elk.esm.min\render-AVRWSH4D.mjs";
+    /// <summary>
+    /// Represents the relative path to the "render-AVRWSH4D.mjs" module used for Mermaid ELK layout rendering.
+    /// </summary>
+    /// <remarks>This path is constructed by joining the directory segments "mermaid-elk-layout", "chunks",
+    /// and "mermaid-layout-elk.esm.min" with the file name "render-AVRWSH4D.mjs". It is intended for internal use and
+    /// may be used to locate the module within the application.</remarks>
+    internal static readonly string MermaidLayoutElkRenderAVRWSH4DPath = Path.Join("mermaid-elk-layout", "chunks", "mermaid-layout-elk.esm.min", "render-AVRWSH4D.mjs");
 
     /// <summary>
     /// The prefix used for embedded resource names within the assembly.
@@ -89,9 +106,9 @@ public static class AssetHelper
     /// </remarks>
     private static readonly HashSet<string> _allowedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        IndexHtmlFileName,
-        MermaidMinJsFileName,
-        JsYamlFileName,
+        IndexHtmlFilePath,
+        MermaidMinJsFilePath,
+        JsYamlFilePath,
         MermaidLayoutElkPath,
         MermaidLayoutElkChunkSP2CHFBEPath,
         MermaidLayoutElkRenderAVRWSH4DPath
@@ -394,7 +411,7 @@ public static class AssetHelper
         // Extract all required assets
         foreach (string asset in _allowedAssets)
         {
-            string normalizedAssetName = asset.Replace('\\', '.');
+            string normalizedAssetName = asset.Replace(Path.DirectorySeparatorChar, '.');
             ExtractResourceToDisk($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset));
         }
 
