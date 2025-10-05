@@ -465,6 +465,36 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Executes JavaScript in the WebView and returns the result.
+    /// </summary>
+    /// <param name="script">The JavaScript code to execute.</param>
+    /// <returns>The result of the JavaScript execution as a string, or null if execution fails.</returns>
+    public async Task<string?> ExecuteScriptAsync(string script)
+    {
+        if (_webView is null)
+        {
+            SimpleLogger.LogError("WebView not initialized for script execution");
+            return null;
+        }
+
+        try
+        {
+            return await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var result = await _webView.ExecuteScriptAsync(script);
+                SimpleLogger.LogJavaScript(script, true, result);
+                return result;
+            });
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogJavaScript(script, false, ex.Message);
+            SimpleLogger.LogError("Script execution failed", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
     /// </summary>
     /// <returns>A task representing the asynchronous disposal operation.</returns>

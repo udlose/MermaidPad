@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using AsyncAwaitBestPractices;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Services;
@@ -28,7 +29,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace MermaidPad.ViewModels;
-
 /// <summary>
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
@@ -39,6 +39,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
+    private readonly ExportService _exportService;
 
     /// <summary>
     /// Gets or sets the current diagram text.
@@ -104,6 +105,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
+        _exportService = services.GetRequiredService<ExportService>();
 
         InitializeCurrentMermaidPadVersion();
 
@@ -156,6 +158,47 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool CanClear() => !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
+    /// Exports the current diagram to SVG or PNG format.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private async Task ExportAsync()
+    {
+        try
+        {
+            Window? window = App.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (window == null)
+            {
+                LastError = "Unable to access main window for export dialog";
+                return;
+            }
+
+            // Show export dialog
+            Dialogs.ExportDialog exportDialog = new Dialogs.ExportDialog();
+            Models.ExportOptions? exportOptions = await exportDialog.ShowDialog<Models.ExportOptions?>(window);
+
+            if (exportOptions == null)
+                return; // User cancelled
+
+            await _exportService.ExportDiagramAsync(window, exportOptions);
+        }
+        catch (Exception ex)
+        {
+            LastError = $"Export failed: {ex.Message}";
+            Debug.WriteLine($"Export error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Determines whether the export command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if there is a diagram to export; otherwise, <c>false</c>.</returns>
+    private bool CanExport() => !string.IsNullOrWhiteSpace(DiagramText);
+
+    /// <summary>
     /// Handles changes to the diagram text and triggers rendering if live preview is enabled.
     /// </summary>
     /// <remarks>
@@ -198,6 +241,7 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 return;
             }
+
             _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: ex =>
             {
                 LastError = $"Failed to render diagram: {ex.Message}";
@@ -225,7 +269,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            Version? version = Assembly.GetExecutingAssembly().GetName().Version;
             if (version is not null)
             {
                 // Display 3 version fields as Major.Minor.Build (e.g., 1.2.3)
