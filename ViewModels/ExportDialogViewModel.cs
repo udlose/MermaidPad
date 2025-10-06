@@ -47,10 +47,10 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     public partial bool IsPngSelected { get; set; }
 
     /// <summary>
-    /// Gets or sets the selected scale for PNG export.
+    /// Gets or sets the selected scale index for PNG export.
     /// </summary>
     [ObservableProperty]
-    public partial ComboBoxItem? SelectedScale { get; set; }
+    public partial int SelectedPngScaleIndex { get; set; } = 1; // Default to "2x (Recommended)"
 
     /// <summary>
     /// Gets or sets whether to use transparent background for PNG.
@@ -81,7 +81,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         Result = new ExportOptions
         {
             Format = IsSvgSelected ? ExportFormat.SVG : ExportFormat.PNG,
-            Scale = ParseScale(SelectedScale?.Content?.ToString() ?? "2x (Recommended)"),
+            Scale = SelectedPngScaleIndex + 1, // Convert 0-based index to 1-4 scale
             TransparentBackground = TransparentBackground,
             BackgroundColor = "#FFFFFF"
         };
@@ -97,16 +97,5 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     {
         Result = null;
         _dialog.Close(null);
-    }
-
-    private static int ParseScale(string scaleText)
-    {
-        ReadOnlySpan<char> scaleAsSpan = scaleText;
-        if (scaleAsSpan.StartsWith("1x")) return 1;
-        if (scaleAsSpan.StartsWith("2x")) return 2;
-        if (scaleAsSpan.StartsWith("3x")) return 3;
-        if (scaleAsSpan.StartsWith("4x")) return 4;
-
-        return 2; // Default
     }
 }
