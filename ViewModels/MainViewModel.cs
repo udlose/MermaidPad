@@ -19,9 +19,13 @@
 // SOFTWARE.
 
 using AsyncAwaitBestPractices;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MermaidPad.Dialogs;
+using MermaidPad.Models;
 using MermaidPad.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
@@ -166,22 +170,24 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            Window? window = App.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+            Window? window = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow
                 : null;
 
-            if (window == null)
+            if (window is null)
             {
                 LastError = "Unable to access main window for export dialog";
                 return;
             }
 
             // Show export dialog
-            Dialogs.ExportDialog exportDialog = new Dialogs.ExportDialog();
-            Models.ExportOptions? exportOptions = await exportDialog.ShowDialog<Models.ExportOptions?>(window);
+            ExportDialog exportDialog = new ExportDialog();
+            ExportOptions? exportOptions = await exportDialog.ShowDialog<ExportOptions?>(window);
 
-            if (exportOptions == null)
+            if (exportOptions is null)
+            {
                 return; // User cancelled
+            }
 
             await _exportService.ExportDiagramAsync(window, exportOptions);
         }
