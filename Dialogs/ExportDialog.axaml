@@ -21,15 +21,7 @@
     <Style Selector="RadioButton">
       <Setter Property="Margin" Value="0,5" />
     </Style>
-    <Style Selector="Button.accent">
-      <Setter Property="Background" Value="#0078D4" />
-      <Setter Property="Foreground" Value="White" />
-    </Style>
-    <Style Selector="Button.accent:pointerover">
-      <Setter Property="Background" Value="#106EBE" />
-    </Style>
     <Style Selector="Border.options-panel">
-      <Setter Property="Background" Value="#F5F5F5" />
       <Setter Property="CornerRadius" Value="5" />
       <Setter Property="Padding" Value="10" />
       <Setter Property="Margin" Value="0,10,0,0" />
@@ -45,14 +37,9 @@
       Orientation="Horizontal"
       Spacing="10">
       <Button
-        Width="80"
-        Command="{Binding CancelCommand}"
-        Content="Cancel" />
-      <Button
-        Width="80"
-        Classes="accent"
         Command="{Binding ExportCommand}"
         Content="Export" />
+      <Button Command="{Binding CancelCommand}" Content="Cancel" />
     </StackPanel>
 
     <!--  Main content  -->
@@ -76,7 +63,7 @@
               HorizontalAlignment="Center"
               VerticalAlignment="Center">
               <PathIcon.Data>
-                <PathGeometry>M6.5,12L8,9H7L5.5,12L7,15H8L6.5,12M16,9H15L16.5,12L15,15H16L17.5,12L16,9Z M11.5,9C11.5,9 11,9 11,10C11,11 11.5,11 11.5,11H12.5C14,11 14,13.5 14,13.5V15.5C14,18 12.3,18 12.3,18H9.5V16.3H12.5C12.5,16.3 13,16.3 13,15.3C13,14.3 12.5,14.3 12.5,14.3H11.7C11.7,14.3 10,14.3 10,11.8V9.8C10,7.3 11.7,7.3 11.7,7.3H14.5V9H11.5Z</PathGeometry>
+                <PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zM0 14.841a1.13 1.13 0 0 0 .401.823q.194.162.478.252.285.091.665.091.507 0 .858-.158.355-.158.54-.44a1.17 1.17 0 0 0 .187-.656q0-.336-.135-.56a1 1 0 0 0-.375-.357 2 2 0 0 0-.565-.21l-.621-.144a1 1 0 0 1-.405-.176.37.37 0 0 1-.143-.299q0-.234.184-.384.187-.152.513-.152.214 0 .37.068a.6.6 0 0 1 .245.181.56.56 0 0 1 .12.258h.75a1.1 1.1 0 0 0-.199-.566 1.2 1.2 0 0 0-.5-.41 1.8 1.8 0 0 0-.78-.152q-.44 0-.776.15-.337.149-.528.421-.19.273-.19.639 0 .302.123.524t.351.367q.229.143.54.213l.618.144q.31.073.462.193a.39.39 0 0 1 .153.326.5.5 0 0 1-.085.29.56.56 0 0 1-.256.193q-.167.07-.413.07-.176 0-.32-.04a.8.8 0 0 1-.248-.115.58.58 0 0 1-.255-.384zm4.575 1.09h.952l1.327-3.999h-.879l-.887 3.138H5.05l-.897-3.138h-.917zm5.483-3.293q.114.228.14.492h-.776a.8.8 0 0 0-.096-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.3-.044q-.427 0-.664.302-.235.3-.235.85v.497q0 .352.097.616a.9.9 0 0 0 .305.413.87.87 0 0 0 .518.146 1 1 0 0 0 .457-.097.67.67 0 0 0 .273-.263q.09-.164.09-.364v-.254h-.823v-.59h1.576v.798q0 .29-.096.55a1.3 1.3 0 0 1-.293.457 1.4 1.4 0 0 1-.495.314q-.296.111-.698.111a2 2 0 0 1-.752-.132 1.45 1.45 0 0 1-.534-.377 1.6 1.6 0 0 1-.319-.58 2.5 2.5 0 0 1-.105-.745v-.507q0-.54.199-.949.202-.406.583-.633.383-.228.926-.228.357 0 .635.1.282.1.48.275.2.176.314.407</PathGeometry>
               </PathIcon.Data>
             </PathIcon>
           </Border>
@@ -84,7 +71,7 @@
             <TextBlock
               FontSize="13"
               FontWeight="SemiBold"
-              Text="SVG (Scalable Vector Graphics)" />
+              Text=".svg (Scalable Vector Graphics)" />
             <TextBlock
               FontSize="11"
               Opacity="0.7"
@@ -99,7 +86,6 @@
             Width="32"
             Height="32"
             VerticalAlignment="Center"
-            Background="#F0F0F0"
             CornerRadius="3">
             <PathIcon
               Width="20"
@@ -107,7 +93,7 @@
               HorizontalAlignment="Center"
               VerticalAlignment="Center">
               <PathIcon.Data>
-                <PathGeometry>M10,7H8V17H10V11H11V17H13V7H11V9H10V7M16,7H14V17H16V13H17V11H16V7M16,9V11H17V9H16Z</PathGeometry>
+                <PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zm-3.76 8.132q.114.23.14.492h-.776a.8.8 0 0 0-.097-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.299-.044q-.427 0-.665.302-.234.301-.234.85v.498q0 .351.097.615a.9.9 0 0 0 .304.413.87.87 0 0 0 .519.146 1 1 0 0 0 .457-.096.67.67 0 0 0 .272-.264q.09-.164.091-.363v-.255H8.82v-.59h1.576v.798q0 .29-.097.55a1.3 1.3 0 0 1-.293.458 1.4 1.4 0 0 1-.495.313q-.296.111-.697.111a2 2 0 0 1-.753-.132 1.45 1.45 0 0 1-.533-.377 1.6 1.6 0 0 1-.32-.58 2.5 2.5 0 0 1-.105-.745v-.506q0-.543.2-.95.201-.406.582-.633.384-.228.926-.228.357 0 .636.1.281.1.48.275.2.176.314.407Zm-8.64-.706H0v4h.791v-1.343h.803q.43 0 .732-.172.305-.177.463-.475a1.4 1.4 0 0 0 .161-.677q0-.374-.158-.677a1.2 1.2 0 0 0-.46-.477q-.3-.18-.732-.179m.545 1.333a.8.8 0 0 1-.085.381.57.57 0 0 1-.238.24.8.8 0 0 1-.375.082H.788v-1.406h.66q.327 0 .512.182.185.181.185.521m1.964 2.666V13.25h.032l1.761 2.675h.656v-3.999h-.75v2.66h-.032l-1.752-2.66h-.662v4z</PathGeometry>
               </PathIcon.Data>
             </PathIcon>
           </Border>
@@ -115,7 +101,7 @@
             <TextBlock
               FontSize="13"
               FontWeight="SemiBold"
-              Text="PNG (Portable Network Graphics)" />
+              Text=".png (Portable Network Graphics)" />
             <TextBlock
               FontSize="11"
               Opacity="0.7"

@@ -1,0 +1,43 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--  Default Button style  -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="#F3F3F3" />
+    <Setter Property="Foreground" Value="#1F1F1F" />
+    <Setter Property="BorderBrush" Value="#D1D1D1" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MinWidth" Value="80" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="#E9E9E9" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="#E0E0E0" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+
+  <!--  Accent variant  -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="#0078D4" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderBrush" Value="#0071C2" />
+  </Style>
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Background" Value="#106EBE" />
+  </Style>
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Background" Value="#005A9E" />
+  </Style>
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="Background" Value="#A0C9F2" />
+  </Style>
+</Styles>
