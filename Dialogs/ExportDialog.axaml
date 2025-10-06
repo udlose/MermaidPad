@@ -7,11 +7,13 @@
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   Title="Export Diagram"
   Width="400"
-  Height="350"
-  d:DesignHeight="350"
+  MinHeight="280"
+  MaxHeight="400"
+  d:DesignHeight="320"
   d:DesignWidth="400"
   x:DataType="vm:ExportDialogViewModel"
   CanResize="False"
+  SizeToContent="Height"
   WindowStartupLocation="CenterOwner"
   mc:Ignorable="d">
 
@@ -29,80 +31,17 @@
     <Style Selector="Border.options-panel">
       <Setter Property="Background" Value="#F5F5F5" />
       <Setter Property="CornerRadius" Value="5" />
-      <Setter Property="Padding" Value="15" />
+      <Setter Property="Padding" Value="10" />
       <Setter Property="Margin" Value="0,10,0,0" />
     </Style>
   </Window.Styles>
 
-  <StackPanel Margin="20" Spacing="15">
-    <TextBlock
-      FontSize="14"
-      FontWeight="Bold"
-      Text="Select Export Format:" />
-
-    <RadioButton GroupName="Format" IsChecked="{Binding IsSvgSelected}">
-      <StackPanel Orientation="Horizontal" Spacing="10">
-        <PathIcon Width="24" Height="24">
-          <PathIcon.Data>
-            <PathGeometry>M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M11.68,7.26C11.68,7.26 10,7.26 10,9.76V11.76C10,14.26 11.68,14.26 11.68,14.26H12.5C12.5,14.26 13,14.26 13,15.26C13,16.26 12.5,16.26 12.5,16.26H9.5V18H12.32C12.32,18 14,18 14,15.5V13.5C14,11 12.32,11 12.32,11H11.5C11.5,11 11,11 11,10C11,9 11.5,9 11.5,9H14.5V7.26H11.68M6.5,12L8,9H7L5.5,12L7,15H8L6.5,12M16,9H15L16.5,12L15,15H16L17.5,12L16,9Z</PathGeometry>
-          </PathIcon.Data>
-        </PathIcon>
-        <StackPanel>
-          <TextBlock FontWeight="SemiBold" Text="SVG (Scalable Vector Graphics)" />
-          <TextBlock
-            FontSize="12"
-            Opacity="0.7"
-            Text="Best for editing and scaling" />
-        </StackPanel>
-      </StackPanel>
-    </RadioButton>
-
-    <RadioButton GroupName="Format" IsChecked="{Binding IsPngSelected}">
-      <StackPanel Orientation="Horizontal" Spacing="10">
-        <PathIcon Width="24" Height="24">
-          <PathIcon.Data>
-            <PathGeometry>M19,3H5C3.89,3 3,3.89 3,5V19C3,20.1 3.9,21 5,21H19C20.1,21 21,20.1 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M10,7H8V17H10V11H11V17H13V7H11V9H10V7M16,7H14V17H16V13H17V11H16V7M16,9V11H17V9H16Z</PathGeometry>
-          </PathIcon.Data>
-        </PathIcon>
-        <StackPanel>
-          <TextBlock FontWeight="SemiBold" Text="PNG (Portable Network Graphics)" />
-          <TextBlock
-            FontSize="12"
-            Opacity="0.7"
-            Text="Best for sharing and presentations" />
-        </StackPanel>
-      </StackPanel>
-    </RadioButton>
-
-    <!--  PNG-specific options  -->
-    <Border Classes="options-panel" IsVisible="{Binding IsPngSelected}">
-      <StackPanel Spacing="10">
-        <TextBlock FontWeight="SemiBold" Text="PNG Options:" />
-        <StackPanel Orientation="Horizontal" Spacing="10">
-          <TextBlock
-            Width="50"
-            VerticalAlignment="Center"
-            Text="Scale:" />
-          <ComboBox Width="150" SelectedItem="{Binding SelectedScale}">
-            <ComboBox.Items>
-              <ComboBoxItem>1x (Standard)</ComboBoxItem>
-              <ComboBoxItem IsSelected="True">2x (Recommended)</ComboBoxItem>
-              <ComboBoxItem>3x (High DPI)</ComboBoxItem>
-              <ComboBoxItem>4x (Ultra HD)</ComboBoxItem>
-            </ComboBox.Items>
-          </ComboBox>
-        </StackPanel>
-        <CheckBox Content="Transparent Background" IsChecked="{Binding TransparentBackground}" />
-      </StackPanel>
-    </Border>
-
-    <Border
-      Height="1"
-      Margin="0,10"
-      Background="#E0E0E0" />
-
+  <DockPanel Margin="20">
+    <!--  Buttons at bottom  -->
     <StackPanel
+      Margin="0,15,0,0"
       HorizontalAlignment="Right"
+      DockPanel.Dock="Bottom"
       Orientation="Horizontal"
       Spacing="10">
       <Button
@@ -115,5 +54,111 @@
         Command="{Binding ExportCommand}"
         Content="Export" />
     </StackPanel>
-  </StackPanel>
+
+    <!--  Main content  -->
+    <StackPanel Spacing="10">
+      <TextBlock
+        Margin="0,0,0,5"
+        FontSize="14"
+        FontWeight="Bold"
+        Text="Select Export Format:" />
+
+      <RadioButton GroupName="Format" IsChecked="{Binding IsSvgSelected}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border
+            Width="32"
+            Height="32"
+            VerticalAlignment="Center"
+            CornerRadius="3">
+            <PathIcon
+              Width="20"
+              Height="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+              <PathIcon.Data>
+                <PathGeometry>M6.5,12L8,9H7L5.5,12L7,15H8L6.5,12M16,9H15L16.5,12L15,15H16L17.5,12L16,9Z M11.5,9C11.5,9 11,9 11,10C11,11 11.5,11 11.5,11H12.5C14,11 14,13.5 14,13.5V15.5C14,18 12.3,18 12.3,18H9.5V16.3H12.5C12.5,16.3 13,16.3 13,15.3C13,14.3 12.5,14.3 12.5,14.3H11.7C11.7,14.3 10,14.3 10,11.8V9.8C10,7.3 11.7,7.3 11.7,7.3H14.5V9H11.5Z</PathGeometry>
+              </PathIcon.Data>
+            </PathIcon>
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock
+              FontSize="13"
+              FontWeight="SemiBold"
+              Text="SVG (Scalable Vector Graphics)" />
+            <TextBlock
+              FontSize="11"
+              Opacity="0.7"
+              Text="Best for editing and scaling" />
+          </StackPanel>
+        </StackPanel>
+      </RadioButton>
+
+      <RadioButton GroupName="Format" IsChecked="{Binding IsPngSelected}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border
+            Width="32"
+            Height="32"
+            VerticalAlignment="Center"
+            Background="#F0F0F0"
+            CornerRadius="3">
+            <PathIcon
+              Width="20"
+              Height="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+              <PathIcon.Data>
+                <PathGeometry>M10,7H8V17H10V11H11V17H13V7H11V9H10V7M16,7H14V17H16V13H17V11H16V7M16,9V11H17V9H16Z</PathGeometry>
+              </PathIcon.Data>
+            </PathIcon>
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock
+              FontSize="13"
+              FontWeight="SemiBold"
+              Text="PNG (Portable Network Graphics)" />
+            <TextBlock
+              FontSize="11"
+              Opacity="0.7"
+              Text="Best for sharing and presentations" />
+          </StackPanel>
+        </StackPanel>
+      </RadioButton>
+
+      <!--  PNG-specific options  -->
+      <Border Classes="options-panel" IsVisible="{Binding IsPngSelected}">
+        <StackPanel Spacing="8">
+          <TextBlock
+            FontSize="12"
+            FontWeight="SemiBold"
+            Text="PNG Options:" />
+          <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto">
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              Text="Scale:" />
+            <ComboBox
+              Grid.Row="0"
+              Grid.Column="1"
+              Width="160"
+              HorizontalAlignment="Left"
+              SelectedIndex="{Binding SelectedPngScaleIndex}">
+              <ComboBoxItem>1x (Standard)</ComboBoxItem>
+              <ComboBoxItem>2x (Recommended)</ComboBoxItem>
+              <ComboBoxItem>3x (High DPI)</ComboBoxItem>
+              <ComboBoxItem>4x (Ultra HD)</ComboBoxItem>
+            </ComboBox>
+
+            <CheckBox
+              Grid.Row="1"
+              Grid.Column="0"
+              Grid.ColumnSpan="2"
+              Margin="0,8,0,0"
+              Content="Transparent Background"
+              IsChecked="{Binding TransparentBackground}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </DockPanel>
 </Window>
