@@ -146,37 +146,84 @@ public sealed class ExportService
     {
         try
         {
-            // Build the script based on requested format.
-            string? result = options.Format switch
+            string? result;
+
+            if (options.Format == ExportFormat.SVG)
             {
-                ExportFormat.SVG => await ExecuteScriptAsync("window.exportDiagram ? window.exportDiagram.getSVG() : null"),
-
-                // PNG: combine backgroundColor assignment and PNG extraction into a single execution.
-                // Use JsonSerializer to safely quote the color as a JS string literal.
-                ExportFormat.PNG => await ExecuteScriptAsync(
-                    $"window.exportDiagram ? " +
-                    $"(window.exportDiagram.backgroundColor = {JsonSerializer.Serialize(options.TransparentBackground ? "transparent" : options.BackgroundColor)}, " +
-                    $"await window.exportDiagram.getPNG({options.Scale})) : null"),
-
-                _ => null
-            };
-
-            if (string.IsNullOrEmpty(result) || result == "null")
+                result = await ExecuteScriptAsync("window.exportDiagram ? window.exportDiagram.getSVG() : null");
+            }
+            else if (options.Format == ExportFormat.PNG)
             {
-                SimpleLogger.LogError("Export extraction returned null");
+                // First set the background color
+                string bgColor = options.TransparentBackground ? "transparent" : options.BackgroundColor;
+                await ExecuteScriptAsync($"if (window.exportDiagram) {{ window.exportDiagram.backgroundColor = {JsonSerializer.Serialize(bgColor)}; }}");
+
+                // Then get the PNG - note the 'await' is inside the script
+                result = await ExecuteScriptAsync($@"
+                (async function() {{
+                    if (!window.exportDiagram) return null;
+                    try {{
+                        const png = await window.exportDiagram.getPNG({options.Scale});
+                        console.log('PNG result type:', typeof png);
+                        console.log('PNG result length:', png ? png.length : 'null');
+                        console.log('PNG result preview:', png ? png.substring(0, 100) : 'null');
+                        return png;
+                    }} catch (error) {{
+                        console.error('PNG export error:', error);
+                        console.error('Error stack:', error.stack);
+                        return null;
+                    }}
+                }})()
+            ");
+            }
+            else
+            {
                 return null;
             }
 
-            // For PNG, result is already base64 without prefix (handled in JS).
-            // For SVG, de-quote if WebView returned a JSON string.
-            ReadOnlySpan<char> resultSpan = result.AsSpan();
-            if (options.Format == ExportFormat.SVG && resultSpan.StartsWith('"') && resultSpan.EndsWith('"'))
+            if (string.IsNullOrEmpty(result) || result == "null")
             {
-                // Remove quotes from JSON string
-                result = resultSpan.Trim('"').ToString();
+                SimpleLogger.LogError($"Export extraction returned null for {options.Format}");
+                return null;
+            }
 
-                // Unescape any escaped characters
-                result = JsonSerializer.Deserialize<string>('"' + result + '"') ?? result;
+            // Log the raw result for debugging
+            SimpleLogger.Log($"Export result type: {options.Format}, length: {result.Length}");
+            if (result.Length > 100)
+            {
+                SimpleLogger.Log($"Export result preview: {result.Substring(0, 100)}...");
+            }
+
+            // For SVG, de-quote if WebView returned a JSON string
+            if (options.Format == ExportFormat.SVG && result.StartsWith('"') && result.EndsWith('"'))
+            {
+                result = JsonSerializer.Deserialize<string>(result) ?? result;
+            }
+            // For PNG, also handle JSON string encoding
+            else if (options.Format == ExportFormat.PNG && result.StartsWith('"') && result.EndsWith('"'))
+            {
+                result = JsonSerializer.Deserialize<string>(result) ?? result;
+            }
+
+            // Validate base64 for PNG
+            if (options.Format == ExportFormat.PNG)
+            {
+                try
+                {
+                    // Remove any whitespace or line breaks
+                    result = result.Replace("\n", "").Replace("\r", "").Replace(" ", "");
+
+                    // Validate base64
+                    byte[] testDecode = Convert.FromBase64String(result);
+                    SimpleLogger.Log($"PNG base64 validation successful, decoded size: {testDecode.Length} bytes");
+                }
+                catch (FormatException fe)
+                {
+                    SimpleLogger.LogError($"Invalid base64 data: {fe.Message}");
+                    SimpleLogger.Log($"Base64 data length: {result.Length}");
+                    SimpleLogger.Log($"First 200 chars: {result.Substring(0, Math.Min(200, result.Length))}");
+                    throw;
+                }
             }
 
             return result;
@@ -290,12 +337,12 @@ public sealed class ExportService
     //}
 
     //TODO consider deleting these....... Legacy methods - kept for potential future use
-    public static void ExportSvg(string svg, string targetPath)
+    public static async Task ExportSvgAsync(string svg, string targetPath)
     {
-        File.WriteAllText(targetPath, svg, Encoding.UTF8);
+        await File.WriteAllTextAsync(targetPath, svg, Encoding.UTF8);
     }
 
-    public void ExportPng(string svg, string targetPath)
+    public static async Task ExportPngAsync(string svg, string targetPath)
     {
         // Future: Could implement server-side PNG conversion here
         throw new NotImplementedException("Direct SVG to PNG conversion not yet implemented");
