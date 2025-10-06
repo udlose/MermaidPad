@@ -20,7 +20,6 @@
       Orientation="Horizontal"
       Spacing="10">
       <Button
-        Width="80"
         Click="OnOkClick"
         Content="OK"
         IsDefault="True" />
