@@ -23,7 +23,6 @@ using Avalonia.Platform.Storage;
 using MermaidPad.Dialogs;
 using MermaidPad.Models;
 using System.Text;
-
 using System.Text.Json;
 
 namespace MermaidPad.Services;
