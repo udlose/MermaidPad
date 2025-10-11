@@ -82,6 +82,7 @@ csharp_prefer_static_local_function = true:error
 csharp_prefer_static_anonymous_function = true:error
 csharp_style_prefer_readonly_struct = true:error
 csharp_style_prefer_readonly_struct_member = true:suggestion
+csharp_style_prefer_simple_property_accessors = true:suggestion
 
 [*.{cs,vb}]
 #### Naming styles ####
@@ -154,6 +155,7 @@ dotnet_style_namespace_match_folder = true:suggestion
 # Resharper
 # Use preferred style of 'new' expression when created type is evident
 resharper_arrange_object_creation_when_type_evident_highlighting = none
+resharper_convert_to_primary_constructor_highlighting = none
 resharper_can_simplify_dictionary_try_get_value_with_get_value_or_default_highlighting = none
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:silent
 dotnet_style_qualification_for_field = false:silent
