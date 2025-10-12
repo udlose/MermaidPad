@@ -33,6 +33,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
+[SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private static readonly string[] _fileSizes = { "B", "KB", "MB", "GB", "TB" };
@@ -134,31 +135,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         _ = LoadActualSvgDimensionsAsync();
 
     }
-
-    ///// <summary>
-    ///// Constructor that accepts services through DI
-    ///// </summary>
-    //public ExportDialogViewModel(IServiceProvider? serviceProvider = null)
-    //{
-    //// Try to get services from DI if available
-    //if (serviceProvider is not null)
-    //{
-    //    _imageConversionService = serviceProvider.GetService<IImageConversionService>();
-    //    _exportService = serviceProvider.GetService<ExportService>();
-    //}
-
-    //// Initialize available formats
-    //AvailableFormats = new ObservableCollection<ExportFormatItem>
-    //{
-    //    new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
-    //    new ExportFormatItem{ Format = ExportFormat.PNG, Description= "PNG (Portable Network Graphics)" }
-    //};
-
-    //SelectedFormat = AvailableFormats[0];
-
-    //// Load actual SVG dimensions asynchronously
-    //_ = LoadActualSvgDimensionsAsync();
-    //}
 
     /// <summary>
     /// Sets the storage provider after construction

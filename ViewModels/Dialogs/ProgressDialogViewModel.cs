@@ -29,6 +29,9 @@ namespace MermaidPad.ViewModels.Dialogs;
 /// View model for progress dialog
 /// </summary>
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
+[SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
+[SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<ExportProgress>
 {
     private CancellationTokenSource? _cancellationTokenSource;
