@@ -18,22 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Controls;
-using MermaidPad.ViewModels;
+using Avalonia.Media;
 
-namespace MermaidPad.Dialogs;
+namespace MermaidPad.ViewModels.Dialogs;
 
 /// <summary>
-/// Dialog for selecting export options.
+/// Represents the view model for a message dialog, containing the title, message, and icon details.
 /// </summary>
-public partial class ExportDialog : Window
+/// <remarks>This class is typically used to provide data for a message dialog, including the dialog's title,
+/// message content, and optional icon styling. The properties can be bound to a user interface  to dynamically display
+/// dialog content.</remarks>
+public sealed class MessageDialogViewModel : ViewModelBase
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ExportDialog"/> class.
-    /// </summary>
-    public ExportDialog()
-    {
-        InitializeComponent();
-        DataContext = new ExportDialogViewModel(this);
-    }
+    public string Title { get; set; } = "";
+
+    public string Message { get; set; } = "";
+
+    public string IconData { get; set; } = "";
+
+    public IBrush IconColor { get; set; } = Brushes.Gray;
 }
