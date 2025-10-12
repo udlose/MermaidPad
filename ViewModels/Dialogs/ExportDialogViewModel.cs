@@ -101,6 +101,8 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 
     public ObservableCollection<ExportFormatItem> AvailableFormats { get; }
 
+    public ObservableCollection<int> AvailableDpiValues { get; }
+
     public bool IsPngSelected => SelectedFormat?.Format == ExportFormat.PNG;
 
     public bool IsSvgSelected => SelectedFormat?.Format == ExportFormat.SVG;
@@ -130,6 +132,9 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         };
 
         SelectedFormat = AvailableFormats[0];
+
+        // Initialize available DPI values
+        AvailableDpiValues = new ObservableCollection<int> { 72, 150, 300, 600 };
 
         // Load actual SVG dimensions asynchronously
         _ = LoadActualSvgDimensionsAsync();
