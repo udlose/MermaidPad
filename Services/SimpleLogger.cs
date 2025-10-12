@@ -648,34 +648,24 @@ public static class SimpleLogger
     /// lock file is  temporarily unavailable. If all retry attempts fail, the content is written to the debug output as
     /// a fallback.</remarks>
     /// <param name="content">The content to write to the log file. Cannot be <see langword="null"/> or empty.</param>
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed in finally block")]
     private static void WriteEntryWithLock(string content)
     {
         const int maxRetries = 3;
-        int delay = InitialRetryDelayMs; // Start with initial delay
+        int delay = InitialRetryDelayMs;
 
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
             FileStream? lockStream = null;
             try
             {
-                // Try to acquire the lock file
                 lockStream = TryAcquireLogLock();
                 if (lockStream is not null)
                 {
-                    try
-                    {
-                        // Successfully got the lock, now write to the log file
-                        WriteToLogFile(content);
-                        return; // Success!
-                    }
-                    finally
-                    {
-                        // Always release the lock
-                        ReleaseLogLock(lockStream);
-                    }
+                    WriteToLogFile(content);
+                    return; // finally will dispose and delete lock file
                 }
 
-                // Couldn't get the lock, wait before retrying (unless this is the last attempt)
                 if (attempt < maxRetries - 1)
                 {
                     Thread.Sleep(delay);
@@ -684,33 +674,44 @@ public static class SimpleLogger
             }
             catch (Exception ex)
             {
-                // If we got an exception after acquiring the lock, make sure to release it
-                if (lockStream is not null)
-                {
-                    try
-                    {
-                        ReleaseLogLock(lockStream);
-                    }
-                    catch
-                    {
-                        // Ignore errors during lock release
-                    }
-                }
-
-                // For the last attempt, don't retry
                 if (attempt == maxRetries - 1)
                 {
-                    Debug.WriteLine($"Failed to write to log after {maxRetries} attempts: {ex.Message}");
+                    Debug.WriteLine($"Failed to write to log after {maxRetries} attempts: {ex}");
                     break;
                 }
 
-                // Wait before retrying
                 Thread.Sleep(delay);
                 delay = ExponentialBackoff(delay);
             }
+            finally
+            {
+                if (lockStream is not null)
+                {
+                    // Break these calls apart so that the lock file is deleted even if Dispose fails
+                    try
+                    {
+                        lockStream.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error disposing lock stream: {ex}");
+                    }
+
+                    try
+                    {
+                        if (File.Exists(_lockPath))
+                        {
+                            File.Delete(_lockPath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error deleting lock file: {ex}");
+                    }
+                }
+            }
         }
 
-        // All retries failed, fall back to Debug.WriteLine
         Debug.WriteLine($"[LOG-FALLBACK] {content.Trim()}");
     }
 
@@ -768,6 +769,7 @@ public static class SimpleLogger
     /// and return <see langword="null"/>.</remarks>
     /// <returns>A <see cref="FileStream"/> representing the acquired lock if successful; otherwise, <see langword="null"/>.</returns>
     [MustDisposeResource]
+    [SuppressMessage("Security", "SEC0012:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static FileStream? TryAcquireLogLock()
     {
         try
@@ -816,6 +818,8 @@ public static class SimpleLogger
     /// exceptions.</remarks>
     /// <param name="lockStream">The <see cref="FileStream"/> representing the lock on the log file.  This stream will be disposed as part of the
     /// release process.</param>
+    [HandlesResourceDisposal()]
+    [SuppressMessage("ReSharper", "SuggestBaseTypeForParameter", Justification = "Specific type needed for File cleanup")]
     private static void ReleaseLogLock(FileStream lockStream)
     {
         try
