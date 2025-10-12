@@ -18,15 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MermaidPad.Services;
 using MermaidPad.Services.Export;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.Dialogs;
-
 /// <summary>
 /// ViewModel for the Export Dialog with real SVG dimension calculation
 /// </summary>
@@ -36,7 +40,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class ExportDialogViewModel : ViewModelBase
 {
-    private static readonly string[] _fileSizes = { "B", "KB", "MB", "GB", "TB" };
+    private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
     internal IStorageProvider? StorageProvider { get; private set; }
@@ -138,7 +142,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 
         // Load actual SVG dimensions asynchronously
         _ = LoadActualSvgDimensionsAsync();
-
     }
 
     /// <summary>
@@ -183,8 +186,13 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Loads the actual SVG dimensions from the current diagram
+    /// Asynchronously loads the actual dimensions of the current SVG content and updates the internal state.
     /// </summary>
+    /// <remarks>This method retrieves the current SVG content using the export service and calculates its
+    /// dimensions  using the image conversion service. If the dimensions are successfully retrieved and valid, they are
+    /// stored internally and used to update estimates. If the operation fails or the dimensions are invalid,  default
+    /// dimensions of 800x600 are used as a fallback.</remarks>
+    /// <returns></returns>
     private async Task LoadActualSvgDimensionsAsync()
     {
         try
@@ -214,7 +222,8 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to load SVG dimensions: {ex.Message}");
+            Debug.WriteLine($"Failed to load SVG dimensions: {ex}");
+            SimpleLogger.LogError($"Failed to load SVG dimensions: {ex}");
         }
 
         // Fallback to default dimensions if loading fails
@@ -242,6 +251,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 
     partial void OnUseWhiteBackgroundChanged(bool value) => UpdateEstimates();
 
+    /// <summary>
+    /// Opens a folder picker dialog to allow the user to select a directory.
+    /// </summary>
+    /// <remarks>This method uses the configured <see cref="StorageProvider"/> to display a folder picker
+    /// dialog.  If the user selects a folder, the <see cref="Directory"/> property is updated with the path of the
+    /// selected folder. If no folder is selected or the <see cref="StorageProvider"/> is <see langword="null"/>, the
+    /// method does nothing.</remarks>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     [RelayCommand]
     private async Task BrowseForDirectoryAsync()
     {
@@ -263,16 +280,225 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Validates the export file name and prompts the user to confirm overwriting if the file already exists before
+    /// proceeding with the export operation.
+    /// </summary>
+    /// <remarks>The export operation will not proceed if the file name is invalid or contains invalid
+    /// characters. If a file with the specified name already exists, the user is prompted to confirm overwriting the
+    /// file. The export is only initiated if all validations pass and the user confirms any necessary
+    /// overwrite.</remarks>
+    /// <returns>A task that represents the asynchronous export validation operation.</returns>
     [RelayCommand]
-    private void Export()
+    private async Task ExportAsync()
     {
+        // Validate filename is not empty
+        string cleanFileName = Path.GetFileNameWithoutExtension(FileName);
+        if (string.IsNullOrWhiteSpace(cleanFileName))
+        {
+            await ShowErrorMessageAsync("Invalid Filename", "Please enter a valid filename.");
+            return;
+        }
+
+        // Validate filename doesn't contain invalid characters
+        if (cleanFileName.AsSpan().IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            await ShowErrorMessageAsync("Invalid Filename", "Filename contains invalid characters. Please use only letters, numbers, spaces, hyphens, and underscores.");
+            return;
+        }
+
+        // Check if file already exists and prompt for overwrite
+        string fullPath = FullFilePath;
+        if (File.Exists(fullPath))
+        {
+            bool overwrite = await ShowOverwriteConfirmationAsync(fullPath);
+            if (!overwrite)
+            {
+                return; // User cancelled overwrite
+            }
+        }
+
+        // Validation passed, proceed with export
         DialogResult = true;
     }
 
+    /// <summary>
+    /// Cancels the current operation and closes the dialog with a negative result.
+    /// </summary>
+    /// <remarks>Use this method to dismiss the dialog without applying any changes. This typically sets the
+    /// dialog's result to indicate that the user chose to cancel or exit the operation.</remarks>
     [RelayCommand]
     private void Cancel()
     {
         DialogResult = false;
+    }
+
+    /// <summary>
+    /// Displays an error message dialog with the specified title and message on the UI thread.
+    /// </summary>
+    /// <remarks>This method must be called from a context where the UI thread is available. The dialog is
+    /// modal and blocks interaction with the parent window until dismissed.</remarks>
+    /// <param name="title">The title to display in the error dialog window. Cannot be null.</param>
+    /// <param name="message">The error message to display in the dialog. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation of displaying the error dialog.</returns>
+    private static async Task ShowErrorMessageAsync(string title, string message)
+    {
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                // Create a simple error window
+                Window errorWindow = new Window
+                {
+                    Title = title,
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    CanResize = false
+                };
+
+                StackPanel stackPanel = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(20),
+                    Spacing = 15
+                };
+
+                stackPanel.Children.Add(new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                });
+
+                Button okButton = new Button
+                {
+                    Content = "OK",
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    Width = 100
+                };
+
+                okButton.Click += (_, _) => errorWindow.Close();
+                stackPanel.Children.Add(okButton);
+
+                errorWindow.Content = stackPanel;
+
+                // Get parent window
+                Window? parentWindow = GetParentWindow();
+                if (parentWindow is not null)
+                {
+                    await errorWindow.ShowDialog(parentWindow);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to show error message: {ex}");
+                SimpleLogger.LogError($"Failed to show error message: {ex}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Shows a confirmation dialog for file overwrite
+    /// </summary>
+    /// <returns>True if user confirms overwrite, false otherwise</returns>
+    private static async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
+    {
+        return await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                // Create confirmation window
+                Window confirmWindow = new Window
+                {
+                    Title = "Confirm Overwrite",
+                    Width = 450,
+                    Height = 220,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    CanResize = false
+                };
+
+                StackPanel stackPanel = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(20),
+                    Spacing = 15
+                };
+
+                stackPanel.Children.Add(new TextBlock
+                {
+                    Text = "File Already Exists",
+                    FontSize = 16,
+                    FontWeight = Avalonia.Media.FontWeight.Bold
+                });
+
+                stackPanel.Children.Add(new TextBlock
+                {
+                    Text = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFileName(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                });
+
+                StackPanel buttonPanel = new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    Spacing = 10
+                };
+
+                bool result = false;
+
+                Button yesButton = new Button
+                {
+                    Content = "Yes, Overwrite",
+                    Width = 120
+                };
+                yesButton.Click += (_, _) =>
+                {
+                    result = true;
+                    confirmWindow.Close();
+                };
+
+                Button noButton = new Button
+                {
+                    Content = "No, Cancel",
+                    Width = 120
+                };
+                noButton.Click += (_, _) =>
+                {
+                    result = false;
+                    confirmWindow.Close();
+                };
+
+                buttonPanel.Children.Add(yesButton);
+                buttonPanel.Children.Add(noButton);
+                stackPanel.Children.Add(buttonPanel);
+
+                confirmWindow.Content = stackPanel;
+
+                // Get parent window
+                Window? parentWindow = GetParentWindow();
+                if (parentWindow is not null)
+                {
+                    await confirmWindow.ShowDialog(parentWindow);
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to show overwrite confirmation: {ex.Message}");
+                return false; // Default to not overwriting on error
+            }
+        });
+    }
+
+    /// <summary>
+    /// Gets the parent window for dialogs
+    /// </summary>
+    private static Window? GetParentWindow()
+    {
+        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+        return null;
     }
 
     private void UpdateEstimates()
