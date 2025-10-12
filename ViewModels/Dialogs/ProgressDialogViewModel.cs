@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Services.Export;
@@ -80,11 +81,21 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     [ObservableProperty]
     public partial bool CloseRequested { get; set; } = false;
 
+    /// <summary>
+    /// Sets the <see cref="CancellationTokenSource"/> to be used for managing cancellation tokens.
+    /// </summary>
+    /// <param name="cts">The <see cref="CancellationTokenSource"/> instance to assign. Cannot be <see langword="null"/>.</param>
     public void SetCancellationTokenSource(CancellationTokenSource cts)
     {
         _cancellationTokenSource = cts;
     }
 
+    /// <summary>
+    /// Cancels the ongoing operation, if one is in progress.
+    /// </summary>
+    /// <remarks>This method signals the cancellation of the current operation by invoking the associated 
+    /// cancellation token. Once called, the operation cannot be resumed. The status message is updated to indicate the
+    /// cancellation, and the ability to cancel is disabled.</remarks>
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
@@ -93,6 +104,12 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
         CanCancel = false;
     }
 
+    /// <summary>
+    /// Signals that the dialog should be closed.
+    /// </summary>
+    /// <remarks>This method sets the <see cref="CloseRequested"/> property to <see langword="true"/>, 
+    /// indicating that the user has requested to close the dialog. The actual closing of the window is managed
+    /// externally, typically by a handler in the <c>MainViewModel</c>.</remarks>
     [RelayCommand]
     private void Close()
     {
@@ -102,8 +119,11 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     }
 
     /// <summary>
-    /// IProgress implementation for receiving progress updates
+    /// Updates the export progress by applying the specified value.
     /// </summary>
+    /// <remarks>If called from a thread other than the UI thread, the update is posted to the UI thread for
+    /// execution.</remarks>
+    /// <param name="value">The progress value to apply. If <see langword="null"/>, the method does nothing.</param>
     public void Report(ExportProgress? value)
     {
         if (value is null)
@@ -111,6 +131,26 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
             return;
         }
 
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Apply(value);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => Apply(value));
+        }
+    }
+
+    /// <summary>
+    /// Updates the progress, status, and step description based on the provided export progress value.
+    /// </summary>
+    /// <remarks>This method updates the progress percentage, status message, and step description to reflect
+    /// the current state of the export operation. If the export step indicates completion, the cancel button is
+    /// disabled, and the operation is marked as complete.</remarks>
+    /// <param name="value">The current progress of the export operation, including percentage complete, status message, and step
+    /// information.</param>
+    private void Apply(ExportProgress value)
+    {
         // Update progress value and text
         ProgressValue = value.PercentComplete;
         ProgressText = $"{value.PercentComplete}%";
@@ -129,6 +169,11 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
         }
     }
 
+    /// <summary>
+    /// Provides a human-readable description of the specified export step.
+    /// </summary>
+    /// <param name="step">The <see cref="ExportStep"/> value representing the current stage of the export process.</param>
+    /// <returns>A string describing the specified export step. Returns an empty string if the step is not recognized.</returns>
     private static string GetStepDescription(ExportStep step)
     {
         return step switch
