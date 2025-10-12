@@ -22,7 +22,6 @@ using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Services.Export;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
@@ -50,7 +49,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     public partial string FileName { get; set; } = "diagram";
 
     [ObservableProperty]
-    public partial string Directory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+    public partial string Directory { get; set; } = GetValidDocumentsPath();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPngSelected))]
@@ -119,30 +118,47 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         }
     }
 
-    /// <summary>
-    /// Constructor that accepts services through DI
-    /// </summary>
-    public ExportDialogViewModel(IServiceProvider? serviceProvider = null)
+    public ExportDialogViewModel(IImageConversionService? imageConversionService, ExportService? exportService)
     {
-        // Try to get services from DI if available
-        if (serviceProvider is not null)
-        {
-            _imageConversionService = serviceProvider.GetService<IImageConversionService>();
-            _exportService = serviceProvider.GetService<ExportService>();
-        }
-
-        // Initialize available formats
+        _imageConversionService = imageConversionService;
+        _exportService = exportService;
         AvailableFormats = new ObservableCollection<ExportFormatItem>
         {
-            new ExportFormatItem(ExportFormat.SVG, "SVG (Scalable Vector Graphics)"),
-            new ExportFormatItem(ExportFormat.PNG, "PNG (Portable Network Graphics)")
+            new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
+            new ExportFormatItem{ Format = ExportFormat.PNG, Description= "PNG (Portable Network Graphics)" }
         };
 
         SelectedFormat = AvailableFormats[0];
 
         // Load actual SVG dimensions asynchronously
         _ = LoadActualSvgDimensionsAsync();
+
     }
+
+    ///// <summary>
+    ///// Constructor that accepts services through DI
+    ///// </summary>
+    //public ExportDialogViewModel(IServiceProvider? serviceProvider = null)
+    //{
+    //// Try to get services from DI if available
+    //if (serviceProvider is not null)
+    //{
+    //    _imageConversionService = serviceProvider.GetService<IImageConversionService>();
+    //    _exportService = serviceProvider.GetService<ExportService>();
+    //}
+
+    //// Initialize available formats
+    //AvailableFormats = new ObservableCollection<ExportFormatItem>
+    //{
+    //    new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
+    //    new ExportFormatItem{ Format = ExportFormat.PNG, Description= "PNG (Portable Network Graphics)" }
+    //};
+
+    //SelectedFormat = AvailableFormats[0];
+
+    //// Load actual SVG dimensions asynchronously
+    //_ = LoadActualSvgDimensionsAsync();
+    //}
 
     /// <summary>
     /// Sets the storage provider after construction
@@ -150,6 +166,39 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     public void SetStorageProvider(IStorageProvider? storageProvider)
     {
         StorageProvider = storageProvider;
+    }
+
+    /// <summary>
+    /// Creates and returns an ExportOptions object that reflects the current export settings.
+    /// </summary>
+    /// <remarks>The returned ExportOptions object includes only the options relevant to the selected export
+    /// format. For example, PngOptions is populated only if a PNG export is selected, and SvgOptions is populated only
+    /// if an SVG export is selected.</remarks>
+    /// <returns>An ExportOptions instance containing the current file path, format, and any applicable PNG or SVG export
+    /// options.</returns>
+    public ExportOptions GetExportOptions()
+    {
+        return new ExportOptions
+        {
+            FilePath = FullFilePath,
+            Format = SelectedFormat?.Format ?? ExportFormat.SVG,
+            PngOptions = IsPngSelected ? new PngExportOptions
+            {
+                Dpi = SelectedDpi,
+                ScaleFactor = ScaleFactor,
+                BackgroundColor = UseWhiteBackground ? "#FFFFFF" : null,
+                Quality = Quality,
+                AntiAlias = AntiAlias,
+                MaxWidth = MaxWidth,
+                MaxHeight = MaxHeight,
+                PreserveAspectRatio = PreserveAspectRatio
+            } : null,
+            SvgOptions = IsSvgSelected ? new SvgExportOptions
+            {
+                IncludeXmlDeclaration = IncludeXmlDeclaration,
+                Optimize = OptimizeSvg
+            } : null
+        };
     }
 
     /// <summary>
@@ -370,28 +419,27 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             : $"~{size:F2} {_fileSizes[order]}";
     }
 
-    public ExportOptions GetExportOptions()
+    /// <summary>
+    /// Retrieves a valid file system path to the user's Documents directory, ensuring the directory exists.
+    /// </summary>
+    /// <remarks>If the Documents directory does not exist or cannot be determined, the method falls back to
+    /// the user's home directory and creates the directory if necessary. The returned path is guaranteed to exist when
+    /// the method completes.</remarks>
+    /// <returns>A string containing the full path to the user's Documents directory. If the Documents directory is unavailable,
+    /// returns the path to the user's home directory instead.</returns>
+    private static string GetValidDocumentsPath()
     {
-        return new ExportOptions
+        string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        // If MyDocuments is empty or doesn't exist, fallback to the user's home directory.
+        if (string.IsNullOrWhiteSpace(myDocuments) || !System.IO.Directory.Exists(myDocuments))
         {
-            FilePath = FullFilePath,
-            Format = SelectedFormat?.Format ?? ExportFormat.SVG,
-            PngOptions = IsPngSelected ? new PngExportOptions
-            {
-                Dpi = SelectedDpi,
-                ScaleFactor = ScaleFactor,
-                BackgroundColor = UseWhiteBackground ? "#FFFFFF" : null,
-                Quality = Quality,
-                AntiAlias = AntiAlias,
-                MaxWidth = MaxWidth,
-                MaxHeight = MaxHeight,
-                PreserveAspectRatio = PreserveAspectRatio
-            } : null,
-            SvgOptions = IsSvgSelected ? new SvgExportOptions
-            {
-                IncludeXmlDeclaration = IncludeXmlDeclaration,
-                Optimize = OptimizeSvg
-            } : null
-        };
+            myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+        // Optionally, ensure the directory exists.
+        if (!System.IO.Directory.Exists(myDocuments))
+        {
+            System.IO.Directory.CreateDirectory(myDocuments);
+        }
+        return myDocuments;
     }
 }
