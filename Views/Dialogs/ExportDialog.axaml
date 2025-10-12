@@ -17,291 +17,286 @@
   mc:Ignorable="d">
 
   <Window.Styles>
-	<Style Selector="TextBlock.SectionHeader">
-	  <Setter Property="FontWeight" Value="Bold" />
-	  <Setter Property="Margin" Value="0,10,0,5" />
-	  <Setter Property="FontSize" Value="14" />
-	</Style>
+    <Style Selector="TextBlock.SectionHeader">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,10,0,5" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
 
-	<Style Selector="Border.SectionBorder">
-	  <Setter Property="BorderBrush" Value="#E0E0E0" />
-	  <Setter Property="BorderThickness" Value="1" />
-	  <Setter Property="CornerRadius" Value="4" />
-	  <Setter Property="Padding" Value="10" />
-	  <Setter Property="Margin" Value="0,5,0,10" />
-	</Style>
+    <Style Selector="Border.SectionBorder">
+      <Setter Property="BorderBrush" Value="#E0E0E0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10" />
+      <Setter Property="Margin" Value="0,5,0,10" />
+    </Style>
 
-	<Style Selector="StackPanel.OptionRow">
-	  <Setter Property="Orientation" Value="Horizontal" />
-	  <Setter Property="Margin" Value="0,5" />
-	  <Setter Property="Spacing" Value="10" />
-	</Style>
+    <Style Selector="StackPanel.OptionRow">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Margin" Value="0,5" />
+      <Setter Property="Spacing" Value="10" />
+    </Style>
 
-	<Style Selector="TextBlock.OptionLabel">
-	  <Setter Property="Width" Value="120" />
-	  <Setter Property="VerticalAlignment" Value="Center" />
-	</Style>
+    <Style Selector="TextBlock.OptionLabel">
+      <Setter Property="Width" Value="120" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
   </Window.Styles>
 
-  <Grid Margin="20">
-	<Grid.RowDefinitions>
-	  <RowDefinition Height="Auto" />
-	  <RowDefinition Height="*" />
-	  <RowDefinition Height="Auto" />
-	</Grid.RowDefinitions>
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto">
 
-	<!--  Header  -->
-	<StackPanel Grid.Row="0">
-	  <TextBlock
-		Margin="0,0,0,10"
-		FontSize="18"
-		FontWeight="Bold"
-		Text="Export Diagram" />
+    <!--  Header  -->
+    <StackPanel Grid.Row="0">
+      <TextBlock
+        Margin="0,0,0,10"
+        FontSize="18"
+        FontWeight="Bold"
+        Text="Export Diagram" />
 
-	  <TextBlock
-		Margin="0,0,0,20"
-		Foreground="#666666"
-		Text="Configure export settings for your diagram" />
-	</StackPanel>
+      <TextBlock
+        Margin="0,0,0,20"
+        Foreground="#666666"
+        Text="Configure export settings for your diagram" />
+    </StackPanel>
 
-	<!--  Main Content  -->
-	<ScrollViewer
-	  Grid.Row="1"
-	  HorizontalScrollBarVisibility="Disabled"
-	  VerticalScrollBarVisibility="Auto">
-	  <StackPanel>
-		<!--  File Settings  -->
-		<TextBlock Classes="SectionHeader" Text="File Settings" />
-		<Border Classes="SectionBorder">
-		  <StackPanel>
-			<!--  File Name  -->
-			<StackPanel Classes="OptionRow">
-			  <TextBlock Classes="OptionLabel" Text="File Name:" />
-			  <TextBox
-				Width="300"
-				Text="{Binding FileName}"
-				Watermark="diagram" />
-			</StackPanel>
+    <!--  Main Content  -->
+    <ScrollViewer
+      Grid.Row="1"
+      HorizontalScrollBarVisibility="Disabled"
+      VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+        <!--  File Settings  -->
+        <TextBlock Classes="SectionHeader" Text="File Settings" />
+        <Border Classes="SectionBorder">
+          <StackPanel>
+            <!--  File Name  -->
+            <StackPanel Classes="OptionRow">
+              <TextBlock Classes="OptionLabel" Text="File Name:" />
+              <TextBox
+                Width="300"
+                Text="{Binding FileName}"
+                Watermark="diagram" />
+            </StackPanel>
 
-			<!--  Format  -->
-			<StackPanel Classes="OptionRow">
-			  <TextBlock Classes="OptionLabel" Text="Format:" />
-			  <!--<ComboBox
-				Width="300"
-				Items="{Binding AvailableFormats}"
-				SelectedItem="{Binding SelectedFormat}">
-				<ComboBox.ItemTemplate>
-				  <DataTemplate>
-					<TextBlock Text="{Binding DisplayName}" />
-				  </DataTemplate>
-				</ComboBox.ItemTemplate>
-			  </ComboBox>-->
-			</StackPanel>
+            <!--  Format  -->
+            <StackPanel Classes="OptionRow">
+              <TextBlock Classes="OptionLabel" Text="Format:" />
+              <ComboBox
+                Width="300"
+                ItemsSource="{Binding AvailableFormats}"
+                SelectedItem="{Binding SelectedFormat}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate DataType="vm:ExportFormatItem">
+                    <TextBlock Text="{Binding Description}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
 
-			<!--  Directory  -->
-			<StackPanel Classes="OptionRow">
-			  <TextBlock Classes="OptionLabel" Text="Save Location:" />
-			  <TextBox
-				Width="220"
-				IsReadOnly="True"
-				Text="{Binding Directory}" />
-			  <Button
-				Width="70"
-				Command="{Binding BrowseForDirectoryCommand}"
-				Content="Browse..." />
-			</StackPanel>
-		  </StackPanel>
-		</Border>
+            <!--  Directory  -->
+            <StackPanel Classes="OptionRow">
+              <TextBlock Classes="OptionLabel" Text="Save Location:" />
+              <TextBox
+                Width="220"
+                IsReadOnly="True"
+                Text="{Binding Directory}" />
+              <Button
+                Width="70"
+                Command="{Binding BrowseForDirectoryCommand}"
+                Content="Browse..." />
+            </StackPanel>
+          </StackPanel>
+        </Border>
 
-		<!--  PNG Options (visible when PNG is selected)  -->
-		<StackPanel IsVisible="{Binding IsPngSelected}">
-		  <TextBlock Classes="SectionHeader" Text="PNG Options" />
-		  <Border Classes="SectionBorder">
-			<StackPanel>
-			  <!--  DPI  -->
-			  <StackPanel Classes="OptionRow">
-				<TextBlock Classes="OptionLabel" Text="DPI:" />
-				<ComboBox Width="150" SelectedItem="{Binding SelectedDpi}">
-				  <ComboBoxItem>72</ComboBoxItem>
-				  <ComboBoxItem>150</ComboBoxItem>
-				  <ComboBoxItem>300</ComboBoxItem>
-				  <ComboBoxItem>600</ComboBoxItem>
-				</ComboBox>
-				<TextBlock
-				  Margin="10,0,0,0"
-				  VerticalAlignment="Center"
-				  Foreground="#666666"
-				  Text="(Higher = better quality, larger file)" />
-			  </StackPanel>
+        <!--  PNG Options (visible when PNG is selected)  -->
+        <StackPanel IsVisible="{Binding IsPngSelected}">
+          <TextBlock Classes="SectionHeader" Text="PNG Options" />
+          <Border Classes="SectionBorder">
+            <StackPanel>
+              <!--  DPI  -->
+              <StackPanel Classes="OptionRow">
+                <TextBlock Classes="OptionLabel" Text="DPI:" />
+                <ComboBox Width="150" SelectedItem="{Binding SelectedDpi}">
+                  <ComboBoxItem>72</ComboBoxItem>
+                  <ComboBoxItem>150</ComboBoxItem>
+                  <ComboBoxItem>300</ComboBoxItem>
+                  <ComboBoxItem>600</ComboBoxItem>
+                </ComboBox>
+                <TextBlock
+                  Margin="10,0,0,0"
+                  VerticalAlignment="Center"
+                  Foreground="#666666"
+                  Text="(Higher = better quality, larger file)" />
+              </StackPanel>
 
-			  <!--  Scale Factor  -->
-			  <StackPanel Classes="OptionRow">
-				<TextBlock Classes="OptionLabel" Text="Scale Factor:" />
-				<Slider
-				  Width="150"
-				  IsSnapToTickEnabled="True"
-				  Maximum="4"
-				  Minimum="1"
-				  TickFrequency="1"
-				  Value="{Binding ScaleFactor}" />
-				<TextBlock
-				  Width="40"
-				  VerticalAlignment="Center"
-				  Text="{Binding ScaleFactor, StringFormat='{}{0:F1}x'}" />
-			  </StackPanel>
+              <!--  Scale Factor  -->
+              <StackPanel Classes="OptionRow">
+                <TextBlock Classes="OptionLabel" Text="Scale Factor:" />
+                <Slider
+                  Width="150"
+                  IsSnapToTickEnabled="True"
+                  Maximum="4"
+                  Minimum="1"
+                  TickFrequency="1"
+                  Value="{Binding ScaleFactor}" />
+                <TextBlock
+                  Width="40"
+                  VerticalAlignment="Center"
+                  Text="{Binding ScaleFactor, StringFormat='{}{0:F1}x'}" />
+              </StackPanel>
 
-			  <!--  Background  -->
-			  <StackPanel Classes="OptionRow">
-				<TextBlock Classes="OptionLabel" Text="Background:" />
-				<RadioButton
-				  Content="White"
-				  GroupName="Background"
-				  IsChecked="{Binding UseWhiteBackground}" />
-				<RadioButton
-				  Margin="20,0,0,0"
-				  Content="Transparent"
-				  GroupName="Background"
-				  IsChecked="{Binding UseTransparentBackground}" />
-			  </StackPanel>
+              <!--  Background  -->
+              <StackPanel Classes="OptionRow">
+                <TextBlock Classes="OptionLabel" Text="Background:" />
+                <RadioButton
+                  Content="White"
+                  GroupName="Background"
+                  IsChecked="{Binding UseWhiteBackground}" />
+                <RadioButton
+                  Margin="20,0,0,0"
+                  Content="Transparent"
+                  GroupName="Background"
+                  IsChecked="{Binding UseTransparentBackground}" />
+              </StackPanel>
 
-			  <!--  Quality  -->
-			  <StackPanel Classes="OptionRow">
-				<TextBlock Classes="OptionLabel" Text="Quality:" />
-				<Slider
-				  Width="150"
-				  IsSnapToTickEnabled="True"
-				  Maximum="100"
-				  Minimum="70"
-				  TickFrequency="5"
-				  Value="{Binding Quality}" />
-				<TextBlock
-				  Width="40"
-				  VerticalAlignment="Center"
-				  Text="{Binding Quality, StringFormat='{}{0}%'}" />
-			  </StackPanel>
+              <!--  Quality  -->
+              <StackPanel Classes="OptionRow">
+                <TextBlock Classes="OptionLabel" Text="Quality:" />
+                <Slider
+                  Width="150"
+                  IsSnapToTickEnabled="True"
+                  Maximum="100"
+                  Minimum="70"
+                  TickFrequency="5"
+                  Value="{Binding Quality}" />
+                <TextBlock
+                  Width="40"
+                  VerticalAlignment="Center"
+                  Text="{Binding Quality, StringFormat='{}{0}%'}" />
+              </StackPanel>
 
-			  <!--  Anti-aliasing  -->
-			  <StackPanel Classes="OptionRow">
-				<TextBlock Classes="OptionLabel" Text="Anti-aliasing:" />
-				<CheckBox Content="Enable smooth edges" IsChecked="{Binding AntiAlias}" />
-			  </StackPanel>
+              <!--  Anti-aliasing  -->
+              <StackPanel Classes="OptionRow">
+                <TextBlock Classes="OptionLabel" Text="Anti-aliasing:" />
+                <CheckBox Content="Enable smooth edges" IsChecked="{Binding AntiAlias}" />
+              </StackPanel>
 
-			  <!--  Max Dimensions  -->
-			  <Expander Margin="0,10,0,0" Header="Advanced Settings">
-				<StackPanel Margin="0,10,0,0">
-				  <StackPanel Classes="OptionRow">
-					<TextBlock Classes="OptionLabel" Text="Max Width:" />
-					<NumericUpDown
-					  Width="150"
-					  Increment="100"
-					  Maximum="10000"
-					  Minimum="0"
-					  Watermark="0 = no limit"
-					  Value="{Binding MaxWidth}" />
-					<TextBlock
-					  Margin="5,0,0,0"
-					  VerticalAlignment="Center"
-					  Text="pixels" />
-				  </StackPanel>
+              <!--  Max Dimensions  -->
+              <Expander Margin="0,10,0,0" Header="Advanced Settings">
+                <StackPanel Margin="0,10,0,0">
+                  <StackPanel Classes="OptionRow">
+                    <TextBlock Classes="OptionLabel" Text="Max Width:" />
+                    <NumericUpDown
+                      Width="150"
+                      Increment="100"
+                      Maximum="10000"
+                      Minimum="0"
+                      Watermark="0 = no limit"
+                      Value="{Binding MaxWidth}" />
+                    <TextBlock
+                      Margin="5,0,0,0"
+                      VerticalAlignment="Center"
+                      Text="pixels" />
+                  </StackPanel>
 
-				  <StackPanel Classes="OptionRow">
-					<TextBlock Classes="OptionLabel" Text="Max Height:" />
-					<NumericUpDown
-					  Width="150"
-					  Increment="100"
-					  Maximum="10000"
-					  Minimum="0"
-					  Watermark="0 = no limit"
-					  Value="{Binding MaxHeight}" />
-					<TextBlock
-					  Margin="5,0,0,0"
-					  VerticalAlignment="Center"
-					  Text="pixels" />
-				  </StackPanel>
+                  <StackPanel Classes="OptionRow">
+                    <TextBlock Classes="OptionLabel" Text="Max Height:" />
+                    <NumericUpDown
+                      Width="150"
+                      Increment="100"
+                      Maximum="10000"
+                      Minimum="0"
+                      Watermark="0 = no limit"
+                      Value="{Binding MaxHeight}" />
+                    <TextBlock
+                      Margin="5,0,0,0"
+                      VerticalAlignment="Center"
+                      Text="pixels" />
+                  </StackPanel>
 
-				  <StackPanel Classes="OptionRow">
-					<TextBlock Classes="OptionLabel" Text="" />
-					<CheckBox Content="Preserve aspect ratio when limiting dimensions" IsChecked="{Binding PreserveAspectRatio}" />
-				  </StackPanel>
-				</StackPanel>
-			  </Expander>
-			</StackPanel>
-		  </Border>
-		</StackPanel>
+                  <StackPanel Classes="OptionRow">
+                    <TextBlock Classes="OptionLabel" Text="" />
+                    <CheckBox Content="Preserve aspect ratio when limiting dimensions" IsChecked="{Binding PreserveAspectRatio}" />
+                  </StackPanel>
+                </StackPanel>
+              </Expander>
+            </StackPanel>
+          </Border>
+        </StackPanel>
 
-		<!--  SVG Options (visible when SVG is selected)  -->
-		<StackPanel IsVisible="{Binding IsSvgSelected}">
-		  <TextBlock Classes="SectionHeader" Text="SVG Options" />
-		  <Border Classes="SectionBorder">
-			<StackPanel>
-			  <CheckBox Content="Include XML declaration" IsChecked="{Binding IncludeXmlDeclaration}" />
-			  <CheckBox
-				Margin="0,5,0,0"
-				Content="Optimize SVG (remove unnecessary elements)"
-				IsChecked="{Binding OptimizeSvg}" />
-			</StackPanel>
-		  </Border>
-		</StackPanel>
+        <!--  SVG Options (visible when SVG is selected)  -->
+        <StackPanel IsVisible="{Binding IsSvgSelected}">
+          <TextBlock Classes="SectionHeader" Text="SVG Options" />
+          <Border Classes="SectionBorder">
+            <StackPanel>
+              <CheckBox Content="Include XML declaration" IsChecked="{Binding IncludeXmlDeclaration}" />
+              <CheckBox
+                Margin="0,5,0,0"
+                Content="Optimize SVG (remove unnecessary elements)"
+                IsChecked="{Binding OptimizeSvg}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
 
-		<!--  Preview  -->
-		<TextBlock Classes="SectionHeader" Text="Preview" />
-		<Border Classes="SectionBorder">
-		  <StackPanel>
-			<TextBlock Margin="0,0,0,5" Text="Output File:" />
-			<TextBox
-			  FontFamily="Consolas,Monaco,monospace"
-			  IsReadOnly="True"
-			  Text="{Binding FullFilePath}" />
+        <!--  Preview  -->
+        <TextBlock Classes="SectionHeader" Text="Preview" />
+        <Border Classes="SectionBorder">
+          <StackPanel>
+            <TextBlock Margin="0,0,0,5" Text="Output File:" />
+            <TextBox
+              FontFamily="Consolas,Monaco,monospace"
+              IsReadOnly="True"
+              Text="{Binding FullFilePath}" />
 
-			<Grid Margin="0,10,0,0" IsVisible="{Binding HasDimensionInfo}">
-			  <Grid.ColumnDefinitions>
-				<ColumnDefinition Width="*" />
-				<ColumnDefinition Width="*" />
-			  </Grid.ColumnDefinitions>
+            <Grid Margin="0,10,0,0" IsVisible="{Binding HasDimensionInfo}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
 
-			  <StackPanel Grid.Column="0">
-				<TextBlock
-				  Margin="0,0,0,5"
-				  FontWeight="SemiBold"
-				  Text="Estimated Dimensions:" />
-				<TextBlock Foreground="#666666" Text="{Binding EstimatedDimensions}" />
-			  </StackPanel>
+              <StackPanel Grid.Column="0">
+                <TextBlock
+                  Margin="0,0,0,5"
+                  FontWeight="SemiBold"
+                  Text="Estimated Dimensions:" />
+                <TextBlock Foreground="#666666" Text="{Binding EstimatedDimensions}" />
+              </StackPanel>
 
-			  <StackPanel Grid.Column="1">
-				<TextBlock
-				  Margin="0,0,0,5"
-				  FontWeight="SemiBold"
-				  Text="Estimated File Size:" />
-				<TextBlock Foreground="#666666" Text="{Binding EstimatedFileSize}" />
-			  </StackPanel>
-			</Grid>
-		  </StackPanel>
-		</Border>
-	  </StackPanel>
-	</ScrollViewer>
+              <StackPanel Grid.Column="1">
+                <TextBlock
+                  Margin="0,0,0,5"
+                  FontWeight="SemiBold"
+                  Text="Estimated File Size:" />
+                <TextBlock Foreground="#666666" Text="{Binding EstimatedFileSize}" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
 
-	<!--  Buttons  -->
-	<StackPanel
-	  Grid.Row="2"
-	  Margin="0,20,0,0"
-	  HorizontalAlignment="Right"
-	  Orientation="Horizontal"
-	  Spacing="10">
-	  <Button
-		Width="100"
-		Command="{Binding ExportCommand}"
-		Content="Export"
-		IsDefault="True">
-		<Button.Classes>
-		  <!--<Sys:String>accent</Sys:String>-->
-		</Button.Classes>
-	  </Button>
-	  <Button
-		Width="100"
-		Command="{Binding CancelCommand}"
-		Content="Cancel"
-		IsCancel="True" />
-	</StackPanel>
+    <!--  Buttons  -->
+    <StackPanel
+      Grid.Row="2"
+      Margin="0,20,0,0"
+      HorizontalAlignment="Right"
+      Orientation="Horizontal"
+      Spacing="10">
+      <Button
+        Width="100"
+        Command="{Binding ExportCommand}"
+        Content="Export"
+        IsDefault="True">
+        <Button.Classes>
+          <!--<Sys:String>accent</Sys:String>-->
+        </Button.Classes>
+      </Button>
+      <Button
+        Width="100"
+        Command="{Binding CancelCommand}"
+        Content="Cancel"
+        IsCancel="True" />
+    </StackPanel>
   </Grid>
 </Window>
 <!--<Window
@@ -324,139 +319,134 @@
   mc:Ignorable="d">
 
   <Window.Styles>
-	<Style Selector="RadioButton">
-	  <Setter Property="Margin" Value="0,5" />
-	</Style>
-	<Style Selector="Border.options-panel">
-	  <Setter Property="CornerRadius" Value="5" />
-	  <Setter Property="Padding" Value="10" />
-	  <Setter Property="Margin" Value="0,10,0,0" />
-	</Style>
+    <Style Selector="RadioButton">
+      <Setter Property="Margin" Value="0,5" />
+    </Style>
+    <Style Selector="Border.options-panel">
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="Padding" Value="10" />
+      <Setter Property="Margin" Value="0,10,0,0" />
+    </Style>
   </Window.Styles>
 
-  <DockPanel Margin="20">
-	-->
+  <DockPanel Margin="20">-->
 <!--  Buttons at bottom  -->
 <!--
-	<StackPanel
-	  Margin="0,15,0,0"
-	  HorizontalAlignment="Right"
-	  DockPanel.Dock="Bottom"
-	  Orientation="Horizontal"
-	  Spacing="10">
-	  <Button
-		Command="{Binding ExportCommand}"
-		Content="Export" />
-	  <Button Command="{Binding CancelCommand}" Content="Cancel" />
-	</StackPanel>
-
-	-->
+    <StackPanel
+      Margin="0,15,0,0"
+      HorizontalAlignment="Right"
+      DockPanel.Dock="Bottom"
+      Orientation="Horizontal"
+      Spacing="10">
+      <Button
+        Command="{Binding ExportCommand}"
+        Content="Export" />
+      <Button Command="{Binding CancelCommand}" Content="Cancel" />
+    </StackPanel>-->
 <!--  Main content  -->
 <!--
-	<StackPanel Spacing="10">
-	  <TextBlock
-		Margin="0,0,0,5"
-		FontSize="14"
-		FontWeight="Bold"
-		Text="Select Export Format:" />
+    <StackPanel Spacing="10">
+      <TextBlock
+        Margin="0,0,0,5"
+        FontSize="14"
+        FontWeight="Bold"
+        Text="Select Export Format:" />
 
-	  <RadioButton GroupName="Format" IsChecked="{Binding IsSvgSelected}">
-		<StackPanel Orientation="Horizontal" Spacing="10">
-		  <Border
-			Width="32"
-			Height="32"
-			VerticalAlignment="Center"
-			CornerRadius="3">
-			<PathIcon
-			  Width="20"
-			  Height="20"
-			  HorizontalAlignment="Center"
-			  VerticalAlignment="Center">
-			  <PathIcon.Data>
-				<PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zM0 14.841a1.13 1.13 0 0 0 .401.823q.194.162.478.252.285.091.665.091.507 0 .858-.158.355-.158.54-.44a1.17 1.17 0 0 0 .187-.656q0-.336-.135-.56a1 1 0 0 0-.375-.357 2 2 0 0 0-.565-.21l-.621-.144a1 1 0 0 1-.405-.176.37.37 0 0 1-.143-.299q0-.234.184-.384.187-.152.513-.152.214 0 .37.068a.6.6 0 0 1 .245.181.56.56 0 0 1 .12.258h.75a1.1 1.1 0 0 0-.199-.566 1.2 1.2 0 0 0-.5-.41 1.8 1.8 0 0 0-.78-.152q-.44 0-.776.15-.337.149-.528.421-.19.273-.19.639 0 .302.123.524t.351.367q.229.143.54.213l.618.144q.31.073.462.193a.39.39 0 0 1 .153.326.5.5 0 0 1-.085.29.56.56 0 0 1-.256.193q-.167.07-.413.07-.176 0-.32-.04a.8.8 0 0 1-.248-.115.58.58 0 0 1-.255-.384zm4.575 1.09h.952l1.327-3.999h-.879l-.887 3.138H5.05l-.897-3.138h-.917zm5.483-3.293q.114.228.14.492h-.776a.8.8 0 0 0-.096-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.3-.044q-.427 0-.664.302-.235.3-.235.85v.497q0 .352.097.616a.9.9 0 0 0 .305.413.87.87 0 0 0 .518.146 1 1 0 0 0 .457-.097.67.67 0 0 0 .273-.263q.09-.164.09-.364v-.254h-.823v-.59h1.576v.798q0 .29-.096.55a1.3 1.3 0 0 1-.293.457 1.4 1.4 0 0 1-.495.314q-.296.111-.698.111a2 2 0 0 1-.752-.132 1.45 1.45 0 0 1-.534-.377 1.6 1.6 0 0 1-.319-.58 2.5 2.5 0 0 1-.105-.745v-.507q0-.54.199-.949.202-.406.583-.633.383-.228.926-.228.357 0 .635.1.282.1.48.275.2.176.314.407</PathGeometry>
-			  </PathIcon.Data>
-			</PathIcon>
-		  </Border>
-		  <StackPanel VerticalAlignment="Center">
-			<TextBlock
-			  FontSize="13"
-			  FontWeight="SemiBold"
-			  Text=".svg (Scalable Vector Graphics)" />
-			<TextBlock
-			  FontSize="11"
-			  Opacity="0.7"
-			  Text="Best for editing and scaling" />
-		  </StackPanel>
-		</StackPanel>
-	  </RadioButton>
+      <RadioButton GroupName="Format" IsChecked="{Binding IsSvgSelected}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border
+            Width="32"
+            Height="32"
+            VerticalAlignment="Center"
+            CornerRadius="3">
+            <PathIcon
+              Width="20"
+              Height="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+              <PathIcon.Data>
+                <PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zM0 14.841a1.13 1.13 0 0 0 .401.823q.194.162.478.252.285.091.665.091.507 0 .858-.158.355-.158.54-.44a1.17 1.17 0 0 0 .187-.656q0-.336-.135-.56a1 1 0 0 0-.375-.357 2 2 0 0 0-.565-.21l-.621-.144a1 1 0 0 1-.405-.176.37.37 0 0 1-.143-.299q0-.234.184-.384.187-.152.513-.152.214 0 .37.068a.6.6 0 0 1 .245.181.56.56 0 0 1 .12.258h.75a1.1 1.1 0 0 0-.199-.566 1.2 1.2 0 0 0-.5-.41 1.8 1.8 0 0 0-.78-.152q-.44 0-.776.15-.337.149-.528.421-.19.273-.19.639 0 .302.123.524t.351.367q.229.143.54.213l.618.144q.31.073.462.193a.39.39 0 0 1 .153.326.5.5 0 0 1-.085.29.56.56 0 0 1-.256.193q-.167.07-.413.07-.176 0-.32-.04a.8.8 0 0 1-.248-.115.58.58 0 0 1-.255-.384zm4.575 1.09h.952l1.327-3.999h-.879l-.887 3.138H5.05l-.897-3.138h-.917zm5.483-3.293q.114.228.14.492h-.776a.8.8 0 0 0-.096-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.3-.044q-.427 0-.664.302-.235.3-.235.85v.497q0 .352.097.616a.9.9 0 0 0 .305.413.87.87 0 0 0 .518.146 1 1 0 0 0 .457-.097.67.67 0 0 0 .273-.263q.09-.164.09-.364v-.254h-.823v-.59h1.576v.798q0 .29-.096.55a1.3 1.3 0 0 1-.293.457 1.4 1.4 0 0 1-.495.314q-.296.111-.698.111a2 2 0 0 1-.752-.132 1.45 1.45 0 0 1-.534-.377 1.6 1.6 0 0 1-.319-.58 2.5 2.5 0 0 1-.105-.745v-.507q0-.54.199-.949.202-.406.583-.633.383-.228.926-.228.357 0 .635.1.282.1.48.275.2.176.314.407</PathGeometry>
+              </PathIcon.Data>
+            </PathIcon>
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock
+              FontSize="13"
+              FontWeight="SemiBold"
+              Text=".svg (Scalable Vector Graphics)" />
+            <TextBlock
+              FontSize="11"
+              Opacity="0.7"
+              Text="Best for editing and scaling" />
+          </StackPanel>
+        </StackPanel>
+      </RadioButton>
 
-	  <RadioButton GroupName="Format" IsChecked="{Binding IsPngSelected}">
-		<StackPanel Orientation="Horizontal" Spacing="10">
-		  <Border
-			Width="32"
-			Height="32"
-			VerticalAlignment="Center"
-			CornerRadius="3">
-			<PathIcon
-			  Width="20"
-			  Height="20"
-			  HorizontalAlignment="Center"
-			  VerticalAlignment="Center">
-			  <PathIcon.Data>
-				<PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zm-3.76 8.132q.114.23.14.492h-.776a.8.8 0 0 0-.097-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.299-.044q-.427 0-.665.302-.234.301-.234.85v.498q0 .351.097.615a.9.9 0 0 0 .304.413.87.87 0 0 0 .519.146 1 1 0 0 0 .457-.096.67.67 0 0 0 .272-.264q.09-.164.091-.363v-.255H8.82v-.59h1.576v.798q0 .29-.097.55a1.3 1.3 0 0 1-.293.458 1.4 1.4 0 0 1-.495.313q-.296.111-.697.111a2 2 0 0 1-.753-.132 1.45 1.45 0 0 1-.533-.377 1.6 1.6 0 0 1-.32-.58 2.5 2.5 0 0 1-.105-.745v-.506q0-.543.2-.95.201-.406.582-.633.384-.228.926-.228.357 0 .636.1.281.1.48.275.2.176.314.407Zm-8.64-.706H0v4h.791v-1.343h.803q.43 0 .732-.172.305-.177.463-.475a1.4 1.4 0 0 0 .161-.677q0-.374-.158-.677a1.2 1.2 0 0 0-.46-.477q-.3-.18-.732-.179m.545 1.333a.8.8 0 0 1-.085.381.57.57 0 0 1-.238.24.8.8 0 0 1-.375.082H.788v-1.406h.66q.327 0 .512.182.185.181.185.521m1.964 2.666V13.25h.032l1.761 2.675h.656v-3.999h-.75v2.66h-.032l-1.752-2.66h-.662v4z</PathGeometry>
-			  </PathIcon.Data>
-			</PathIcon>
-		  </Border>
-		  <StackPanel VerticalAlignment="Center">
-			<TextBlock
-			  FontSize="13"
-			  FontWeight="SemiBold"
-			  Text=".png (Portable Network Graphics)" />
-			<TextBlock
-			  FontSize="11"
-			  Opacity="0.7"
-			  Text="Best for sharing and presentations" />
-		  </StackPanel>
-		</StackPanel>
-	  </RadioButton>
-
-	-->
+      <RadioButton GroupName="Format" IsChecked="{Binding IsPngSelected}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border
+            Width="32"
+            Height="32"
+            VerticalAlignment="Center"
+            CornerRadius="3">
+            <PathIcon
+              Width="20"
+              Height="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+              <PathIcon.Data>
+                <PathGeometry>M14 4.5V14a2 2 0 0 1-2 2v-1a1 1 0 0 0 1-1V4.5h-2A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v9H2V2a2 2 0 0 1 2-2h5.5zm-3.76 8.132q.114.23.14.492h-.776a.8.8 0 0 0-.097-.249.7.7 0 0 0-.17-.19.7.7 0 0 0-.237-.126 1 1 0 0 0-.299-.044q-.427 0-.665.302-.234.301-.234.85v.498q0 .351.097.615a.9.9 0 0 0 .304.413.87.87 0 0 0 .519.146 1 1 0 0 0 .457-.096.67.67 0 0 0 .272-.264q.09-.164.091-.363v-.255H8.82v-.59h1.576v.798q0 .29-.097.55a1.3 1.3 0 0 1-.293.458 1.4 1.4 0 0 1-.495.313q-.296.111-.697.111a2 2 0 0 1-.753-.132 1.45 1.45 0 0 1-.533-.377 1.6 1.6 0 0 1-.32-.58 2.5 2.5 0 0 1-.105-.745v-.506q0-.543.2-.95.201-.406.582-.633.384-.228.926-.228.357 0 .636.1.281.1.48.275.2.176.314.407Zm-8.64-.706H0v4h.791v-1.343h.803q.43 0 .732-.172.305-.177.463-.475a1.4 1.4 0 0 0 .161-.677q0-.374-.158-.677a1.2 1.2 0 0 0-.46-.477q-.3-.18-.732-.179m.545 1.333a.8.8 0 0 1-.085.381.57.57 0 0 1-.238.24.8.8 0 0 1-.375.082H.788v-1.406h.66q.327 0 .512.182.185.181.185.521m1.964 2.666V13.25h.032l1.761 2.675h.656v-3.999h-.75v2.66h-.032l-1.752-2.66h-.662v4z</PathGeometry>
+              </PathIcon.Data>
+            </PathIcon>
+          </Border>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock
+              FontSize="13"
+              FontWeight="SemiBold"
+              Text=".png (Portable Network Graphics)" />
+            <TextBlock
+              FontSize="11"
+              Opacity="0.7"
+              Text="Best for sharing and presentations" />
+          </StackPanel>
+        </StackPanel>
+      </RadioButton>-->
 <!--  PNG-specific options  -->
 <!--
-	  <Border Classes="options-panel" IsVisible="{Binding IsPngSelected}">
-		<StackPanel Spacing="8">
-		  <TextBlock
-			FontSize="12"
-			FontWeight="SemiBold"
-			Text="PNG Options:" />
-		  <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto">
-			<TextBlock
-			  Grid.Row="0"
-			  Grid.Column="0"
-			  VerticalAlignment="Center"
-			  Text="Scale:" />
-			<ComboBox
-			  Grid.Row="0"
-			  Grid.Column="1"
-			  Width="160"
-			  HorizontalAlignment="Left"
-			  SelectedIndex="{Binding SelectedPngScaleIndex}">
-			  <ComboBoxItem>1x (Standard)</ComboBoxItem>
-			  <ComboBoxItem>2x (Recommended)</ComboBoxItem>
-			  <ComboBoxItem>3x (High DPI)</ComboBoxItem>
-			  <ComboBoxItem>4x (Ultra HD)</ComboBoxItem>
-			</ComboBox>
+      <Border Classes="options-panel" IsVisible="{Binding IsPngSelected}">
+        <StackPanel Spacing="8">
+          <TextBlock
+            FontSize="12"
+            FontWeight="SemiBold"
+            Text="PNG Options:" />
+          <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto">
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              VerticalAlignment="Center"
+              Text="Scale:" />
+            <ComboBox
+              Grid.Row="0"
+              Grid.Column="1"
+              Width="160"
+              HorizontalAlignment="Left"
+              SelectedIndex="{Binding SelectedPngScaleIndex}">
+              <ComboBoxItem>1x (Standard)</ComboBoxItem>
+              <ComboBoxItem>2x (Recommended)</ComboBoxItem>
+              <ComboBoxItem>3x (High DPI)</ComboBoxItem>
+              <ComboBoxItem>4x (Ultra HD)</ComboBoxItem>
+            </ComboBox>
 
-			<CheckBox
-			  Grid.Row="1"
-			  Grid.Column="0"
-			  Grid.ColumnSpan="2"
-			  Margin="0,8,0,0"
-			  Content="Transparent Background"
-			  IsChecked="{Binding TransparentBackground}" />
-		  </Grid>
-		</StackPanel>
-	  </Border>
-	</StackPanel>
+            <CheckBox
+              Grid.Row="1"
+              Grid.Column="0"
+              Grid.ColumnSpan="2"
+              Margin="0,8,0,0"
+              Content="Transparent Background"
+              IsChecked="{Binding TransparentBackground}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </StackPanel>
   </DockPanel>
 </Window>-->

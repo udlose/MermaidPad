@@ -179,9 +179,10 @@ public static class SimpleLogger
     /// </summary>
     /// <param name="script">The JavaScript code executed.</param>
     /// <param name="success">True if execution succeeded; otherwise, false.</param>
+    /// <param name="writeToDebug">True if the result should be written to the debug output instead of the log file.</param>
     /// <param name="result">Optional result of the execution.</param>
     /// <param name="caller">The calling member name (autopopulated).</param>
-    public static void LogJavaScript(string script, bool success, string? result = null, [CallerMemberName] string? caller = null)
+    public static void LogJavaScript(string script, bool success, bool writeToDebug, string? result = null, [CallerMemberName] string? caller = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(script);
 
@@ -193,7 +194,16 @@ public static class SimpleLogger
         {
             sb.Append($" => {result}");
         }
-        Log(sb.ToString(), caller);
+
+        string logEntry = sb.ToString();
+        if (writeToDebug)
+        {
+            Debug.WriteLine(logEntry);
+        }
+        else
+        {
+            Log(logEntry, caller);
+        }
     }
 
     /// <summary>
@@ -371,8 +381,8 @@ public static class SimpleLogger
                 }
 
                 // Newer signature with optional parameter exists on some versions: string? GetAvailableBrowserVersionString(string? folder)
-                MethodInfo? methodWithArg = envType.GetMethod("GetAvailableBrowserVersionString", new[] { typeof(string) });
-                object? result2 = methodWithArg?.Invoke(null, new object?[] { null });
+                MethodInfo? methodWithArg = envType.GetMethod("GetAvailableBrowserVersionString", [typeof(string)]);
+                object? result2 = methodWithArg?.Invoke(null, [null]);
                 if (result2 is string s2 && !string.IsNullOrWhiteSpace(s2))
                 {
                     return s2.Trim();
@@ -591,9 +601,20 @@ public static class SimpleLogger
                 string outText = collector.Stdout.ToString().Trim();
                 string errText = collector.Stderr.ToString().Trim();
 
-                if (p.ExitCode != 0) return null;
-                if (!string.IsNullOrWhiteSpace(outText)) return outText;
-                if (!string.IsNullOrWhiteSpace(errText)) return errText; // some tools print version to stderr
+                if (p.ExitCode != 0)
+                {
+                    return null;
+                }
+
+                if (!string.IsNullOrWhiteSpace(outText))
+                {
+                    return outText;
+                }
+
+                if (!string.IsNullOrWhiteSpace(errText))
+                {
+                    return errText; // some tools print version to stderr
+                }
 
                 return null;
             }

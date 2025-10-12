@@ -19,8 +19,10 @@
 // SOFTWARE.
 
 using MermaidPad.Services;
+using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
+using MermaidPad.ViewModels.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MermaidPad.Infrastructure;
@@ -57,9 +59,20 @@ public static class ServiceConfiguration
         services.AddSingleton<MermaidRenderer>();
         services.AddSingleton<ExportService>();
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
+        services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
+        services.AddSingleton<IDialogFactory, DialogFactory>();
 
-        // ViewModel: transient (one per window)
+        // Main ViewModel: transient (one per window)
         services.AddTransient<MainViewModel>();
+
+        // Dialog ViewModels: transient (one per dialog instance)
+        services.AddTransient<ExportDialogViewModel>();
+        services.AddTransient<ProgressDialogViewModel>();
+        services.AddTransient<MessageDialogViewModel>();
+
+        // Note: Dialog Views (Windows) are not registered in DI
+        // They are created directly with 'new' since they need special initialization
+        // Only their ViewModels are created through DI
 
         SimpleLogger.Log("=== MermaidPad Service Configuration Completed ===");
         return services.BuildServiceProvider();

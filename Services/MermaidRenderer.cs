@@ -414,9 +414,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return;
         }
 
-        // Simple JavaScript execution - no unnecessary complexity
+        // Simple JavaScript execution
         string escaped;
-        if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
+        ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
+        if (!sourceSpan.Contains('\\') && !sourceSpan.Contains('`'))
         {
             escaped = mermaidSource;
         }
@@ -481,14 +482,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                var result = await _webView.ExecuteScriptAsync(script);
-                SimpleLogger.LogJavaScript(script, true, result);
+                string? result = await _webView.ExecuteScriptAsync(script);
+                SimpleLogger.LogJavaScript(script, true, writeToDebug: true, result);
                 return result;
             });
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogJavaScript(script, false, ex.Message);
+            SimpleLogger.LogJavaScript(script, false, writeToDebug: true, ex.Message);
             SimpleLogger.LogError("Script execution failed", ex);
             return null;
         }
