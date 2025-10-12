@@ -20,37 +20,42 @@
 
 using Avalonia.Controls;
 
-namespace MermaidPad.Dialogs;
+namespace MermaidPad.Views.Dialogs;
 
 /// <summary>
-/// A simple progress dialog for showing indeterminate progress.
+/// Progress dialog for showing export progress
 /// </summary>
-public partial class ProgressDialog : Window
+public sealed partial class ProgressDialog : Window
 {
-    /// <summary>
-    /// Gets or sets the message displayed in the progress dialog.
-    /// </summary>
-    public string Message
-    {
-        get => MessageText.Text ?? string.Empty;
-        set => MessageText.Text = value;
-    }
+    //public ProgressDialog()
+    //{
+    //    InitializeComponent();
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ProgressDialog"/> class.
-    /// </summary>
+    //    // Make dialog non-resizable and always on top
+    //    CanResize = false;
+    //    Topmost = true;
+
+    //    // Center the dialog on the parent window
+    //    WindowStartupLocation = WindowStartupLocation.CenterOwner;
+    //    Debug.Assert(Owner is not null);
+    //}
     public ProgressDialog()
     {
         InitializeComponent();
+
+        // Make dialog non-resizable and always on top
+        CanResize = false;
+        Topmost = true;
     }
 
-    /// <summary>
-    /// Shows the progress dialog with the specified parent window.
-    /// </summary>
-    /// <param name="parent">The parent window.</param>
-    public void Show(Window parent)
+    protected override void OnOpened(EventArgs e)
     {
-        Owner = parent;
-        Show();
+        base.OnOpened(e);
+
+        // Center the dialog on the parent window
+        if (Owner is not null)
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
     }
 }
