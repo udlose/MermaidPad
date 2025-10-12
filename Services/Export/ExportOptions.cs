@@ -18,12 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace MermaidPad.Services.Export;
 
 /// <summary>
 /// Options for exporting diagrams
 /// </summary>
-public class ExportOptions
+[SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "Properties are used for data binding")]
+public sealed class ExportOptions
 {
     /// <summary>
     /// The full file path where the export will be saved
