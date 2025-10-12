@@ -219,12 +219,16 @@ public sealed partial class ExportService
                 throw new InvalidOperationException("Failed to extract SVG content from diagram");
             }
 
-            // Convert to PNG on background thread - ConfigureAwait(false) is OK here
-            // because ConvertSvgToPng marshals its own progress reports
+            // Wrap progress so all updates are marshaled to the UI thread
+            IProgress<ExportProgress>? uiProgress = progress is null
+                ? null
+                : new Progress<ExportProgress>(p => ReportProgress(progress, p));
+
+            // Convert to PNG on background thread
             byte[] pngData = await _imageConversionService.ConvertSvgToPngAsync(
                 svgContent,
                 options,
-                progress,
+                uiProgress,
                 cancellationToken);
 
             // File I/O on background thread - ConfigureAwait(false) keeps us on background thread
