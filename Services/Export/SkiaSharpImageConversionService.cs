@@ -18,19 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
 using JetBrains.Annotations;
 using SkiaSharp;
 using Svg.Skia;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MermaidPad.Services.Export;
 /// <summary>
 /// SkiaSharp-based implementation of image conversion service
 /// </summary>
-public sealed class SkiaSharpImageConversionService : IImageConversionService
+public sealed partial class SkiaSharpImageConversionService : IImageConversionService
 {
     public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -187,7 +189,7 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
                 SKAlphaType.Premul,
                 colorSpace);
 
-            using SKSurface surface = CreateSurface(imageInfo, options) ??
+            using SKSurface surface = CreateSurface(imageInfo) ??
                 throw new InvalidOperationException("Failed to create rendering surface");
 
             using SKCanvas canvas = surface.Canvas;
@@ -240,6 +242,17 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
         }
     }
 
+    /// <summary>
+    /// Calculates the dimensions of an image based on the specified bounds and export options.
+    /// </summary>
+    /// <remarks>The method applies scaling based on the <see cref="PngExportOptions.ScaleFactor"/> and DPI
+    /// specified in the  <paramref name="options"/> parameter. If maximum dimensions are provided, the method ensures
+    /// the calculated  dimensions do not exceed these limits. If <see cref="PngExportOptions.PreserveAspectRatio"/> is
+    /// set to  <see langword="true"/>, the aspect ratio of the original bounds is maintained while respecting the
+    /// maximum dimensions.</remarks>
+    /// <param name="bounds">The bounding rectangle that defines the original dimensions of the image.</param>
+    /// <param name="options">The export options that specify scaling factors, DPI, maximum dimensions, and aspect ratio preservation.</param>
+    /// <returns>A tuple containing the calculated width and height of the image, adjusted according to the provided options.</returns>
     private static (int Width, int Height) CalculateDimensions(SKRect bounds, PngExportOptions options)
     {
         // Calculate base dimensions with scale factor
@@ -290,39 +303,20 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
     }
 
     /// <summary>
-    /// Creates a rendering surface with optional hardware acceleration
+    /// Creates an <see cref="SKSurface"/> for rendering using software rendering.
     /// </summary>
     /// <remarks>
-    /// FIXED: Now uses PngExportOptions to determine quality settings.
-    /// Future enhancement: Could use options.Quality to determine hardware vs software rendering.
+    /// This method uses software rendering only. Hardware acceleration (GPU) is not implemented because:
+    ///     1. It requires OpenGL/Vulkan context setup which adds significant complexity
+    ///     2. For server-side/offline SVG-to-PNG conversion, software rendering is more reliable and portable
+    ///     3. Hardware acceleration provides minimal benefit for single-image conversion vs. real-time rendering
+    ///     4. Software rendering produces consistent, high-quality results across all platforms
     /// </remarks>
     [MustDisposeResource(true)]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership transferred to caller")]
-    private static SKSurface CreateSurface(SKImageInfo imageInfo, PngExportOptions options)
+    private static SKSurface CreateSurface(SKImageInfo imageInfo)
     {
-        // For highest quality (95+), prefer software rendering which can be more accurate
-        // For lower quality, hardware acceleration can be faster
-        bool preferSoftware = options.Quality >= 95;
-
-        if (!preferSoftware && (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)))
-        {
-            try
-            {
-                SKSurface? surface = SKSurface.Create(imageInfo);
-                if (surface is not null)
-                {
-                    SimpleLogger.Log("Using hardware-accelerated rendering");
-                    return surface;
-                }
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Hardware acceleration unavailable: {ex.Message}");
-            }
-        }
-
-        // Fallback to software rendering
-        SimpleLogger.Log("Using software rendering");
+        SimpleLogger.Log("Using software rendering for SVG conversion");
         return SKSurface.Create(imageInfo);
     }
 
@@ -334,18 +328,16 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
     /// enabled.</param>
     /// <returns>A configured <see cref="SKPaint"/> instance with high-quality rendering settings, including antialiasing,
     /// subpixel text rendering, and full hinting.</returns>
+    [MustDisposeResource(true)]
     private static SKPaint CreateHighQualityPaint(PngExportOptions options)
     {
         SKPaint paint = new SKPaint
         {
+            // IsAntialias is the primary quality control for DrawPicture - this is NOT obsolete
             IsAntialias = options.AntiAlias,
-            FilterQuality = SKFilterQuality.High,
-            IsDither = false,
 
-            // These settings are critical for text rendering
-            SubpixelText = true,
-            LcdRenderText = true,
-            HintingLevel = SKPaintHinting.Full,
+            // IsDither helps with smooth color gradients
+            IsDither = false,
 
             // Color and blending
             Color = SKColors.Black,
@@ -355,6 +347,19 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
         return paint;
     }
 
+    /// <summary>
+    /// Configures the specified <see cref="SKCanvas"/> for rendering by applying background color, scaling, and
+    /// translation.
+    /// </summary>
+    /// <remarks>This method clears the canvas with the specified background color from <paramref
+    /// name="options"/> or makes it transparent if no color is provided. It then applies scaling to fit the content
+    /// within the specified dimensions and translates the canvas to align the content's origin with the top-left
+    /// corner.</remarks>
+    /// <param name="canvas">The <see cref="SKCanvas"/> to configure.</param>
+    /// <param name="options">The export options that specify rendering settings, such as the background color.</param>
+    /// <param name="width">The target width, in pixels, for the rendered output.</param>
+    /// <param name="height">The target height, in pixels, for the rendered output.</param>
+    /// <param name="bounds">The bounding rectangle of the content to be rendered, used to calculate scaling and translation.</param>
     private static void ConfigureCanvas(SKCanvas canvas, PngExportOptions options, int width, int height, SKRect bounds)
     {
         // Clear with background color
@@ -368,7 +373,7 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
             canvas.Clear(SKColors.Transparent);
         }
 
-        // FIXED: Proper canvas configuration for high-quality rendering
+        // Save the current state
         canvas.Save();
 
         // Calculate and apply scaling to fill the target dimensions
@@ -386,25 +391,38 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
         }
     }
 
+    /// <summary>
+    /// Parses a color string and returns the corresponding <see cref="SKColor"/> value.
+    /// </summary>
+    /// <remarks>The method supports the following formats: <list type="bullet">
+    /// <item><description>Hexadecimal colors, starting with '#' (e.g., "#FF0000").</description></item>
+    /// <item><description>RGB/RGBA colors, starting with "rgb" or "rgba" (e.g., "rgb(255,0,0)").</description></item>
+    /// <item><description>Named colors, such as "red", "blue", "lightgray", and "transparent".</description></item>
+    /// </list> If the input string does not match any of these formats, or if an error occurs during parsing,  the
+    /// method logs the error and returns <see cref="SKColors.White"/>.</remarks>
+    /// <param name="colorString">A string representing the color. This can be a hexadecimal color (e.g., "#FF0000"),  an RGB/RGBA color (e.g.,
+    /// "rgb(255,0,0)" or "rgba(255,0,0,0.5)"), or a named color  (e.g., "red", "blue", "lightgray"). The string is
+    /// case-insensitive and may include  leading or trailing whitespace.</param>
+    /// <returns>The <see cref="SKColor"/> corresponding to the specified color string. If the string  is invalid or cannot be
+    /// parsed, the method returns <see cref="SKColors.White"/>.</returns>
     private static SKColor ParseColor(string colorString)
     {
         ReadOnlySpan<char> colorSpan = colorString.AsSpan().Trim();
 
         try
         {
-            // Handle hex colors
+            // Handle hex colors (#RGB, #RRGGBB, #AARRGGBB)
             if (colorSpan.StartsWith('#'))
             {
                 return SKColor.Parse(colorString);
             }
 
-            // Handle rgb/rgba
+            // Handle rgb()/rgba() including:
+            // - rgb(255,0,0), rgba(255,0,0,0.5)
+            // - rgb(255 0 0 / 50%), rgb(100% 0% 0%)
             if (colorSpan.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
             {
-                // TODO: Implement full rgb()/rgba() parsing if needed
-                // Simple parsing - you might want to enhance this
-                // For now, default to white for rgb() format
-                return SKColors.White;
+                return ParseRgbColor(colorString);
             }
 
             // Try named colors
@@ -435,13 +453,114 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService
         }
     }
 
+    /// <summary>
+    /// Parses a color string in RGB or RGBA format and returns the corresponding <see cref="SKColor"/>.
+    /// </summary>
+    /// <remarks>This method attempts to parse the input string as an RGBA color first. If that fails, it
+    /// tries to parse it as an RGB color. If both attempts fail, a warning is logged, and <see cref="SKColors.White"/>
+    /// is returned.</remarks>
+    /// <param name="colorString">A string representing a color in either RGB format ("rgb(r, g, b)") or RGBA format ("rgba(r, g, b, a)"). The
+    /// values for <c>r</c>, <c>g</c>, and <c>b</c> must be integers in the range 0-255, and <c>a</c> (if present) must
+    /// be a floating-point value in the range 0.0-1.0.</param>
+    /// <returns>An <see cref="SKColor"/> representing the parsed color. If the input string is invalid or cannot be parsed, the
+    /// method returns <see cref="SKColors.White"/>.</returns>
+    private static SKColor ParseRgbColor(string colorString)
+    {
+        // Try rgba first (has 4 components)
+        Match rgbaMatch = RgbaRegex().Match(colorString);
+        if (rgbaMatch.Success)
+        {
+            int r = int.Parse(rgbaMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+            int g = int.Parse(rgbaMatch.Groups[2].Value, CultureInfo.InvariantCulture);
+            int b = int.Parse(rgbaMatch.Groups[3].Value, CultureInfo.InvariantCulture);
+            float alpha = float.Parse(rgbaMatch.Groups[4].Value, CultureInfo.InvariantCulture);
+
+            // Convert alpha from 0-1 range to 0-255 range
+            byte a = (byte)Math.Clamp((int)(alpha * 255), 0, 255);
+
+            return new SKColor((byte)r, (byte)g, (byte)b, a);
+        }
+
+        // Try rgb (3 components)
+        Match rgbMatch = RgbRegex().Match(colorString);
+        if (rgbMatch.Success)
+        {
+            int r = int.Parse(rgbMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+            int g = int.Parse(rgbMatch.Groups[2].Value, CultureInfo.InvariantCulture);
+            int b = int.Parse(rgbMatch.Groups[3].Value, CultureInfo.InvariantCulture);
+
+            return new SKColor((byte)r, (byte)g, (byte)b);
+        }
+
+        SimpleLogger.Log($"Failed to parse rgb/rgba color: {colorString}");
+        return SKColors.White;
+    }
+
+    /// <summary>
+    /// Creates a regular expression that matches RGB color strings in the format "rgb(r, g, b)".
+    /// </summary>
+    /// <remarks>The pattern matches strings that represent RGB color values, where the red, green, and blue
+    /// components  are integers. Whitespace around the components and commas is allowed. The matching is
+    /// case-insensitive.</remarks>
+    /// <returns>A <see cref="Regex"/> instance configured to match RGB color strings.</returns>
+    [GeneratedRegex(@"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex RgbRegex();
+
+    /// <summary>
+    /// Creates a regular expression that matches RGBA color strings in the format  "rgba(r, g, b, a)", where r, g, and
+    /// b are integers representing red, green,  and blue color components, and a is a floating-point number
+    /// representing the alpha value.
+    /// </summary>
+    /// <remarks>The regular expression is case-insensitive and allows for optional whitespace  around the
+    /// components. The alpha value must be a valid floating-point number. The match timeout is set to 1000 milliseconds
+    /// to prevent excessive processing time.</remarks>
+    /// <returns>A <see cref="Regex"/> instance configured to match RGBA color strings.</returns>
+    [GeneratedRegex(@"rgba\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9]*\.?[0-9]+)\s*\)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex RgbaRegex();
+
+    /// <summary>
+    /// Reports the progress of an export operation to a provided <see cref="IProgress{T}"/> instance.
+    /// </summary>
+    /// <param name="progress">An <see cref="IProgress{T}"/> instance used to report progress updates. Can be <see langword="null"/> if
+    /// progress reporting is not required.</param>
+    /// <param name="step">The current step of the export operation.</param>
+    /// <param name="percent">The percentage of the export operation that is complete. Must be between 0 and 100.</param>
+    /// <param name="message">A message describing the current progress or step of the export operation.</param>
     private static void ReportProgress(IProgress<ExportProgress>? progress, ExportStep step, int percent, string message)
     {
-        progress?.Report(new ExportProgress
+        if (progress is null)
+        {
+            return;
+        }
+
+        ExportProgress exportProgress = new ExportProgress
         {
             Step = step,
             PercentComplete = percent,
             Message = message
-        });
+        };
+
+        // Marshal to UI thread for ViewModel property updates
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            // Already on UI thread
+            progress.Report(exportProgress);
+        }
+        else
+        {
+            // Post to UI thread
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    progress.Report(exportProgress);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                    SimpleLogger.LogError($"Progress report failed: {ex.Message}", ex);
+                }
+            });
+        }
     }
 }
