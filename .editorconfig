@@ -83,6 +83,8 @@ csharp_prefer_static_anonymous_function = true:error
 csharp_style_prefer_readonly_struct = true:error
 csharp_style_prefer_readonly_struct_member = true:suggestion
 csharp_style_prefer_simple_property_accessors = true:suggestion
+dotnet_diagnostic.RCS1261.severity = warning
+dotnet_diagnostic.RCS1133.severity = suggestion
 
 [*.{cs,vb}]
 #### Naming styles ####
@@ -164,3 +166,8 @@ dotnet_style_qualification_for_method = false:silent
 dotnet_style_qualification_for_event = false:silent
 dotnet_diagnostic.CA1062.severity = error
 dotnet_diagnostic.CA1016.severity = none
+dotnet_diagnostic.CA2000.severity = error
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA2215.severity = error
+dotnet_diagnostic.CA1816.severity = warning
+dotnet_diagnostic.CA1513.severity = warning
