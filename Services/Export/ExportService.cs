@@ -27,6 +27,7 @@ using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services.Export;
+
 /// <summary>
 /// Service for exporting Mermaid diagrams to various formats
 /// </summary>
@@ -98,15 +99,15 @@ public sealed class ExportService
 
         try
         {
-            // Report initial progress
-            progress?.Report(new ExportProgress
+            // Report initial progress - marshal to UI thread
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.Initializing,
                 PercentComplete = 0,
                 Message = "Initializing export..."
             });
 
-            // Get SVG content from the WebView - this must run on UI thread
+            // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
             string? svgContent = await GetSvgContentAsync();
 
             if (string.IsNullOrWhiteSpace(svgContent))
@@ -114,24 +115,25 @@ public sealed class ExportService
                 throw new InvalidOperationException("Failed to extract SVG content from diagram");
             }
 
-            // Convert to PNG on background thread
+            // Convert to PNG on background thread - ConfigureAwait(false) is OK here
+            // because ConvertSvgToPng marshals its own progress reports
             byte[] pngData = await Task.Run(() =>
                 ConvertSvgToPng(svgContent, options, progress, cancellationToken),
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken)
+                    .ConfigureAwait(false);
 
-            // Ensure directory exists
+            // File I/O on background thread - ConfigureAwait(false) keeps us on background thread
             string? directory = Path.GetDirectoryName(targetPath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // Write PNG data
             await File.WriteAllBytesAsync(targetPath, pngData, cancellationToken)
                 .ConfigureAwait(false);
 
-            // Report completion
-            progress?.Report(new ExportProgress
+            // Report completion - marshal to UI thread
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.Complete,
                 PercentComplete = 100,
@@ -209,10 +211,12 @@ public sealed class ExportService
         string? result;
         if (Dispatcher.UIThread.CheckAccess())
         {
+            // Already on UI thread - execute directly
             result = await _mermaidRenderer.ExecuteScriptAsync(script);
         }
         else
         {
+            // Not on UI thread - marshal to UI thread
             result = await Dispatcher.UIThread.InvokeAsync(
                 () => _mermaidRenderer.ExecuteScriptAsync(script));
         }
@@ -226,6 +230,40 @@ public sealed class ExportService
         return result;
     }
 
+    /// <summary>
+    /// Reports progress by marshaling to the UI thread
+    /// </summary>
+    private static void ReportProgress(IProgress<ExportProgress>? progress, ExportProgress exportProgress)
+    {
+        if (progress is null)
+        {
+            return;
+        }
+
+        // Marshal to UI thread for ViewModel property updates
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            // Already on UI thread
+            progress.Report(exportProgress);
+        }
+        else
+        {
+            // Marshal to UI thread - fire and forget since progress updates don't need to be awaited
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    progress.Report(exportProgress);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                    SimpleLogger.LogError($"Progress report failed: {ex.Message}", ex);
+                }
+            });
+        }
+    }
+
     private static byte[] ConvertSvgToPng(
         string svgContent,
         PngExportOptions options,
@@ -237,7 +275,7 @@ public sealed class ExportService
         try
         {
             // Step 1: Parse SVG
-            progress?.Report(new ExportProgress
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.ParsingSvg,
                 PercentComplete = 10,
@@ -252,7 +290,7 @@ public sealed class ExportService
                 ?? throw new InvalidOperationException("Failed to parse SVG content");
 
             // Step 2: Calculate dimensions
-            progress?.Report(new ExportProgress
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.CalculatingDimensions,
                 PercentComplete = 20,
@@ -266,7 +304,7 @@ public sealed class ExportService
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 3: Create canvas
-            progress?.Report(new ExportProgress
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.CreatingCanvas,
                 PercentComplete = 30,
@@ -280,12 +318,13 @@ public sealed class ExportService
                 SKAlphaType.Premul,
                 SKColorSpace.CreateSrgb());
 
-            using SKSurface surface = CreateSurface(imageInfo) ?? throw new InvalidOperationException("Failed to create rendering surface");
+            using SKSurface surface = CreateSurface(imageInfo)
+                ?? throw new InvalidOperationException("Failed to create rendering surface");
             using SKCanvas canvas = surface.Canvas;
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 4: Render
-            progress?.Report(new ExportProgress
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.Rendering,
                 PercentComplete = 50,
@@ -299,7 +338,7 @@ public sealed class ExportService
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 5: Encode to PNG
-            progress?.Report(new ExportProgress
+            ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.Encoding,
                 PercentComplete = 80,

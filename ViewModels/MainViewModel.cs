@@ -37,6 +37,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace MermaidPad.ViewModels;
+
 /// <summary>
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
@@ -220,6 +221,8 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            SimpleLogger.LogError("Export failed", ex);
+
             // Setting LastError updates UI, must be on UI thread
             LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
@@ -261,19 +264,24 @@ public sealed partial class MainViewModel : ViewModelBase
                 // Create event handler that can be unsubscribed to prevent memory leaks
                 void ProgressHandler(object? _, PropertyChangedEventArgs args)
                 {
-                    if (args.PropertyName != nameof(ProgressDialogViewModel.IsComplete) || !progressViewModel.IsComplete)
+                    // Watch for two conditions:
+                    // 1. Export completes (IsComplete becomes true)
+                    // 2. User clicks Close button (CloseRequested becomes true)
+                    bool shouldClose = (args.PropertyName == nameof(ProgressDialogViewModel.IsComplete) && progressViewModel.IsComplete) ||
+                                       (args.PropertyName == nameof(ProgressDialogViewModel.CloseRequested) && progressViewModel.CloseRequested);
+
+                    if (!shouldClose)
                     {
                         return;
                     }
 
                     // Unsubscribe to prevent memory leaks
-                    if ((PropertyChangedEventHandler?)ProgressHandler is not null)
-                    {
-                        progressViewModel.PropertyChanged -= ProgressHandler;
-                    }
+                    progressViewModel.PropertyChanged -= ProgressHandler;
 
-                    // Capture dialog reference locally
+                    // Capture dialog reference locally to prevent closure memory leak
                     ProgressDialog localDialog = progressDialog;
+
+                    // Close dialog on UI thread - fire and forget
                     Dispatcher.UIThread.Post(() =>
                     {
                         try
@@ -293,7 +301,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 // Subscribe to property changes
                 progressViewModel.PropertyChanged += ProgressHandler;
 
-                // Start the progress dialog and track it
+                // Start the progress dialog and track it for cleanup
                 Task dialogTask = progressDialog.ShowDialog(window);
 
                 // Small delay to ensure dialog is rendered before starting export
@@ -302,7 +310,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
                 try
                 {
-                    // Wait for export to complete
+                    // Start export - ExportPngAsync manages its own threading
+                    // It runs on UI thread for WebView access, then background for PNG conversion
                     await _exportService.ExportPngAsync(
                         options.FilePath,
                         options.PngOptions,
@@ -381,16 +390,12 @@ public sealed partial class MainViewModel : ViewModelBase
                 {
                     case ExportFormat.PNG:
                         // Export PNG without progress dialog
-                        // This CAN use ConfigureAwait(false) if ExportService doesn't need UI
-                        await _exportService.ExportPngAsync(options.FilePath, options.PngOptions)
-                            .ConfigureAwait(false);
+                        await _exportService.ExportPngAsync(options.FilePath, options.PngOptions);
                         break;
 
                     case ExportFormat.SVG:
                         // Export SVG (no progress needed)
-                        // This CAN use ConfigureAwait(false) if ExportService doesn't need UI
-                        await _exportService.ExportSvgAsync(options.FilePath)
-                            .ConfigureAwait(false);
+                        await _exportService.ExportSvgAsync(options.FilePath);
                         break;
 
                     default:

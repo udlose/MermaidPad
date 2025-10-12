@@ -67,10 +67,18 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     /// <summary>
     /// Indicates whether the export process is complete. When <c>false</c>, the Cancel button is shown; when
     /// <c>true</c>, the Close button is shown. This property transitions to <c>true</c> when
-    /// the export finishes successfully or the user clicks the Close button.
+    /// the export finishes successfully.
     /// </summary>
     [ObservableProperty]
     public partial bool IsComplete { get; set; } = false;
+
+    /// <summary>
+    /// Indicates that the user has clicked the Close button and wants to dismiss the dialog.
+    /// This is separate from <see cref="IsComplete"/> to handle the case where the user
+    /// manually closes the dialog after export completion.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CloseRequested { get; set; } = false;
 
     public void SetCancellationTokenSource(CancellationTokenSource cts)
     {
@@ -88,9 +96,9 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     [RelayCommand]
     private void Close()
     {
-        // Signals that the user clicked the Close button
-        // The actual window closing is handled by MainViewModel
-        IsComplete = true;
+        // Signal that the user clicked the Close button and wants to dismiss the dialog
+        // The actual window closing is handled by MainViewModel's PropertyChanged handler
+        CloseRequested = true;
     }
 
     /// <summary>
