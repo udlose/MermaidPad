@@ -22,6 +22,7 @@ using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
@@ -30,6 +31,7 @@ using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -39,6 +41,9 @@ namespace MermaidPad.ViewModels;
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
+[SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
+[SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly MermaidRenderer _renderer;
@@ -253,28 +258,121 @@ public sealed partial class MainViewModel : ViewModelBase
                     progressViewModel.SetCancellationTokenSource(cts);
                 }
 
-                // Start export task - this CAN use ConfigureAwait(false) as it's background work
-                Task exportTask = Task.Run(async () =>
+                // Create event handler that can be unsubscribed to prevent memory leaks
+                void ProgressHandler(object? _, PropertyChangedEventArgs args)
                 {
-                    await _exportService.ExportPngAsync(
-                        options.FilePath,
-                        options.PngOptions,
-                        progressViewModel,
-                        cts.Token).ConfigureAwait(false); // OK - background task
-                }, cts.Token);
+                    if (args.PropertyName != nameof(ProgressDialogViewModel.IsComplete) || !progressViewModel.IsComplete)
+                    {
+                        return;
+                    }
 
-                // NO ConfigureAwait(false) - ShowDialog needs UI thread
-                _ = progressDialog.ShowDialog(window);
+                    // Unsubscribe to prevent memory leaks
+                    if ((PropertyChangedEventHandler?)ProgressHandler is not null)
+                    {
+                        progressViewModel.PropertyChanged -= ProgressHandler;
+                    }
+
+                    // Capture dialog reference locally
+                    ProgressDialog localDialog = progressDialog;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            if (localDialog.IsVisible)
+                            {
+                                localDialog.Close();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to close progress dialog: {ex}");
+                        }
+                    });
+                }
+
+                // Subscribe to property changes
+                progressViewModel.PropertyChanged += ProgressHandler;
+
+                // Start the progress dialog and track it
+                Task dialogTask = progressDialog.ShowDialog(window);
+
+                // Small delay to ensure dialog is rendered before starting export
+                // This prevents race conditions where export completes before dialog is visible
+                await Task.Delay(100, cts.Token);
 
                 try
                 {
                     // Wait for export to complete
-                    await exportTask.ConfigureAwait(false); // OK - just waiting for background task
+                    await _exportService.ExportPngAsync(
+                        options.FilePath,
+                        options.PngOptions,
+                        progressViewModel,
+                        cts.Token);
+
+                    // If export succeeded, wait for user to click Close button
+                    // The dialog will close when IsComplete is set and user clicks Close
+                }
+                catch (OperationCanceledException)
+                {
+                    // User cancelled the export - unsubscribe and close dialog
+                    progressViewModel.PropertyChanged -= ProgressHandler;
+
+                    // Capture dialog reference locally
+                    ProgressDialog localDialog = progressDialog;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            if (localDialog.IsVisible)
+                            {
+                                localDialog.Close();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Failed to close progress dialog after cancellation: {ex}");
+                        }
+                    });
+                    throw; // Re-throw to be caught by outer catch
+                }
+                catch (Exception outerEx)
+                {
+                    SimpleLogger.LogError("Export failed", outerEx);
+
+                    // Export failed - unsubscribe and close dialog
+                    progressViewModel.PropertyChanged -= ProgressHandler;
+
+                    // Capture dialog reference locally
+                    ProgressDialog localDialog = progressDialog;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            if (localDialog.IsVisible)
+                            {
+                                localDialog.Close();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            SimpleLogger.LogError("Error awaiting progress dialog task", ex);
+                            Debug.WriteLine($"Failed to close progress dialog after error: {ex}");
+                        }
+                    });
+                    throw; // Re-throw to be caught by outer catch
                 }
                 finally
                 {
-                    // Close must happen on UI thread
-                    progressDialog.Close();
+                    // Ensure we await the dialog task for proper cleanup
+                    try
+                    {
+                        await dialogTask;
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.LogError("Error awaiting progress dialog task", ex);
+                        Debug.WriteLine($"Dialog task completed with error: {ex}");
+                    }
                 }
             }
             else
@@ -310,6 +408,8 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            SimpleLogger.LogError("Export failed", ex);
+
             // Setting LastError updates UI, must be on UI thread
             LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
@@ -340,6 +440,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            SimpleLogger.LogError("Failed to show success message", ex);
             Debug.WriteLine($"Failed to show success message: {ex}");
         }
     }
