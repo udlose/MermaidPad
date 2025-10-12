@@ -26,7 +26,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace MermaidPad.Services.Export;
 /// <summary>
@@ -34,6 +33,23 @@ namespace MermaidPad.Services.Export;
 /// </summary>
 public sealed partial class SkiaSharpImageConversionService : IImageConversionService
 {
+    private static readonly char[] _separators = [',', ' ', '\t', '/'];
+
+    /// <summary>
+    /// Converts the specified SVG content to a PNG image asynchronously.
+    /// </summary>
+    /// <remarks>The method validates the provided SVG content before performing the conversion. If the SVG
+    /// content is invalid, an exception is thrown. The conversion process is performed on a background thread to avoid
+    /// blocking the calling thread.</remarks>
+    /// <param name="svgContent">The SVG content to be converted. This must be a valid SVG string and cannot be null or empty.</param>
+    /// <param name="options">The options specifying how the PNG image should be exported, such as resolution and scaling. This cannot be
+    /// null.</param>
+    /// <param name="progress">An optional progress reporter that provides updates on the export progress. Can be <see langword="null"/> if
+    /// progress reporting is not needed.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will be canceled if the token is triggered.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result is a byte array containing the PNG image
+    /// data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the provided SVG content is invalid.</exception>
     public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(svgContent);
@@ -51,6 +67,20 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Validates the provided SVG content to ensure it is well-formed and meets specific criteria.
+    /// </summary>
+    /// <remarks>This method performs the following checks: <list type="bullet"> <item><description>Ensures
+    /// the SVG content is not null, empty, or whitespace.</description></item> <item><description>Validates that the
+    /// SVG is well-formed and can be parsed successfully.</description></item> <item><description>Checks that the SVG
+    /// has visible content with positive width and height.</description></item> <item><description>Issues a warning if
+    /// the SVG dimensions exceed 10,000 units, as this may impact performance.</description></item> </list> If the SVG
+    /// cannot be parsed or is invalid, the returned <see cref="ValidationResult"/> will contain an appropriate error
+    /// message.</remarks>
+    /// <param name="svgContent">The SVG content to validate, represented as a string. Cannot be null, empty, or whitespace.</param>
+    /// <returns>A <see cref="ValidationResult"/> indicating the outcome of the validation.  Returns <see
+    /// cref="ValidationResult.Success"/> if the SVG is valid,  <see cref="ValidationResult.Failure(string)"/> if the
+    /// SVG is invalid, or a warning message if the SVG has very large dimensions.</returns>
     public async Task<ValidationResult> ValidateSvgAsync(string svgContent)
     {
         if (string.IsNullOrWhiteSpace(svgContent))
@@ -97,6 +127,15 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         }).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Asynchronously retrieves the dimensions of an SVG image from its content.
+    /// </summary>
+    /// <remarks>This method validates the provided SVG content to ensure it starts with an XML declaration or
+    /// an <c>&lt;svg&gt;</c> tag. If the content is invalid or an error occurs during parsing, the method logs the
+    /// error and returns (0, 0).</remarks>
+    /// <param name="svgContent">The SVG content as a string. Must not be null, empty, or whitespace.</param>
+    /// <returns>A tuple containing the width and height of the SVG image. Returns (0, 0) if the SVG content is invalid, the
+    /// dimensions are non-positive, or an error occurs during processing.</returns>
     public async Task<(float Width, float Height)> GetSvgDimensionsAsync(string svgContent)
     {
         // Validate SVG content before parsing to prevent XML exceptions
@@ -147,6 +186,20 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         }).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Converts the specified SVG content into a PNG image using the provided export options.
+    /// </summary>
+    /// <remarks>This method performs a multi-step process to convert SVG content into a PNG image. It parses
+    /// the SVG, calculates dimensions, renders the image onto a canvas, and encodes the result as a PNG. The method
+    /// supports progress reporting and cancellation, making it suitable for long-running operations.</remarks>
+    /// <param name="svgContent">The SVG content to be converted, represented as a string.</param>
+    /// <param name="options">The options that configure the PNG export, such as dimensions, DPI, and quality.</param>
+    /// <param name="progress">An optional progress reporter that provides updates on the conversion process. Can be <see langword="null"/> if
+    /// progress reporting is not required.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the operation. If cancellation is requested, the method will throw an <see
+    /// cref="OperationCanceledException"/>.</param>
+    /// <returns>A byte array containing the PNG image data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be parsed, the rendering surface cannot be created, or the PNG encoding fails.</exception>
     private static byte[] PerformConversion(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -417,12 +470,18 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 return SKColor.Parse(colorString);
             }
 
-            // Handle rgb()/rgba() including:
+            // Handle rgb()/rgba() CSS formats - e.g.:
             // - rgb(255,0,0), rgba(255,0,0,0.5)
             // - rgb(255 0 0 / 50%), rgb(100% 0% 0%)
             if (colorSpan.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
             {
-                return ParseRgbColor(colorString);
+                if (TryParseRgbColor(colorSpan, out SKColor color))
+                {
+                    return color;
+                }
+
+                SimpleLogger.Log($"Failed to parse rgb/rgba format: {colorString}");
+                return SKColors.White;
             }
 
             // Try named colors
@@ -454,69 +513,187 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Parses a color string in RGB or RGBA format and returns the corresponding <see cref="SKColor"/>.
+    /// Attempts to parse an RGB or RGBA color from a string representation and returns the result as an <see
+    /// cref="SKColor"/>.
     /// </summary>
-    /// <remarks>This method attempts to parse the input string as an RGBA color first. If that fails, it
-    /// tries to parse it as an RGB color. If both attempts fail, a warning is logged, and <see cref="SKColors.White"/>
-    /// is returned.</remarks>
-    /// <param name="colorString">A string representing a color in either RGB format ("rgb(r, g, b)") or RGBA format ("rgba(r, g, b, a)"). The
-    /// values for <c>r</c>, <c>g</c>, and <c>b</c> must be integers in the range 0-255, and <c>a</c> (if present) must
-    /// be a floating-point value in the range 0.0-1.0.</param>
-    /// <returns>An <see cref="SKColor"/> representing the parsed color. If the input string is invalid or cannot be parsed, the
-    /// method returns <see cref="SKColors.White"/>.</returns>
-    private static SKColor ParseRgbColor(string colorString)
+    /// <remarks>This method supports CSS-style color formats, including both "rgb" and "rgba" notations. The
+    /// alpha component, if provided, must be a valid value between 0 and 1 (inclusive). If the input string is not in a
+    /// valid format or contains invalid components, the method returns <see langword="false"/>.</remarks>
+    /// <param name="colorSpan">A <see cref="ReadOnlySpan{T}"/> of characters representing the color in the format "rgb(r, g, b)" or "rgba(r, g,
+    /// b, a)". The components can be separated by commas, spaces, tabs, or slashes, and the alpha component is
+    /// optional.</param>
+    /// <param name="color">When this method returns, contains the parsed <see cref="SKColor"/> if the parsing succeeds; otherwise, the
+    /// default value of <see cref="SKColor"/>.</param>
+    /// <returns><see langword="true"/> if the color was successfully parsed; otherwise, <see langword="false"/>.</returns>
+    private static bool TryParseRgbColor(ReadOnlySpan<char> colorSpan, out SKColor color)
     {
-        // Try rgba first (has 4 components)
-        Match rgbaMatch = RgbaRegex().Match(colorString);
-        if (rgbaMatch.Success)
+        color = default;
+
+        // Find parentheses
+        int openParen = colorSpan.IndexOf('(');
+        int closeParen = colorSpan.LastIndexOf(')');
+
+        if (openParen < 0 || closeParen <= openParen + 1)
         {
-            int r = int.Parse(rgbaMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-            int g = int.Parse(rgbaMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-            int b = int.Parse(rgbaMatch.Groups[3].Value, CultureInfo.InvariantCulture);
-            float alpha = float.Parse(rgbaMatch.Groups[4].Value, CultureInfo.InvariantCulture);
-
-            // Convert alpha from 0-1 range to 0-255 range
-            byte a = (byte)Math.Clamp((int)(alpha * 255), 0, 255);
-
-            return new SKColor((byte)r, (byte)g, (byte)b, a);
+            return false;
         }
 
-        // Try rgb (3 components)
-        Match rgbMatch = RgbRegex().Match(colorString);
-        if (rgbMatch.Success)
-        {
-            int r = int.Parse(rgbMatch.Groups[1].Value, CultureInfo.InvariantCulture);
-            int g = int.Parse(rgbMatch.Groups[2].Value, CultureInfo.InvariantCulture);
-            int b = int.Parse(rgbMatch.Groups[3].Value, CultureInfo.InvariantCulture);
+        // Extract content between parentheses
+        ReadOnlySpan<char> content = colorSpan.Slice(openParen + 1, closeParen - openParen - 1).Trim();
 
-            return new SKColor((byte)r, (byte)g, (byte)b);
+        if (content.IsEmpty)
+        {
+            return false;
         }
 
-        SimpleLogger.Log($"Failed to parse rgb/rgba color: {colorString}");
-        return SKColors.White;
+        // Parse the color components
+        // Split by comma, space, tab, or slash (CSS4 allows "rgb(255 0 0 / 0.5)")
+        const int minComponents = 3;
+        const int maxComponents = 4;
+        Span<Range> ranges = stackalloc Range[maxComponents + 1]; // Max 4 components + extra
+        int count = content.Split(ranges, _separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (count is < minComponents or > maxComponents)
+        {
+            return false;
+        }
+
+        // Parse R, G, B components
+        if (!TryParseColorComponent(content[ranges[0]], out byte r) ||
+            !TryParseColorComponent(content[ranges[1]], out byte g) ||
+            !TryParseColorComponent(content[ranges[2]], out byte b))
+        {
+            return false;
+        }
+
+        // Parse optional alpha component (defaults to fully opaque)
+        byte a = 255;
+        if (count == 4)
+        {
+            if (!TryParseAlphaComponent(content[ranges[3]], out a))
+            {
+                return false;
+            }
+        }
+
+        color = new SKColor(r, g, b, a);
+        return true;
     }
 
     /// <summary>
-    /// Creates a regular expression that matches RGB color strings in the format "rgb(r, g, b)".
+    /// Attempts to parse a color component from a string representation and convert it to a byte value.
     /// </summary>
-    /// <remarks>The pattern matches strings that represent RGB color values, where the red, green, and blue
-    /// components  are integers. Whitespace around the components and commas is allowed. The matching is
-    /// case-insensitive.</remarks>
-    /// <returns>A <see cref="Regex"/> instance configured to match RGB color strings.</returns>
-    [GeneratedRegex(@"rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex RgbRegex();
+    /// <remarks>This method supports two formats for the input: <list type="bullet"> <item> <description>An
+    /// integer value in the range 0-255, which is directly converted to a byte.</description> </item> <item>
+    /// <description>A percentage value (e.g., "75%"), which is clamped to the range 0-100 and scaled to the range
+    /// 0-255.</description> </item> </list> If the input is empty, contains invalid characters, or is outside the
+    /// supported formats, the method returns <see langword="false"/>.</remarks>
+    /// <param name="component">The string representation of the color component. This can be an integer value in the range 0-255  or a
+    /// percentage value (e.g., "50%") representing a proportion of the maximum byte value.</param>
+    /// <param name="value">When this method returns, contains the parsed byte value of the color component, if the conversion succeeded; 
+    /// otherwise, the value is 0.</param>
+    /// <returns><see langword="true"/> if the color component was successfully parsed and converted; otherwise, <see
+    /// langword="false"/>.</returns>
+    private static bool TryParseColorComponent(ReadOnlySpan<char> component, out byte value)
+    {
+        value = 0;
+
+        if (component.IsEmpty)
+        {
+            return false;
+        }
+
+        // Check for percentage (e.g., "100%")
+        if (component[^1] == '%')
+        {
+            ReadOnlySpan<char> numberPart = component[..^1].Trim();
+
+            if (!double.TryParse(numberPart, NumberStyles.Float, CultureInfo.InvariantCulture, out double percentage))
+            {
+                return false;
+            }
+
+            // Clamp percentage to 0-100 and convert to 0-255
+            percentage = Math.Clamp(percentage, 0, 100);
+            value = (byte)Math.Round(255.0 * (percentage / 100.0));
+            return true;
+        }
+
+        // Parse as integer (0-255)
+        if (!int.TryParse(component, NumberStyles.Integer, CultureInfo.InvariantCulture, out int intValue))
+        {
+            return false;
+        }
+
+        // Clamp to valid byte range
+        value = (byte)Math.Clamp(intValue, 0, 255);
+        return true;
+    }
 
     /// <summary>
-    /// Creates a regular expression that matches RGBA color strings in the format  "rgba(r, g, b, a)", where r, g, and
-    /// b are integers representing red, green,  and blue color components, and a is a floating-point number
-    /// representing the alpha value.
+    /// Attempts to parse an alpha (opacity) component from a string representation.
     /// </summary>
-    /// <remarks>The regular expression is case-insensitive and allows for optional whitespace  around the
-    /// components. The alpha value must be a valid floating-point number. The match timeout is set to 1000 milliseconds
-    /// to prevent excessive processing time.</remarks>
-    /// <returns>A <see cref="Regex"/> instance configured to match RGBA color strings.</returns>
-    [GeneratedRegex(@"rgba\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9]*\.?[0-9]+)\s*\)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex RgbaRegex();
+    /// <remarks>This method supports parsing alpha components in various formats commonly used in CSS and
+    /// other graphics-related contexts. Invalid formats or values outside the supported range will result in a return
+    /// value of <see langword="false"/>.</remarks>
+    /// <param name="component">The string representation of the alpha component. This can be: <list type="bullet"> <item>A percentage (e.g.,
+    /// "50%") representing the opacity as a percentage (0% = fully transparent, 100% = fully opaque).</item> <item>A
+    /// decimal value between 0.0 and 1.0 (e.g., "0.5") representing the opacity as a fraction (0.0 = fully transparent,
+    /// 1.0 = fully opaque).</item> <item>An integer value between 0 and 255 (e.g., "128") representing the opacity
+    /// directly (0 = fully transparent, 255 = fully opaque).</item> </list> If the string is empty, the alpha component
+    /// defaults to fully opaque (255).</param>
+    /// <param name="alpha">When this method returns, contains the parsed alpha value as a byte (0 = fully transparent, 255 = fully opaque),
+    /// or 255 if the input is empty or invalid.</param>
+    /// <returns><see langword="true"/> if the alpha component was successfully parsed; otherwise, <see langword="false"/>.</returns>
+    private static bool TryParseAlphaComponent(ReadOnlySpan<char> component, out byte alpha)
+    {
+        alpha = 255; // Default to fully opaque
+
+        if (component.IsEmpty)
+        {
+            return true; // Empty alpha is valid (defaults to opaque)
+        }
+
+        // Check for percentage (e.g., "50%")
+        if (component[^1] == '%')
+        {
+            ReadOnlySpan<char> numberPart = component[..^1].Trim();
+
+            if (!double.TryParse(numberPart, NumberStyles.Float, CultureInfo.InvariantCulture, out double percentage))
+            {
+                return false;
+            }
+
+            // Clamp percentage to 0-100 and convert to 0-255
+            percentage = Math.Clamp(percentage, 0, 100);
+            alpha = (byte)Math.Round(255.0 * (percentage / 100.0));
+            return true;
+        }
+
+        // Try parsing as double to handle both decimal and integer
+        if (!double.TryParse(component, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+        {
+            return false;
+        }
+
+        // Determine format based on value range:
+        // - Values 0.0-1.0 are treated as decimal alpha (CSS standard)
+        // - Values > 1.0 are treated as 0-255 integer alpha
+        if (value <= 1.0)
+        {
+            // Decimal format (0.0 = transparent, 1.0 = opaque)
+            value = Math.Clamp(value, 0.0, 1.0);
+            alpha = (byte)Math.Round(255.0 * value);
+        }
+        else
+        {
+            // Integer format (0 = transparent, 255 = opaque)
+            int intValue = (int)Math.Round(value);
+            alpha = (byte)Math.Clamp(intValue, 0, 255);
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Reports the progress of an export operation to a provided <see cref="IProgress{T}"/> instance.
