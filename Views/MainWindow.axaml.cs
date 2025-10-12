@@ -343,6 +343,7 @@ public sealed partial class MainWindow : Window
                 throw new InvalidOperationException(error);
             }
 
+            // Needs to be on UI thread
             await InitializeWebViewAsync();
 
             // Step 3: Update command states
