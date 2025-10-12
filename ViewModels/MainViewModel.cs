@@ -255,7 +255,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 };
 
                 // Set up cancellation
-                CancellationTokenSource cts = new CancellationTokenSource();
+                using CancellationTokenSource cts = new CancellationTokenSource();
                 if (options.AllowCancellation)
                 {
                     progressViewModel.SetCancellationTokenSource(cts);

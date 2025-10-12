@@ -114,6 +114,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             if (_tokens.Remove(key, out CancellationTokenSource? cts))
             {
                 cts.Cancel();
+                cts.Dispose();
             }
         }
     }
