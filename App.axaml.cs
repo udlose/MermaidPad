@@ -24,11 +24,11 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using MermaidPad.Infrastructure;
 using MermaidPad.Views;
-
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad;
-public partial class App : Application
+
+public sealed partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
 
