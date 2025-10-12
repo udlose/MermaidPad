@@ -116,11 +116,15 @@
               <!--  DPI  -->
               <StackPanel Classes="OptionRow">
                 <TextBlock Classes="OptionLabel" Text="DPI:" />
-                <ComboBox Width="150" SelectedItem="{Binding SelectedDpi}">
-                  <ComboBoxItem>72</ComboBoxItem>
-                  <ComboBoxItem>150</ComboBoxItem>
-                  <ComboBoxItem>300</ComboBoxItem>
-                  <ComboBoxItem>600</ComboBoxItem>
+                <ComboBox
+                  Width="150"
+                  ItemsSource="{Binding AvailableDpiValues}"
+                  SelectedItem="{Binding SelectedDpi}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding StringFormat='{}{0} DPI'}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
                 </ComboBox>
                 <TextBlock
                   Margin="10,0,0,0"
@@ -286,11 +290,7 @@
         Width="100"
         Command="{Binding ExportCommand}"
         Content="Export"
-        IsDefault="True">
-        <Button.Classes>
-          <!--<Sys:String>accent</Sys:String>-->
-        </Button.Classes>
-      </Button>
+        IsDefault="True" />
       <Button
         Width="100"
         Command="{Binding CancelCommand}"
