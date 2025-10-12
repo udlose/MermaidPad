@@ -404,7 +404,7 @@ public sealed partial class MainViewModel : ViewModelBase
             }
 
             // NO ConfigureAwait(false) - will show UI dialog
-            await ShowSuccessMessageAsync(window, $"Export completed successfully to:\n{options.FilePath}");
+            await ShowSuccessMessageAsync(window, $"Export completed successfully to:{Environment.NewLine}{options.FilePath}");
         }
         catch (OperationCanceledException)
         {
