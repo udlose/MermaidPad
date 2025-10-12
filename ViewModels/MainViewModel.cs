@@ -24,9 +24,11 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MermaidPad.Dialogs;
-using MermaidPad.Models;
+using MermaidPad.Infrastructure;
 using MermaidPad.Services;
+using MermaidPad.Services.Export;
+using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -44,6 +46,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly ExportService _exportService;
+    private readonly IDialogFactory _dialogFactory;
 
     /// <summary>
     /// Gets or sets the current diagram text.
@@ -110,6 +113,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
         _exportService = services.GetRequiredService<ExportService>();
+        _dialogFactory = services.GetRequiredService<IDialogFactory>();
 
         InitializeCurrentMermaidPadVersion();
 
@@ -131,6 +135,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task RenderAsync()
     {
         LastError = null;
+
+        // NO ConfigureAwait(false) here - MermaidRenderer may need UI context
         await _renderer.RenderAsync(DiagramText);
     }
 
@@ -147,11 +153,14 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanClear))]
     private async Task ClearAsync()
     {
+        // These property updates must happen on UI thread
         DiagramText = string.Empty;
         EditorSelectionStart = 0;
         EditorSelectionLength = 0;
         EditorCaretOffset = 0;
         LastError = null;
+
+        // NO ConfigureAwait(false) - renderer needs UI context
         await _renderer.RenderAsync(string.Empty);
     }
 
@@ -180,19 +189,33 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            // Show export dialog
-            ExportDialog exportDialog = new ExportDialog();
-            ExportOptions? exportOptions = await exportDialog.ShowDialog<ExportOptions?>(window);
+            // Create the export dialog and its view model using DI
+            ExportDialogViewModel exportViewModel = _dialogFactory.CreateViewModel<ExportDialogViewModel>();
 
-            if (exportOptions is null)
+            // Create the dialog with the storage provider
+            ExportDialog exportDialog = new ExportDialog
+            {
+                DataContext = exportViewModel
+            };
+
+            // NO ConfigureAwait(false) - ShowDialog must run on UI thread
+            await exportDialog.ShowDialog(window);
+
+            // Check if user cancelled
+            if (exportViewModel.DialogResult != true)
             {
                 return; // User cancelled
             }
 
-            await _exportService.ExportDiagramAsync(window, exportOptions);
+            // Get export options from the view model
+            ExportOptions exportOptions = exportViewModel.GetExportOptions();
+
+            // NO ConfigureAwait(false) - may show UI dialogs
+            await ExportWithProgressAsync(window, exportOptions);
         }
         catch (Exception ex)
         {
+            // Setting LastError updates UI, must be on UI thread
             LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
         }
@@ -203,6 +226,123 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     /// <returns><c>true</c> if there is a diagram to export; otherwise, <c>false</c>.</returns>
     private bool CanExport() => !string.IsNullOrWhiteSpace(DiagramText);
+
+    /// <summary>
+    /// Exports the diagram with progress tracking if requested
+    /// </summary>
+    private async Task ExportWithProgressAsync(Window window, ExportOptions options)
+    {
+        try
+        {
+            if (options is { ShowProgress: true, Format: ExportFormat.PNG })
+            {
+                // Create progress dialog using DI
+                ProgressDialogViewModel progressViewModel = _dialogFactory.CreateViewModel<ProgressDialogViewModel>();
+                progressViewModel.Title = "Exporting PNG";
+                progressViewModel.StatusMessage = "Preparing export...";
+
+                ProgressDialog progressDialog = new ProgressDialog
+                {
+                    DataContext = progressViewModel
+                };
+
+                // Set up cancellation
+                CancellationTokenSource cts = new CancellationTokenSource();
+                if (options.AllowCancellation)
+                {
+                    progressViewModel.SetCancellationTokenSource(cts);
+                }
+
+                // Start export task - this CAN use ConfigureAwait(false) as it's background work
+                Task exportTask = Task.Run(async () =>
+                {
+                    await _exportService.ExportPngAsync(
+                        options.FilePath,
+                        options.PngOptions,
+                        progressViewModel,
+                        cts.Token).ConfigureAwait(false); // OK - background task
+                }, cts.Token);
+
+                // NO ConfigureAwait(false) - ShowDialog needs UI thread
+                _ = progressDialog.ShowDialog(window);
+
+                try
+                {
+                    // Wait for export to complete
+                    await exportTask.ConfigureAwait(false); // OK - just waiting for background task
+                }
+                finally
+                {
+                    // Close must happen on UI thread
+                    progressDialog.Close();
+                }
+            }
+            else
+            {
+                switch (options.Format)
+                {
+                    case ExportFormat.PNG:
+                        // Export PNG without progress dialog
+                        // This CAN use ConfigureAwait(false) if ExportService doesn't need UI
+                        await _exportService.ExportPngAsync(options.FilePath, options.PngOptions)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case ExportFormat.SVG:
+                        // Export SVG (no progress needed)
+                        // This CAN use ConfigureAwait(false) if ExportService doesn't need UI
+                        await _exportService.ExportSvgAsync(options.FilePath)
+                            .ConfigureAwait(false);
+                        break;
+
+                    default:
+                        throw new NotSupportedException($"Export format {options.Format} is not supported");
+                }
+            }
+
+            // NO ConfigureAwait(false) - will show UI dialog
+            await ShowSuccessMessageAsync(window, $"Export completed successfully to:\n{options.FilePath}");
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.WriteLine("Export cancelled by user");
+            // Don't show error for user cancellation
+        }
+        catch (Exception ex)
+        {
+            // Setting LastError updates UI, must be on UI thread
+            LastError = $"Export failed: {ex.Message}";
+            Debug.WriteLine($"Export error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Shows a success message dialog
+    /// </summary>
+    private async Task ShowSuccessMessageAsync(Window window, string message)
+    {
+        try
+        {
+            // Create message dialog using DI
+            MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
+            messageViewModel.Title = "Export Complete";
+            messageViewModel.Message = message;
+            messageViewModel.IconData = "M9 12l2 2 4-4"; // Checkmark icon path
+            messageViewModel.IconColor = Avalonia.Media.Brushes.Green;
+
+            MessageDialog messageDialog = new MessageDialog
+            {
+                DataContext = messageViewModel
+            };
+
+            // NO ConfigureAwait(false) - ShowDialog needs UI thread
+            await messageDialog.ShowDialog(window);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to show success message: {ex}");
+        }
+    }
 
     /// <summary>
     /// Handles changes to the diagram text and triggers rendering if live preview is enabled.
@@ -221,6 +361,7 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 try
                 {
+                    // SafeFireAndForget handles its own context
                     _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: static e => Debug.WriteLine(e));
                 }
                 catch (Exception ex)
@@ -230,9 +371,10 @@ public sealed partial class MainViewModel : ViewModelBase
             });
         }
 
-        // RenderCommand / ClearCommand CanExecute reevaluation:
+        // Update command states - these are UI operations
         RenderCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -248,8 +390,10 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
+            // SafeFireAndForget handles context, but the error handler updates UI
             _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: ex =>
             {
+                // This runs on UI thread due to SafeFireAndForget
                 LastError = $"Failed to render diagram: {ex.Message}";
                 Debug.WriteLine(ex);
             });
@@ -266,11 +410,18 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task CheckForMermaidUpdatesAsync()
     {
-        await _updateService.CheckAndUpdateAsync();
+        // This CAN use ConfigureAwait(false) for the network call
+        await _updateService.CheckAndUpdateAsync()
+            .ConfigureAwait(false);
+
+        // But property updates should happen on UI thread
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
     }
 
+    /// <summary>
+    /// Initializes the current MermaidPad version from assembly info
+    /// </summary>
     private void InitializeCurrentMermaidPadVersion()
     {
         try
