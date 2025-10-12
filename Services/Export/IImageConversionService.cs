@@ -35,8 +35,8 @@ public interface IImageConversionService
     /// <returns>PNG image data as byte array</returns>
     Task<byte[]> ConvertSvgToPngAsync(
         string svgContent,
-        PngConversionOptions options,
-        IProgress<ConversionProgress>? progress = null,
+        PngExportOptions options,
+        IProgress<ExportProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -19,44 +19,75 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
-using SkiaSharp;
-using Svg.Skia;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace MermaidPad.Services.Export;
 
 /// <summary>
 /// Service for exporting Mermaid diagrams to various formats
 /// </summary>
-public sealed class ExportService
+public sealed partial class ExportService
 {
-    private readonly MermaidRenderer _mermaidRenderer;
+    [GeneratedRegex(@">\s+<", RegexOptions.Compiled)]
+    private static partial Regex GetWhitespaceBetweenTagsRegex();
+    private static readonly XNamespace _svgNamespace = "http://www.w3.org/2000/svg";
 
-    public ExportService(MermaidRenderer mermaidRenderer)
+    private readonly MermaidRenderer _mermaidRenderer;
+    private readonly IImageConversionService _imageConversionService;
+
+    public ExportService(MermaidRenderer mermaidRenderer, IImageConversionService imageConversionService)
     {
         _mermaidRenderer = mermaidRenderer;
+        _imageConversionService = imageConversionService;
     }
 
     /// <summary>
     /// Exports the current diagram as SVG
     /// </summary>
-    public async Task ExportSvgAsync(string targetPath, CancellationToken cancellationToken = default)
+    public async Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
+        options ??= new SvgExportOptions();
         SimpleLogger.Log($"Starting SVG export to: {targetPath}");
 
         try
         {
-            // Get SVG content from the WebView - this must run on UI thread
+            // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
             string? svgContent = await GetSvgContentAsync();
 
             if (string.IsNullOrWhiteSpace(svgContent))
             {
                 throw new InvalidOperationException("Failed to extract SVG content from diagram");
+            }
+
+            // Apply SVG optimization if requested
+            if (options.Optimize)
+            {
+                SimpleLogger.Log("Optimizing SVG content...");
+                svgContent = OptimizeSvg(svgContent, options);
+                SimpleLogger.Log($"SVG optimization complete. Original length: {svgContent.Length}");
+            }
+
+            // Apply XML declaration option
+            ReadOnlySpan<char> svgSpan = svgContent.AsSpan().TrimStart();
+            if (!options.IncludeXmlDeclaration && svgSpan.StartsWith("<?xml"))
+            {
+                // Remove XML declaration
+                int endOfDeclaration = svgSpan.IndexOf("?>", StringComparison.Ordinal);
+                if (endOfDeclaration >= 0)
+                {
+                    svgContent = svgSpan[(endOfDeclaration + 2)..].ToString().TrimStart();
+                }
+            }
+            else if (options.IncludeXmlDeclaration && !svgSpan.StartsWith("<?xml"))
+            {
+                // Add XML declaration if not present
+                svgContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Environment.NewLine + svgContent;
             }
 
             // File I/O can be done on background thread
@@ -80,6 +111,79 @@ public sealed class ExportService
         {
             SimpleLogger.LogError($"SVG export failed: {ex.Message}", ex);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Optimizes the content of an SVG file based on the specified options.
+    /// </summary>
+    /// <remarks>This method performs various optimizations on the SVG content, including: <list
+    /// type="bullet"> <item>Removing comments if specified in the options.</item> <item>Removing common metadata
+    /// elements, such as <c>&lt;metadata&gt;</c>.</item> <item>Removing unnecessary attributes, such as empty
+    /// attributes or <c>xml:space</c> attributes.</item> <item>Minifying the SVG content by removing unnecessary
+    /// whitespace, if specified in the options.</item> </list> If an exception occurs during the optimization process,
+    /// the method logs the error and returns the original SVG content.</remarks>
+    /// <param name="svgContent">The SVG content to be optimized, represented as a string.</param>
+    /// <param name="options">An <see cref="SvgExportOptions"/> object specifying the optimization options, such as whether to remove comments
+    /// or minify the SVG.</param>
+    /// <returns>A string containing the optimized SVG content. If an error occurs during optimization, the original SVG content
+    /// is returned.</returns>
+    private static string OptimizeSvg(string svgContent, SvgExportOptions options)
+    {
+        try
+        {
+            // Parse the SVG as XML
+            XDocument doc = XDocument.Parse(svgContent, LoadOptions.PreserveWhitespace);
+
+            // TODO review this for performance optimization - could be slow on large SVGs
+
+            // Remove comments if requested
+            if (options.RemoveComments)
+            {
+                doc.DescendantNodes()
+                    .OfType<XComment>()
+                    .ToList()
+                    .ForEach(static comment => comment.Remove());
+            }
+
+            // Remove common metadata elements
+
+            // Remove <metadata> elements
+            doc.Descendants(_svgNamespace + "metadata").Remove();
+
+            // TODO Remove <title> elements (optional - some prefer to keep these)
+            // doc.Descendants(svg + "title").Remove();
+
+            // TODO Remove <desc> elements (optional)
+            // doc.Descendants(svg + "desc").Remove();
+
+            // Remove unnecessary attributes
+            foreach (XElement element in doc.Descendants())
+            {
+                // Remove xml:space attributes
+                element.Attributes().Where(static a => a.Name.LocalName == "space" && a.Name.Namespace == XNamespace.Xml).Remove();
+
+                // Remove empty attributes
+                element.Attributes().Where(static a => string.IsNullOrWhiteSpace(a.Value)).Remove();
+            }
+
+            // Minify if requested
+            if (options.MinifySvg)
+            {
+                // Save without indentation for minification
+                string result = doc.ToString(SaveOptions.DisableFormatting);
+
+                // Remove unnecessary whitespace between tags
+                return GetWhitespaceBetweenTagsRegex().Replace(result, "><");
+            }
+
+            // Save with normal formatting
+            return doc.ToString(SaveOptions.None);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("SVG optimization failed, returning original content", ex);
+            return svgContent;
         }
     }
 
@@ -117,10 +221,11 @@ public sealed class ExportService
 
             // Convert to PNG on background thread - ConfigureAwait(false) is OK here
             // because ConvertSvgToPng marshals its own progress reports
-            byte[] pngData = await Task.Run(() =>
-                ConvertSvgToPng(svgContent, options, progress, cancellationToken),
-                cancellationToken)
-                    .ConfigureAwait(false);
+            byte[] pngData = await _imageConversionService.ConvertSvgToPngAsync(
+                svgContent,
+                options,
+                progress,
+                cancellationToken);
 
             // File I/O on background thread - ConfigureAwait(false) keeps us on background thread
             string? directory = Path.GetDirectoryName(targetPath);
@@ -261,236 +366,6 @@ public sealed class ExportService
                     SimpleLogger.LogError($"Progress report failed: {ex.Message}", ex);
                 }
             });
-        }
-    }
-
-    private static byte[] ConvertSvgToPng(
-        string svgContent,
-        PngExportOptions options,
-        IProgress<ExportProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-
-        try
-        {
-            // Step 1: Parse SVG
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.ParsingSvg,
-                PercentComplete = 10,
-                Message = "Parsing SVG content..."
-            });
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            using SKSvg svg = new SKSvg();
-            using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
-            using SKPicture picture = svg.Load(stream)
-                ?? throw new InvalidOperationException("Failed to parse SVG content");
-
-            // Step 2: Calculate dimensions
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.CalculatingDimensions,
-                PercentComplete = 20,
-                Message = "Calculating output dimensions..."
-            });
-
-            SKRect bounds = picture.CullRect;
-            (int width, int height) = CalculateDimensions(bounds, options);
-
-            SimpleLogger.Log($"PNG dimensions: {width}x{height} (from SVG {bounds.Width}x{bounds.Height})");
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Step 3: Create canvas
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.CreatingCanvas,
-                PercentComplete = 30,
-                Message = $"Creating {width}x{height} canvas..."
-            });
-
-            SKImageInfo imageInfo = new SKImageInfo(
-                width,
-                height,
-                SKColorType.Rgba8888,
-                SKAlphaType.Premul,
-                SKColorSpace.CreateSrgb());
-
-            using SKSurface surface = CreateSurface(imageInfo)
-                ?? throw new InvalidOperationException("Failed to create rendering surface");
-            using SKCanvas canvas = surface.Canvas;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Step 4: Render
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.Rendering,
-                PercentComplete = 50,
-                Message = "Rendering diagram..."
-            });
-
-            ConfigureCanvas(canvas, options, width, height, bounds);
-            canvas.DrawPicture(picture);
-            canvas.Flush();
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Step 5: Encode to PNG
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.Encoding,
-                PercentComplete = 80,
-                Message = "Encoding PNG..."
-            });
-
-            using SKImage image = surface.Snapshot();
-            using SKData data = image.Encode(SKEncodedImageFormat.Png, options.Quality)
-                ?? throw new InvalidOperationException("Failed to encode PNG");
-
-            byte[] result = data.ToArray();
-
-            stopwatch.Stop();
-            SimpleLogger.Log($"PNG conversion completed in {stopwatch.ElapsedMilliseconds}ms");
-
-            return result;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            SimpleLogger.LogError($"PNG conversion failed: {ex.Message}", ex);
-            throw new InvalidOperationException($"Failed to convert SVG to PNG: {ex.Message}", ex);
-        }
-    }
-
-    private static (int Width, int Height) CalculateDimensions(SKRect bounds, PngExportOptions options)
-    {
-        // Calculate base dimensions with scale factor
-        float baseWidth = bounds.Width * options.ScaleFactor;
-        float baseHeight = bounds.Height * options.ScaleFactor;
-
-        // Apply DPI scaling (assuming 96 DPI as baseline)
-        float dpiScale = options.Dpi / 96f;
-        baseWidth *= dpiScale;
-        baseHeight *= dpiScale;
-
-        // Apply maximum dimensions if specified
-        if (options.MaxWidth > 0 || options.MaxHeight > 0)
-        {
-            if (options.PreserveAspectRatio)
-            {
-                float aspectRatio = bounds.Width / bounds.Height;
-
-                if (options.MaxWidth > 0 && baseWidth > options.MaxWidth)
-                {
-                    baseWidth = options.MaxWidth;
-                    baseHeight = baseWidth / aspectRatio;
-                }
-
-                if (options.MaxHeight > 0 && baseHeight > options.MaxHeight)
-                {
-                    baseHeight = options.MaxHeight;
-                    baseWidth = baseHeight * aspectRatio;
-                }
-            }
-            else
-            {
-                if (options.MaxWidth > 0 && baseWidth > options.MaxWidth)
-                {
-                    baseWidth = options.MaxWidth;
-                }
-
-                if (options.MaxHeight > 0 && baseHeight > options.MaxHeight)
-                {
-                    baseHeight = options.MaxHeight;
-                }
-            }
-        }
-
-        return ((int)Math.Ceiling(baseWidth), (int)Math.Ceiling(baseHeight));
-    }
-
-    private static SKSurface? CreateSurface(SKImageInfo imageInfo)
-    {
-        // Try hardware acceleration first on supported platforms
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
-            RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            try
-            {
-                SKSurface? surface = SKSurface.Create(imageInfo);
-                if (surface is not null)
-                {
-                    return surface;
-                }
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.Log($"Hardware acceleration unavailable: {ex.Message}");
-            }
-        }
-
-        // Fallback to software rendering
-        return SKSurface.Create(imageInfo);
-    }
-
-    private static void ConfigureCanvas(SKCanvas canvas, PngExportOptions options,
-        int width, int height, SKRect bounds)
-    {
-        // Clear with background color
-        if (!string.IsNullOrWhiteSpace(options.BackgroundColor))
-        {
-            SKColor color = ParseColor(options.BackgroundColor);
-            canvas.Clear(color);
-        }
-        else
-        {
-            canvas.Clear(SKColors.Transparent);
-        }
-
-        // Configure anti-aliasing
-        if (options.AntiAlias)
-        {
-            canvas.Save();
-            // Note: The paint object was created but never used in the original code
-            // Keeping the canvas.Save() for potential future use
-        }
-
-        // Calculate and apply scaling
-        float scaleX = width / bounds.Width;
-        float scaleY = height / bounds.Height;
-        canvas.Scale(scaleX, scaleY);
-
-        // Translate to origin if needed
-        const float epsilon = 0.0001F;
-        if (Math.Abs(bounds.Left) > epsilon || Math.Abs(bounds.Top) > epsilon)
-        {
-            canvas.Translate(-bounds.Left, -bounds.Top);
-        }
-    }
-
-    private static SKColor ParseColor(string colorString)
-    {
-        try
-        {
-            // Handle hex colors
-            if (colorString.StartsWith('#'))
-            {
-                return SKColor.Parse(colorString);
-            }
-
-            // Try named colors
-            return colorString.ToLowerInvariant() switch
-            {
-                "white" => SKColors.White,
-                "black" => SKColors.Black,
-                "transparent" => SKColors.Transparent,
-                _ => SKColors.White
-            };
-        }
-        catch
-        {
-            return SKColors.White;
         }
     }
 }
