@@ -61,8 +61,13 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial bool CanCancel { get; set; } = true;
 
-    //TODO - is this needed?
-    public CancellationToken CancellationToken => _cancellationTokenSource?.Token ?? CancellationToken.None;
+    /// <summary>
+    /// Indicates whether the export process is complete. When <c>false</c>, the Cancel button is shown; when
+    /// <c>true</c>, the Close button is shown. This property transitions to <c>true</c> when
+    /// the export finishes successfully or the user clicks the Close button.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsComplete { get; set; } = false;
 
     public void SetCancellationTokenSource(CancellationTokenSource cts)
     {
@@ -75,6 +80,14 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
         _cancellationTokenSource?.Cancel();
         StatusMessage = "Cancelling...";
         CanCancel = false;
+    }
+
+    [RelayCommand]
+    private void Close()
+    {
+        // Signals that the user clicked the Close button
+        // The actual window closing is handled by MainViewModel
+        IsComplete = true;
     }
 
     /// <summary>
@@ -97,10 +110,11 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
         // Update step description based on export step
         StepDescription = GetStepDescription(value.Step);
 
-        // Disable cancellation when complete
+        // When complete, hide cancel button and show close button
         if (value.Step == ExportStep.Complete)
         {
             CanCancel = false;
+            IsComplete = true;
         }
     }
 

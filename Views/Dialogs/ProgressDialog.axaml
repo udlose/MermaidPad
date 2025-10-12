@@ -108,15 +108,30 @@
         </StackPanel>
       </Border>
 
-      <!--  Cancel Button  -->
-      <Button
-        Grid.Row="5"
-        Width="100"
-        HorizontalAlignment="Center"
-        VerticalAlignment="Bottom"
-        Command="{Binding CancelCommand}"
-        Content="Cancel"
-        IsVisible="{Binding CanCancel}" />
+      <!--  Action Buttons - Cancel or Close  -->
+      <Grid Grid.Row="5">
+        <!--  Cancel Button - visible during export  -->
+        <Button
+          Width="100"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Bottom"
+          Command="{Binding CancelCommand}"
+          Content="Cancel"
+          IsVisible="{Binding CanCancel}" />
+
+        <!--  Close Button - visible when export is complete  -->
+        <Button
+          Width="100"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Bottom"
+          Command="{Binding CloseCommand}"
+          Content="Close"
+          IsVisible="{Binding IsComplete}">
+          <Button.Classes>
+            <x:String>accent</x:String>
+          </Button.Classes>
+        </Button>
+      </Grid>
     </Grid>
   </Border>
 </Window>
