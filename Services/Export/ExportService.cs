@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
 using SkiaSharp;
 using Svg.Skia;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-
 using System.Text.Json;
 
 namespace MermaidPad.Services.Export;
@@ -106,8 +106,8 @@ public sealed class ExportService
                 Message = "Initializing export..."
             });
 
-            // Get SVG content from the WebView
-            string? svgContent = await GetSvgContentAsync().ConfigureAwait(false);
+            // Get SVG content from the WebView - this must run on UI thread
+            string? svgContent = await GetSvgContentAsync();
 
             if (string.IsNullOrWhiteSpace(svgContent))
             {
@@ -152,6 +152,33 @@ public sealed class ExportService
         }
     }
 
+    /// <summary>
+    /// Gets the current SVG content from the rendered diagram.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the public API for accessing SVG content from the WebView control.
+    /// It is used by <see cref="ViewModels.Dialogs.ExportDialogViewModel"/> to load actual SVG dimensions
+    /// for calculating export estimates.
+    /// </para>
+    /// <para>
+    /// <strong>Threading:</strong> This method MUST run on the UI thread because it accesses
+    /// the WebView control via <c>ExecuteScriptAsync</c>. Do NOT use <c>ConfigureAwait(false)</c>
+    /// when calling this method.
+    /// </para>
+    /// <para>
+    /// <strong>Design:</strong> This method wraps the private <see cref="GetSvgContentAsync"/>
+    /// to provide a clear, documented public interface while keeping the implementation details
+    /// private. This separation allows for future enhancements without breaking the public API.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// The SVG content as a complete XML string with declaration and namespace, or <c>null</c>
+    /// if no SVG element is found in the rendered output.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if the WebView is not initialized or accessible.
+    /// </exception>
     public async Task<string?> GetCurrentSvgContentAsync()
     {
         // This method needs to run on UI thread (WebView access)
@@ -178,8 +205,17 @@ public sealed class ExportService
             })();
             """;
 
-        // ExecuteScriptAsync needs UI thread - NO ConfigureAwait(false) here
-        string? result = await _mermaidRenderer.ExecuteScriptAsync(script);
+        // Ensure WebView access happens on the UI thread
+        string? result;
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            result = await _mermaidRenderer.ExecuteScriptAsync(script);
+        }
+        else
+        {
+            result = await Dispatcher.UIThread.InvokeAsync(
+                () => _mermaidRenderer.ExecuteScriptAsync(script));
+        }
 
         // Remove any JSON escaping if present
         if (!string.IsNullOrWhiteSpace(result) && result.StartsWith('"') && result.EndsWith('"'))
@@ -419,78 +455,3 @@ public sealed class ExportService
         }
     }
 }
-
-///// <summary>
-///// Extension methods for ExportService
-///// </summary>
-//public static class ExportServiceExtensions
-//{
-//    /// <summary>
-//    /// Exports a diagram with the specified options, showing a progress dialog if requested
-//    /// </summary>
-//    public static async Task ExportDiagramAsync(this ExportService exportService, Window window, ExportOptions options)
-//    {
-//        ArgumentNullException.ThrowIfNull(options);
-//        ArgumentNullException.ThrowIfNull(window);
-
-//        try
-//        {
-//            if (options.ShowProgress && options.Format == ExportFormat.PNG)
-//            {
-//                // Create and show progress dialog
-//                ProgressDialog progressDialog = new ProgressDialog();
-//                ProgressDialogViewModel progressViewModel = new ProgressDialogViewModel
-//                {
-//                    Title = "Exporting PNG",
-//                    StatusMessage = "Preparing export..."
-//                };
-
-//                progressDialog.DataContext = progressViewModel;
-
-//                // Set up cancellation
-//                CancellationTokenSource cts = new CancellationTokenSource();
-//                if (options.AllowCancellation)
-//                {
-//                    progressViewModel.SetCancellationTokenSource(cts);
-//                }
-
-//                // Start export task
-//                Task exportTask = Task.Run(async () =>
-//                {
-//                    await exportService.ExportPngAsync(
-//                        options.FilePath,
-//                        options.PngOptions,
-//                        progressViewModel,
-//                        cts.Token).ConfigureAwait(false);
-//                });
-
-//                // Show dialog and wait for export
-//                progressDialog.ShowDialog(window);
-//                await exportTask.ConfigureAwait(false);
-
-//                progressDialog.Close();
-//            }
-//            else if (options.Format == ExportFormat.PNG)
-//            {
-//                // Export PNG without progress
-//                await exportService.ExportPngAsync(
-//                    options.FilePath,
-//                    options.PngOptions).ConfigureAwait(false);
-//            }
-//            else if (options.Format == ExportFormat.SVG)
-//            {
-//                // Export SVG
-//                await exportService.ExportSvgAsync(options.FilePath).ConfigureAwait(false);
-//            }
-//            else
-//            {
-//                throw new NotSupportedException($"Export format {options.Format} is not supported");
-//            }
-//        }
-//        catch (Exception ex)
-//        {
-//            SimpleLogger.LogError($"Export failed: {ex.Message}", ex);
-//            throw;
-//        }
-//    }
-//}
