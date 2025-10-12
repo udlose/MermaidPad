@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -218,11 +219,26 @@ public sealed partial class App : Application
             // Marshal to UI thread if necessary
             if (Dispatcher.UIThread.CheckAccess())
             {
-                _ = ShowErrorDialogCoreAsync(exception, userMessage);
+                ShowErrorDialogCoreAsync(exception, userMessage)
+                    .SafeFireAndForget(
+                        onException: static ex =>
+                        {
+                            SimpleLogger.LogError("Unhandled exception in ShowErrorDialogCoreAsync (UI)", ex);
+                            Debug.Fail($"Unhandled exception in ShowErrorDialogCoreAsync (UI): {ex}");
+                        },
+                        continueOnCapturedContext: false);
             }
             else
             {
-                _ = Dispatcher.UIThread.InvokeAsync(() => ShowErrorDialogCoreAsync(exception, userMessage));
+                Dispatcher.UIThread
+                    .InvokeAsync(() => ShowErrorDialogCoreAsync(exception, userMessage))
+                    .SafeFireAndForget(
+                        onException: static ex =>
+                        {
+                            SimpleLogger.LogError("Unhandled exception scheduling ShowErrorDialogCoreAsync", ex);
+                            Debug.Fail($"Unhandled exception scheduling ShowErrorDialogCoreAsync: {ex}");
+                        },
+                        continueOnCapturedContext: false);
             }
         }
         catch (Exception ex)
@@ -241,7 +257,7 @@ public sealed partial class App : Application
     /// exception, and prompts the user to check the log file for more information.</remarks>
     /// <param name="exception">The exception containing technical details to display in the error dialog.</param>
     /// <param name="userMessage">A user-friendly message to display at the top of the error dialog.</param>
-    /// <returns></returns>
+    /// <returns>A task that represents the asynchronous operation of showing the error dialog.</returns>
     private async Task ShowErrorDialogCoreAsync(Exception exception, string userMessage)
     {
         try
