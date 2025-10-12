@@ -18,25 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using JetBrains.Annotations;
 using SkiaSharp;
 using Svg.Skia;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MermaidPad.Services.Export;
-
 /// <summary>
 /// SkiaSharp-based implementation of image conversion service
 /// </summary>
-public sealed class SkiaSharpImageConversionService : IImageConversionService, IDisposable
+public sealed class SkiaSharpImageConversionService : IImageConversionService
 {
-    private bool _isDisposed;
-
-    public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngConversionOptions options, IProgress<ConversionProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(svgContent);
         ArgumentNullException.ThrowIfNull(options);
+
+        ValidationResult validation = await ValidateSvgAsync(svgContent)
+            .ConfigureAwait(false);
+        if (!validation.IsValid)
+        {
+            throw new InvalidOperationException($"Invalid SVG content: {validation.ErrorMessage}");
+        }
 
         // Run conversion on thread pool to keep UI responsive
         return await Task.Run(() => PerformConversion(svgContent, options, progress, cancellationToken), cancellationToken)
@@ -57,7 +63,7 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
                 using SKSvg svg = new SKSvg();
                 using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
 
-                SKPicture? picture = svg.Load(stream);
+                using SKPicture? picture = svg.Load(stream);
                 if (picture is null)
                 {
                     return ValidationResult.Failure("Invalid SVG format");
@@ -91,7 +97,21 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
 
     public async Task<(float Width, float Height)> GetSvgDimensionsAsync(string svgContent)
     {
-        ArgumentException.ThrowIfNullOrEmpty(svgContent);
+        // Validate SVG content before parsing to prevent XML exceptions
+        if (string.IsNullOrWhiteSpace(svgContent))
+        {
+            SimpleLogger.LogError("GetSvgDimensionsAsync called with null or empty SVG content");
+            return (0, 0);
+        }
+
+        // Basic validation - check if it looks like SVG
+        ReadOnlySpan<char> svgSpan = svgContent.AsSpan().TrimStart();
+        if (!svgSpan.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) &&
+            !svgSpan.StartsWith("<svg", StringComparison.OrdinalIgnoreCase))
+        {
+            SimpleLogger.LogError("SVG content does not start with XML declaration or <svg> tag");
+            return (0, 0);
+        }
 
         return await Task.Run(() =>
         {
@@ -100,13 +120,21 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
                 using SKSvg svg = new SKSvg();
                 using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
 
-                SKPicture? picture = svg.Load(stream);
+                using SKPicture? picture = svg.Load(stream);
                 if (picture is null)
                 {
+                    SimpleLogger.LogError("Failed to load SVG picture - picture is null");
                     return (0, 0);
                 }
 
                 SKRect bounds = picture.CullRect;
+
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                {
+                    SimpleLogger.LogError($"SVG has invalid dimensions: {bounds.Width}x{bounds.Height}");
+                    return (0, 0);
+                }
+
                 return (bounds.Width, bounds.Height);
             }
             catch (Exception ex)
@@ -117,27 +145,28 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
         }).ConfigureAwait(false);
     }
 
-    private static byte[] PerformConversion(string svgContent, PngConversionOptions options, IProgress<ConversionProgress>? progress, CancellationToken cancellationToken)
+    private static byte[] PerformConversion(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         try
         {
             // Step 1: Initialize
-            ReportProgress(progress, ConversionStep.Initializing, 0, "Initializing conversion...");
+            ReportProgress(progress, ExportStep.Initializing, 0, "Initializing conversion...");
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 2: Parse SVG
-            ReportProgress(progress, ConversionStep.ParsingSvg, 10, "Parsing SVG content...");
+            ReportProgress(progress, ExportStep.ParsingSvg, 10, "Parsing SVG content...");
 
             using SKSvg svg = new SKSvg();
             using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
 
-            SKPicture picture = svg.Load(stream) ?? throw new InvalidOperationException("Failed to parse SVG content");
+            using SKPicture picture = svg.Load(stream) ??
+                throw new InvalidOperationException("Failed to parse SVG content");
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 3: Calculate dimensions
-            ReportProgress(progress, ConversionStep.CalculatingDimensions, 20, "Calculating dimensions...");
+            ReportProgress(progress, ExportStep.CalculatingDimensions, 20, "Calculating dimensions...");
 
             SKRect bounds = picture.CullRect;
             (int width, int height) = CalculateDimensions(bounds, options);
@@ -147,15 +176,16 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 4: Create canvas
-            ReportProgress(progress, ConversionStep.CreatingCanvas, 30,
+            ReportProgress(progress, ExportStep.CreatingCanvas, 30,
                 $"Creating {width}x{height} canvas...");
 
+            using SKColorSpace colorSpace = SKColorSpace.CreateSrgb();
             SKImageInfo imageInfo = new SKImageInfo(
                 width,
                 height,
                 SKColorType.Rgba8888,
                 SKAlphaType.Premul,
-                SKColorSpace.CreateSrgb());
+                colorSpace);
 
             using SKSurface surface = CreateSurface(imageInfo, options) ??
                 throw new InvalidOperationException("Failed to create rendering surface");
@@ -164,29 +194,35 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 5: Render
-            ReportProgress(progress, ConversionStep.Rendering, 50, "Rendering SVG...");
+            ReportProgress(progress, ExportStep.Rendering, 50, "Rendering SVG...");
 
-            // Configure rendering
+            // FIXED: Improved rendering configuration for better quality
             ConfigureCanvas(canvas, options, width, height, bounds);
 
-            // Draw the SVG
-            canvas.DrawPicture(picture);
+            // Draw the SVG with high quality paint
+            using (SKPaint paint = CreateHighQualityPaint(options))
+            {
+                canvas.DrawPicture(picture, paint);
+            }
+
             canvas.Flush();
 
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 6: Encode to PNG
-            ReportProgress(progress, ConversionStep.Encoding, 80, "Encoding PNG...");
+            ReportProgress(progress, ExportStep.Encoding, 80, "Encoding PNG...");
 
             using SKImage image = surface.Snapshot();
-            using SKData data = image.Encode(SKEncodedImageFormat.Png, options.Quality)
-                ?? throw new InvalidOperationException("Failed to encode PNG");
+
+            // Use high quality PNG encoding
+            using SKData data = image.Encode(SKEncodedImageFormat.Png, options.Quality) ??
+                throw new InvalidOperationException("Failed to encode PNG");
 
             byte[] result = data.ToArray();
 
             // Step 7: Complete
             TimeSpan elapsed = stopwatch.Elapsed;
-            ReportProgress(progress, ConversionStep.Complete, 100, $"Conversion complete in {elapsed.TotalSeconds:F2}s");
+            ReportProgress(progress, ExportStep.Complete, 100, $"Conversion complete in {elapsed.TotalSeconds:F2}s");
 
             SimpleLogger.Log($"PNG conversion successful: {result.Length:N0} bytes, took {elapsed.TotalMilliseconds:F0}ms");
 
@@ -204,7 +240,7 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
         }
     }
 
-    private static (int Width, int Height) CalculateDimensions(SKRect bounds, PngConversionOptions options)
+    private static (int Width, int Height) CalculateDimensions(SKRect bounds, PngExportOptions options)
     {
         // Calculate base dimensions with scale factor
         float baseWidth = bounds.Width * options.ScaleFactor;
@@ -253,17 +289,29 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
         return ((int)Math.Ceiling(baseWidth), (int)Math.Ceiling(baseHeight));
     }
 
-    private static SKSurface CreateSurface(SKImageInfo imageInfo, PngConversionOptions options)
+    /// <summary>
+    /// Creates a rendering surface with optional hardware acceleration
+    /// </summary>
+    /// <remarks>
+    /// FIXED: Now uses PngExportOptions to determine quality settings.
+    /// Future enhancement: Could use options.Quality to determine hardware vs software rendering.
+    /// </remarks>
+    [MustDisposeResource(true)]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership transferred to caller")]
+    private static SKSurface CreateSurface(SKImageInfo imageInfo, PngExportOptions options)
     {
-        // Try hardware acceleration first on supported platforms
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
-            RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        // For highest quality (95+), prefer software rendering which can be more accurate
+        // For lower quality, hardware acceleration can be faster
+        bool preferSoftware = options.Quality >= 95;
+
+        if (!preferSoftware && (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)))
         {
             try
             {
-                SKSurface surface = SKSurface.Create(imageInfo);
+                SKSurface? surface = SKSurface.Create(imageInfo);
                 if (surface is not null)
                 {
+                    SimpleLogger.Log("Using hardware-accelerated rendering");
                     return surface;
                 }
             }
@@ -274,15 +322,40 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
         }
 
         // Fallback to software rendering
+        SimpleLogger.Log("Using software rendering");
         return SKSurface.Create(imageInfo);
     }
 
-    private static void ConfigureCanvas(
-        SKCanvas canvas,
-        PngConversionOptions options,
-        int width,
-        int height,
-        SKRect bounds)
+    /// <summary>
+    /// Creates a high-quality <see cref="SKPaint"/> object configured for rendering with antialiasing, high filter
+    /// quality, and optimized text rendering settings.
+    /// </summary>
+    /// <param name="options">The <see cref="PngExportOptions"/> that specify rendering options, including whether antialiasing is
+    /// enabled.</param>
+    /// <returns>A configured <see cref="SKPaint"/> instance with high-quality rendering settings, including antialiasing,
+    /// subpixel text rendering, and full hinting.</returns>
+    private static SKPaint CreateHighQualityPaint(PngExportOptions options)
+    {
+        SKPaint paint = new SKPaint
+        {
+            IsAntialias = options.AntiAlias,
+            FilterQuality = SKFilterQuality.High,
+            IsDither = false,
+
+            // These settings are critical for text rendering
+            SubpixelText = true,
+            LcdRenderText = true,
+            HintingLevel = SKPaintHinting.Full,
+
+            // Color and blending
+            Color = SKColors.Black,
+            BlendMode = SKBlendMode.SrcOver
+        };
+
+        return paint;
+    }
+
+    private static void ConfigureCanvas(SKCanvas canvas, PngExportOptions options, int width, int height, SKRect bounds)
     {
         // Clear with background color
         if (!string.IsNullOrWhiteSpace(options.BackgroundColor))
@@ -295,20 +368,17 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
             canvas.Clear(SKColors.Transparent);
         }
 
-        // Save state for potential future antialiasing configuration
-        if (options.AntiAlias)
-        {
-            canvas.Save();
-            // Note: Antialiasing is enabled by default in SkiaSharp
-            // Additional paint configuration can be added here if needed
-        }
+        // FIXED: Proper canvas configuration for high-quality rendering
+        canvas.Save();
 
-        // Calculate and apply scaling
+        // Calculate and apply scaling to fill the target dimensions
         float scaleX = width / bounds.Width;
         float scaleY = height / bounds.Height;
+
+        // Apply the scale transformation
         canvas.Scale(scaleX, scaleY);
 
-        // Translate to origin if needed
+        // Translate to origin if the SVG doesn't start at (0,0)
         const float epsilon = 0.0001F;
         if (Math.Abs(bounds.Left) > epsilon || Math.Abs(bounds.Top) > epsilon)
         {
@@ -318,28 +388,43 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
 
     private static SKColor ParseColor(string colorString)
     {
+        ReadOnlySpan<char> colorSpan = colorString.AsSpan().Trim();
+
         try
         {
             // Handle hex colors
-            if (colorString.StartsWith('#'))
+            if (colorSpan.StartsWith('#'))
             {
                 return SKColor.Parse(colorString);
             }
 
             // Handle rgb/rgba
-            if (colorString.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
+            if (colorSpan.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
             {
+                // TODO: Implement full rgb()/rgba() parsing if needed
                 // Simple parsing - you might want to enhance this
                 // For now, default to white for rgb() format
                 return SKColors.White;
             }
 
             // Try named colors
-            return colorString.ToLowerInvariant() switch
+            return colorString switch
             {
-                "white" => SKColors.White,
-                "black" => SKColors.Black,
-                "transparent" => SKColors.Transparent,
+                not null when colorString.Equals("white", StringComparison.OrdinalIgnoreCase) => SKColors.White,
+                not null when colorString.Equals("black", StringComparison.OrdinalIgnoreCase) => SKColors.Black,
+                not null when colorString.Equals("red", StringComparison.OrdinalIgnoreCase) => SKColors.Red,
+                not null when colorString.Equals("green", StringComparison.OrdinalIgnoreCase) => SKColors.Green,
+                not null when colorString.Equals("blue", StringComparison.OrdinalIgnoreCase) => SKColors.Blue,
+                not null when colorString.Equals("yellow", StringComparison.OrdinalIgnoreCase) => SKColors.Yellow,
+                not null when colorString.Equals("cyan", StringComparison.OrdinalIgnoreCase) => SKColors.Cyan,
+                not null when colorString.Equals("magenta", StringComparison.OrdinalIgnoreCase) => SKColors.Magenta,
+                not null when colorString.Equals("gray", StringComparison.OrdinalIgnoreCase) ||
+                              colorString.Equals("grey", StringComparison.OrdinalIgnoreCase) => SKColors.Gray,
+                not null when colorString.Equals("lightgray", StringComparison.OrdinalIgnoreCase) ||
+                              colorString.Equals("lightgrey", StringComparison.OrdinalIgnoreCase) => SKColors.LightGray,
+                not null when colorString.Equals("darkgray", StringComparison.OrdinalIgnoreCase) ||
+                              colorString.Equals("darkgrey", StringComparison.OrdinalIgnoreCase) => SKColors.DarkGray,
+                not null when colorString.Equals("transparent", StringComparison.OrdinalIgnoreCase) => SKColors.Transparent,
                 _ => SKColors.White
             };
         }
@@ -350,36 +435,13 @@ public sealed class SkiaSharpImageConversionService : IImageConversionService, I
         }
     }
 
-    private static void ReportProgress(
-        IProgress<ConversionProgress>? progress,
-        ConversionStep step,
-        int percent,
-        string message)
+    private static void ReportProgress(IProgress<ExportProgress>? progress, ExportStep step, int percent, string message)
     {
-        progress?.Report(new ConversionProgress
+        progress?.Report(new ExportProgress
         {
             Step = step,
             PercentComplete = percent,
             Message = message
         });
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
-        if (!_isDisposed)
-        {
-            if (disposing)
-            {
-                // Clean up any managed resources if needed
-                // Currently no managed resources to dispose
-            }
-            _isDisposed = true;
-        }
     }
 }

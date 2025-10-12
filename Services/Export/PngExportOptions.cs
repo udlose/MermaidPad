@@ -18,19 +18,56 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace MermaidPad.Services.Export;
 
+using System.Diagnostics.CodeAnalysis;
+
+namespace MermaidPad.Services.Export;
 /// <summary>
-/// PNG-specific export options
+/// Represents options for exporting an image in PNG format.
 /// </summary>
+/// <remarks>This class provides various settings to control the output of PNG image exports, including
+/// resolution, scaling, background color, compression quality, and size constraints. By adjusting these properties, you
+/// can customize the appearance and performance characteristics of the exported image.</remarks>
+[SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "Properties are used for data binding")]
 public sealed class PngExportOptions
 {
+    /// <summary>
+    /// DPI for the output image (72, 150, 300, 600)
+    /// </summary>
     public int Dpi { get; set; } = 150;
+
+    /// <summary>
+    /// Scale factor for the output (1.0 = 100%, 2.0 = 200%, etc.)
+    /// </summary>
     public float ScaleFactor { get; set; } = 2.0f;
+
+    /// <summary>
+    /// Background color (null for transparent)
+    /// </summary>
     public string? BackgroundColor { get; set; } = "#FFFFFF";
+
+    /// <summary>
+    /// PNG compression quality (0-100, where 100 is the best quality)
+    /// </summary>
     public int Quality { get; set; } = 95;
+
+    /// <summary>
+    /// Whether to apply antialiasing
+    /// </summary>
     public bool AntiAlias { get; set; } = true;
+
+    /// <summary>
+    /// Maximum width in pixels (0 = no limit)
+    /// </summary>
     public int MaxWidth { get; set; } = 0;
+
+    /// <summary>
+    /// Maximum height in pixels (0 = no limit)
+    /// </summary>
     public int MaxHeight { get; set; } = 0;
+
+    /// <summary>
+    /// Whether to preserve aspect ratio when using max dimensions
+    /// </summary>
     public bool PreserveAspectRatio { get; set; } = true;
 }
