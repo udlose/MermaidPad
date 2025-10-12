@@ -18,23 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using System.Diagnostics.CodeAnalysis;
-
-namespace MermaidPad.Models;
+namespace MermaidPad.Services.Export;
 
 /// <summary>
-/// Represents the export format options.
+/// Steps in the export process
 /// </summary>
-[SuppressMessage("ReSharper", "InconsistentNaming")]
-public enum ExportFormat
+public enum ExportStep
 {
-    /// <summary>
-    /// Scalable Vector Graphics format.
-    /// </summary>
-    SVG,
-
-    /// <summary>
-    /// Portable Network Graphics format.
-    /// </summary>
-    PNG
+    Initializing,
+    ParsingSvg,
+    CalculatingDimensions,
+    CreatingCanvas,
+    Rendering,
+    Encoding,
+    Complete
 }

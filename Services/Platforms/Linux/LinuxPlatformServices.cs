@@ -52,13 +52,31 @@ public sealed class LinuxPlatformServices : IPlatformServices
         if (IsGraphicalEnvironment())
         {
             // Try zenity first (GUI dialog)
-            if (TryShowZenityDialog(title, message)) return;
+            if (TryShowZenityDialog(title, message))
+            {
+                return;
+            }
 
             // Try other common GUI dialog tools
-            if (TryShowKDialogDialog(title, message)) return;
-            if (TryShowYadDialog(title, message)) return;
-            if (TryShowXDialogDialog(title, message)) return;
-            if (TryShowGxmessageDialog(title, message)) return;
+            if (TryShowKDialogDialog(title, message))
+            {
+                return;
+            }
+
+            if (TryShowYadDialog(title, message))
+            {
+                return;
+            }
+
+            if (TryShowXDialogDialog(title, message))
+            {
+                return;
+            }
+
+            if (TryShowGxmessageDialog(title, message))
+            {
+                return;
+            }
         }
 
         // Fallback to console output

@@ -18,30 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace MermaidPad.Models;
+namespace MermaidPad.Services.Export;
 
 /// <summary>
-/// Contains options for exporting diagrams.
+/// PNG-specific export options
 /// </summary>
-public sealed class ExportOptions
+public sealed class PngExportOptions
 {
-    /// <summary>
-    /// Gets or sets the export format.
-    /// </summary>
-    public ExportFormat Format { get; set; }
-
-    /// <summary>
-    /// Gets or sets the scale factor for PNG export (1-4).
-    /// </summary>
-    public int Scale { get; set; } = 2;
-
-    /// <summary>
-    /// Gets or sets whether the PNG should have a transparent background.
-    /// </summary>
-    public bool TransparentBackground { get; set; }
-
-    /// <summary>
-    /// Gets or sets the background color for PNG export when not transparent.
-    /// </summary>
-    public string BackgroundColor { get; set; } = "#FFFFFF";
+    public int Dpi { get; set; } = 150;
+    public float ScaleFactor { get; set; } = 2.0f;
+    public string? BackgroundColor { get; set; } = "#FFFFFF";
+    public int Quality { get; set; } = 95;
+    public bool AntiAlias { get; set; } = true;
+    public int MaxWidth { get; set; } = 0;
+    public int MaxHeight { get; set; } = 0;
+    public bool PreserveAspectRatio { get; set; } = true;
 }
