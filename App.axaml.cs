@@ -27,6 +27,7 @@ using Avalonia.Threading;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Views;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -202,14 +203,14 @@ public sealed partial class App : Application
     }
 
     /// <summary>
-    /// Shows a user-friendly error dialog with exception details.
+    /// Displays an error dialog to the user with the specified exception details and user-friendly message.
     /// </summary>
-    /// <param name="exception">The exception to display.</param>
-    /// <param name="userMessage">A user-friendly message explaining the context.</param>
-    /// <remarks>
-    /// This method marshals to the UI thread if necessary and shows a MessageBox with error details.
-    /// For production builds, you might want to hide technical details from end users.
-    /// </remarks>
+    /// <remarks>This method ensures that the error dialog is displayed on the UI thread. If the current
+    /// thread is not the UI thread, the operation is marshaled to the UI thread. In case of a failure to display the
+    /// dialog, the error is logged as a last resort.</remarks>
+    /// <param name="exception">The exception that describes the error. This parameter cannot be <see langword="null"/>.</param>
+    /// <param name="userMessage">A user-friendly message to display in the error dialog. This parameter cannot be <see langword="null"/> or
+    /// empty.</param>
     private void ShowErrorDialog(Exception exception, string userMessage)
     {
         try
@@ -217,32 +218,42 @@ public sealed partial class App : Application
             // Marshal to UI thread if necessary
             if (Dispatcher.UIThread.CheckAccess())
             {
-                ShowErrorDialogCore(exception, userMessage);
+                _ = ShowErrorDialogCoreAsync(exception, userMessage);
             }
             else
             {
-                Dispatcher.UIThread.Post(() => ShowErrorDialogCore(exception, userMessage));
+                _ = Dispatcher.UIThread.InvokeAsync(() => ShowErrorDialogCoreAsync(exception, userMessage));
             }
         }
         catch (Exception ex)
         {
             // Last resort logging if we can't even show the error dialog
             SimpleLogger.LogError("Failed to show error dialog", ex);
+            Debug.Fail($"Failed to show error dialog: {ex}");
         }
     }
 
     /// <summary>
-    /// Core implementation of error dialog display (must be called on UI thread).
+    /// Displays an error dialog with the specified user-friendly message and technical details about the exception.
     /// </summary>
-    private void ShowErrorDialogCore(Exception exception, string userMessage)
+    /// <remarks>This method must be called on the UI thread. If the main application window is unavailable,
+    /// the dialog will not be shown. The dialog includes both the user-friendly message and technical details about the
+    /// exception, and prompts the user to check the log file for more information.</remarks>
+    /// <param name="exception">The exception containing technical details to display in the error dialog.</param>
+    /// <param name="userMessage">A user-friendly message to display at the top of the error dialog.</param>
+    /// <returns></returns>
+    private async Task ShowErrorDialogCoreAsync(Exception exception, string userMessage)
     {
         try
         {
+            // Enforce UI-thread-only contract
+            Dispatcher.UIThread.VerifyAccess();
+
             // Get the main window if available
-            Window? mainWindow = null;
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            Window? mainWindow = (ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            if (mainWindow is null)
             {
-                mainWindow = desktop.MainWindow;
+                return;
             }
 
             // Build error message with technical details
@@ -251,13 +262,6 @@ public sealed partial class App : Application
             errorDetails.AppendLine($"Message: {exception.Message}{Environment.NewLine}{Environment.NewLine}");
             errorDetails.AppendLine("Please check the log file for more details.");
 
-            // Show message box asynchronously to avoid blocking
-            _ = Task.Run(async () =>
-            {
-                await Dispatcher.UIThread.InvokeAsync(async () =>
-                {
-                    if (mainWindow is not null)
-                    {
                         // Create a simple error window
                         Window errorWindow = new Window
                         {
@@ -294,12 +298,10 @@ public sealed partial class App : Application
 
                         await errorWindow.ShowDialog(mainWindow);
                     }
-                });
-            });
-        }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Failed to display error dialog", ex);
+            Debug.Fail($"Failed to display error dialog: {ex}");
         }
     }
 }
