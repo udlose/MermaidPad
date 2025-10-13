@@ -28,27 +28,32 @@ using System.Globalization;
 using System.Text;
 
 namespace MermaidPad.Services.Export;
+
 /// <summary>
-/// SkiaSharp-based implementation of image conversion service
+/// Provides services for converting SVG images to PNG format and for validating and extracting information from SVG
+/// content using the Svg.Skia library.
 /// </summary>
+/// <remarks>This service offers high-level, asynchronous methods for SVG-to-PNG conversion, SVG validation, and
+/// dimension extraction. It is designed for use in applications that require reliable SVG image processing, leveraging
+/// Svg.Skia's recommended APIs for optimal compatibility and performance. The service is thread-safe and suitable for
+/// both UI and server environments.</remarks>
 public sealed partial class SkiaSharpImageConversionService : IImageConversionService
 {
     private static readonly char[] _separators = [',', ' ', '\t', '/'];
 
     /// <summary>
-    /// Converts the specified SVG content to a PNG image asynchronously.
+    /// Converts the specified SVG content to a PNG image asynchronously using Svg.Skia's high-level API.
     /// </summary>
-    /// <remarks>The method validates the provided SVG content before performing the conversion. If the SVG
-    /// content is invalid, an exception is thrown. The conversion process is performed on a background thread to avoid
-    /// blocking the calling thread.</remarks>
+    /// <remarks>
+    /// This implementation uses the Svg.Skia library's built-in ToImage() method which handles all
+    /// rendering internally, including surface creation, canvas configuration, scaling, and encoding.
+    /// This is the recommended approach per the Svg.Skia documentation.
+    /// </remarks>
     /// <param name="svgContent">The SVG content to be converted. This must be a valid SVG string and cannot be null or empty.</param>
-    /// <param name="options">The options specifying how the PNG image should be exported, such as resolution and scaling. This cannot be
-    /// null.</param>
-    /// <param name="progress">An optional progress reporter that provides updates on the export progress. Can be <see langword="null"/> if
-    /// progress reporting is not needed.</param>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will be canceled if the token is triggered.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result is a byte array containing the PNG image
-    /// data.</returns>
+    /// <param name="options">The options specifying how the PNG image should be exported, such as resolution and scaling.</param>
+    /// <param name="progress">An optional progress reporter that provides updates on the export progress.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result is a read-only memory buffer containing the PNG image data.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the provided SVG content is invalid.</exception>
     public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -68,7 +73,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Validates the provided SVG content to ensure it is well-formed and meets specific criteria.
+    /// Validates the provided SVG content and returns the result of the validation asynchronously.
     /// </summary>
     /// <remarks>This method performs the following checks: <list type="bullet"> <item><description>Ensures
     /// the SVG content is not null, empty, or whitespace.</description></item> <item><description>Validates that the
@@ -128,14 +133,15 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Asynchronously retrieves the dimensions of an SVG image from its content.
+    /// Asynchronously retrieves the width and height of an SVG image from its XML content.
     /// </summary>
-    /// <remarks>This method validates the provided SVG content to ensure it starts with an XML declaration or
-    /// an <c>&lt;svg&gt;</c> tag. If the content is invalid or an error occurs during parsing, the method logs the
-    /// error and returns (0, 0).</remarks>
-    /// <param name="svgContent">The SVG content as a string. Must not be null, empty, or whitespace.</param>
-    /// <returns>A tuple containing the width and height of the SVG image. Returns (0, 0) if the SVG content is invalid, the
-    /// dimensions are non-positive, or an error occurs during processing.</returns>
+    /// <remarks>This method performs basic validation on the SVG content before attempting to parse it. If
+    /// the content is not a valid SVG or cannot be parsed, the method returns (0, 0) and logs an error. The operation
+    /// is performed asynchronously and is suitable for use in UI or server applications where blocking the calling
+    /// thread is undesirable.</remarks>
+    /// <param name="svgContent">The SVG image content as a string. Must be a valid SVG XML document. Cannot be null or empty.</param>
+    /// <returns>A tuple containing the width and height of the SVG image, in pixels. Returns (0, 0) if the SVG content is
+    /// invalid or dimensions cannot be determined.</returns>
     public async Task<(float Width, float Height)> GetSvgDimensionsAsync(string svgContent)
     {
         // Validate SVG content before parsing to prevent XML exceptions
@@ -187,7 +193,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Converts the specified SVG content into a PNG image using the provided export options.
+    /// Converts SVG content to a PNG image using the specified export options.
     /// </summary>
     /// <remarks>This method performs a multi-step process to convert SVG content into a PNG image. It parses
     /// the SVG, calculates dimensions, renders the image onto a canvas, and encodes the result as a PNG. The method
@@ -356,108 +362,24 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Creates an <see cref="SKSurface"/> for rendering using software rendering.
+    /// Parses a color string in hexadecimal, CSS rgb/rgba, or common named color formats and returns the corresponding
+    /// SKColor value.
     /// </summary>
+    /// <remarks>If the input string does not match a supported format or a recognized color name, the method
+    /// returns SKColors.White. The method is case-insensitive and trims whitespace from the input. Supported named
+    /// colors include common CSS color names such as "white", "black", "red", "green", "blue", "yellow", "cyan",
+    /// "magenta", "gray"/"grey", "lightgray"/"lightgrey", "darkgray"/"darkgrey", and "transparent".</remarks>
+    /// <param name="colorString">A string representing the color to parse. Supported formats include hexadecimal notation (e.g., "#RRGGBB",
+    /// "#AARRGGBB"), CSS rgb()/rgba() functions, and common color names such as "red", "blue", or "transparent". The
+    /// comparison is case-insensitive and leading/trailing whitespace is ignored.</param>
     /// <remarks>
-    /// This method uses software rendering only. Hardware acceleration (GPU) is not implemented because:
-    ///     1. It requires OpenGL/Vulkan context setup which adds significant complexity
-    ///     2. For server-side/offline SVG-to-PNG conversion, software rendering is more reliable and portable
-    ///     3. Hardware acceleration provides minimal benefit for single-image conversion vs. real-time rendering
-    ///     4. Software rendering produces consistent, high-quality results across all platforms
+    /// The method supports the following formats: <list type="bullet">
+    ///     <item><description>Hexadecimal colors, starting with '#' (e.g., "#FF0000").</description></item>
+    ///     <item><description>RGB/RGBA colors, starting with "rgb" or "rgba" (e.g., "rgb(255,0,0)").</description></item>
+    ///     <item><description>Named colors, such as "red", "blue", "lightgray", and "transparent".</description></item>
+    /// </list>
     /// </remarks>
-    [MustDisposeResource(true)]
-    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership transferred to caller")]
-    private static SKSurface CreateSurface(SKImageInfo imageInfo)
-    {
-        SimpleLogger.Log("Using software rendering for SVG conversion");
-        return SKSurface.Create(imageInfo);
-    }
-
-    /// <summary>
-    /// Creates a high-quality <see cref="SKPaint"/> object configured for rendering with antialiasing, high filter
-    /// quality, and optimized text rendering settings.
-    /// </summary>
-    /// <param name="options">The <see cref="PngExportOptions"/> that specify rendering options, including whether antialiasing is
-    /// enabled.</param>
-    /// <returns>A configured <see cref="SKPaint"/> instance with high-quality rendering settings, including antialiasing,
-    /// subpixel text rendering, and full hinting.</returns>
-    [MustDisposeResource(true)]
-    private static SKPaint CreateHighQualityPaint(PngExportOptions options)
-    {
-        SKPaint paint = new SKPaint
-        {
-            // IsAntialias is the primary quality control for DrawPicture - this is NOT obsolete
-            IsAntialias = options.AntiAlias,
-
-            // IsDither helps with smooth color gradients
-            IsDither = false,
-
-            // Color and blending
-            Color = SKColors.Black,
-            BlendMode = SKBlendMode.SrcOver
-        };
-
-        return paint;
-    }
-
-    /// <summary>
-    /// Configures the specified <see cref="SKCanvas"/> for rendering by applying background color, scaling, and
-    /// translation.
-    /// </summary>
-    /// <remarks>This method clears the canvas with the specified background color from <paramref
-    /// name="options"/> or makes it transparent if no color is provided. It then applies scaling to fit the content
-    /// within the specified dimensions and translates the canvas to align the content's origin with the top-left
-    /// corner.</remarks>
-    /// <param name="canvas">The <see cref="SKCanvas"/> to configure.</param>
-    /// <param name="options">The export options that specify rendering settings, such as the background color.</param>
-    /// <param name="width">The target width, in pixels, for the rendered output.</param>
-    /// <param name="height">The target height, in pixels, for the rendered output.</param>
-    /// <param name="bounds">The bounding rectangle of the content to be rendered, used to calculate scaling and translation.</param>
-    private static void ConfigureCanvas(SKCanvas canvas, PngExportOptions options, int width, int height, SKRect bounds)
-    {
-        // Clear with background color
-        if (!string.IsNullOrWhiteSpace(options.BackgroundColor))
-        {
-            SKColor color = ParseColor(options.BackgroundColor);
-            canvas.Clear(color);
-        }
-        else
-        {
-            canvas.Clear(SKColors.Transparent);
-        }
-
-        // Save the current state
-        canvas.Save();
-
-        // Calculate and apply scaling to fill the target dimensions
-        float scaleX = width / bounds.Width;
-        float scaleY = height / bounds.Height;
-
-        // Apply the scale transformation
-        canvas.Scale(scaleX, scaleY);
-
-        // Translate to origin if the SVG doesn't start at (0,0)
-        const float epsilon = 0.0001F;
-        if (Math.Abs(bounds.Left) > epsilon || Math.Abs(bounds.Top) > epsilon)
-        {
-            canvas.Translate(-bounds.Left, -bounds.Top);
-        }
-    }
-
-    /// <summary>
-    /// Parses a color string and returns the corresponding <see cref="SKColor"/> value.
-    /// </summary>
-    /// <remarks>The method supports the following formats: <list type="bullet">
-    /// <item><description>Hexadecimal colors, starting with '#' (e.g., "#FF0000").</description></item>
-    /// <item><description>RGB/RGBA colors, starting with "rgb" or "rgba" (e.g., "rgb(255,0,0)").</description></item>
-    /// <item><description>Named colors, such as "red", "blue", "lightgray", and "transparent".</description></item>
-    /// </list> If the input string does not match any of these formats, or if an error occurs during parsing,  the
-    /// method logs the error and returns <see cref="SKColors.White"/>.</remarks>
-    /// <param name="colorString">A string representing the color. This can be a hexadecimal color (e.g., "#FF0000"),  an RGB/RGBA color (e.g.,
-    /// "rgb(255,0,0)" or "rgba(255,0,0,0.5)"), or a named color  (e.g., "red", "blue", "lightgray"). The string is
-    /// case-insensitive and may include  leading or trailing whitespace.</param>
-    /// <returns>The <see cref="SKColor"/> corresponding to the specified color string. If the string  is invalid or cannot be
-    /// parsed, the method returns <see cref="SKColors.White"/>.</returns>
+    /// <returns>A <see cref="SKColor"/> representing the parsed color. If the input string is invalid or unrecognized, returns <see cref="SKColors.White"/>.</returns>
     private static SKColor ParseColor(string colorString)
     {
         ReadOnlySpan<char> colorSpan = colorString.AsSpan().Trim();
@@ -470,9 +392,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 return SKColor.Parse(colorString);
             }
 
-            // Handle rgb()/rgba() CSS formats - e.g.:
-            // - rgb(255,0,0), rgba(255,0,0,0.5)
-            // - rgb(255 0 0 / 50%), rgb(100% 0% 0%)
+            // Handle rgb()/rgba() CSS formats
             if (colorSpan.StartsWith("rgb", StringComparison.OrdinalIgnoreCase))
             {
                 if (TryParseRgbColor(colorSpan, out SKColor color))
@@ -513,18 +433,17 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Attempts to parse an RGB or RGBA color from a string representation and returns the result as an <see
-    /// cref="SKColor"/>.
+    /// Attempts to parse an RGB or RGBA color value from the specified character span.
     /// </summary>
-    /// <remarks>This method supports CSS-style color formats, including both "rgb" and "rgba" notations. The
-    /// alpha component, if provided, must be a valid value between 0 and 1 (inclusive). If the input string is not in a
-    /// valid format or contains invalid components, the method returns <see langword="false"/>.</remarks>
-    /// <param name="colorSpan">A <see cref="ReadOnlySpan{T}"/> of characters representing the color in the format "rgb(r, g, b)" or "rgba(r, g,
-    /// b, a)". The components can be separated by commas, spaces, tabs, or slashes, and the alpha component is
-    /// optional.</param>
-    /// <param name="color">When this method returns, contains the parsed <see cref="SKColor"/> if the parsing succeeds; otherwise, the
-    /// default value of <see cref="SKColor"/>.</param>
-    /// <returns><see langword="true"/> if the color was successfully parsed; otherwise, <see langword="false"/>.</returns>
+    /// <remarks>The method supports both three-component (RGB) and four-component (RGBA) color formats.
+    /// Component values must be in the valid byte range (0–255). The alpha component is optional and defaults to 255
+    /// (fully opaque) if not specified. Parsing is case-insensitive and ignores extra whitespace or separators between
+    /// components.</remarks>
+    /// <param name="colorSpan">A read-only span of characters containing the color value to parse. The expected format is 'rgb(r, g, b)' or
+    /// 'rgba(r, g, b, a)', where components are separated by commas, spaces, tabs, or slashes.</param>
+    /// <param name="color">When this method returns, contains the parsed SKColor value if parsing succeeded; otherwise, contains the
+    /// default value.</param>
+    /// <returns>true if the color value was successfully parsed; otherwise, false.</returns>
     private static bool TryParseRgbColor(ReadOnlySpan<char> colorSpan, out SKColor color)
     {
         color = default;
@@ -546,8 +465,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
             return false;
         }
 
-        // Parse the color components
-        // Split by comma, space, tab, or slash (CSS4 allows "rgb(255 0 0 / 0.5)")
+        // Split by comma, space, tab, or slash
         const int minComponents = 3;
         const int maxComponents = 4;
         Span<Range> ranges = stackalloc Range[maxComponents + 1]; // Max 4 components + extra
@@ -566,7 +484,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
             return false;
         }
 
-        // Parse optional alpha component (defaults to fully opaque)
+        // Parse optional alpha component
         byte a = 255;
         if (count == 4)
         {
@@ -581,7 +499,8 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Attempts to parse a color component from a string representation and convert it to a byte value.
+    /// Attempts to parse a color component value from the specified character span, supporting both integer (0–255) and
+    /// percentage (0%–100%) formats.
     /// </summary>
     /// <remarks>This method supports two formats for the input: <list type="bullet"> <item> <description>An
     /// integer value in the range 0-255, which is directly converted to a byte.</description> </item> <item>
@@ -631,7 +550,8 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Attempts to parse an alpha (opacity) component from a string representation.
+    /// Attempts to parse an alpha (opacity) component from the specified character span, supporting percentage,
+    /// decimal, and integer formats.
     /// </summary>
     /// <remarks>This method supports parsing alpha components in various formats commonly used in CSS and
     /// other graphics-related contexts. Invalid formats or values outside the supported range will result in a return

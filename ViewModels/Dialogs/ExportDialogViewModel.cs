@@ -31,9 +31,17 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.Dialogs;
+
 /// <summary>
-/// ViewModel for the Export Dialog with real SVG dimension calculation
+/// Represents the view model for the export dialog, providing properties and commands for configuring and executing
+/// export operations such as file format, quality, dimensions, and destination.
 /// </summary>
+/// <remarks>This view model is designed for use with MVVM frameworks and supports data binding to UI elements in
+/// the export dialog. It exposes export configuration options, manages validation and user prompts, and provides
+/// methods for browsing directories and confirming export actions. The available export formats and DPI values are
+/// initialized at construction. The view model updates estimated file size and dimensions based on the current settings
+/// and selected format. All properties and commands are intended to be accessed by the view for user
+/// interaction.</remarks>
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
@@ -115,6 +123,10 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 
     public bool HasDimensionInfo => IsPngSelected;
 
+    /// <summary>
+    /// Gets the full file path, including the file name and extension, for the export operation based on the selected
+    /// format.
+    /// </summary>
     public string FullFilePath
     {
         get
@@ -125,6 +137,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Initializes a new instance of the ExportDialogViewModel class with the specified image conversion and export
+    /// services.
+    /// </summary>
+    /// <remarks>The constructor initializes the available export formats and DPI values for the export
+    /// dialog. If either service is null, related functionality may be limited.</remarks>
+    /// <param name="imageConversionService">The service used to perform image format conversions. Can be null if image conversion is not required.</param>
+    /// <param name="exportService">The service responsible for handling export operations. Can be null if export functionality is not needed.</param>
     public ExportDialogViewModel(IImageConversionService? imageConversionService, ExportService? exportService)
     {
         _imageConversionService = imageConversionService;
@@ -138,15 +158,19 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         SelectedFormat = AvailableFormats[0];
 
         // Initialize available DPI values
+#pragma warning disable IDE0028
         AvailableDpiValues = new ObservableCollection<int> { 72, 150, 300, 600 };
+#pragma warning restore IDE0028
 
         // Load actual SVG dimensions asynchronously
         _ = LoadActualSvgDimensionsAsync();
     }
 
     /// <summary>
-    /// Sets the storage provider after construction
+    /// Sets the storage provider to be used for subsequent storage operations.
     /// </summary>
+    /// <param name="storageProvider">The storage provider to use for data storage operations. Specify <see langword="null"/> to remove the current
+    /// storage provider.</param>
     public void SetStorageProvider(IStorageProvider? storageProvider)
     {
         StorageProvider = storageProvider;
@@ -397,9 +421,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Shows a confirmation dialog for file overwrite
+    /// Displays a confirmation dialog to the user when attempting to overwrite an existing file.
     /// </summary>
-    /// <returns>True if user confirms overwrite, false otherwise</returns>
+    /// <remarks>If the dialog cannot be displayed due to an error, the method returns <see langword="false"/>
+    /// by default. The dialog is shown on the UI thread and is modal to the parent window, if available.</remarks>
+    /// <param name="filePath">The full path of the file that may be overwritten. Used to display the file name in the confirmation dialog.
+    /// Cannot be null or empty.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the user
+    /// confirms to overwrite; otherwise, <see langword="false"/>.</returns>
     private static async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
     {
         return await Dispatcher.UIThread.InvokeAsync(async () =>
@@ -483,6 +512,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
+                SimpleLogger.LogError($"Failed to show overwrite confirmation: {ex}");
                 Debug.WriteLine($"Failed to show overwrite confirmation: {ex.Message}");
                 return false; // Default to not overwriting on error
             }
@@ -490,8 +520,13 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Gets the parent window for dialogs
+    /// Retrieves the main window of the current Avalonia desktop application, if available.
     /// </summary>
+    /// <remarks>This method returns <see langword="null"/> if the application is not running or does not use
+    /// a classic desktop lifetime. Use this method to access the main window in scenarios where the application
+    /// lifetime is known to be desktop-based.</remarks>
+    /// <returns>The main <see cref="Window"/> instance if the application is running with a classic desktop lifetime; otherwise,
+    /// <see langword="null"/>.</returns>
     private static Window? GetParentWindow()
     {
         if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -501,6 +536,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         return null;
     }
 
+    /// <summary>
+    /// Updates the estimated output dimensions and file size for the PNG export based on the current settings and
+    /// source SVG properties.
+    /// </summary>
+    /// <remarks>This method recalculates the estimates whenever relevant export parameters change, such as
+    /// scale factor, DPI, maximum dimensions, or quality settings. The results are reflected in the EstimatedDimensions
+    /// and EstimatedFileSize properties. If the PNG export is not selected or the SVG dimensions are not yet loaded,
+    /// the estimates are set to placeholder values.</remarks>
     private void UpdateEstimates()
     {
         if (!IsPngSelected)
@@ -576,8 +619,16 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Calculates a more accurate compression ratio based on quality and transparency
+    /// Estimates the compression ratio for a PNG image based on the specified quality level and transparency setting.
     /// </summary>
+    /// <remarks>The returned ratio is an empirical estimate and may vary depending on the actual image
+    /// content. Transparent PNGs generally compress less efficiently than opaque ones.</remarks>
+    /// <param name="quality">An integer representing the desired image quality, typically in the range 0 to 100. Higher values indicate
+    /// better image quality and less aggressive compression.</param>
+    /// <param name="hasTransparency">A value indicating whether the image contains transparency. Set to <see langword="true"/> if the image has
+    /// transparency; otherwise, <see langword="false"/>.</param>
+    /// <returns>A floating-point value representing the estimated compression ratio, where lower values indicate higher
+    /// compression. The value reflects typical compression outcomes for diagram content.</returns>
     private static float CalculateCompressionRatio(int quality, bool hasTransparency)
     {
         // PNG compression is lossless but varies with content complexity
@@ -609,6 +660,13 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Formats a file size, specified in bytes, into a human-readable string using appropriate size units (e.g., KB, MB, GB).
+    /// </summary>
+    /// <remarks>The returned string uses binary units (multiples of 1,024) and includes a tilde (~) to
+    /// indicate an approximate value. For example, an input of 1,500 bytes returns "~1.46 KB".</remarks>
+    /// <param name="bytes">The file size in bytes to format. Must be zero or greater.</param>
+    /// <returns>A string representing the formatted file size with an approximate value and the appropriate unit.</returns>
     private static string FormatFileSize(long bytes)
     {
         int order = 0;

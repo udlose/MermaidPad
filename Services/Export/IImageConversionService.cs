@@ -26,7 +26,7 @@ namespace MermaidPad.Services.Export;
 public interface IImageConversionService
 {
     /// <summary>
-    /// Converts SVG content to PNG format with specified options
+    /// Asynchronously converts SVG content to a PNG image using the specified export options.
     /// </summary>
     /// <param name="svgContent">The SVG content as a string</param>
     /// <param name="options">Conversion options including quality, scale, etc.</param>
