@@ -210,6 +210,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     /// options.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the calculated image dimensions are invalid (zero or negative).</exception>
     /// <exception cref="OperationCanceledException">Thrown if the operation is canceled via the provided <paramref name="cancellationToken"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if memory allocation fails during the conversion process.</exception>
     private static ReadOnlyMemory<byte> PerformConversion(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken = default)
     {
         try
@@ -224,7 +225,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
 
             using SKSvg svg = new SKSvg();
             using MemoryStream svgStream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
-            using SKPicture? picture = svg.Load(svgStream)
+            using SKPicture picture = svg.Load(svgStream)
                 ?? throw new InvalidOperationException("Failed to parse SVG content");
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -246,21 +247,25 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 throw new InvalidOperationException("Calculated image dimensions are invalid");
             }
 
-            string calculatedDimensionMessage =
-                $"""
+            const string calculatedDimensionMessage =
+                $$"""
                 Converting original .svg to .png.
                 Bounds: {bounds.Width}x{bounds.Height}, Scale: {options.ScaleFactor}, DPI: {options.Dpi}, 
                 Max: {options.MaxWidth}x{options.MaxHeight}, PreserveAspect: {options.PreserveAspectRatio}
-                Target {dims.Width}x{dims.Height} @ {options.Dpi} dpi
+                Target: {dims.Width}x{dims.Height} @ {options.Dpi} dpi
+                Pixels: {(dims.Width * dims.Height):N0}
+                Uncompressed pixel buffer (RGBA, upper bound): {dims.RawSizeBytes:N0} bytes (~{dims.RawSizeBytes / 1048576.0:F2} MiB)
                 """;
-            SimpleLogger.Log(calculatedDimensionMessage);
+            Debug.WriteLine(calculatedDimensionMessage);
+
             // Step 4: Render to PNG
             ReportProgress(progress, ExportStep.Rendering, 51, calculatedDimensionMessage);
             cancellationToken.ThrowIfCancellationRequested();
 
-            using MemoryStream outputStream = new MemoryStream();
+            // Pre-size stream using a bounded heuristic (uses EstimatedCompressedSize if populated)
+            int initialCapacity = ComputeInitialCapacity(dims);
+            using MemoryStream outputStream = new MemoryStream(initialCapacity);
 
-            // This doesn't create a SKColorSpace on every invocation, it uses a cached instance internally. So it's efficient to call.
             using SKColorSpace colorSpace = SKColorSpace.CreateSrgb();
 
             ReportProgress(progress, ExportStep.CreatingImage, 77, "Creating image...");
@@ -283,7 +288,24 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 throw new InvalidOperationException("Failed to convert SVG to PNG. The image may have invalid dimensions.");
             }
 
-            ReadOnlyMemory<byte> result = outputStream.GetBuffer().AsMemory(0, (int)outputStream.Length);
+            // Zero-copy result if possible
+            // NOTE: This optimization assumes that outputStream is a MemoryStream created with a publicly visible buffer
+            // (e.g., via new MemoryStream(initialCapacity)), so TryGetBuffer() should succeed. If the construction changes,
+            // this may fall back to copying the buffer below.
+            ReadOnlyMemory<byte> result;
+            if (outputStream.TryGetBuffer(out ArraySegment<byte> segment))
+            {
+                if (segment.Array is null)
+                {
+                    throw new InvalidOperationException("Failed to access PNG image buffer");
+                }
+                result = new ReadOnlyMemory<byte>(segment.Array, segment.Offset, segment.Count);
+            }
+            else
+            {
+                // Fallback: copy only if the buffer can't be exposed
+                result = outputStream.ToArray().AsMemory();
+            }
 
             stopwatch.Stop();
             TimeSpan elapsed = stopwatch.Elapsed;
@@ -306,26 +328,63 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     }
 
     /// <summary>
-    /// Calculates the dimensions of an image based on the specified bounds and export options.
+    /// Calculates an appropriate initial buffer capacity for storing compressed image data based on the provided image
+    /// dimensions and any available size estimates.
     /// </summary>
-    /// <remarks>The method applies scaling based on the <see cref="PngExportOptions.ScaleFactor"/> and DPI
-    /// specified in the  <paramref name="options"/> parameter. If maximum dimensions are provided, the method ensures
-    /// the calculated  dimensions do not exceed these limits. If <see cref="PngExportOptions.PreserveAspectRatio"/> is
-    /// set to  <see langword="true"/>, the aspect ratio of the original bounds is maintained while respecting the
-    /// maximum dimensions.</remarks>
-    /// <param name="bounds">The bounding rectangle that defines the original dimensions of the image.</param>
-    /// <param name="options">The export options that specify scaling factors, DPI, maximum dimensions, and aspect ratio preservation.</param>
-    /// <returns>A tuple containing the calculated width and height of the image, adjusted according to the provided options.</returns>
+    /// <remarks>If an estimated compressed size is provided in <paramref name="dimensions"/>, it is used
+    /// (clamped to a reasonable range) as the initial capacity. Otherwise, a heuristic based on the raw image size is
+    /// applied. This method helps minimize memory reallocations and excessive initial allocations when preparing
+    /// buffers for image compression.</remarks>
+    /// <param name="dimensions">The dimensions and size estimates of the image, including raw and estimated compressed sizes, used to determine
+    /// the initial capacity.</param>
+    /// <returns>An integer representing the recommended initial buffer capacity, in bytes, for storing the compressed image
+    /// data. The value is always at least 64 KiB and does not exceed the raw image size or 4 MiB, whichever is smaller.</returns>
+    private static int ComputeInitialCapacity(ImageDimensions dimensions)
+    {
+        const int oneKilobyte = 1_024;
+
+        // If caller provided a content-aware estimate, use it (clamped).
+        if (dimensions.EstimatedCompressedSize > 0)
+        {
+            return (int)Math.Clamp(Math.Ceiling(dimensions.EstimatedCompressedSize), 256, dimensions.RawSizeBytes);
+        }
+
+        // Heuristic fallback when no estimate exists:
+        // - Start around raw/40 (vector/line-art often compresses 10–100x).
+        // - Lower bound: 64 KiB (to avoid many small growth steps), unless raw is smaller.
+        // - Upper bound: min(raw, 4 MiB) to avoid large initial allocations.
+        const int minCapacity = 64 * oneKilobyte;
+        const int maxCapacity = 4 * oneKilobyte * oneKilobyte;
+
+        int upperBound = Math.Min(dimensions.RawSizeBytes, maxCapacity);
+        if (upperBound <= 0)
+        {
+            return minCapacity; // degenerate but safe
+        }
+
+        double guess = dimensions.RawSizeBytes / 40.0;
+        int lowerBound = Math.Min(minCapacity, upperBound); // don't exceed upper bound for tiny images
+        return (int)Math.Clamp(Math.Ceiling(guess), lowerBound, upperBound);
+    }
+
+    /// <summary>
+    /// Calculates the pixel dimensions and estimated file size for an image export based on the specified bounds and
+    /// export options.
+    /// </summary>
+    /// <remarks>The calculated dimensions take into account the scale factor and any maximum width or height
+    /// constraints specified in the options. If aspect ratio preservation is enabled, the image is scaled uniformly to
+    /// fit within the maximum dimensions. The estimated compressed size is a rough heuristic and may vary depending on
+    /// image content.</remarks>
+    /// <param name="bounds">The bounding rectangle, in logical units, that defines the area to be exported.</param>
+    /// <param name="options">The export options that control scaling, maximum dimensions, and aspect ratio preservation for the output image.</param>
+    /// <returns>A <see cref="ImageDimensions"/> object containing the calculated width, height, raw byte size, and an estimated compressed
+    /// file size for the exported image.</returns>
     private static ImageDimensions CalculateDimensions(SKRect bounds, PngExportOptions options)
     {
-        // Calculate base dimensions with scale factor
+        // Pixel dimensions are derived from bounds and ScaleFactor.
+        // Do NOT multiply by DPI here; ToImage scales only by scaleX/scaleY.
         float baseWidth = bounds.Width * options.ScaleFactor;
         float baseHeight = bounds.Height * options.ScaleFactor;
-
-        // Apply DPI scaling (using 96 DPI as a common baseline)
-        float dpiScale = options.Dpi / 96f;
-        baseWidth *= dpiScale;
-        baseHeight *= dpiScale;
 
         // Apply limits (only if provided)
         if (options.PreserveAspectRatio)
@@ -365,13 +424,11 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         int finalWidth = (int)Math.Ceiling(baseWidth);
         int finalHeight = (int)Math.Ceiling(baseHeight);
 
-        // Calculate raw image size in bytes (assuming 4 bytes per pixel for RGBA)
+        // Uncompressed RGBA upper bound
         int rawSizeBytes = finalWidth * finalHeight * 4;
 
-        // Heuristic for compression: using an assumed compression ratio (e.g., 5:1)
-        double estimatedCompressedSize = rawSizeBytes / 5.0;
-
-        return new ImageDimensions(finalWidth, finalHeight, rawSizeBytes, estimatedCompressedSize);
+        // Do not guess PNG size here; encode once and log the actual size afterward.
+        return new ImageDimensions(finalWidth, finalHeight, rawSizeBytes, estimatedCompressedSize: 0);
     }
 
     /// <summary>
@@ -519,7 +576,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     /// supported formats, the method returns <see langword="false"/>.</remarks>
     /// <param name="component">The string representation of the color component. This can be an integer value in the range 0-255  or a
     /// percentage value (e.g., "50%") representing a proportion of the maximum byte value.</param>
-    /// <param name="value">When this method returns, contains the parsed byte value of the color component, if the conversion succeeded; 
+    /// <param name="value">When this method returns, contains the parsed byte value of the color component, if the conversion succeeded;
     /// otherwise, the value is 0.</param>
     /// <returns><see langword="true"/> if the color component was successfully parsed and converted; otherwise, <see
     /// langword="false"/>.</returns>
