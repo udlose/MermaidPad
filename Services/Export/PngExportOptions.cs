@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Services.Export;
+
 /// <summary>
 /// Represents options for exporting an image in PNG format.
 /// </summary>

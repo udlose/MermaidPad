@@ -31,8 +31,7 @@ public enum ExportStep
     Initializing,
     ParsingSvg,
     CalculatingDimensions,
-    CreatingCanvas,
     Rendering,
-    Encoding,
+    CreatingImage,
     Complete
 }
