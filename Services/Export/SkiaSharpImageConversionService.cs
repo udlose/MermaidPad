@@ -427,8 +427,44 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         // Uncompressed RGBA upper bound
         int rawSizeBytes = finalWidth * finalHeight * 4;
 
-        // Do not guess PNG size here; encode once and log the actual size afterward.
-        return new ImageDimensions(finalWidth, finalHeight, rawSizeBytes, estimatedCompressedSize: 0);
+        // Lightweight, bounded estimate for PNG size to improve initial buffer sizing.
+        // Baseline: raw/8. Adjust for image size, transparency intent, and PNG "quality" (zlib level).
+        // Clamped to [32 KiB, rawSizeBytes].
+        int pixels = finalWidth * finalHeight;
+
+        // Start with a conservative baseline ratio (bigger divisor => smaller estimate).
+        int ratio = pixels switch
+        {
+            // Smaller images often compress a bit better; very large images worse.
+            < 512 * 512 => 10,
+            > 4_096 * 4_096 => 6,
+            _ => 8
+        };
+
+        // Transparent output tends to be a bit larger than opaque backgrounds.
+        bool backgroundTransparent = options.BackgroundColor is null || options.BackgroundColor.Equals("transparent", StringComparison.OrdinalIgnoreCase);
+        if (backgroundTransparent)
+        {
+            ratio = Math.Max(4, ratio - 2); // grow estimate (raw/6 -> raw/4)
+        }
+
+        // Map PNG "quality" to estimated compression ratio (higher quality => smaller output).
+        // Keep ratio bounded to avoid extreme estimates.
+        // Ratio is a divisor; larger ratio smaller estimate.
+        ratio = options.Quality switch
+        {
+            >= 95 => Math.Min(16, ratio + 4),
+            >= 90 => Math.Min(16, ratio + 3),
+            >= 75 => Math.Min(16, ratio + 2),
+            >= 50 => Math.Min(16, ratio + 1),
+            >= 30 => ratio,                      // baseline
+            >= 10 => Math.Max(4, ratio - 1),     // lower quality => larger estimate
+            _ => Math.Max(4, ratio - 2)
+        };
+
+        double estimatedCompressedSize = rawSizeBytes <= 0 ? 0 : Math.Clamp(rawSizeBytes / (double)ratio, 32 * 1_024, rawSizeBytes);
+
+        return new ImageDimensions(finalWidth, finalHeight, rawSizeBytes, estimatedCompressedSize);
     }
 
     /// <summary>
