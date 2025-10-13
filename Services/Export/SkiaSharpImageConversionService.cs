@@ -19,11 +19,9 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
-using JetBrains.Annotations;
 using SkiaSharp;
 using Svg.Skia;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 
@@ -55,7 +53,8 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is a read-only memory buffer containing the PNG image data.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the provided SVG content is invalid.</exception>
-    public async Task<byte[]> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
+    /// <exception cref="ArgumentException">Thrown if <paramref name="svgContent"/> is null or empty.</exception>
+    public async Task<ReadOnlyMemory<byte>> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(svgContent);
         ArgumentNullException.ThrowIfNull(options);
@@ -129,7 +128,8 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
             {
                 return ValidationResult.Failure($"Failed to parse SVG: {ex.Message}");
             }
-        }).ConfigureAwait(false);
+        })
+        .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -189,101 +189,105 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 SimpleLogger.LogError("Failed to get SVG dimensions", ex);
                 return (0, 0);
             }
-        }).ConfigureAwait(false);
+        })
+        .ConfigureAwait(false);
     }
 
     /// <summary>
     /// Converts SVG content to a PNG image using the specified export options.
     /// </summary>
-    /// <remarks>This method performs a multi-step process to convert SVG content into a PNG image. It parses
-    /// the SVG, calculates dimensions, renders the image onto a canvas, and encodes the result as a PNG. The method
-    /// supports progress reporting and cancellation, making it suitable for long-running operations.</remarks>
-    /// <param name="svgContent">The SVG content to be converted, represented as a string.</param>
-    /// <param name="options">The options that configure the PNG export, such as dimensions, DPI, and quality.</param>
-    /// <param name="progress">An optional progress reporter that provides updates on the conversion process. Can be <see langword="null"/> if
-    /// progress reporting is not required.</param>
-    /// <param name="cancellationToken">A token that can be used to cancel the operation. If cancellation is requested, the method will throw an <see
-    /// cref="OperationCanceledException"/>.</param>
-    /// <returns>A byte array containing the PNG image data.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be parsed, the rendering surface cannot be created, or the PNG encoding fails.</exception>
-    private static byte[] PerformConversion(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
+    /// <remarks>The conversion process is performed in memory and does not write to disk. The method supports
+    /// cancellation and progress reporting. The resulting PNG uses the sRGB color space and premultiplied alpha
+    /// channel.</remarks>
+    /// <param name="svgContent">The SVG markup to convert. Must be a valid, well-formed SVG string.</param>
+    /// <param name="options">The options that control PNG export settings, such as scale factor, background color, and quality.</param>
+    /// <param name="progress">An optional progress reporter that receives updates about the export process. May be null if progress reporting
+    /// is not required.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the conversion operation. The default value is <see
+    /// cref="CancellationToken.None"/>.</param>
+    /// <returns>A read-only memory buffer containing the PNG image data. The buffer will be empty if the conversion fails.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be loaded or if the conversion to PNG fails due to invalid image data or export
+    /// options.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the calculated image dimensions are invalid (zero or negative).</exception>
+    /// <exception cref="OperationCanceledException">Thrown if the operation is canceled via the provided <paramref name="cancellationToken"/>.</exception>
+    private static ReadOnlyMemory<byte> PerformConversion(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken = default)
     {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-
         try
         {
-            // Step 1: Initialize
-            ReportProgress(progress, ExportStep.Initializing, 0, "Initializing conversion...");
+            // Step 1: Load SVG
+            ReportProgress(progress, ExportStep.Initializing, 0, "Loading SVG...");
+            Stopwatch stopwatch = Stopwatch.StartNew();
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 2: Parse SVG
-            ReportProgress(progress, ExportStep.ParsingSvg, 10, "Parsing SVG content...");
+            ReportProgress(progress, ExportStep.ParsingSvg, 13, "Parsing SVG content...");
 
             using SKSvg svg = new SKSvg();
-            using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
-
-            using SKPicture picture = svg.Load(stream) ??
-                throw new InvalidOperationException("Failed to parse SVG content");
+            using MemoryStream svgStream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
+            using SKPicture? picture = svg.Load(svgStream)
+                ?? throw new InvalidOperationException("Failed to parse SVG content");
             cancellationToken.ThrowIfCancellationRequested();
 
             // Step 3: Calculate dimensions
-            ReportProgress(progress, ExportStep.CalculatingDimensions, 20, "Calculating dimensions...");
-
+            ReportProgress(progress, ExportStep.CalculatingDimensions, 32, "Calculating dimensions...");
             SKRect bounds = picture.CullRect;
-            (int width, int height) = CalculateDimensions(bounds, options);
-
-            SimpleLogger.Log($"Converting SVG: Original {bounds.Width}x{bounds.Height}, Target {width}x{height} @ {options.Dpi} DPI");
-
+            ImageDimensions dims = CalculateDimensions(bounds, options);
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Step 4: Create canvas
-            ReportProgress(progress, ExportStep.CreatingCanvas, 30,
-                $"Creating {width}x{height} canvas...");
+            float scaleX = options.ScaleFactor;
+            float scaleY = options.ScaleFactor;
 
-            using SKColorSpace colorSpace = SKColorSpace.CreateSrgb();
-            SKImageInfo imageInfo = new SKImageInfo(
-                width,
-                height,
-                SKColorType.Rgba8888,
-                SKAlphaType.Premul,
-                colorSpace);
+            SKColor backgroundColor = options.BackgroundColor is null or "transparent"
+                ? SKColors.Transparent
+                : ParseColor(options.BackgroundColor);
 
-            using SKSurface surface = CreateSurface(imageInfo) ??
-                throw new InvalidOperationException("Failed to create rendering surface");
-
-            using SKCanvas canvas = surface.Canvas;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Step 5: Render
-            ReportProgress(progress, ExportStep.Rendering, 50, "Rendering SVG...");
-
-            // FIXED: Improved rendering configuration for better quality
-            ConfigureCanvas(canvas, options, width, height, bounds);
-
-            // Draw the SVG with high quality paint
-            using (SKPaint paint = CreateHighQualityPaint(options))
+            if (dims.Width <= 0 || dims.Height <= 0)
             {
-                canvas.DrawPicture(picture, paint);
+                throw new InvalidOperationException("Calculated image dimensions are invalid");
             }
 
-            canvas.Flush();
+            string calculatedDimensionMessage =
+                $"""
+                Converting original .svg to .png.
+                Bounds: {bounds.Width}x{bounds.Height}, Scale: {options.ScaleFactor}, DPI: {options.Dpi}, 
+                Max: {options.MaxWidth}x{options.MaxHeight}, PreserveAspect: {options.PreserveAspectRatio}
+                Target {dims.Width}x{dims.Height} @ {options.Dpi} dpi
+                """;
 
+            // Step 4: Render to PNG
+            ReportProgress(progress, ExportStep.Rendering, 51, calculatedDimensionMessage);
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Step 6: Encode to PNG
-            ReportProgress(progress, ExportStep.Encoding, 80, "Encoding PNG...");
+            using MemoryStream outputStream = new MemoryStream();
 
-            using SKImage image = surface.Snapshot();
+            // This doesn't create a SKColorSpace on every invocation, it uses a cached instance internally. So it's efficient to call.
+            using SKColorSpace colorSpace = SKColorSpace.CreateSrgb();
 
-            // Use high quality PNG encoding
-            using SKData data = image.Encode(SKEncodedImageFormat.Png, options.Quality) ??
-                throw new InvalidOperationException("Failed to encode PNG");
+            ReportProgress(progress, ExportStep.CreatingImage, 77, "Creating image...");
+            cancellationToken.ThrowIfCancellationRequested();
 
-            byte[] result = data.ToArray();
+            bool success = picture.ToImage(
+                stream: outputStream,
+                background: backgroundColor,
+                format: SKEncodedImageFormat.Png,
+                quality: options.Quality,
+                scaleX: scaleX,
+                scaleY: scaleY,
+                skColorType: SKImageInfo.PlatformColorType,     // Cross-platform optimal
+                skAlphaType: SKAlphaType.Premul,                // Standard for PNG
+                skColorSpace: colorSpace                        // Standard sRGB
+            );
 
-            // Step 7: Complete
+            if (!success)
+            {
+                throw new InvalidOperationException("Failed to convert SVG to PNG. The image may have invalid dimensions.");
+            }
+
+            ReadOnlyMemory<byte> result = outputStream.GetBuffer().AsMemory(0, (int)outputStream.Length);
+
+            stopwatch.Stop();
             TimeSpan elapsed = stopwatch.Elapsed;
-            ReportProgress(progress, ExportStep.Complete, 100, $"Conversion complete in {elapsed.TotalSeconds:F2}s");
+            ReportProgress(progress, ExportStep.Complete, 100, $"Conversion complete in {elapsed.TotalMilliseconds:F2}ms");
 
             SimpleLogger.Log($"PNG conversion successful: {result.Length:N0} bytes, took {elapsed.TotalMilliseconds:F0}ms");
 
@@ -312,53 +316,62 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     /// <param name="bounds">The bounding rectangle that defines the original dimensions of the image.</param>
     /// <param name="options">The export options that specify scaling factors, DPI, maximum dimensions, and aspect ratio preservation.</param>
     /// <returns>A tuple containing the calculated width and height of the image, adjusted according to the provided options.</returns>
-    private static (int Width, int Height) CalculateDimensions(SKRect bounds, PngExportOptions options)
+    private static ImageDimensions CalculateDimensions(SKRect bounds, PngExportOptions options)
     {
         // Calculate base dimensions with scale factor
         float baseWidth = bounds.Width * options.ScaleFactor;
         float baseHeight = bounds.Height * options.ScaleFactor;
 
-        // Apply DPI scaling (assuming 96 DPI as baseline)
+        // Apply DPI scaling (using 96 DPI as a common baseline)
         float dpiScale = options.Dpi / 96f;
         baseWidth *= dpiScale;
         baseHeight *= dpiScale;
 
-        // Apply maximum dimensions if specified
-        if (options is { MaxWidth: <= 0, MaxHeight: <= 0 })
-        {
-            return ((int)Math.Ceiling(baseWidth), (int)Math.Ceiling(baseHeight));
-        }
-
+        // Apply limits (only if provided)
         if (options.PreserveAspectRatio)
         {
-            float aspectRatio = bounds.Width / bounds.Height;
+            // Scale down uniformly to satisfy both constraints
+            float scale = 1f;
 
-            if (options.MaxWidth > 0 && baseWidth > options.MaxWidth)
+            if (options.MaxWidth > 0 && baseWidth > 0)
             {
-                baseWidth = options.MaxWidth;
-                baseHeight = baseWidth / aspectRatio;
+                scale = Math.Min(scale, options.MaxWidth / baseWidth);
             }
 
-            if (options.MaxHeight > 0 && baseHeight > options.MaxHeight)
+            if (options.MaxHeight > 0 && baseHeight > 0)
             {
-                baseHeight = options.MaxHeight;
-                baseWidth = baseHeight * aspectRatio;
+                scale = Math.Min(scale, options.MaxHeight / baseHeight);
+            }
+
+            if (scale < 1f)
+            {
+                baseWidth *= scale;
+                baseHeight *= scale;
             }
         }
         else
         {
-            if (options.MaxWidth > 0 && baseWidth > options.MaxWidth)
+            if (options.MaxWidth > 0)
             {
-                baseWidth = options.MaxWidth;
+                baseWidth = Math.Min(baseWidth, options.MaxWidth);
             }
 
-            if (options.MaxHeight > 0 && baseHeight > options.MaxHeight)
+            if (options.MaxHeight > 0)
             {
-                baseHeight = options.MaxHeight;
+                baseHeight = Math.Min(baseHeight, options.MaxHeight);
             }
         }
 
-        return ((int)Math.Ceiling(baseWidth), (int)Math.Ceiling(baseHeight));
+        int finalWidth = (int)Math.Ceiling(baseWidth);
+        int finalHeight = (int)Math.Ceiling(baseHeight);
+
+        // Calculate raw image size in bytes (assuming 4 bytes per pixel for RGBA)
+        int rawSizeBytes = finalWidth * finalHeight * 4;
+
+        // Heuristic for compression: using an assumed compression ratio (e.g., 5:1)
+        double estimatedCompressedSize = rawSizeBytes / 5.0;
+
+        return new ImageDimensions(finalWidth, finalHeight, rawSizeBytes, estimatedCompressedSize);
     }
 
     /// <summary>
@@ -486,12 +499,9 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
 
         // Parse optional alpha component
         byte a = 255;
-        if (count == 4)
+        if (count == 4 && !TryParseAlphaComponent(content[ranges[3]], out a))
         {
-            if (!TryParseAlphaComponent(content[ranges[3]], out a))
-            {
-                return false;
-            }
+            return false;
         }
 
         color = new SKColor(r, g, b, a);
@@ -661,3 +671,13 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         }
     }
 }
+
+/// <summary>
+/// Represents the dimensions and size information for an image, including width, height, raw size in bytes, and an
+/// estimated compressed size.
+/// </summary>
+/// <param name="Width">The width of the image, in pixels. Must be a non-negative integer.</param>
+/// <param name="Height">The height of the image, in pixels. Must be a non-negative integer.</param>
+/// <param name="RawSizeBytes">The uncompressed size of the image data, in bytes. Must be a non-negative integer.</param>
+/// <param name="EstimatedCompressedSize">An estimated size of the image after compression, in bytes. Must be a non-negative value.</param>
+public sealed record ImageDimensions(int Width, int Height, int RawSizeBytes, double EstimatedCompressedSize);
