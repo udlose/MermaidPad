@@ -253,7 +253,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 Max: {options.MaxWidth}x{options.MaxHeight}, PreserveAspect: {options.PreserveAspectRatio}
                 Target {dims.Width}x{dims.Height} @ {options.Dpi} dpi
                 """;
-
+            SimpleLogger.Log(calculatedDimensionMessage);
             // Step 4: Render to PNG
             ReportProgress(progress, ExportStep.Rendering, 51, calculatedDimensionMessage);
             cancellationToken.ThrowIfCancellationRequested();
@@ -676,8 +676,35 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
 /// Represents the dimensions and size information for an image, including width, height, raw size in bytes, and an
 /// estimated compressed size.
 /// </summary>
-/// <param name="Width">The width of the image, in pixels. Must be a non-negative integer.</param>
-/// <param name="Height">The height of the image, in pixels. Must be a non-negative integer.</param>
-/// <param name="RawSizeBytes">The uncompressed size of the image data, in bytes. Must be a non-negative integer.</param>
-/// <param name="EstimatedCompressedSize">An estimated size of the image after compression, in bytes. Must be a non-negative value.</param>
-public sealed record ImageDimensions(int Width, int Height, int RawSizeBytes, double EstimatedCompressedSize);
+/// <remarks>This record is typically used to convey image metadata for processing, storage, or transmission
+/// scenarios. All values are non-negative and represent the state of a specific image at a given point in
+/// time.</remarks>
+public sealed record ImageDimensions
+{
+    public int Width { get; }
+    public int Height { get; }
+    public int RawSizeBytes { get; }
+    public double EstimatedCompressedSize { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the ImageDimensions class with the specified width, height, raw size in bytes, and
+    /// estimated compressed size.
+    /// </summary>
+    /// <param name="width">The width of the image, in pixels. Must be a non-negative integer.</param>
+    /// <param name="height">The height of the image, in pixels. Must be a non-negative integer.</param>
+    /// <param name="rawSizeBytes">The uncompressed size of the image data, in bytes. Must be a non-negative integer.</param>
+    /// <param name="estimatedCompressedSize">The estimated size of the image after compression, in bytes. Must be a non-negative value.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if width, height, or rawSizeBytes is negative, or if estimatedCompressedSize is less than zero.</exception>
+    public ImageDimensions(int width, int height, int rawSizeBytes, double estimatedCompressedSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(width);
+        ArgumentOutOfRangeException.ThrowIfNegative(height);
+        ArgumentOutOfRangeException.ThrowIfNegative(rawSizeBytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(estimatedCompressedSize);
+
+        Width = width;
+        Height = height;
+        RawSizeBytes = rawSizeBytes;
+        EstimatedCompressedSize = estimatedCompressedSize;
+    }
+}
