@@ -93,7 +93,7 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     /// <summary>
     /// Cancels the ongoing operation, if one is in progress.
     /// </summary>
-    /// <remarks>This method signals the cancellation of the current operation by invoking the associated 
+    /// <remarks>This method signals the cancellation of the current operation by invoking the associated
     /// cancellation token. Once called, the operation cannot be resumed. The status message is updated to indicate the
     /// cancellation, and the ability to cancel is disabled.</remarks>
     [RelayCommand(CanExecute = nameof(CanCancel))]
@@ -107,7 +107,7 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     /// <summary>
     /// Signals that the dialog should be closed.
     /// </summary>
-    /// <remarks>This method sets the <see cref="CloseRequested"/> property to <see langword="true"/>, 
+    /// <remarks>This method sets the <see cref="CloseRequested"/> property to <see langword="true"/>,
     /// indicating that the user has requested to close the dialog. The actual closing of the window is managed
     /// externally, typically by a handler in the <c>MainViewModel</c>.</remarks>
     [RelayCommand]

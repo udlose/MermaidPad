@@ -21,8 +21,11 @@
 namespace MermaidPad.Services.Export;
 
 /// <summary>
-/// Steps in the export process
+/// Specifies the stages of the export process.
 /// </summary>
+/// <remarks>Use this enumeration to track or report the current step when exporting data or images. The values
+/// represent the sequential phases typically involved in an export operation, from initialization to
+/// completion.</remarks>
 public enum ExportStep
 {
     Initializing,

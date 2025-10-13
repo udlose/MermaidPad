@@ -28,8 +28,15 @@ using System.Xml.Linq;
 namespace MermaidPad.Services.Export;
 
 /// <summary>
-/// Service for exporting Mermaid diagrams to various formats
+/// Provides services for exporting diagrams to SVG and PNG formats, including content extraction, optimization, and
+/// file output operations.
 /// </summary>
+/// <remarks>The ExportService class enables asynchronous export of the current diagram to SVG and PNG files,
+/// supporting customizable export options and progress reporting. All export operations that interact with the
+/// diagram's rendered content require access to the UI thread due to WebView control constraints. The class is designed
+/// for use in UI applications where diagrams are rendered and need to be saved or processed in standard image formats.
+/// Thread safety is not guaranteed; callers should ensure that methods are invoked on the appropriate thread as
+/// documented.</remarks>
 public sealed partial class ExportService
 {
     [GeneratedRegex(@">\s+<", RegexOptions.Compiled)]
@@ -46,8 +53,18 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Exports the current diagram as SVG
+    /// Exports the current diagram as an SVG file to the specified path asynchronously.
     /// </summary>
+    /// <remarks>The export operation reads the SVG content from the current diagram and writes it to the
+    /// specified file. If the directory for the target path does not exist, it will be created. The method must be
+    /// called from the UI thread due to WebView access requirements. The export can be customized using the provided
+    /// options.</remarks>
+    /// <param name="targetPath">The file system path where the SVG file will be saved. Cannot be null or empty.</param>
+    /// <param name="options">The options to use for SVG export, such as optimization and XML declaration settings. If null, default options
+    /// are used.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
+    /// <returns>A task that represents the asynchronous export operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be extracted from the diagram.</exception>
     public async Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
@@ -188,8 +205,18 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Exports the current diagram as PNG with configurable options
+    /// Exports the current diagram as a PNG image to the specified file path asynchronously.
     /// </summary>
+    /// <remarks>The export operation runs asynchronously and may perform file I/O and image conversion on
+    /// background threads. If the target directory does not exist, it will be created automatically. Progress updates,
+    /// if requested, are reported at key stages of the export process.</remarks>
+    /// <param name="targetPath">The file path where the exported PNG image will be saved. Cannot be null or empty.</param>
+    /// <param name="options">The options to use for PNG export, such as DPI and scale factor. If null, default options are used.</param>
+    /// <param name="progress">An optional progress reporter that receives updates about the export operation. Progress updates are marshaled
+    /// to the UI thread if provided.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
+    /// <returns>A task that represents the asynchronous export operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the diagram's SVG content cannot be extracted.</exception>
     public async Task ExportPngAsync(
         string targetPath,
         PngExportOptions? options = null,
@@ -340,8 +367,14 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Reports progress by marshaling to the UI thread
+    /// Reports the current export progress to the specified progress handler, ensuring updates are marshaled to the UI
+    /// thread if necessary.
     /// </summary>
+    /// <remarks>If called from a non-UI thread, the progress update is posted to the UI thread to ensure
+    /// thread safety for UI-bound progress handlers. Exceptions thrown during progress reporting are logged but not
+    /// propagated.</remarks>
+    /// <param name="progress">An optional progress handler that receives export progress updates. If null, no progress is reported.</param>
+    /// <param name="exportProgress">The current state of the export operation to report to the progress handler.</param>
     private static void ReportProgress(IProgress<ExportProgress>? progress, ExportProgress exportProgress)
     {
         if (progress is null)
