@@ -28,12 +28,17 @@ public interface IImageConversionService
     /// <summary>
     /// Asynchronously converts SVG content to a PNG image using the specified export options.
     /// </summary>
-    /// <param name="svgContent">The SVG content as a string</param>
-    /// <param name="options">Conversion options including quality, scale, etc.</param>
-    /// <param name="progress">Progress reporter for UI updates</param>
-    /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
-    /// <returns>PNG image data as byte array</returns>
-    Task<byte[]> ConvertSvgToPngAsync(
+    /// <remarks>The returned PNG data is not written to disk; callers are responsible for saving or
+    /// processing the image as needed. This method is thread-safe and may be called concurrently from multiple
+    /// threads.</remarks>
+    /// <param name="svgContent">The SVG markup to convert. Cannot be null or empty.</param>
+    /// <param name="options">The options that control PNG export settings, such as image size and background color. Cannot be null.</param>
+    /// <param name="progress">An optional progress reporter that receives updates about the export operation. May be null if progress
+    /// reporting is not required.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation is canceled if the token is signaled.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a read-only memory buffer with the
+    /// PNG image data.</returns>
+    Task<ReadOnlyMemory<byte>> ConvertSvgToPngAsync(
         string svgContent,
         PngExportOptions options,
         IProgress<ExportProgress>? progress = null,

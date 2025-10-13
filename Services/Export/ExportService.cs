@@ -20,6 +20,7 @@
 
 using Avalonia.Threading;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -120,7 +121,8 @@ public sealed partial class ExportService
                 // Write SVG content - ConfigureAwait(false) is OK here
                 await File.WriteAllTextAsync(targetPath, svgContent, Encoding.UTF8, cancellationToken)
                     .ConfigureAwait(false);
-            }, cancellationToken).ConfigureAwait(false);
+            }, cancellationToken)
+            .ConfigureAwait(false);
 
             SimpleLogger.Log($"SVG exported successfully: {new FileInfo(targetPath).Length:N0} bytes");
         }
@@ -145,6 +147,7 @@ public sealed partial class ExportService
     /// or minify the SVG.</param>
     /// <returns>A string containing the optimized SVG content. If an error occurs during optimization, the original SVG content
     /// is returned.</returns>
+    [SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "Explicit is clearer here")]
     private static string OptimizeSvg(string svgContent, SvgExportOptions options)
     {
         try
@@ -252,11 +255,12 @@ public sealed partial class ExportService
                 : new Progress<ExportProgress>(p => ReportProgress(progress, p));
 
             // Convert to PNG on background thread
-            byte[] pngData = await _imageConversionService.ConvertSvgToPngAsync(
+            ReadOnlyMemory<byte> pngData = await _imageConversionService.ConvertSvgToPngAsync(
                 svgContent,
                 options,
                 uiProgress,
-                cancellationToken);
+                cancellationToken)
+            .ConfigureAwait(false);
 
             // File I/O on background thread - ConfigureAwait(false) keeps us on background thread
             string? directory = Path.GetDirectoryName(targetPath);
