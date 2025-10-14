@@ -140,8 +140,8 @@
     // Immediate theme application to prevent flash
     (function() {
         const getSystemTheme = () => {
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
-                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
+            if (globalThis.matchMedia && globalThis.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
+                return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
             }
             return 'default';
         };
@@ -152,17 +152,17 @@
         };
 
         // Store functions globally for reuse
-        window.getSystemTheme = getSystemTheme;
-        window.applyTheme = applyTheme;
-        window.currentTheme = getSystemTheme();
+        globalThis.getSystemTheme = getSystemTheme;
+        globalThis.applyTheme = applyTheme;
+        globalThis.currentTheme = getSystemTheme();
 
         // Apply theme immediately if body exists
         if (document.body) {
-            applyTheme(window.currentTheme);
+            applyTheme(globalThis.currentTheme);
         } else {
             // If body doesn't exist yet, apply on DOMContentLoaded
             document.addEventListener('DOMContentLoaded', function() {
-                applyTheme(window.currentTheme);
+                applyTheme(globalThis.currentTheme);
             }, { once: true });
         }
     })();
@@ -177,8 +177,8 @@
   <!-- Main initialization with proper event-driven loading -->
   <script type="module">
     // Global flags
-    window.elkLayoutAvailable = false;
-    window.mermaidInitialized = false;
+    globalThis.elkLayoutAvailable = false;
+    globalThis.mermaidInitialized = false;
 
     // Promise-based script loading with timeout
     function waitForScriptLoad(scriptId, timeout = 5000) {
@@ -191,11 +191,11 @@
             }
 
             // Check if already loaded
-            if (scriptId === 'mermaid-script' && typeof window.mermaid !== 'undefined') {
+            if (scriptId === 'mermaid-script' && typeof globalThis.mermaid !== 'undefined') {
                 resolve();
                 return;
             }
-            if (scriptId === 'jsyaml-script' && typeof window.jsyaml !== 'undefined') {
+            if (scriptId === 'jsyaml-script' && typeof globalThis.jsyaml !== 'undefined') {
                 resolve();
                 return;
             }
@@ -228,8 +228,8 @@
             const elkLayouts = elkModule.default;
 
             // Register ELK layouts with Mermaid
-            window.mermaid.registerLayoutLoaders(elkLayouts);
-            window.elkLayoutAvailable = true;
+            globalThis.mermaid.registerLayoutLoaders(elkLayouts);
+            globalThis.elkLayoutAvailable = true;
             console.log('ELK layout registered successfully');
             return true;
         } catch (err) {
@@ -252,34 +252,34 @@
             console.log('Scripts loaded, initializing Mermaid...');
 
             // Update loading status
-            window.updateLoadingStatus('Loading rendering engine...');
+            globalThis.updateLoadingStatus('Loading rendering engine...');
 
             // Try to load ELK layout
             await loadElkLayout();
 
             // Initialize mermaid (with or without ELK)
-            window.mermaid.initialize({
+            globalThis.mermaid.initialize({
                 startOnLoad: false,
-                theme: window.currentTheme
+                theme: globalThis.currentTheme
             });
 
             // Set initialization flag
-            window.mermaidInitialized = true;
+            globalThis.mermaidInitialized = true;
             console.log('Mermaid initialized successfully');
 
             // Process any pending render
-            if (window.pendingMermaidRender) {
+            if (globalThis.pendingMermaidRender) {
                 console.log('Processing pending render...');
-                window.renderMermaid(window.pendingMermaidRender);
-                window.pendingMermaidRender = null;
+                globalThis.renderMermaid(globalThis.pendingMermaidRender);
+                globalThis.pendingMermaidRender = null;
             }
         } catch (error) {
             console.error('Failed to initialize application:', error);
             // Set flag to prevent infinite retries
-            window.mermaidInitializationFailed = true;
+            globalThis.mermaidInitializationFailed = true;
 
             // Hide loading indicator and show error
-            window.hideLoadingIndicator();
+            globalThis.hideLoadingIndicator();
 
             const output = document.getElementById('output');
             if (output) {
@@ -295,19 +295,19 @@
     // Setup theme change listener
     document.addEventListener('DOMContentLoaded', () => {
         // Theme is already applied, but listen for changes
-        if (window.matchMedia) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                window.currentTheme = e.matches ? 'dark' : 'default';
-                window.applyTheme(window.currentTheme);
+        if (globalThis.matchMedia) {
+            globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                globalThis.currentTheme = e.matches ? 'dark' : 'default';
+                globalThis.applyTheme(globalThis.currentTheme);
 
                 // Re-render if we have content and Mermaid is initialized
-                if (window.lastMermaidSource && window.mermaidInitialized) {
+                if (globalThis.lastMermaidSource && globalThis.mermaidInitialized) {
                     // Re-initialize Mermaid with new theme
-                    window.mermaid.initialize({
+                    globalThis.mermaid.initialize({
                         startOnLoad: false,
-                        theme: window.currentTheme
+                        theme: globalThis.currentTheme
                     });
-                    window.renderMermaid(window.lastMermaidSource);
+                    globalThis.renderMermaid(globalThis.lastMermaidSource);
                 }
             });
         }
@@ -332,19 +332,19 @@
                 .getPropertyValue('--loading-transition-duration')
                 .trim();
             // Remove 'ms' suffix and convert to number
-            const numericValue = parseFloat(duration.replace('ms', ''));
-            return isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
+            const numericValue = Number.parseFloat(duration.replace('ms', ''));
+            return Number.isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
         };
 
         // Loading indicator management
-        window.updateLoadingStatus = (message) => {
+        globalThis.updateLoadingStatus = (message) => {
             const statusElement = document.getElementById('loading-status');
             if (statusElement) {
                 statusElement.textContent = message;
             }
         };
 
-        window.hideLoadingIndicator = () => {
+        globalThis.hideLoadingIndicator = () => {
             const loadingContainer = document.getElementById('loading-container');
             const output = document.getElementById('output');
 
@@ -362,8 +362,8 @@
         };
 
         // Render function with proper error handling
-        window.renderMermaid = source => {
-            window.lastMermaidSource = source; // Save for re-rendering
+        globalThis.renderMermaid = source => {
+            globalThis.lastMermaidSource = source; // Save for re-rendering
             const output = document.getElementById('output');
 
             // Helper functions
@@ -376,7 +376,7 @@
 
             const showError = (message) => {
                 // Hide loading indicator and show error
-                window.hideLoadingIndicator();
+                globalThis.hideLoadingIndicator();
                 output.innerHTML = '';
                 output.appendChild(createErrorElement(message));
             };
@@ -392,34 +392,34 @@
             };
 
             // Check if initialization failed
-            if (window.mermaidInitializationFailed) {
+            if (globalThis.mermaidInitializationFailed) {
                 showError('Mermaid initialization failed. Please refresh the page.');
                 return;
             }
 
             // Check if mermaid is initialized
-            if (!window.mermaidInitialized) {
+            if (!globalThis.mermaidInitialized) {
                 // Store for later rendering
-                window.pendingMermaidRender = source;
+                globalThis.pendingMermaidRender = source;
 
                 // Check if we should retry (with limit)
-                if (!window.renderRetryCount) {
-                    window.renderRetryCount = 0;
+                if (!globalThis.renderRetryCount) {
+                    globalThis.renderRetryCount = 0;
                 }
 
-                if (window.renderRetryCount < 10) {
-                    window.renderRetryCount++;
-                    setTimeout(() => window.renderMermaid(source), 200);
+                if (globalThis.renderRetryCount < 10) {
+                    globalThis.renderRetryCount++;
+                    setTimeout(() => globalThis.renderMermaid(source), 200);
                     return;
                 } else {
                     showError('Mermaid is still loading. Please try again.');
-                    window.renderRetryCount = 0;
+                    globalThis.renderRetryCount = 0;
                     return;
                 }
             }
 
             // Reset retry count on successful initialization
-            window.renderRetryCount = 0;
+            globalThis.renderRetryCount = 0;
 
             // Parse front-matter config if present
             const fmRegex = /^---\s*([\s\S]*?)---\s*/;
@@ -428,23 +428,23 @@
 
             if (match) {
                 try {
-                    const parsed = window.jsyaml.load(match[1]);
+                    const parsed = globalThis.jsyaml.load(match[1]);
                     if (parsed && parsed.config) {
                         const customConfig = parsed.config;
 
                         // Re-initialize with new config
                         const configWithTheme = {
                             ...customConfig,
-                            theme: customConfig.theme || window.currentTheme,
+                            theme: customConfig.theme || globalThis.currentTheme,
                             startOnLoad: false
                         };
 
                         // Log config for debugging if using ELK
-                        if (window.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
+                        if (globalThis.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
                             console.log('Using ELK layout with config:', configWithTheme);
                         }
 
-                        window.mermaid.initialize(configWithTheme);
+                        globalThis.mermaid.initialize(configWithTheme);
                     }
                     // Remove front-matter from diagram source
                     diagramSource = source.replace(fmRegex, "");
@@ -456,21 +456,21 @@
 
             // Render the diagram
             const id = `mermaid-svg-${Date.now()}`;
-            window.mermaid.render(id, diagramSource)
+            globalThis.mermaid.render(id, diagramSource)
                 .then(result => {
                     setSafeSVG(result.svg);
                     if (typeof result.bindFunctions === 'function') {
                         result.bindFunctions(output);
                     }
                     // Hide loading indicator after diagram is successfully rendered
-                    window.hideLoadingIndicator();
+                    globalThis.hideLoadingIndicator();
                 })
                 .catch(e => {
                     showError(e.message);
                 });
         };
 
-        window.clearOutput = () => {
+        globalThis.clearOutput = () => {
             const output = document.getElementById('output');
             if (output) {
                 output.innerHTML = '';
@@ -478,7 +478,7 @@
         };
 
     // Export functionality using Mermaid's built-in capabilities
-    window.exportDiagram = {
+    globalThis.exportDiagram = {
         getSVG: () => {
             try {
                 const svg = document.querySelector('#output svg');
@@ -503,14 +503,14 @@
         getPNG: async (scale = 2) => {
             try {
                 // Get the current diagram source
-                if (!window.lastMermaidSource) {
+                if (!globalThis.lastMermaidSource) {
                     console.error('No diagram source available');
                     return null;
                 }
 
                 // Use Mermaid's render API to get a fresh SVG
                 const id = `export-${Date.now()}`;
-                const { svg } = await window.mermaid.render(id, window.lastMermaidSource);
+                const { svg } = await globalThis.mermaid.render(id, globalThis.lastMermaidSource);
 
                 // Create a temporary container
                 const container = document.createElement('div');
@@ -531,8 +531,8 @@
 
                 if (viewBox) {
                     const parts = viewBox.split(' ');
-                    width = parseFloat(parts[2]);
-                    height = parseFloat(parts[3]);
+                    width = Number.parseFloat(parts[2]);
+                    height = Number.parseFloat(parts[3]);
                 } else {
                     const bbox = svgElement.getBoundingClientRect();
                     width = bbox.width || 800;
@@ -549,7 +549,7 @@
                 ctx.scale(scale, scale);
 
                 // Background
-                const bgColor = window.exportDiagram.backgroundColor || 'white';
+                const bgColor = globalThis.exportDiagram.backgroundColor || 'white';
                 if (bgColor !== 'transparent') {
                     ctx.fillStyle = bgColor;
                     ctx.fillRect(0, 0, width, height);
