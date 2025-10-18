@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 using Avalonia;
-using Avalonia.ReactiveUI;
 using Avalonia.WebView.Desktop;
 using MermaidPad.Services.Platforms;
+using ReactiveUI.Avalonia;
 
 namespace MermaidPad;
 
