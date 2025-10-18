@@ -257,22 +257,31 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         UpdateEstimates();
     }
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnFileNameChanged(string value) => OnPropertyChanged(nameof(FullFilePath));
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnDirectoryChanged(string value) => OnPropertyChanged(nameof(FullFilePath));
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnSelectedFormatChanged(ExportFormatItem? value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnSelectedDpiChanged(int value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnScaleFactorChanged(float value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnQualityChanged(int value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnMaxWidthChanged(int value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnMaxHeightChanged(int value) => UpdateEstimates();
 
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Used implicitly for property change notification.")]
     partial void OnUseWhiteBackgroundChanged(bool value) => UpdateEstimates();
 
     /// <summary>
