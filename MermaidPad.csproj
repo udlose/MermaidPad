@@ -55,6 +55,11 @@
 		<PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
 	</ItemGroup>
 
+	<!-- Only include Avalonia.Diagnostics in Debug builds -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.0" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
 		<!--        This line important -->
