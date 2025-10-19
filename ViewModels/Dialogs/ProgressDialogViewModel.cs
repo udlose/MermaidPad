@@ -182,6 +182,8 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
             ExportStep.ParsingSvg => "Reading and parsing SVG content...",
             ExportStep.CalculatingDimensions => "Calculating output dimensions based on settings...",
             ExportStep.Rendering => "Rendering diagram...",
+            ExportStep.CreatingCanvas => "Creating drawing canvas...",
+            ExportStep.Encoding => "Encoding image data...",
             ExportStep.CreatingImage => "Creating image...",
             ExportStep.Complete => "Export completed successfully!",
             _ => string.Empty
