@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:;" />
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MermaidPad Preview</title>
@@ -315,17 +315,6 @@
   </script>
   <!-- Render functions in separate script -->
   <script>
-        // Important SVG properties to inline (module-level constant)
-        const inlineStyleSVGProps = Object.freeze([
-            'fill',
-            'stroke',
-            'stroke-width',
-            'font-family',
-            'font-size',
-            'text-anchor',
-            'dominant-baseline'
-        ]);
-
         // Get transition duration from CSS custom property
         const getTransitionDuration = () => {
             const duration = getComputedStyle(document.documentElement)
@@ -478,87 +467,221 @@
         };
 
       // ==========================================
-      // EXPORT FUNCTION - Renders without foreignObject for PNG export
+      // BROWSER-BASED PNG EXPORT FUNCTION
+      // Renders the current diagram to PNG using canvas
       // ==========================================
-      globalThis.exportMermaidWithoutForeignObject = async function(diagramSource) {
-          console.log('=== EXPORT FUNCTION CALLED (v2) ===');
-          console.log('diagramSource', diagramSource);
-
-          const originalConfig = globalThis.mermaid.getConfig?.() ?? { startOnLoad: false, theme: globalThis.currentTheme };
+      globalThis.exportToPNG = async function(options) {
+          console.log('=== BROWSER-BASED PNG EXPORT STARTED ===');
+          console.log('Export options:', options);
 
           try {
-              const fmRegex = /^---[\s\S]*?---/;
+              // Set status for polling
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'initializing', 
+                  percent: 0, 
+                  message: 'Starting PNG export...' 
+              });
 
-              let cleanSource = diagramSource;
-              let userConfig = {};
-
-              const match = diagramSource.match(fmRegex);
-              if (match) {
-                  try {
-                      const parsed = globalThis.jsyaml.load(match[0]);
-                      if (parsed?.config) {
-                          userConfig = parsed.config;
-                      }
-                      cleanSource = diagramSource.replace(fmRegex, '').trim();
-                  } catch (yamlErr) {
-                      console.warn('YAML parse failed during export, stripping front-matter anyway');
-                      cleanSource = diagramSource.replace(fmRegex, '').trim();
-                  }
+              // Validate we have diagram source
+              if (!globalThis.lastMermaidSource) {
+                  throw new Error('No diagram source available for export');
               }
 
-              const exportConfig = {
-                  ...originalConfig,
-                  ...userConfig,
-                  startOnLoad: false,
-                  // Force htmlLabels to false for the export render
-                  flowchart: { ...originalConfig.flowchart, ...userConfig.flowchart, htmlLabels: false },
-                  sequence: { ...originalConfig.sequence, ...userConfig.sequence, useMaxWidth: true },
-              };
-    
-              // Temporarily initialize for export
-              globalThis.mermaid.initialize(exportConfig);
+              // Parse options with defaults
+              const scale = options?.scale || 2;
+              const backgroundColor = options?.backgroundColor || 'white';
+              const dpi = options?.dpi || 96;
+              
+              // Calculate DPI scale (96 is the baseline DPI)
+              const dpiScale = dpi / 96;
+              const effectiveScale = scale * dpiScale;
 
-              const exportId = `export-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-              console.log('Exporting with ID', exportId);
+              console.log(`Using scale: ${scale}, DPI: ${dpi}, effective scale: ${effectiveScale}`);
 
-              const renderResult = await globalThis.mermaid.render(exportId, cleanSource);
+              // Update progress: Rendering
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'rendering', 
+                  percent: 20, 
+                  message: 'Rendering diagram...' 
+              });
+
+              // Render fresh SVG with current config
+              const id = `png-export-${Date.now()}`;
+              const renderResult = await globalThis.mermaid.render(id, globalThis.lastMermaidSource);
 
               if (!renderResult?.svg) {
-                  throw new Error('Render returned no SVG content.');
+                  throw new Error('Failed to render diagram for PNG export');
               }
 
-              let svgContent = renderResult.svg;
+              // Update progress: Creating canvas
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'creating-canvas', 
+                  percent: 40, 
+                  message: 'Creating canvas...' 
+              });
 
-              // CRUCIAL FIX: Manually remove all <foreignObject> elements
-              // This is more reliable than relying on the htmlLabels config.
-              const foreignObjectRegex = /<foreignObject[\s\S]*?<\/foreignObject>/g;
-              const svgWithoutForeignObjects = svgContent.replace(foreignObjectRegex, '');
+              // Create temporary container for SVG
+              const container = document.createElement('div');
+              container.style.position = 'absolute';
+              container.style.left = '-99999px';
+              container.style.top = '-99999px';
+              container.innerHTML = renderResult.svg;
+              document.body.appendChild(container);
 
-              const completeSvg = `<?xml version="1.0" encoding="UTF-8"?>${svgWithoutForeignObjects}`;
+              const svgElement = container.querySelector('svg');
+              if (!svgElement) {
+                  document.body.removeChild(container);
+                  throw new Error('Could not find SVG element in rendered output');
+              }
 
-              globalThis.lastExportedSvg = completeSvg;
-              console.log('EXPORT SUCCESS - SVG stored, length:', completeSvg.length);
-    
-              // Return a simple success indicator to the C# caller
-              return { success: true, length: completeSvg.length };
+              // Get dimensions from viewBox or bounding box
+              const viewBox = svgElement.getAttribute('viewBox');
+              let width, height;
+
+              if (viewBox) {
+                  const parts = viewBox.split(' ');
+                  width = Number.parseFloat(parts[2]);
+                  height = Number.parseFloat(parts[3]);
+              } else {
+                  const bbox = svgElement.getBoundingClientRect();
+                  width = bbox.width || 800;
+                  height = bbox.height || 600;
+              }
+
+              console.log(`SVG dimensions: ${width}x${height}, scaled: ${width * effectiveScale}x${height * effectiveScale}`);
+
+              // Validate canvas size limits (most browsers support up to ~32767 pixels)
+              const maxDimension = 32767;
+              if (width * effectiveScale > maxDimension || height * effectiveScale > maxDimension) {
+                  document.body.removeChild(container);
+                  throw new Error(`Canvas size would exceed browser limits. Try reducing scale or DPI.`);
+              }
+
+              // Update progress: Converting to bitmap
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'converting', 
+                  percent: 60, 
+                  message: 'Converting to bitmap...' 
+              });
+
+              // Create canvas with scaled dimensions
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.round(width * effectiveScale);
+              canvas.height = Math.round(height * effectiveScale);
+
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                  document.body.removeChild(container);
+                  throw new Error('Failed to get canvas 2D context');
+              }
+
+              // Scale context for high-DPI rendering
+              ctx.scale(effectiveScale, effectiveScale);
+
+              // Draw background if not transparent
+              if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
+                  ctx.fillStyle = backgroundColor;
+                  ctx.fillRect(0, 0, width, height);
+              }
+
+              // Serialize SVG to string
+              const svgString = new XMLSerializer().serializeToString(svgElement);
+              
+              // Clean up DOM
+              document.body.removeChild(container);
+
+              // Convert SVG to data URI (avoids canvas tainting issues with blob URLs)
+              // Encode the SVG string properly for data URI
+              const encodedSvg = encodeURIComponent(svgString)
+                  .replace(/'/g, '%27')
+                  .replace(/"/g, '%22');
+              
+              const dataUri = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+
+              // Load SVG into image
+              const img = new Image();
+              
+              // Create promise for image loading
+              const imageLoadPromise = new Promise((resolve, reject) => {
+                  img.onload = () => {
+                      resolve();
+                  };
+
+                  img.onerror = (error) => {
+                      reject(new Error(`Failed to load SVG as image: ${error}`));
+                  };
+
+                  // Set timeout for image loading (30 seconds)
+                  setTimeout(() => {
+                      reject(new Error('Image loading timeout'));
+                  }, 30000);
+              });
+
+              img.src = dataUri;
+              await imageLoadPromise;
+
+              // Update progress: Drawing to canvas
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'drawing', 
+                  percent: 80, 
+                  message: 'Drawing to canvas...' 
+              });
+
+              // Draw image to canvas
+              ctx.drawImage(img, 0, 0, width, height);
+
+              // Update progress: Encoding
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'encoding', 
+                  percent: 90, 
+                  message: 'Encoding PNG...' 
+              });
+
+              // Convert canvas to PNG data URL
+              const dataUrl = canvas.toDataURL('image/png');
+              
+              // Extract base64 data (remove "data:image/png;base64," prefix)
+              const base64Data = dataUrl.split(',')[1];
+
+              // Update progress: Complete
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'complete', 
+                  percent: 100, 
+                  message: 'Export complete!' 
+              });
+
+              console.log('✓ PNG export successful, data length:', base64Data.length);
+
+              // Store result for retrieval
+              globalThis.__pngExportResult__ = base64Data;
+
+              return { 
+                  success: true, 
+                  dataLength: base64Data.length,
+                  dimensions: { width: canvas.width, height: canvas.height }
+              };
 
           } catch (error) {
-              console.error('EXPORT FAILED:', error.message, error.stack);
-              globalThis.lastExportedSvg = null;
-              return { success: false, error: error.message };
-          } 
-          //finally {
-              // Restore the original configuration to ensure the live preview is not affected.
-              // This is safe to do now that we are not crashing inside the try block.
-              // if (globalThis.mermaid) {
-              //      globalThis.mermaid.initialize(originalConfig);
-              // }
-          //}
+              console.error('✗ PNG export failed:', error);
+              
+              globalThis.__pngExportStatus__ = JSON.stringify({ 
+                  step: 'error', 
+                  percent: 0, 
+                  message: error.message 
+              });
+
+              globalThis.__pngExportResult__ = null;
+
+              return { 
+                  success: false, 
+                  error: error.message 
+              };
+          }
       };
 
-      console.log('Export function registered: globalThis.exportMermaidWithoutForeignObject');
+      console.log('Browser-based PNG export function registered: globalThis.exportToPNG');
 
-      // Export functionality using Mermaid's built-in capabilities
+      // Legacy export functions (kept for compatibility)
       globalThis.exportDiagram = {
           getSVG: () => {
             try {
@@ -579,101 +702,7 @@
                 console.error('Error getting SVG:', error);
                 return null;
             }
-        },
-
-        getPNG: async (scale = 2) => {
-            try {
-                // Get the current diagram source
-                if (!globalThis.lastMermaidSource) {
-                    console.error('No diagram source available');
-                    return null;
-                }
-
-                // Use Mermaid's render API to get a fresh SVG
-                const id = `export-${Date.now()}`;
-                const { svg } = await globalThis.mermaid.render(id, globalThis.lastMermaidSource);
-
-                // Create a temporary container
-                const container = document.createElement('div');
-                container.style.position = 'absolute';
-                container.style.left = '-9999px';
-                container.innerHTML = svg;
-                document.body.appendChild(container);
-
-                const svgElement = container.querySelector('svg');
-                if (!svgElement) {
-                    document.body.removeChild(container);
-                    return null;
-                }
-
-                // Get dimensions
-                const viewBox = svgElement.getAttribute('viewBox');
-                let width, height;
-
-                if (viewBox) {
-                    const parts = viewBox.split(' ');
-                    width = Number.parseFloat(parts[2]);
-                    height = Number.parseFloat(parts[3]);
-                } else {
-                    const bbox = svgElement.getBoundingClientRect();
-                    width = bbox.width || 800;
-                    height = bbox.height || 600;
-                }
-
-                // Convert using Mermaid's built-in SVG string
-                const svgString = new XMLSerializer().serializeToString(svgElement);
-                const canvas = document.createElement('canvas');
-                canvas.width = width * scale;
-                canvas.height = height * scale;
-
-                const ctx = canvas.getContext('2d');
-                ctx.scale(scale, scale);
-
-                // Background
-                const bgColor = globalThis.exportDiagram.backgroundColor || 'white';
-                if (bgColor !== 'transparent') {
-                    ctx.fillStyle = bgColor;
-                    ctx.fillRect(0, 0, width, height);
-                }
-
-                // Clean up
-                document.body.removeChild(container);
-
-                // Use Blob API with proper MIME type
-                const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
-                const url = URL.createObjectURL(svgBlob);
-                const img = new Image();
-
-                return new Promise((resolve, reject) => {
-                    img.onload = () => {
-                        ctx.drawImage(img, 0, 0, width, height);
-                        URL.revokeObjectURL(url);
-
-                        // Get base64 directly
-                        try {
-                            const dataUrl = canvas.toDataURL('image/png');
-                            const base64 = dataUrl.split(',')[1];
-                            resolve(base64);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    };
-
-                    img.onerror = () => {
-                        URL.revokeObjectURL(url);
-                        reject(new Error('Failed to load SVG'));
-                    };
-
-                    img.src = url;
-                });
-
-            } catch (error) {
-                console.error('Error in getPNG:', error);
-                return null;
-            }
-        },
-
-        backgroundColor: 'white'
+        }
     };
   </script>
 </head>
