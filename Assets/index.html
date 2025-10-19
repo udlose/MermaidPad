@@ -548,13 +548,33 @@
                   height = bbox.height || 600;
               }
 
-              console.log(`SVG dimensions: ${width}x${height}, scaled: ${width * effectiveScale}x${height * effectiveScale}`);
+              const scaledWidth = Math.round(width * effectiveScale);
+              const scaledHeight = Math.round(height * effectiveScale);
+              const totalPixels = scaledWidth * scaledHeight;
+              const estimatedMemoryMB = (totalPixels * 4) / (1024 * 1024); // 4 bytes per pixel
+              
+              console.log(`SVG dimensions: ${width}x${height}, scaled: ${scaledWidth}x${scaledHeight}`);
+              console.log(`Total pixels: ${totalPixels.toLocaleString()}, estimated memory: ${estimatedMemoryMB.toFixed(0)} MB`);
 
-              // Validate canvas size limits (most browsers support up to ~32767 pixels)
-              const maxDimension = 32767;
-              if (width * effectiveScale > maxDimension || height * effectiveScale > maxDimension) {
+              // Validate canvas size limits
+              const maxDimension = 32767; // Browser spec limit per dimension
+              const maxPixels = 16384 * 16384; // 16384 x 16384 = 256M pixels (practical limit)
+              const maxMemoryMB = 1024; // 1 GB practical memory limit
+              
+              if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
                   document.body.removeChild(container);
-                  throw new Error(`Canvas size would exceed browser limits. Try reducing scale or DPI.`);
+                  throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
+              }
+              
+              if (totalPixels > maxPixels) {
+                  document.body.removeChild(container);
+                  const oneMillion = 1000000;
+                  throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
+              }
+              
+              if (estimatedMemoryMB > maxMemoryMB) {
+                  document.body.removeChild(container);
+                  throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
               }
 
               // Update progress: Converting to bitmap
@@ -566,8 +586,8 @@
 
               // Create canvas with scaled dimensions
               const canvas = document.createElement('canvas');
-              canvas.width = Math.round(width * effectiveScale);
-              canvas.height = Math.round(height * effectiveScale);
+              canvas.width = scaledWidth;
+              canvas.height = scaledHeight;
 
               const ctx = canvas.getContext('2d');
               if (!ctx) {
@@ -640,8 +660,20 @@
               // Convert canvas to PNG data URL
               const dataUrl = canvas.toDataURL('image/png');
               
+              // Validate that toDataURL() succeeded
+              // Validate that toDataURL() succeeded
+              // Some browsers return 'data:,' if canvas.toDataURL() fails (e.g., canvas is empty, too large, or encoding error)
+              if (!dataUrl || dataUrl === 'data:,' || !dataUrl.includes(',')) {
+                  throw new Error('Failed to encode canvas to PNG. The canvas size may be too large for this browser. Try reducing scale or DPI.');
+              }
+              
               // Extract base64 data (remove "data:image/png;base64," prefix)
               const base64Data = dataUrl.split(',')[1];
+              
+              // Validate base64 data
+              if (!base64Data || base64Data.length === 0) {
+                  throw new Error('PNG encoding produced empty data. Try reducing scale or DPI.');
+              }
 
               // Update progress: Complete
               globalThis.__pngExportStatus__ = JSON.stringify({ 
