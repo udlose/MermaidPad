@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" />
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MermaidPad Preview</title>
@@ -477,9 +477,90 @@
             }
         };
 
-    // Export functionality using Mermaid's built-in capabilities
-    globalThis.exportDiagram = {
-        getSVG: () => {
+      // ==========================================
+      // EXPORT FUNCTION - Renders without foreignObject for PNG export
+      // ==========================================
+      globalThis.exportMermaidWithoutForeignObject = async function(diagramSource) {
+          console.log('=== EXPORT FUNCTION CALLED (v2) ===');
+          console.log('diagramSource', diagramSource);
+
+          const originalConfig = globalThis.mermaid.getConfig?.() ?? { startOnLoad: false, theme: globalThis.currentTheme };
+
+          try {
+              const fmRegex = /^---[\s\S]*?---/;
+
+              let cleanSource = diagramSource;
+              let userConfig = {};
+
+              const match = diagramSource.match(fmRegex);
+              if (match) {
+                  try {
+                      const parsed = globalThis.jsyaml.load(match[0]);
+                      if (parsed?.config) {
+                          userConfig = parsed.config;
+                      }
+                      cleanSource = diagramSource.replace(fmRegex, '').trim();
+                  } catch (yamlErr) {
+                      console.warn('YAML parse failed during export, stripping front-matter anyway');
+                      cleanSource = diagramSource.replace(fmRegex, '').trim();
+                  }
+              }
+
+              const exportConfig = {
+                  ...originalConfig,
+                  ...userConfig,
+                  startOnLoad: false,
+                  // Force htmlLabels to false for the export render
+                  flowchart: { ...originalConfig.flowchart, ...userConfig.flowchart, htmlLabels: false },
+                  sequence: { ...originalConfig.sequence, ...userConfig.sequence, useMaxWidth: true },
+              };
+    
+              // Temporarily initialize for export
+              globalThis.mermaid.initialize(exportConfig);
+
+              const exportId = `export-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+              console.log('Exporting with ID', exportId);
+
+              const renderResult = await globalThis.mermaid.render(exportId, cleanSource);
+
+              if (!renderResult?.svg) {
+                  throw new Error('Render returned no SVG content.');
+              }
+
+              let svgContent = renderResult.svg;
+
+              // CRUCIAL FIX: Manually remove all <foreignObject> elements
+              // This is more reliable than relying on the htmlLabels config.
+              const foreignObjectRegex = /<foreignObject[\s\S]*?<\/foreignObject>/g;
+              const svgWithoutForeignObjects = svgContent.replace(foreignObjectRegex, '');
+
+              const completeSvg = `<?xml version="1.0" encoding="UTF-8"?>${svgWithoutForeignObjects}`;
+
+              globalThis.lastExportedSvg = completeSvg;
+              console.log('EXPORT SUCCESS - SVG stored, length:', completeSvg.length);
+    
+              // Return a simple success indicator to the C# caller
+              return { success: true, length: completeSvg.length };
+
+          } catch (error) {
+              console.error('EXPORT FAILED:', error.message, error.stack);
+              globalThis.lastExportedSvg = null;
+              return { success: false, error: error.message };
+          } 
+          //finally {
+              // Restore the original configuration to ensure the live preview is not affected.
+              // This is safe to do now that we are not crashing inside the try block.
+              // if (globalThis.mermaid) {
+              //      globalThis.mermaid.initialize(originalConfig);
+              // }
+          //}
+      };
+
+      console.log('Export function registered: globalThis.exportMermaidWithoutForeignObject');
+
+      // Export functionality using Mermaid's built-in capabilities
+      globalThis.exportDiagram = {
+          getSVG: () => {
             try {
                 const svg = document.querySelector('#output svg');
                 if (!svg) {

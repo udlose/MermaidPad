@@ -76,7 +76,7 @@ public sealed partial class ExportService
         try
         {
             // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
-            string? svgContent = await GetSvgContentAsync();
+            string? svgContent = await GetSvgContentAsync(forPngExport: false);
 
             if (string.IsNullOrWhiteSpace(svgContent))
             {
@@ -242,7 +242,7 @@ public sealed partial class ExportService
             });
 
             // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
-            string? svgContent = await GetSvgContentAsync();
+            string? svgContent = await GetSvgContentAsync(forPngExport: true);
 
             if (string.IsNullOrWhiteSpace(svgContent))
             {
@@ -295,79 +295,208 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Gets the current SVG content from the rendered diagram.
+    /// Retrieves the SVG content of the currently displayed diagram, optionally re-rendering it for PNG export compatibility.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This is the public API for accessing SVG content from the WebView control.
-    /// It is used by <see cref="ViewModels.Dialogs.ExportDialogViewModel"/> to load actual SVG dimensions
-    /// for calculating export estimates.
-    /// </para>
-    /// <para>
-    /// <strong>Threading:</strong> This method MUST run on the UI thread because it accesses
-    /// the WebView control via <c>ExecuteScriptAsync</c>. Do NOT use <c>ConfigureAwait(false)</c>
-    /// when calling this method.
-    /// </para>
-    /// <para>
-    /// <strong>Design:</strong> This method wraps the private <see cref="GetSvgContentAsync"/>
-    /// to provide a clear, documented public interface while keeping the implementation details
-    /// private. This separation allows for future enhancements without breaking the public API.
-    /// </para>
-    /// </remarks>
-    /// <returns>
-    /// The SVG content as a complete XML string with declaration and namespace, or <c>null</c>
-    /// if no SVG element is found in the rendered output.
-    /// </returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if the WebView is not initialized or accessible.
-    /// </exception>
-    public async Task<string?> GetCurrentSvgContentAsync()
+    /// <remarks>When <paramref name="forPngExport"/> is <see langword="true"/>, the method ensures
+    /// compatibility with rendering engines that do not support certain SVG elements, such as <c>foreignObject</c>.
+    /// This is useful for scenarios where the SVG will be converted to a PNG image.  The method interacts with a
+    /// WebView to execute JavaScript for retrieving or re-rendering the SVG content. It ensures that all WebView
+    /// interactions occur on the UI thread.</remarks>
+    /// <param name="forPngExport">A boolean value indicating whether the SVG should be re-rendered for PNG export. If <see langword="true"/>, the
+    /// method re-renders the SVG to exclude unsupported elements like <c>foreignObject</c>. If <see langword="false"/>,
+    /// the currently displayed SVG is returned as-is.</param>
+    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result is a string containing the SVG
+    /// content, or <see langword="null"/> if the SVG content could not be retrieved.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the JavaScript rendering process fails or if the exported SVG content cannot be retrieved.</exception>
+    public async Task<string?> GetSvgContentAsync(bool forPngExport)
     {
-        // This method needs to run on UI thread (WebView access)
-        return await GetSvgContentAsync();
-    }
-
-    private async Task<string?> GetSvgContentAsync()
-    {
-        const string script =
-            """
+        if (!forPngExport)
+        {
+            // Get currently displayed SVG
+            const string script = """
             (function() {
-                const svgElement = document.querySelector('#output svg');
-                if (!svgElement) return null;
-                
-                // Clone to avoid modifying the original
-                const clone = svgElement.cloneNode(true);
-                
-                // Add XML declaration and doctype
-                const serializer = new XMLSerializer();
-                const svgString = serializer.serializeToString(clone);
-                
-                // Return complete SVG document
-                return '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
+              const svgElement = document.querySelector('#output svg');
+              if (!svgElement) return null;
+
+              // Clone to avoid modifying the original
+              const clone = svgElement.cloneNode(true);
+
+              // Add XML declaration and doctype
+              const serializer = new XMLSerializer();
+              const svgString = serializer.serializeToString(clone);
+
+              // Return complete SVG document as a primitive string (bridge-friendly)
+            return '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
             })();
             """;
 
-        // Ensure WebView access happens on the UI thread
-        string? result;
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            // Already on UI thread - execute directly
-            result = await _mermaidRenderer.ExecuteScriptAsync(script);
-        }
-        else
-        {
-            // Not on UI thread - marshal to UI thread
-            result = await Dispatcher.UIThread.InvokeAsync(
-                () => _mermaidRenderer.ExecuteScriptAsync(script));
+            // Ensure WebView access happens on the UI thread
+            string? result;
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                // Already on UI thread - execute directly
+                result = await _mermaidRenderer.ExecuteScriptAsync(script);
+            }
+            else
+            {
+                // Not on UI thread - marshal to UI thread
+                result = await Dispatcher.UIThread.InvokeAsync(
+                    () => _mermaidRenderer.ExecuteScriptAsync(script));
+            }
+
+            // Remove any JSON escaping if present
+            if (!string.IsNullOrWhiteSpace(result) && result.StartsWith('\"') && result.EndsWith('\"'))
+            {
+                result = JsonSerializer.Deserialize<string>(result) ?? result;
+            }
+
+            return result;
         }
 
-        // Remove any JSON escaping if present
-        if (!string.IsNullOrWhiteSpace(result) && result.StartsWith('"') && result.EndsWith('"'))
+        // Re-render for export without foreignObjects since SkiaSharp does not support them
+        // Having foreignObjects in the SVG can lead to missing labels in the PNG output
+        try
         {
-            result = JsonSerializer.Deserialize<string>(result) ?? result;
-        }
+            // Get the current diagram source
+            string? originalDiagramSource = await _mermaidRenderer.ExecuteScriptAsync("globalThis.lastMermaidSource || ''");
+            SimpleLogger.Log($"originalDiagramSource: {Environment.NewLine}{originalDiagramSource}{Environment.NewLine}");
+            if (string.IsNullOrWhiteSpace(originalDiagramSource) || originalDiagramSource == "''")
+            {
+                SimpleLogger.Log("No diagram source available for export render");
+                return null;
+            }
 
-        return result;
+            // Clean up JavaScript string quotes
+            string trimmedDiagramSource = originalDiagramSource.Trim('\'', '\"');
+            SimpleLogger.Log($"trimmedDiagramSource: {Environment.NewLine}{trimmedDiagramSource}{Environment.NewLine}");
+            if (string.IsNullOrWhiteSpace(trimmedDiagramSource))
+            {
+                return null;
+            }
+
+            // STEP 1: Store the diagram source in a global variable
+            // This is already a JavaScript string, so we can use it directly
+            const string setSourceScript = "globalThis.exportDiagramSource = globalThis.lastMermaidSource;";
+            await _mermaidRenderer.ExecuteScriptAsync(setSourceScript);
+            SimpleLogger.Log("Diagram source stored in global variable");
+
+            // STEP 2: Kick off the async export in-page without returning a promise to .NET
+            // We will poll a synchronous getter for a primitive string result (__exportStatus__) to avoid interop coercion.
+            const string startExportScript = """
+            (function(){
+              try{
+                if (!globalThis.exportDiagramSource) {
+                  globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error:'No diagram source available' }, svg:'' });
+                  globalThis.lastExportedSvg = null;
+                  return;
+                }
+
+                // Remove quotes if present (it's already a string)
+                let src = globalThis.exportDiagramSource;
+                if (typeof src === 'string') src = src.replace(/^["']|["']$/g, '');
+
+                // Reset status before starting
+                globalThis.__exportStatus__ = '';
+
+                // Start async export but DO NOT return the promise (bridge expects sync return)
+                (async () => {
+                  try {
+                    const statusObj = await globalThis.exportMermaidWithoutForeignObject(src);
+                    globalThis.exportDiagramSource = null;
+
+                    let svg = '';
+                    if (statusObj && statusObj.success && globalThis.lastExportedSvg) {
+                      const xmlDecl = '<?xml version="1.0" encoding="UTF-8"?>';
+                      const raw = String(globalThis.lastExportedSvg);
+                      svg = raw.startsWith('<?xml') ? raw : (xmlDecl + raw);
+                    }
+
+                    globalThis.__exportStatus__ = JSON.stringify({ status: statusObj || { success:false, error:'No result' }, svg });
+
+                  } catch (e) {
+                    globalThis.exportDiagramSource = null;
+                    globalThis.lastExportedSvg = null;
+                    globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error: (e && e.message) || 'Unknown error' }, svg:'' });
+                  }
+                })();
+              } catch (e){
+                globalThis.exportDiagramSource = null;
+                globalThis.lastExportedSvg = null;
+                globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error: (e && e.message) || 'Unknown error' }, svg:'' });
+              }
+            })();
+            """;
+
+            SimpleLogger.Log("Calling export function (async start, no return)...");
+            await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
+
+            // STEP 3: Poll a synchronous getter for a primitive string result
+            const string readStatusScript = "globalThis.__exportStatus__ ? String(globalThis.__exportStatus__) : ''";
+
+            Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+            string? payload = "";
+            while (sw.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                payload = await _mermaidRenderer.ExecuteScriptAsync(readStatusScript);
+
+                // If the bridge wrapped it in quotes, it will still be non-empty here ("..."), so we can break.
+                if (!string.IsNullOrWhiteSpace(payload) && payload != "\"\"" && payload != "null" && payload != "{}")
+                {
+                    break;
+                }
+
+                await Task.Delay(50);
+            }
+
+            if (string.IsNullOrWhiteSpace(payload) || payload == "\"\"" || payload == "null" || payload == "{}")
+            {
+                SimpleLogger.LogError("Export function returned no response");
+                return null;
+            }
+
+            // Remove any JSON escaping if present
+            if (payload.StartsWith('\"') && payload.EndsWith('\"'))
+            {
+                payload = JsonSerializer.Deserialize<string>(payload) ?? payload;
+            }
+
+            // Parse combined status + svg
+            using JsonDocument doc = JsonDocument.Parse(payload);
+            JsonElement root = doc.RootElement;
+
+            if (!root.TryGetProperty("status", out JsonElement statusEl) ||
+                !statusEl.TryGetProperty("success", out JsonElement okEl) ||
+                !okEl.GetBoolean())
+            {
+                string err = (statusEl.TryGetProperty("error", out JsonElement errEl) ? errEl.GetString() : "Unknown error") ?? "Unknown error";
+                SimpleLogger.LogError($"JavaScript render failed: {err}");
+                throw new InvalidOperationException($"JavaScript render failed: {err}");
+            }
+
+            string svg = root.TryGetProperty("svg", out JsonElement svgEl) ? (svgEl.GetString() ?? "") : "";
+            if (string.IsNullOrWhiteSpace(svg))
+            {
+                SimpleLogger.LogError("Failed to retrieve exported SVG string");
+                return null;
+            }
+
+            SimpleLogger.Log($"Export SVG retrieved successfully ({svg.Length:N0} chars)");
+
+            // Optional: cleanup globals
+            await _mermaidRenderer.ExecuteScriptAsync("globalThis.lastExportedSvg = null; globalThis.__exportStatus__ = '';");
+
+            return svg;
+        }
+        catch (JsonException je)
+        {
+            SimpleLogger.LogError($"Failed to parse result: {je.Message}", je);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError($"Failed to get export SVG content: {ex.Message}", ex);
+            throw new InvalidOperationException("Failed to retrieve export SVG content", ex);
+        }
     }
 
     /// <summary>
