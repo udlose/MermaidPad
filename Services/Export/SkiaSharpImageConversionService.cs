@@ -247,8 +247,9 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 throw new InvalidOperationException("Calculated image dimensions are invalid");
             }
 
-            const string calculatedDimensionMessage =
-                $$"""
+            //TODO: write out dimension details to the UI????
+            string calculatedDimensionMessage =
+                $"""
                 Converting original .svg to .png.
                 Bounds: {bounds.Width}x{bounds.Height}, Scale: {options.ScaleFactor}, DPI: {options.Dpi}, 
                 Max: {options.MaxWidth}x{options.MaxHeight}, PreserveAspect: {options.PreserveAspectRatio}
@@ -442,7 +443,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         };
 
         // Transparent output tends to be a bit larger than opaque backgrounds.
-        bool backgroundTransparent = options.BackgroundColor is null || options.BackgroundColor.Equals("transparent", StringComparison.OrdinalIgnoreCase);
+        bool backgroundTransparent = options.BackgroundColor?.Equals("transparent", StringComparison.OrdinalIgnoreCase) != false;
         if (backgroundTransparent)
         {
             ratio = Math.Max(4, ratio - 2); // grow estimate (raw/6 -> raw/4)
