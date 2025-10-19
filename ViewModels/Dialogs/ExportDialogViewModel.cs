@@ -224,7 +224,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             if (_exportService is not null)
             {
                 // Get the current SVG content
-                string? svgContent = await _exportService.GetSvgContentAsync(forPngExport: false);
+                string? svgContent = await _exportService.GetSvgContentAsync();
 
                 if (!string.IsNullOrWhiteSpace(svgContent) && _imageConversionService is not null)
                 {
