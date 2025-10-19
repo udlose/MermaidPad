@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ public sealed partial class ExportService
         try
         {
             // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
-            string? svgContent = await GetSvgContentAsync(forPngExport: false);
+            string? svgContent = await GetSvgContentAsync();
 
             if (string.IsNullOrWhiteSpace(svgContent))
             {
@@ -208,18 +208,20 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Exports the current diagram as a PNG image to the specified file path asynchronously.
+    /// Exports the current diagram as a PNG image to the specified file path asynchronously using browser-based rendering.
     /// </summary>
-    /// <remarks>The export operation runs asynchronously and may perform file I/O and image conversion on
-    /// background threads. If the target directory does not exist, it will be created automatically. Progress updates,
-    /// if requested, are reported at key stages of the export process.</remarks>
+    /// <remarks>
+    /// This method uses the browser's canvas API to render the diagram to PNG, which provides pixel-perfect
+    /// accuracy matching the live preview. This approach correctly handles foreignObject elements, HTML/CSS styling,
+    /// and all Mermaid features including ELK layouts. The export operation runs asynchronously with progress reporting.
+    /// </remarks>
     /// <param name="targetPath">The file path where the exported PNG image will be saved. Cannot be null or empty.</param>
     /// <param name="options">The options to use for PNG export, such as DPI and scale factor. If null, default options are used.</param>
     /// <param name="progress">An optional progress reporter that receives updates about the export operation. Progress updates are marshaled
     /// to the UI thread if provided.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the diagram's SVG content cannot be extracted.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the PNG export fails.</exception>
     public async Task ExportPngAsync(
         string targetPath,
         PngExportOptions? options = null,
@@ -229,7 +231,7 @@ public sealed partial class ExportService
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
         options ??= new PngExportOptions();
-        SimpleLogger.Log($"Starting PNG export to: {targetPath} (DPI: {options.Dpi}, Scale: {options.ScaleFactor}x)");
+        SimpleLogger.Log($"Starting browser-based PNG export to: {targetPath} (DPI: {options.Dpi}, Scale: {options.ScaleFactor}x)");
 
         try
         {
@@ -238,31 +240,139 @@ public sealed partial class ExportService
             {
                 Step = ExportStep.Initializing,
                 PercentComplete = 0,
-                Message = "Initializing export..."
+                Message = "Initializing PNG export..."
             });
 
-            // Get SVG content from the WebView - MUST stay on UI thread (WebView access)
-            string? svgContent = await GetSvgContentAsync(forPngExport: true);
-
-            if (string.IsNullOrWhiteSpace(svgContent))
+            // Ensure we're on UI thread for WebView access
+            if (!Dispatcher.UIThread.CheckAccess())
             {
-                throw new InvalidOperationException("Failed to extract SVG content from diagram");
+                await Dispatcher.UIThread.InvokeAsync(async () => await ExportPngAsync(targetPath, options, progress, cancellationToken));
+                return;
             }
 
-            // Wrap progress so all updates are marshaled to the UI thread
-            IProgress<ExportProgress>? uiProgress = progress is null
-                ? null
-                : new Progress<ExportProgress>(p => ReportProgress(progress, p));
+            // Prepare export options for JavaScript
+            string backgroundColor = options.BackgroundColor ?? "transparent";
 
-            // Convert to PNG on background thread
-            ReadOnlyMemory<byte> pngData = await _imageConversionService.ConvertSvgToPngAsync(
-                svgContent,
-                options,
-                uiProgress,
-                cancellationToken)
-            .ConfigureAwait(false);
 
-            // File I/O on background thread - ConfigureAwait(false) keeps us on background thread
+
+
+            string exportOptionsJson = JsonSerializer.Serialize(new
+            {
+                scale = options.ScaleFactor,
+                dpi = options.Dpi,
+                backgroundColor
+            });
+
+            SimpleLogger.Log($"Export options: {exportOptionsJson}");
+
+            // Call the browser-based PNG export function
+            string startExportScript = $"(async () => {{ return await globalThis.exportToPNG({exportOptionsJson}); }})();";
+
+            // Start the export (this initiates async work in the browser)
+            await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
+
+            // Poll for progress updates
+            const string statusScript = "globalThis.__pngExportStatus__ ? String(globalThis.__pngExportStatus__) : ''";
+
+            Stopwatch sw = Stopwatch.StartNew();
+            string lastStatus = "";
+
+            while (sw.Elapsed < TimeSpan.FromMinutes(2)) // 2 minute timeout
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                string? statusJson = await _mermaidRenderer.ExecuteScriptAsync(statusScript);
+
+                if (!string.IsNullOrWhiteSpace(statusJson) && statusJson != lastStatus)
+                {
+                    lastStatus = statusJson;
+
+                    // Remove JSON string quotes if present
+                    if (statusJson.StartsWith('\"') && statusJson.EndsWith('\"'))
+                    {
+                        statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
+                    }
+
+                    try
+                    {
+                        using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
+                        JsonElement root = statusDoc.RootElement;
+
+                        string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
+                        int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
+                        string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? "" : "";
+
+                        SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
+
+                        // Map JavaScript steps to our ExportStep enum
+                        ExportStep exportStep = step switch
+                        {
+                            "initializing" => ExportStep.Initializing,
+                            "rendering" => ExportStep.Rendering,
+                            "creating-canvas" => ExportStep.CreatingCanvas,
+                            "converting" or "drawing" => ExportStep.Rendering,
+                            "encoding" => ExportStep.Encoding,
+                            "complete" => ExportStep.Complete,
+                            "error" => ExportStep.Initializing, // Will be handled below
+                            _ => ExportStep.Rendering
+                        };
+
+                        ReportProgress(progress, new ExportProgress
+                        {
+                            Step = exportStep,
+                            PercentComplete = percent,
+                            Message = message
+                        });
+
+                        // Check if complete or error
+                        if (step == "complete")
+                        {
+                            SimpleLogger.Log("PNG export completed successfully");
+                            break;
+                        }
+
+                        if (step == "error")
+                        {
+                            throw new InvalidOperationException($"PNG export failed: {message}");
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Ignore JSON parse errors during polling
+                    }
+                }
+
+                await Task.Delay(100, cancellationToken);
+            }
+
+            if (sw.Elapsed >= TimeSpan.FromMinutes(2))
+            {
+                throw new InvalidOperationException("PNG export timed out after 2 minutes");
+            }
+
+            // Retrieve the PNG data
+            const string getResultScript = "globalThis.__pngExportResult__ ? String(globalThis.__pngExportResult__) : ''";
+            string? base64Data = await _mermaidRenderer.ExecuteScriptAsync(getResultScript);
+
+            if (string.IsNullOrWhiteSpace(base64Data))
+            {
+                throw new InvalidOperationException("Failed to retrieve PNG data from export");
+            }
+
+            // Remove JSON string quotes if present
+            if (base64Data.StartsWith('\"') && base64Data.EndsWith('\"'))
+            {
+                base64Data = JsonSerializer.Deserialize<string>(base64Data) ?? base64Data;
+            }
+
+            // Convert base64 to bytes
+            byte[] pngData = Convert.FromBase64String(base64Data);
+
+            SimpleLogger.Log($"PNG data retrieved: {pngData.Length:N0} bytes");
+
+            //// Write to file on background thread
+            //await Task.Run(async () =>
+            //{
             string? directory = Path.GetDirectoryName(targetPath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
@@ -271,13 +381,18 @@ public sealed partial class ExportService
 
             await File.WriteAllBytesAsync(targetPath, pngData, cancellationToken)
                 .ConfigureAwait(false);
+            //}, cancellationToken)
+            //.ConfigureAwait(false);
+
+            // Clean up JavaScript globals
+            await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
 
             // Report completion - marshal to UI thread
             ReportProgress(progress, new ExportProgress
             {
                 Step = ExportStep.Complete,
                 PercentComplete = 100,
-                Message = "Export completed successfully!"
+                Message = "PNG export completed successfully!"
             });
 
             SimpleLogger.Log($"PNG exported successfully: {pngData.Length:N0} bytes");
@@ -295,208 +410,56 @@ public sealed partial class ExportService
     }
 
     /// <summary>
-    /// Retrieves the SVG content of the currently displayed diagram, optionally re-rendering it for PNG export compatibility.
+    /// Retrieves the SVG content of the currently displayed diagram.
     /// </summary>
-    /// <remarks>When <paramref name="forPngExport"/> is <see langword="true"/>, the method ensures
-    /// compatibility with rendering engines that do not support certain SVG elements, such as <c>foreignObject</c>.
-    /// This is useful for scenarios where the SVG will be converted to a PNG image.  The method interacts with a
-    /// WebView to execute JavaScript for retrieving or re-rendering the SVG content. It ensures that all WebView
-    /// interactions occur on the UI thread.</remarks>
-    /// <param name="forPngExport">A boolean value indicating whether the SVG should be re-rendered for PNG export. If <see langword="true"/>, the
-    /// method re-renders the SVG to exclude unsupported elements like <c>foreignObject</c>. If <see langword="false"/>,
-    /// the currently displayed SVG is returned as-is.</param>
+    /// <remarks>
+    /// This method extracts the SVG from the live preview in the WebView. The method interacts with the
+    /// WebView to execute JavaScript for retrieving the SVG content. It ensures that all WebView
+    /// interactions occur on the UI thread.
+    /// </remarks>
     /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result is a string containing the SVG
     /// content, or <see langword="null"/> if the SVG content could not be retrieved.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the JavaScript rendering process fails or if the exported SVG content cannot be retrieved.</exception>
-    public async Task<string?> GetSvgContentAsync(bool forPngExport)
+    /// <exception cref="InvalidOperationException">Thrown if the JavaScript execution fails.</exception>
+    public async Task<string?> GetSvgContentAsync()
     {
-        if (!forPngExport)
+        const string script = """
+        (function() {
+          const svgElement = document.querySelector('#output svg');
+          if (!svgElement) return null;
+
+          // Clone to avoid modifying the original
+          const clone = svgElement.cloneNode(true);
+
+          // Add XML declaration
+          const serializer = new XMLSerializer();
+          const svgString = serializer.serializeToString(clone);
+
+          // Return complete SVG document as a primitive string (bridge-friendly)
+          return '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
+        })();
+        """;
+
+        // Ensure WebView access happens on the UI thread
+        string? result;
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            // Get currently displayed SVG
-            const string script = """
-            (function() {
-              const svgElement = document.querySelector('#output svg');
-              if (!svgElement) return null;
-
-              // Clone to avoid modifying the original
-              const clone = svgElement.cloneNode(true);
-
-              // Add XML declaration and doctype
-              const serializer = new XMLSerializer();
-              const svgString = serializer.serializeToString(clone);
-
-              // Return complete SVG document as a primitive string (bridge-friendly)
-            return '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
-            })();
-            """;
-
-            // Ensure WebView access happens on the UI thread
-            string? result;
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                // Already on UI thread - execute directly
-                result = await _mermaidRenderer.ExecuteScriptAsync(script);
-            }
-            else
-            {
-                // Not on UI thread - marshal to UI thread
-                result = await Dispatcher.UIThread.InvokeAsync(
-                    () => _mermaidRenderer.ExecuteScriptAsync(script));
-            }
-
-            // Remove any JSON escaping if present
-            if (!string.IsNullOrWhiteSpace(result) && result.StartsWith('\"') && result.EndsWith('\"'))
-            {
-                result = JsonSerializer.Deserialize<string>(result) ?? result;
-            }
-
-            return result;
+            // Already on UI thread - execute directly
+            result = await _mermaidRenderer.ExecuteScriptAsync(script);
+        }
+        else
+        {
+            // Not on UI thread - marshal to UI thread
+            result = await Dispatcher.UIThread.InvokeAsync(
+                () => _mermaidRenderer.ExecuteScriptAsync(script));
         }
 
-        // Re-render for export without foreignObjects since SkiaSharp does not support them
-        // Having foreignObjects in the SVG can lead to missing labels in the PNG output
-        try
+        // Remove any JSON escaping if present
+        if (!string.IsNullOrWhiteSpace(result) && result.StartsWith('\"') && result.EndsWith('\"'))
         {
-            // Get the current diagram source
-            string? originalDiagramSource = await _mermaidRenderer.ExecuteScriptAsync("globalThis.lastMermaidSource || ''");
-            SimpleLogger.Log($"originalDiagramSource: {Environment.NewLine}{originalDiagramSource}{Environment.NewLine}");
-            if (string.IsNullOrWhiteSpace(originalDiagramSource) || originalDiagramSource == "''")
-            {
-                SimpleLogger.Log("No diagram source available for export render");
-                return null;
-            }
-
-            // Clean up JavaScript string quotes
-            string trimmedDiagramSource = originalDiagramSource.Trim('\'', '\"');
-            SimpleLogger.Log($"trimmedDiagramSource: {Environment.NewLine}{trimmedDiagramSource}{Environment.NewLine}");
-            if (string.IsNullOrWhiteSpace(trimmedDiagramSource))
-            {
-                return null;
-            }
-
-            // STEP 1: Store the diagram source in a global variable
-            // This is already a JavaScript string, so we can use it directly
-            const string setSourceScript = "globalThis.exportDiagramSource = globalThis.lastMermaidSource;";
-            await _mermaidRenderer.ExecuteScriptAsync(setSourceScript);
-            SimpleLogger.Log("Diagram source stored in global variable");
-
-            // STEP 2: Kick off the async export in-page without returning a promise to .NET
-            // We will poll a synchronous getter for a primitive string result (__exportStatus__) to avoid interop coercion.
-            const string startExportScript = """
-            (function(){
-              try{
-                if (!globalThis.exportDiagramSource) {
-                  globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error:'No diagram source available' }, svg:'' });
-                  globalThis.lastExportedSvg = null;
-                  return;
-                }
-
-                // Remove quotes if present (it's already a string)
-                let src = globalThis.exportDiagramSource;
-                if (typeof src === 'string') src = src.replace(/^["']|["']$/g, '');
-
-                // Reset status before starting
-                globalThis.__exportStatus__ = '';
-
-                // Start async export but DO NOT return the promise (bridge expects sync return)
-                (async () => {
-                  try {
-                    const statusObj = await globalThis.exportMermaidWithoutForeignObject(src);
-                    globalThis.exportDiagramSource = null;
-
-                    let svg = '';
-                    if (statusObj && statusObj.success && globalThis.lastExportedSvg) {
-                      const xmlDecl = '<?xml version="1.0" encoding="UTF-8"?>';
-                      const raw = String(globalThis.lastExportedSvg);
-                      svg = raw.startsWith('<?xml') ? raw : (xmlDecl + raw);
-                    }
-
-                    globalThis.__exportStatus__ = JSON.stringify({ status: statusObj || { success:false, error:'No result' }, svg });
-
-                  } catch (e) {
-                    globalThis.exportDiagramSource = null;
-                    globalThis.lastExportedSvg = null;
-                    globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error: (e && e.message) || 'Unknown error' }, svg:'' });
-                  }
-                })();
-              } catch (e){
-                globalThis.exportDiagramSource = null;
-                globalThis.lastExportedSvg = null;
-                globalThis.__exportStatus__ = JSON.stringify({ status:{ success:false, error: (e && e.message) || 'Unknown error' }, svg:'' });
-              }
-            })();
-            """;
-
-            SimpleLogger.Log("Calling export function (async start, no return)...");
-            await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
-
-            // STEP 3: Poll a synchronous getter for a primitive string result
-            const string readStatusScript = "globalThis.__exportStatus__ ? String(globalThis.__exportStatus__) : ''";
-
-            Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
-            string? payload = "";
-            while (sw.Elapsed < TimeSpan.FromSeconds(10))
-            {
-                payload = await _mermaidRenderer.ExecuteScriptAsync(readStatusScript);
-
-                // If the bridge wrapped it in quotes, it will still be non-empty here ("..."), so we can break.
-                if (!string.IsNullOrWhiteSpace(payload) && payload != "\"\"" && payload != "null" && payload != "{}")
-                {
-                    break;
-                }
-
-                await Task.Delay(50);
-            }
-
-            if (string.IsNullOrWhiteSpace(payload) || payload == "\"\"" || payload == "null" || payload == "{}")
-            {
-                SimpleLogger.LogError("Export function returned no response");
-                return null;
-            }
-
-            // Remove any JSON escaping if present
-            if (payload.StartsWith('\"') && payload.EndsWith('\"'))
-            {
-                payload = JsonSerializer.Deserialize<string>(payload) ?? payload;
-            }
-
-            // Parse combined status + svg
-            using JsonDocument doc = JsonDocument.Parse(payload);
-            JsonElement root = doc.RootElement;
-
-            if (!root.TryGetProperty("status", out JsonElement statusEl) ||
-                !statusEl.TryGetProperty("success", out JsonElement okEl) ||
-                !okEl.GetBoolean())
-            {
-                string err = (statusEl.TryGetProperty("error", out JsonElement errEl) ? errEl.GetString() : "Unknown error") ?? "Unknown error";
-                SimpleLogger.LogError($"JavaScript render failed: {err}");
-                throw new InvalidOperationException($"JavaScript render failed: {err}");
-            }
-
-            string svg = root.TryGetProperty("svg", out JsonElement svgEl) ? (svgEl.GetString() ?? "") : "";
-            if (string.IsNullOrWhiteSpace(svg))
-            {
-                SimpleLogger.LogError("Failed to retrieve exported SVG string");
-                return null;
-            }
-
-            SimpleLogger.Log($"Export SVG retrieved successfully ({svg.Length:N0} chars)");
-
-            // Optional: cleanup globals
-            await _mermaidRenderer.ExecuteScriptAsync("globalThis.lastExportedSvg = null; globalThis.__exportStatus__ = '';");
-
-            return svg;
+            result = JsonSerializer.Deserialize<string>(result) ?? result;
         }
-        catch (JsonException je)
-        {
-            SimpleLogger.LogError($"Failed to parse result: {je.Message}", je);
-            return null;
-        }
-        catch (Exception ex)
-        {
-            SimpleLogger.LogError($"Failed to get export SVG content: {ex.Message}", ex);
-            throw new InvalidOperationException("Failed to retrieve export SVG content", ex);
-        }
+
+        return result;
     }
 
     /// <summary>
