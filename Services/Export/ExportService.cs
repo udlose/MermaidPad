@@ -43,6 +43,7 @@ public sealed partial class ExportService
     [GeneratedRegex(@">\s+<", RegexOptions.Compiled)]
     private static partial Regex GetWhitespaceBetweenTagsRegex();
     private static readonly XNamespace _svgNamespace = "http://www.w3.org/2000/svg";
+    private static readonly TimeSpan _exportToPngTimeout = TimeSpan.FromSeconds(60);
 
     private readonly MermaidRenderer _mermaidRenderer;
     private readonly IImageConversionService _imageConversionService;
@@ -243,159 +244,17 @@ public sealed partial class ExportService
                 Message = "Initializing PNG export..."
             });
 
-            // Ensure we're on UI thread for WebView access
+            // Ensure we're on UI thread for WebView access.
+            // Instead of recursively calling ExportPngAsync on the UI thread (which caused recursion),
+            // marshal only the UI-bound implementation to the UI thread.
             if (!Dispatcher.UIThread.CheckAccess())
             {
-                await Dispatcher.UIThread.InvokeAsync(async () => await ExportPngAsync(targetPath, options, progress, cancellationToken));
+                await Dispatcher.UIThread.InvokeAsync(() => ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken));
                 return;
             }
 
-            // Prepare export options for JavaScript
-            string backgroundColor = options.BackgroundColor ?? "transparent";
-
-
-
-
-            string exportOptionsJson = JsonSerializer.Serialize(new
-            {
-                scale = options.ScaleFactor,
-                dpi = options.Dpi,
-                backgroundColor
-            });
-
-            SimpleLogger.Log($"Export options: {exportOptionsJson}");
-
-            // Call the browser-based PNG export function
-            string startExportScript = $"(async () => {{ return await globalThis.exportToPNG({exportOptionsJson}); }})();";
-
-            // Start the export (this initiates async work in the browser)
-            await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
-
-            // Poll for progress updates
-            const string statusScript = "globalThis.__pngExportStatus__ ? String(globalThis.__pngExportStatus__) : ''";
-
-            Stopwatch sw = Stopwatch.StartNew();
-            string lastStatus = "";
-
-            while (sw.Elapsed < TimeSpan.FromMinutes(2)) // 2 minute timeout
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                string? statusJson = await _mermaidRenderer.ExecuteScriptAsync(statusScript);
-
-                if (!string.IsNullOrWhiteSpace(statusJson) && statusJson != lastStatus)
-                {
-                    lastStatus = statusJson;
-
-                    // Remove JSON string quotes if present
-                    if (statusJson.StartsWith('\"') && statusJson.EndsWith('\"'))
-                    {
-                        statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
-                    }
-
-                    try
-                    {
-                        using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
-                        JsonElement root = statusDoc.RootElement;
-
-                        string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
-                        int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
-                        string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? "" : "";
-
-                        SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
-
-                        // Map JavaScript steps to our ExportStep enum
-                        ExportStep exportStep = step switch
-                        {
-                            "initializing" => ExportStep.Initializing,
-                            "rendering" => ExportStep.Rendering,
-                            "creating-canvas" => ExportStep.CreatingCanvas,
-                            "converting" or "drawing" => ExportStep.Rendering,
-                            "encoding" => ExportStep.Encoding,
-                            "complete" => ExportStep.Complete,
-                            "error" => ExportStep.Initializing, // Will be handled below
-                            _ => ExportStep.Rendering
-                        };
-
-                        ReportProgress(progress, new ExportProgress
-                        {
-                            Step = exportStep,
-                            PercentComplete = percent,
-                            Message = message
-                        });
-
-                        // Check if complete or error
-                        if (step == "complete")
-                        {
-                            SimpleLogger.Log("PNG export completed successfully");
-                            break;
-                        }
-
-                        if (step == "error")
-                        {
-                            throw new InvalidOperationException($"PNG export failed: {message}");
-                        }
-                    }
-                    catch (JsonException)
-                    {
-                        // Ignore JSON parse errors during polling
-                    }
-                }
-
-                await Task.Delay(100, cancellationToken);
-            }
-
-            if (sw.Elapsed >= TimeSpan.FromMinutes(2))
-            {
-                throw new InvalidOperationException("PNG export timed out after 2 minutes");
-            }
-
-            // Retrieve the PNG data
-            const string getResultScript = "globalThis.__pngExportResult__ ? String(globalThis.__pngExportResult__) : ''";
-            string? base64Data = await _mermaidRenderer.ExecuteScriptAsync(getResultScript);
-
-            if (string.IsNullOrWhiteSpace(base64Data))
-            {
-                throw new InvalidOperationException("Failed to retrieve PNG data from export");
-            }
-
-            // Remove JSON string quotes if present
-            if (base64Data.StartsWith('\"') && base64Data.EndsWith('\"'))
-            {
-                base64Data = JsonSerializer.Deserialize<string>(base64Data) ?? base64Data;
-            }
-
-            // Convert base64 to bytes
-            byte[] pngData = Convert.FromBase64String(base64Data);
-
-            SimpleLogger.Log($"PNG data retrieved: {pngData.Length:N0} bytes");
-
-            //// Write to file on background thread
-            //await Task.Run(async () =>
-            //{
-            string? directory = Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            await File.WriteAllBytesAsync(targetPath, pngData, cancellationToken)
-                .ConfigureAwait(false);
-            //}, cancellationToken)
-            //.ConfigureAwait(false);
-
-            // Clean up JavaScript globals
-            await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
-
-            // Report completion - marshal to UI thread
-            ReportProgress(progress, new ExportProgress
-            {
-                Step = ExportStep.Complete,
-                PercentComplete = 100,
-                Message = "PNG export completed successfully!"
-            });
-
-            SimpleLogger.Log($"PNG exported successfully: {pngData.Length:N0} bytes");
+            // Already on UI thread - run the UI-bound implementation directly.
+            await ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -407,6 +266,158 @@ public sealed partial class ExportService
             SimpleLogger.LogError($"PNG export failed: {ex.Message}", ex);
             throw;
         }
+    }
+
+    /// <summary>
+    /// UI-thread-bound portion of the PNG export. Separated to avoid recursive marshalling to the UI thread.
+    /// This method assumes it is running on the UI thread.
+    /// </summary>
+    private async Task ExportPngOnUiThreadAsync(
+        string targetPath,
+        PngExportOptions options,
+        IProgress<ExportProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        // Prepare export options for JavaScript
+        string backgroundColor = options.BackgroundColor ?? "transparent";
+
+        string exportOptionsJson = JsonSerializer.Serialize(new
+        {
+            scale = options.ScaleFactor,
+            dpi = options.Dpi,
+            backgroundColor
+        });
+
+        SimpleLogger.Log($"Export options: {exportOptionsJson}");
+
+        // Call the browser-based PNG export function
+        string startExportScript = $"(async () => {{ return await globalThis.exportToPNG({exportOptionsJson}); }})();";
+
+        // Start the export (this initiates async work in the browser)
+        await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
+
+        // Poll for progress updates
+        const string statusScript = "globalThis.__pngExportStatus__ ? String(globalThis.__pngExportStatus__) : ''";
+
+        Stopwatch sw = Stopwatch.StartNew();
+        string lastStatus = "";
+
+        // TODO is there a better way to know when the export is done without polling?
+        while (sw.Elapsed < _exportToPngTimeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            string? statusJson = await _mermaidRenderer.ExecuteScriptAsync(statusScript);
+
+            if (!string.IsNullOrWhiteSpace(statusJson) && statusJson != lastStatus)
+            {
+                lastStatus = statusJson;
+
+                // Remove JSON string quotes if present
+                if (statusJson.StartsWith('\"') && statusJson.EndsWith('\"'))
+                {
+                    statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
+                }
+
+                try
+                {
+                    using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
+                    JsonElement root = statusDoc.RootElement;
+
+                    string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
+                    int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
+                    string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? "" : "";
+
+                    SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
+
+                    // Map JavaScript steps to our ExportStep enum
+                    ExportStep exportStep = step switch
+                    {
+                        "initializing" => ExportStep.Initializing,
+                        "rendering" => ExportStep.Rendering,
+                        "creating-canvas" => ExportStep.CreatingCanvas,
+                        "converting" or "drawing" => ExportStep.Rendering,
+                        "encoding" => ExportStep.Encoding,
+                        "complete" => ExportStep.Complete,
+                        "error" => ExportStep.Initializing, // Will be handled below
+                        _ => ExportStep.Rendering
+                    };
+
+                    ReportProgress(progress, new ExportProgress
+                    {
+                        Step = exportStep,
+                        PercentComplete = percent,
+                        Message = message
+                    });
+
+                    // Check if complete or error
+                    if (step == "complete")
+                    {
+                        SimpleLogger.Log("PNG export completed successfully");
+                        break;
+                    }
+
+                    if (step == "error")
+                    {
+                        throw new InvalidOperationException($"PNG export failed: {message}");
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Ignore JSON parse errors during polling
+                }
+            }
+
+            await Task.Delay(100, cancellationToken);
+        }
+
+        if (sw.Elapsed >= TimeSpan.FromMinutes(2))
+        {
+            throw new InvalidOperationException("PNG export timed out after 2 minutes");
+        }
+
+        // Retrieve the PNG data
+        const string getResultScript = "globalThis.__pngExportResult__ ? String(globalThis.__pngExportResult__) : ''";
+        string? base64Data = await _mermaidRenderer.ExecuteScriptAsync(getResultScript);
+
+        if (string.IsNullOrWhiteSpace(base64Data))
+        {
+            throw new InvalidOperationException("Failed to retrieve PNG data from export");
+        }
+
+        // Remove JSON string quotes if present
+        if (base64Data.StartsWith('\"') && base64Data.EndsWith('\"'))
+        {
+            base64Data = JsonSerializer.Deserialize<string>(base64Data) ?? base64Data;
+        }
+
+        // Convert base64 to bytes
+        byte[] pngData = Convert.FromBase64String(base64Data);
+
+        SimpleLogger.Log($"PNG data retrieved: {pngData.Length:N0} bytes");
+
+        string? directory = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        // Write file (WriteAllBytesAsync is safe to call from UI thread since it will async off the thread)
+        await File.WriteAllBytesAsync(targetPath, pngData, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Clean up JavaScript globals
+        await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
+
+        // Report completion - marshal to UI thread
+        ReportProgress(progress, new ExportProgress
+        {
+            Step = ExportStep.Complete,
+            PercentComplete = 100,
+            Message = "PNG export completed successfully!"
+        });
+
+        SimpleLogger.Log($"PNG exported successfully: {pngData.Length:N0} bytes");
     }
 
     /// <summary>
