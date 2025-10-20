@@ -349,6 +349,12 @@ public sealed partial class ExportService
                 Directory.CreateDirectory(directory);
             }
 
+            // before writing the file, ensure we're not already cancelled by the timeout
+            if (linkedCts.IsCancellationRequested)
+            {
+                SimpleLogger.Log("Export timed out before file write");
+                linkedCts.Token.ThrowIfCancellationRequested();
+            }
 
             // Write file (WriteAllBytesAsync is safe to call from UI thread since it will async off the thread)
             await File.WriteAllBytesAsync(targetPath, pngData, linkedCts.Token)
