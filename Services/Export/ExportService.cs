@@ -45,7 +45,7 @@ public sealed partial class ExportService
     private static partial Regex GetWhitespaceBetweenTagsRegex();
     private static readonly XNamespace _svgNamespace = "http://www.w3.org/2000/svg";
     private static readonly TimeSpan _exportToPngTimeout = TimeSpan.FromSeconds(60);
-    private const int _bufferSize = 81_920; // 80 KB buffer size for file I/O
+    private const int ExportPngBufferSize = 81_920; // 80 KB buffer size for file I/O
 
     private readonly MermaidRenderer _mermaidRenderer;
     private readonly IImageConversionService _imageConversionService;
@@ -302,15 +302,16 @@ public sealed partial class ExportService
             await _mermaidRenderer.ExecuteScriptAsync(startExportScript);
 
             // Use event/callback mechanism instead of polling for export status.
-            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<bool> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            // Register the callback with the WebView control (MermaidRenderer must implement registration)
-            _mermaidRenderer.RegisterExportProgressCallback(OnExportProgress);
+            _mermaidRenderer.RegisterExportProgressCallback(HandleExportProgressDelegate);
 
             using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             linkedCts.CancelAfter(_exportToPngTimeout);
+
             try
             {
+                // Wait for JS-side export to report completion or error (with timeout/cancellation)
                 await tcs.Task.WaitAsync(linkedCts.Token);
             }
             finally
@@ -318,7 +319,7 @@ public sealed partial class ExportService
                 // Ensure callback is removed even on timeout/cancel
                 try
                 {
-                    _mermaidRenderer.UnregisterExportProgressCallback(OnExportProgress);
+                    _mermaidRenderer.UnregisterExportProgressCallback(HandleExportProgressDelegate);
                 }
                 catch (Exception ex)
                 {
@@ -335,64 +336,14 @@ public sealed partial class ExportService
                 throw new InvalidOperationException("Failed to retrieve PNG data from export");
             }
 
-            // Remove JSON string quotes if present
+            // Normalize possible JSON quoting and whitespace
             if (base64Data.StartsWith('\"') && base64Data.EndsWith('\"'))
             {
                 base64Data = JsonSerializer.Deserialize<string>(base64Data) ?? base64Data;
             }
 
-            // Convert base64 to bytes using pooled buffer to reduce GC pressure
-            int estimatedMaxBytes = (base64Data.Length * 3) / 4; // upper-bound for decoded size
-            byte[]? rented = null;
-            int bytesWritten;
-            try
-            {
-                rented = ArrayPool<byte>.Shared.Rent(estimatedMaxBytes);
-                Span<byte> rentedSpan = rented.AsSpan();
-
-                if (!Convert.TryFromBase64String(base64Data, rentedSpan, out bytesWritten))
-                {
-                    throw new InvalidOperationException("Failed to decode PNG data from base64");
-                }
-
-                SimpleLogger.Log($"PNG data decoded: {bytesWritten:N0} bytes (buffer rented: {rented.Length:N0})");
-
-                // Ensure directory exists
-                string? directory = Path.GetDirectoryName(targetPath);
-                if (!string.IsNullOrWhiteSpace(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                // Before writing the file, ensure we're not already cancelled by the timeout
-                if (linkedCts.IsCancellationRequested)
-                {
-                    SimpleLogger.Log("Export timed out before file write");
-                    linkedCts.Token.ThrowIfCancellationRequested();
-                }
-
-                // Write file using FileStream and ReadOnlyMemory<byte> to avoid extra copies
-                await using FileStream fs = new FileStream(
-                    targetPath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: _bufferSize,
-                    useAsync: true);
-
-                await fs.WriteAsync(new ReadOnlyMemory<byte>(rented, 0, bytesWritten), linkedCts.Token)
-                    .ConfigureAwait(false);
-
-                await fs.FlushAsync(linkedCts.Token)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                if (rented is not null)
-                {
-                    ArrayPool<byte>.Shared.Return(rented);
-                }
-            }
+            // Decode and write the PNG to disk (handles pooled buffer + fallback)
+            int bytesWritten = await DecodeAndWritePngAsync(base64Data, targetPath, linkedCts.Token).ConfigureAwait(false);
 
             // Clean up JavaScript globals
             await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
@@ -408,59 +359,8 @@ public sealed partial class ExportService
             SimpleLogger.Log($"PNG exported successfully: {bytesWritten:N0} bytes");
             return;
 
-            void OnExportProgress(string statusJson)
-            {
-                if (string.IsNullOrWhiteSpace(statusJson))
-                {
-                    return;
-                }
-
-                try
-                {
-                    using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
-                    JsonElement root = statusDoc.RootElement;
-
-                    string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
-                    int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
-                    string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? "" : "";
-
-                    SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
-
-                    // Map JavaScript steps to our ExportStep enum
-                    ExportStep exportStep = step switch
-                    {
-                        "initializing" => ExportStep.Initializing,
-                        "rendering" => ExportStep.Rendering,
-                        "creating-canvas" => ExportStep.CreatingCanvas,
-                        "converting" or "drawing" => ExportStep.Rendering,
-                        "encoding" => ExportStep.Encoding,
-                        "complete" => ExportStep.Complete,
-                        "error" => ExportStep.Initializing, // Will be handled below
-                        _ => ExportStep.Rendering
-                    };
-
-                    ReportProgress(progress, new ExportProgress
-                    {
-                        Step = exportStep,
-                        PercentComplete = percent,
-                        Message = message
-                    });
-
-                    if (step == "complete")
-                    {
-                        SimpleLogger.Log("PNG export completed successfully");
-                        tcs.TrySetResult(true);
-                    }
-                    else if (step == "error")
-                    {
-                        tcs.TrySetException(new InvalidOperationException($"PNG export failed: {message}"));
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Ignore JSON parse errors during callback
-                }
-            }
+            // Register a single delegate instance so unregister works reliably
+            void HandleExportProgressDelegate(string statusJson) => HandleExportProgress(statusJson, tcs, progress);
         }
         catch (OperationCanceledException)
         {
@@ -525,6 +425,188 @@ public sealed partial class ExportService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Handles the progress updates for an export operation by parsing the provided status JSON, reporting progress,
+    /// and signaling task completion or failure.
+    /// </summary>
+    /// <remarks>This method parses the provided JSON to extract progress information, including the current
+    /// step, percentage complete, and any associated message. It maps the step to an <see cref="ExportStep"/> value and
+    /// reports progress using the <paramref name="progress"/> parameter if provided. If the step indicates completion,
+    /// the task is marked as successfully completed. If the step indicates an error, the task is marked as failed with
+    /// an appropriate exception.</remarks>
+    /// <param name="statusJson">A JSON string representing the current status of the export operation. The JSON is expected to contain
+    /// properties such as "step", "percent", and "message".</param>
+    /// <param name="tcs">A <see cref="TaskCompletionSource{TResult}"/> used to signal the completion or failure of the export operation.</param>
+    /// <param name="progress">An optional <see cref="IProgress{T}"/> instance used to report progress updates to the caller.</param>
+    private static void HandleExportProgress(string statusJson, TaskCompletionSource<bool> tcs, IProgress<ExportProgress>? progress)
+    {
+        if (string.IsNullOrWhiteSpace(statusJson))
+        {
+            return;
+        }
+
+        try
+        {
+            using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
+            JsonElement root = statusDoc.RootElement;
+
+            string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
+            int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
+            string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? string.Empty : string.Empty;
+
+            SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
+
+            ExportStep exportStep = step switch
+            {
+                "initializing" => ExportStep.Initializing,
+                "rendering" => ExportStep.Rendering,
+                "creating-canvas" => ExportStep.CreatingCanvas,
+                "converting" or "drawing" => ExportStep.Rendering,
+                "encoding" => ExportStep.Encoding,
+                "complete" => ExportStep.Complete,
+                "error" => ExportStep.Initializing, // error handled below
+                _ => ExportStep.Rendering
+            };
+
+            ReportProgress(progress, new ExportProgress
+            {
+                Step = exportStep,
+                PercentComplete = percent,
+                Message = message
+            });
+
+            if (step == "complete")
+            {
+                SimpleLogger.Log("PNG export completed successfully");
+                tcs.TrySetResult(true);
+            }
+            else if (step == "error")
+            {
+                tcs.TrySetException(new InvalidOperationException($"PNG export failed: {message}"));
+            }
+        }
+        catch (JsonException)
+        {
+            // Ignore JSON parse errors during callback
+        }
+    }
+
+    /// <summary>
+    /// Decodes a Base64-encoded PNG image and writes the decoded binary data to the specified file path.
+    /// </summary>
+    /// <remarks>This method ensures that the target directory exists before writing the file. It uses a
+    /// memory-efficient approach by attempting to decode the Base64 string into a rented buffer from the shared array
+    /// pool. If the decoding fails, it falls back to allocating an exact-sized array for the decoded data.</remarks>
+    /// <param name="base64Data">The Base64-encoded string representing the PNG image data.
+    /// The string may include whitespace or be JSON-encoded.</param>
+    /// <param name="targetPath">The file path where the decoded PNG data will be written.
+    /// If the directory does not exist, it will be created.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests during the
+    /// asynchronous operation.</param>
+    /// <returns>The number of bytes written to the file.</returns>
+    [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Improves readability")]
+    private static async Task<int> DecodeAndWritePngAsync(string base64Data, string targetPath, CancellationToken cancellationToken)
+    {
+        // Clean input
+        string base64Clean = base64Data.Trim();
+        if (base64Clean.Length >= 2 && base64Clean[0] == '\"' && base64Clean[^1] == '\"')
+        {
+            base64Clean = JsonSerializer.Deserialize<string>(base64Clean) ?? base64Clean;
+        }
+
+        byte[]? rented = null;
+        try
+        {
+            int estimate = CalculateDecodedLength(base64Clean);
+
+            // Ensure directory exists before writing
+            string? dir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            await using FileStream fs = new FileStream(
+                targetPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: ExportPngBufferSize,
+                useAsync: true);
+
+            int bytesWritten;
+            if (estimate > 0)
+            {
+                // Attempt to use pooled buffer to reduce GC pressure
+                rented = ArrayPool<byte>.Shared.Rent(estimate);
+                Span<byte> span = rented.AsSpan(0, Math.Min(estimate, rented.Length));
+
+                if (Convert.TryFromBase64String(base64Clean, span, out bytesWritten))
+                {
+                    SimpleLogger.Log($"PNG data decoded into pooled buffer: {bytesWritten:N0} bytes (buffer rented: {rented.Length:N0})");
+
+                    ReadOnlyMemory<byte> pngMemory = new ReadOnlyMemory<byte>(rented, 0, bytesWritten);
+                    await fs.WriteAsync(pngMemory, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    return bytesWritten;
+                }
+
+                // pooled attempt failed; fall back to exact allocation
+                SimpleLogger.Log($"Pooled {nameof(Convert.TryFromBase64String)} failed; falling back to {nameof(Convert.FromBase64String)}");
+            }
+
+            // Fall back: allocate exact-size array
+            byte[] decoded = Convert.FromBase64String(base64Clean);
+            bytesWritten = decoded.Length;
+
+            ReadOnlyMemory<byte> pngFallbackMemory = new ReadOnlyMemory<byte>(decoded, 0, bytesWritten);
+            await fs.WriteAsync(pngFallbackMemory, cancellationToken)
+                .ConfigureAwait(false);
+
+            return bytesWritten;
+
+            // Estimate decoded length (accounts for padding)
+            static int CalculateDecodedLength(string base64)
+            {
+                // remove whitespace
+                int contentLen = 0;
+                foreach (char c in base64)
+                {
+                    if (!char.IsWhiteSpace(c))
+                    {
+                        contentLen++;
+                    }
+                }
+
+                if (contentLen == 0)
+                {
+                    return 0;
+                }
+
+                int padding = 0;
+                if (base64.EndsWith("=="))
+                {
+                    padding = 2;
+                }
+                else if (base64.EndsWith('='))
+                {
+                    padding = 1;
+                }
+
+                int groups = (contentLen + 3) / 4;
+                return (groups * 3) - padding;
+            }
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
     }
 
     /// <summary>
