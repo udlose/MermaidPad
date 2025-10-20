@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -44,6 +45,7 @@ public sealed partial class ExportService
     private static partial Regex GetWhitespaceBetweenTagsRegex();
     private static readonly XNamespace _svgNamespace = "http://www.w3.org/2000/svg";
     private static readonly TimeSpan _exportToPngTimeout = TimeSpan.FromSeconds(60);
+    private const int _bufferSize = 81_920; // 80 KB buffer size for file I/O
 
     private readonly MermaidRenderer _mermaidRenderer;
     private readonly IImageConversionService _imageConversionService;
@@ -272,6 +274,7 @@ public sealed partial class ExportService
     /// UI-thread-bound portion of the PNG export. Separated to avoid recursive marshalling to the UI thread.
     /// This method assumes it is running on the UI thread.
     /// </summary>
+    [SuppressMessage("Style", "IDE0047:Remove unnecessary parentheses", Justification = "Improves readability")]
     private async Task ExportPngOnUiThreadAsync(
         string targetPath,
         PngExportOptions options,
@@ -338,27 +341,58 @@ public sealed partial class ExportService
                 base64Data = JsonSerializer.Deserialize<string>(base64Data) ?? base64Data;
             }
 
-            // Convert base64 to bytes
-            byte[] pngData = Convert.FromBase64String(base64Data);
-
-            SimpleLogger.Log($"PNG data retrieved: {pngData.Length:N0} bytes");
-
-            string? directory = Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrWhiteSpace(directory))
+            // Convert base64 to bytes using pooled buffer to reduce GC pressure
+            int estimatedMaxBytes = (base64Data.Length * 3) / 4; // upper-bound for decoded size
+            byte[]? rented = null;
+            int bytesWritten;
+            try
             {
-                Directory.CreateDirectory(directory);
-            }
+                rented = ArrayPool<byte>.Shared.Rent(estimatedMaxBytes);
+                Span<byte> rentedSpan = rented.AsSpan();
 
-            // before writing the file, ensure we're not already cancelled by the timeout
-            if (linkedCts.IsCancellationRequested)
+                if (!Convert.TryFromBase64String(base64Data, rentedSpan, out bytesWritten))
+                {
+                    throw new InvalidOperationException("Failed to decode PNG data from base64");
+                }
+
+                SimpleLogger.Log($"PNG data decoded: {bytesWritten:N0} bytes (buffer rented: {rented.Length:N0})");
+
+                // Ensure directory exists
+                string? directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                // Before writing the file, ensure we're not already cancelled by the timeout
+                if (linkedCts.IsCancellationRequested)
+                {
+                    SimpleLogger.Log("Export timed out before file write");
+                    linkedCts.Token.ThrowIfCancellationRequested();
+                }
+
+                // Write file using FileStream and ReadOnlyMemory<byte> to avoid extra copies
+                await using FileStream fs = new FileStream(
+                    targetPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: _bufferSize,
+                    useAsync: true);
+
+                await fs.WriteAsync(new ReadOnlyMemory<byte>(rented, 0, bytesWritten), linkedCts.Token)
+                    .ConfigureAwait(false);
+
+                await fs.FlushAsync(linkedCts.Token)
+                    .ConfigureAwait(false);
+            }
+            finally
             {
-                SimpleLogger.Log("Export timed out before file write");
-                linkedCts.Token.ThrowIfCancellationRequested();
+                if (rented is not null)
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
             }
-
-            // Write file (WriteAllBytesAsync is safe to call from UI thread since it will async off the thread)
-            await File.WriteAllBytesAsync(targetPath, pngData, linkedCts.Token)
-                .ConfigureAwait(false);
 
             // Clean up JavaScript globals
             await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
@@ -371,7 +405,7 @@ public sealed partial class ExportService
                 Message = "PNG export completed successfully!"
             });
 
-            SimpleLogger.Log($"PNG exported successfully: {pngData.Length:N0} bytes");
+            SimpleLogger.Log($"PNG exported successfully: {bytesWritten:N0} bytes");
             return;
 
             void OnExportProgress(string statusJson)
