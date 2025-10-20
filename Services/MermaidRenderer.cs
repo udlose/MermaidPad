@@ -25,6 +25,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace MermaidPad.Services;
 
@@ -55,6 +56,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
+
+    // Fields for centralized export-status callbacks / poller:
+    private readonly List<Action<string>> _exportProgressCallbacks = new List<Action<string>>();
+    private CancellationTokenSource? _exportPollerCts;
+    private Task? _exportPollerTask;
+    private string? _lastExportStatus;
+    private readonly Lock _exportCallbackLock = new Lock();
 
     /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
@@ -496,6 +504,136 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Register a callback to receive export progress status JSON from the page.
+    /// MermaidRenderer will start a single centralized poller (ExecuteScriptAsync) while any callbacks are registered.
+    /// This avoids multiple consumers polling independently.
+    /// </summary>
+    public void RegisterExportProgressCallback(Action<string> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+
+        lock (_exportCallbackLock)
+        {
+            _exportProgressCallbacks.Add(callback);
+
+            // Start poller if needed
+            if (_exportPollerCts is null || _exportPollerCts.IsCancellationRequested)
+            {
+                _exportPollerCts = new CancellationTokenSource();
+                // Store the Task so DisposeAsync can await clean shutdown
+                _exportPollerTask = StartExportStatusPollerAsync(_exportPollerCts.Token);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Unregister a previously registered export progress callback.
+    /// </summary>
+    public void UnregisterExportProgressCallback(Action<string>? callback)
+    {
+        if (callback is null)
+        {
+            return;
+        }
+
+        lock (_exportCallbackLock)
+        {
+            _exportProgressCallbacks.Remove(callback);
+
+            if (_exportProgressCallbacks.Count == 0)
+            {
+                try
+                {
+                    _exportPollerCts?.Cancel();
+                    _exportPollerCts?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Failed to stop export status poller", ex);
+                }
+                finally
+                {
+                    _exportPollerCts = null;
+                    _lastExportStatus = null;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Centralized poller that queries the page for globalThis.__pngExportStatus__ and forwards updates to registered callbacks.
+    /// Runs on UI thread via ExecuteScriptAsync calls and is lightweight when there is no change.
+    /// </summary>
+    private async Task StartExportStatusPollerAsync(CancellationToken token)
+    {
+        SimpleLogger.Log("Starting export status poller");
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    // Query the page for the status (bridge-friendly string)
+                    const string statusScript = "globalThis.__pngExportStatus__ ? String(globalThis.__pngExportStatus__) : ''";
+                    string? statusJson = await ExecuteScriptAsync(statusScript);
+
+                    if (!string.IsNullOrWhiteSpace(statusJson))
+                    {
+                        // Remove JSON quoting if present
+                        if (statusJson.StartsWith('\"') && statusJson.EndsWith('\"'))
+                        {
+                            statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
+                        }
+
+                        // Forward only when it changes to reduce churn
+                        if (statusJson != _lastExportStatus)
+                        {
+                            _lastExportStatus = statusJson;
+
+                            Action<string>[] callbacks;
+                            lock (_exportCallbackLock)
+                            {
+                                callbacks = _exportProgressCallbacks.ToArray();
+                            }
+
+                            foreach (Action<string> cb in callbacks)
+                            {
+                                try
+                                {
+                                    cb(statusJson);
+                                }
+                                catch (Exception ex)
+                                {
+                                    SimpleLogger.LogError("Export progress callback threw", ex);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Ignore transient script errors but log for diagnostics
+                    SimpleLogger.LogError("Export status poller script error", ex);
+                }
+
+                // Poll interval - moderate (250ms). Centralized poller keeps this to one source instead of many.
+                try
+                {
+                    await Task.Delay(250, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            SimpleLogger.Log("Export status poller stopped");
+        }
+    }
+
+    /// <summary>
     /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
     /// </summary>
     /// <returns>A task representing the asynchronous disposal operation.</returns>
@@ -516,6 +654,58 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 _httpListener.Stop();
             }
             _httpListener?.Close();
+
+            // Stop and cleanup export poller if running
+            try
+            {
+                // Cancel poller
+                if (_exportPollerCts is not null)
+                {
+                    try
+                    {
+                        await _exportPollerCts.CancelAsync()
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        SimpleLogger.LogError("Failed to cancel export poller CTS", ex);
+                    }
+                }
+
+                // Await poller task for a short timeout to ensure clean shutdown
+                if (_exportPollerTask is not null)
+                {
+                    try
+                    {
+                        await _exportPollerTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log but do not rethrow during dispose
+                        SimpleLogger.LogError("Export poller did not stop cleanly", ex);
+                    }
+                }
+            }
+            finally
+            {
+                // Clear callbacks and dispose CTS
+                lock (_exportCallbackLock)
+                {
+                    _exportProgressCallbacks.Clear();
+                    _lastExportStatus = null;
+                }
+
+                try
+                {
+                    _exportPollerCts?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Failed to dispose export poller CTS", ex);
+                }
+                _exportPollerCts = null;
+                _exportPollerTask = null;
+            }
 
             // Wait for server task to complete (with timeout)
             if (_serverTask is not null)
