@@ -120,6 +120,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
         await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
             .ConfigureAwait(false);
+
         _htmlContent = await indexHtmlTask.ConfigureAwait(false);
         _mermaidJs = await jsTask.ConfigureAwait(false);
         _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
@@ -474,10 +475,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes JavaScript in the WebView and returns the result.
+    /// Executes the specified JavaScript code asynchronously in the context of the WebView.
     /// </summary>
-    /// <param name="script">The JavaScript code to execute.</param>
-    /// <returns>The result of the JavaScript execution as a string, or null if execution fails.</returns>
+    /// <remarks>This method invokes the script execution on the UI thread. If the WebView is not initialized,
+    /// the method logs an error and returns <see langword="null"/>. Any exceptions encountered during script execution
+    /// are logged, and <see langword="null"/> is returned.</remarks>
+    /// <param name="script">The JavaScript code to execute. Cannot be null or empty.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the result of the script execution
+    /// as a string, or <see langword="null"/> if the WebView is not initialized or an error occurs during execution.</returns>
     public async Task<string?> ExecuteScriptAsync(string script)
     {
         if (_webView is null)
@@ -504,10 +509,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Register a callback to receive export progress status JSON from the page.
-    /// MermaidRenderer will start a single centralized poller (ExecuteScriptAsync) while any callbacks are registered.
-    /// This avoids multiple consumers polling independently.
+    /// Registers a callback to receive updates on the export progress.
     /// </summary>
+    /// <remarks>The provided callback will be added to the list of registered callbacks and invoked
+    /// periodically with updates on the export progress. If no poller is currently running,
+    /// this method will start a background task to monitor and report export progress.</remarks>
+    /// <param name="callback">An <see cref="Action{T}"/> delegate that will be invoked with a
+    /// string parameter containing the export progress
+    /// details. The parameter cannot be <see langword="null"/>.</param>
     public void RegisterExportProgressCallback(Action<string> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
@@ -517,9 +526,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
             _exportProgressCallbacks.Add(callback);
 
             // Start poller if needed
-            if (_exportPollerCts is null || _exportPollerCts.IsCancellationRequested)
+            if (_exportPollerCts?.IsCancellationRequested != false)
             {
                 _exportPollerCts = new CancellationTokenSource();
+
                 // Store the Task so DisposeAsync can await clean shutdown
                 _exportPollerTask = StartExportStatusPollerAsync(_exportPollerCts.Token);
             }
@@ -527,8 +537,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Unregister a previously registered export progress callback.
+    /// Unregisters a previously registered callback for export progress updates.
     /// </summary>
+    /// <remarks>If this is the last registered callback, the export status polling process will be
+    /// stopped.</remarks>
+    /// <param name="callback">The callback to unregister. If the specified callback is <see langword="null"/> or was not previously
+    /// registered, the method has no effect.</param>
     public void UnregisterExportProgressCallback(Action<string>? callback)
     {
         if (callback is null)
@@ -561,14 +575,23 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Centralized poller that queries the page for globalThis.__pngExportStatus__ and forwards updates to registered callbacks.
-    /// Runs on UI thread via ExecuteScriptAsync calls and is lightweight when there is no change.
+    /// Starts a polling task that periodically queries the web page for the export status and notifies registered
+    /// callbacks of any changes.
     /// </summary>
+    /// <remarks>This method runs on the UI thread and uses <see cref="ExecuteScriptAsync"/> to query the
+    /// JavaScript variable <c>globalThis.__pngExportStatus__</c> on the page. It forwards updates to registered
+    /// callbacks only when the status changes, minimizing unnecessary processing. The polling interval is 200
+    /// milliseconds by default. The task continues until the provided <see cref="CancellationToken"/> is
+    /// canceled.</remarks>
+    /// <param name="token">A <see cref="CancellationToken"/> used to cancel the polling task. The task will stop gracefully when
+    /// cancellation is requested.</param>
+    /// <returns>A <see cref="Task"/> that represents the asynchronous operation of the polling task.</returns>
     private async Task StartExportStatusPollerAsync(CancellationToken token)
     {
         SimpleLogger.Log("Starting export status poller");
         try
         {
+            const int pollingIntervalMs = 200;
             while (!token.IsCancellationRequested)
             {
                 try
@@ -596,11 +619,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
                                 callbacks = _exportProgressCallbacks.ToArray();
                             }
 
-                            foreach (Action<string> cb in callbacks)
+                            foreach (Action<string> callback in callbacks)
                             {
                                 try
                                 {
-                                    cb(statusJson);
+                                    callback(statusJson);
                                 }
                                 catch (Exception ex)
                                 {
@@ -616,10 +639,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     SimpleLogger.LogError("Export status poller script error", ex);
                 }
 
-                // Poll interval - moderate (250ms). Centralized poller keeps this to one source instead of many.
                 try
                 {
-                    await Task.Delay(250, token);
+                    await Task.Delay(pollingIntervalMs, token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -634,9 +656,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
+    /// Asynchronously releases the resources used by the current instance.
     /// </summary>
-    /// <returns>A task representing the asynchronous disposal operation.</returns>
+    /// <remarks>This method performs a clean shutdown of internal components, including canceling ongoing
+    /// operations, stopping background tasks, and releasing unmanaged resources. It ensures that all asynchronous
+    /// operations are awaited and disposed of properly to prevent resource leaks. Exceptions encountered during
+    /// disposal are logged but do not propagate.</remarks>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous disposal operation.</returns>
     public async ValueTask DisposeAsync()
     {
         try
