@@ -509,6 +509,7 @@ public sealed partial class ExportService
     /// asynchronous operation.</param>
     /// <returns>The number of bytes written to the file.</returns>
     [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Improves readability")]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     private static async Task<int> DecodeAndWritePngAsync(string base64Data, string targetPath, CancellationToken cancellationToken)
     {
         // Clean input (trim and unwrap possible JSON quoting)
@@ -527,7 +528,7 @@ public sealed partial class ExportService
 
         // Construct a whitespace-free UTF8 byte buffer of the Base64 input using a rented buffer
         byte[]? inputBytes = null;
-        byte[]? outBuffer = null;
+        byte[]? outputBuffer = null;
         try
         {
             int charCount = base64Clean.Length;
@@ -540,7 +541,12 @@ public sealed partial class ExportService
                 char c = base64Clean[i];
                 if (!char.IsWhiteSpace(c))
                 {
-                    // Base64 content is ASCII; safe to cast to byte
+                    // Base64 should only contain ASCII characters. Validate to avoid silent truncation.
+                    if (c > 127)
+                    {
+                        throw new InvalidOperationException("Non-ASCII character found in Base64 data");
+                    }
+
                     inputBytes[inputLen++] = (byte)c;
                 }
             }
@@ -557,10 +563,20 @@ public sealed partial class ExportService
             // Estimate decoded length for sizing guidance (kept conservative)
             int estimated = CalculateDecodedLength(base64Clean);
 
-            // Start with a reasonable output buffer and grow if needed
-            int outBufSize = Math.Max(ExportPngBufferSize, Math.Min(estimated, ExportPngBufferSize));
-            outBufSize = Math.Max(32 * 1_024, outBufSize); // at least 32 KB
-            outBuffer = ArrayPool<byte>.Shared.Rent(outBufSize);
+            // Choose an initial output buffer size:
+            // - If we have a positive estimate, clamp it between 32KB and ExportPngBufferSize.
+            // - Otherwise start with ExportPngBufferSize.
+            const int oneKB = 1_024;
+            const int minOutBufferSize = 32 * oneKB;
+            int outputBufferSize = estimated > 0
+                ? Math.Clamp(estimated, minOutBufferSize, ExportPngBufferSize)
+                : ExportPngBufferSize;
+
+            outputBuffer = ArrayPool<byte>.Shared.Rent(outputBufferSize);
+
+            // Cap growth to avoid infinite/unbounded growth
+            const int oneMB = oneKB * oneKB;
+            const int maxOutBufferSize = 16 * oneMB; // 16 MB
 
             int inputOffset = 0;
             int totalWritten = 0;
@@ -568,13 +584,13 @@ public sealed partial class ExportService
             while (inputOffset < inputLen)
             {
                 ReadOnlySpan<byte> inputSpan = inputBytes.AsSpan(inputOffset, inputLen - inputOffset);
-                Span<byte> outputSpan = outBuffer.AsSpan(0, outBuffer.Length);
+                Span<byte> outputSpan = outputBuffer.AsSpan(0, outputBuffer.Length);
 
                 OperationStatus status = Base64.DecodeFromUtf8(inputSpan, outputSpan, out int consumed, out int written);
 
                 if (written > 0)
                 {
-                    await fs.WriteAsync(new ReadOnlyMemory<byte>(outBuffer, 0, written), cancellationToken).ConfigureAwait(false);
+                    await fs.WriteAsync(new ReadOnlyMemory<byte>(outputBuffer, 0, written), cancellationToken).ConfigureAwait(false);
                     totalWritten += written;
                 }
 
@@ -592,19 +608,28 @@ public sealed partial class ExportService
 
                 if (status == OperationStatus.DestinationTooSmall)
                 {
-                    // If the decoder consumed some input, continue; otherwise grow output buffer and retry
+                    // If the decoder consumed some input, loop will continue; otherwise we must grow the output buffer.
                     if (consumed == 0)
                     {
-                        // Grow the output buffer up to the estimated decoded length (or double)
-                        int newSize = Math.Min(Math.Max(outBuffer.Length * 2, estimated), Math.Max(outBuffer.Length * 2, outBuffer.Length + 64 * 1024));
+                        // Grow the buffer, but cap growth to a reasonable maximum to avoid OOM / infinite growth.
+                        int newSize = Math.Min(outputBuffer.Length * 2, maxOutBufferSize);
+
+                        if (newSize <= outputBuffer.Length)
+                        {
+                            // Already at or above max allowed size - fail with clear message
+                            throw new InvalidOperationException("Decoded data requires an output buffer larger than the allowed maximum size");
+                        }
+
                         byte[] newBuf = ArrayPool<byte>.Shared.Rent(newSize);
 
-                        // Return old buffer and replace
-                        ArrayPool<byte>.Shared.Return(outBuffer);
-                        outBuffer = newBuf;
+                        // No need to copy existing data since we write immediately after decoding; just replace buffer used for future writes.
+                        ArrayPool<byte>.Shared.Return(outputBuffer);
+                        outputBuffer = newBuf;
+
+                        // Continue attempting to decode with the larger buffer
                     }
 
-                    // Continue the loop to attempt decoding remaining input
+                    // If consumed > 0 we made progress; continue the loop to decode remaining input.
                     continue;
                 }
 
@@ -662,9 +687,9 @@ public sealed partial class ExportService
                 ArrayPool<byte>.Shared.Return(inputBytes);
             }
 
-            if (outBuffer is not null)
+            if (outputBuffer is not null)
             {
-                ArrayPool<byte>.Shared.Return(outBuffer);
+                ArrayPool<byte>.Shared.Return(outputBuffer);
             }
         }
     }
