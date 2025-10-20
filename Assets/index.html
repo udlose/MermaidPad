@@ -474,9 +474,41 @@
           console.log('=== BROWSER-BASED PNG EXPORT STARTED ===');
           console.log('Export options:', options);
 
+          // Helper to set status and notify host (if available)
+          const setExportStatus = (statusObj) => {
+              try {
+                  const json = JSON.stringify(statusObj);
+                  globalThis.__pngExportStatus__ = json;
+
+                  // Prefer WebView2 style postMessage (safe check using globalThis)
+                  const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
+                  if (typeof webviewPostMessage === 'function') {
+                      try {
+                          webviewPostMessage({ type: 'png-export-progress', status: statusObj });
+                      } catch (postErr) {
+                          console.warn('chrome.webview.postMessage failed', postErr);
+                      }
+                      return;
+                  }
+
+                  // Fallback for other hosts - window.external may be deprecated but check safely on globalThis
+                  const externalNotify = globalThis.external?.notify;
+                  if (typeof externalNotify === 'function') {
+                      try {
+                          externalNotify(JSON.stringify({ type: 'png-export-progress', status: statusObj }));
+                      } catch (notifyErr) {
+                          console.warn('external.notify failed', notifyErr);
+                      }
+                  }
+              } catch (eStatus) {
+                  // Ignore status delivery errors - keep working locally
+                  console.warn('Failed to set or notify export status', eStatus);
+              }
+          };
+
           try {
               // Set status for polling
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'initializing', 
                   percent: 0, 
                   message: 'Starting PNG export...' 
@@ -499,7 +531,7 @@
               console.log(`Using scale: ${scale}, DPI: ${dpi}, effective scale: ${effectiveScale}`);
 
               // Update progress: Rendering
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'rendering', 
                   percent: 20, 
                   message: 'Rendering diagram...' 
@@ -514,7 +546,7 @@
               }
 
               // Update progress: Creating canvas
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'creating-canvas', 
                   percent: 40, 
                   message: 'Creating canvas...' 
@@ -578,7 +610,7 @@
               }
 
               // Update progress: Converting to bitmap
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'converting', 
                   percent: 60, 
                   message: 'Converting to bitmap...' 
@@ -641,7 +673,7 @@
               await imageLoadPromise;
 
               // Update progress: Drawing to canvas
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'drawing', 
                   percent: 80, 
                   message: 'Drawing to canvas...' 
@@ -651,7 +683,7 @@
               ctx.drawImage(img, 0, 0, width, height);
 
               // Update progress: Encoding
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'encoding', 
                   percent: 90, 
                   message: 'Encoding PNG...' 
@@ -676,7 +708,7 @@
               }
 
               // Update progress: Complete
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'complete', 
                   percent: 100, 
                   message: 'Export complete!' 
@@ -687,6 +719,21 @@
               // Store result for retrieval
               globalThis.__pngExportResult__ = base64Data;
 
+              // Notify host that result is available (lightweight notification)
+              try {
+                  const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
+                  if (typeof webviewPostMessage === 'function') {
+                      webviewPostMessage({ type: 'png-export-complete', length: base64Data.length });
+                  } else {
+                      const externalNotify = globalThis.external?.notify;
+                      if (typeof externalNotify === 'function') {
+                          externalNotify(JSON.stringify({ type: 'png-export-complete', length: base64Data.length }));
+                      }
+                  }
+              } catch (e) {
+                  // ignore notification errors
+              }
+
               return { 
                   success: true, 
                   dataLength: base64Data.length,
@@ -696,7 +743,7 @@
           } catch (error) {
               console.error('✗ PNG export failed:', error);
               
-              globalThis.__pngExportStatus__ = JSON.stringify({ 
+              setExportStatus({ 
                   step: 'error', 
                   percent: 0, 
                   message: error.message 
