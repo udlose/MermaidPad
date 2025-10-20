@@ -171,3 +171,4 @@ dotnet_diagnostic.CA2213.severity = error
 dotnet_diagnostic.CA2215.severity = error
 dotnet_diagnostic.CA1816.severity = warning
 dotnet_diagnostic.CA1513.severity = warning
+dotnet_diagnostic.CA1822.severity = warning
