@@ -20,6 +20,7 @@
 
 using Avalonia.Threading;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -497,8 +498,9 @@ public sealed partial class ExportService
     /// Decodes a Base64-encoded PNG image and writes the decoded binary data to the specified file path.
     /// </summary>
     /// <remarks>This method ensures that the target directory exists before writing the file. It uses a
-    /// memory-efficient approach by attempting to decode the Base64 string into a rented buffer from the shared array
-    /// pool. If the decoding fails, it falls back to allocating an exact-sized array for the decoded data.</remarks>
+    /// streaming approach: the Base64 input is converted to UTF-8 bytes (whitespace removed) and then decoded
+    /// in chunks using `Base64.DecodeFromUtf8` into a pooled output buffer which is written to disk. This
+    /// avoids allocating a single large decoded array while still keeping memory usage bounded.</remarks>
     /// <param name="base64Data">The Base64-encoded string representing the PNG image data.
     /// The string may include whitespace or be JSON-encoded.</param>
     /// <param name="targetPath">The file path where the decoded PNG data will be written.
@@ -509,25 +511,41 @@ public sealed partial class ExportService
     [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Improves readability")]
     private static async Task<int> DecodeAndWritePngAsync(string base64Data, string targetPath, CancellationToken cancellationToken)
     {
-        // Clean input
+        // Clean input (trim and unwrap possible JSON quoting)
         string base64Clean = base64Data.Trim();
-        if (base64Clean.Length >= 2 && base64Clean[0] == '\"' && base64Clean[^1] == '\"')
+        if (base64Clean.Length >= 2 && base64Clean[0] == '"' && base64Clean[^1] == '"')
         {
             base64Clean = JsonSerializer.Deserialize<string>(base64Clean) ?? base64Clean;
         }
 
-        byte[]? rented = null;
+        // Ensure directory exists before writing
+        string? dir = Path.GetDirectoryName(targetPath);
+        if (!string.IsNullOrWhiteSpace(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        // Construct a whitespace-free UTF8 byte buffer of the Base64 input using a rented buffer
+        byte[]? inputBytes = null;
+        byte[]? outBuffer = null;
         try
         {
-            int estimate = CalculateDecodedLength(base64Clean);
+            int charCount = base64Clean.Length;
+            inputBytes = ArrayPool<byte>.Shared.Rent(charCount);
 
-            // Ensure directory exists before writing
-            string? dir = Path.GetDirectoryName(targetPath);
-            if (!string.IsNullOrWhiteSpace(dir))
+            // Copy non-whitespace ASCII chars into the input buffer as single bytes
+            int inputLen = 0;
+            for (int i = 0; i < charCount; i++)
             {
-                Directory.CreateDirectory(dir);
+                char c = base64Clean[i];
+                if (!char.IsWhiteSpace(c))
+                {
+                    // Base64 content is ASCII; safe to cast to byte
+                    inputBytes[inputLen++] = (byte)c;
+                }
             }
 
+            // Open file stream for async writing
             await using FileStream fs = new FileStream(
                 targetPath,
                 FileMode.Create,
@@ -536,42 +554,79 @@ public sealed partial class ExportService
                 bufferSize: ExportPngBufferSize,
                 useAsync: true);
 
-            int bytesWritten;
-            if (estimate > 0)
+            // Estimate decoded length for sizing guidance (kept conservative)
+            int estimated = CalculateDecodedLength(base64Clean);
+
+            // Start with a reasonable output buffer and grow if needed
+            int outBufSize = Math.Max(ExportPngBufferSize, Math.Min(estimated, ExportPngBufferSize));
+            outBufSize = Math.Max(32 * 1_024, outBufSize); // at least 32 KB
+            outBuffer = ArrayPool<byte>.Shared.Rent(outBufSize);
+
+            int inputOffset = 0;
+            int totalWritten = 0;
+
+            while (inputOffset < inputLen)
             {
-                // Attempt to use pooled buffer to reduce GC pressure
-                rented = ArrayPool<byte>.Shared.Rent(estimate);
-                Span<byte> span = rented.AsSpan(0, Math.Min(estimate, rented.Length));
+                ReadOnlySpan<byte> inputSpan = inputBytes.AsSpan(inputOffset, inputLen - inputOffset);
+                Span<byte> outputSpan = outBuffer.AsSpan(0, outBuffer.Length);
 
-                if (Convert.TryFromBase64String(base64Clean, span, out bytesWritten))
+                OperationStatus status = Base64.DecodeFromUtf8(inputSpan, outputSpan, out int consumed, out int written);
+
+                if (written > 0)
                 {
-                    SimpleLogger.Log($"PNG data decoded into pooled buffer: {bytesWritten:N0} bytes (buffer rented: {rented.Length:N0})");
-
-                    ReadOnlyMemory<byte> pngMemory = new ReadOnlyMemory<byte>(rented, 0, bytesWritten);
-                    await fs.WriteAsync(pngMemory, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    return bytesWritten;
+                    await fs.WriteAsync(new ReadOnlyMemory<byte>(outBuffer, 0, written), cancellationToken).ConfigureAwait(false);
+                    totalWritten += written;
                 }
 
-                // pooled attempt failed; fall back to exact allocation
-                SimpleLogger.Log($"Pooled {nameof(Convert.TryFromBase64String)} failed; falling back to {nameof(Convert.FromBase64String)}");
+                inputOffset += consumed;
+
+                if (status == OperationStatus.Done)
+                {
+                    break;
+                }
+
+                if (status == OperationStatus.InvalidData)
+                {
+                    throw new InvalidOperationException("Invalid Base64 data during PNG decode");
+                }
+
+                if (status == OperationStatus.DestinationTooSmall)
+                {
+                    // If the decoder consumed some input, continue; otherwise grow output buffer and retry
+                    if (consumed == 0)
+                    {
+                        // Grow the output buffer up to the estimated decoded length (or double)
+                        int newSize = Math.Min(Math.Max(outBuffer.Length * 2, estimated), Math.Max(outBuffer.Length * 2, outBuffer.Length + 64 * 1024));
+                        byte[] newBuf = ArrayPool<byte>.Shared.Rent(newSize);
+
+                        // Return old buffer and replace
+                        ArrayPool<byte>.Shared.Return(outBuffer);
+                        outBuffer = newBuf;
+                    }
+
+                    // Continue the loop to attempt decoding remaining input
+                    continue;
+                }
+
+                if (status == OperationStatus.NeedMoreData)
+                {
+                    // Decoder needs more bytes; if we've consumed some, loop will continue with remaining bytes.
+                    // If consumed == 0 and no more input is available, this is unexpected for well-formed Base64.
+                    if (consumed == 0 && inputOffset >= inputLen)
+                    {
+                        // Nothing more to provide - break to avoid infinite loop
+                        break;
+                    }
+
+                    continue;
+                }
             }
 
-            // Fall back: allocate exact-size array
-            byte[] decoded = Convert.FromBase64String(base64Clean);
-            bytesWritten = decoded.Length;
+            return totalWritten;
 
-            ReadOnlyMemory<byte> pngFallbackMemory = new ReadOnlyMemory<byte>(decoded, 0, bytesWritten);
-            await fs.WriteAsync(pngFallbackMemory, cancellationToken)
-                .ConfigureAwait(false);
-
-            return bytesWritten;
-
-            // Estimate decoded length (accounts for padding)
+            // Local helper reused from previous implementation - estimates decoded length ignoring whitespace
             static int CalculateDecodedLength(string base64)
             {
-                // remove whitespace
                 int contentLen = 0;
                 foreach (char c in base64)
                 {
@@ -602,9 +657,14 @@ public sealed partial class ExportService
         }
         finally
         {
-            if (rented is not null)
+            if (inputBytes is not null)
             {
-                ArrayPool<byte>.Shared.Return(rented);
+                ArrayPool<byte>.Shared.Return(inputBytes);
+            }
+
+            if (outBuffer is not null)
+            {
+                ArrayPool<byte>.Shared.Return(outBuffer);
             }
         }
     }
