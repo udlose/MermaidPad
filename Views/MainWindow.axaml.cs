@@ -1,8 +1,28 @@
+// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,15 +32,15 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
 
-public partial class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
 
-    private bool _suppressEditorTextChanged = false;
-    private bool _suppressEditorStateSync = false; // Prevent circular updates
+    private bool _suppressEditorTextChanged;
+    private bool _suppressEditorStateSync; // Prevent circular updates
 
     public MainWindow()
     {
@@ -106,7 +126,7 @@ public partial class MainWindow : Window
 
     private void SetupEditorViewModelSync()
     {
-        // Editor -> ViewModel synchronization
+        // Editor -> ViewModel synchronization (text)
         Editor.TextChanged += (_, _) =>
         {
             if (_suppressEditorTextChanged)
@@ -115,11 +135,10 @@ public partial class MainWindow : Window
             }
 
             // Debounce to avoid excessive updates
-            _editorDebouncer.Debounce("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+            _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
                 if (_vm.DiagramText != Editor.Text)
                 {
-                    SimpleLogger.Log($"Editor text changed, updating ViewModel ({_vm.DiagramText.Length} -> {Editor.Text.Length} chars)");
                     _suppressEditorStateSync = true;
                     try
                     {
@@ -130,71 +149,81 @@ public partial class MainWindow : Window
                         _suppressEditorStateSync = false;
                     }
                 }
-            });
+            },
+            DispatcherPriority.Background);
         };
 
-        // Editor selection/caret -> ViewModel synchronization
-        // Hook into TextArea events since TextEditor doesn't expose SelectionChanged directly
+        // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
         Editor.TextArea.SelectionChanged += (_, _) =>
         {
-            if (_suppressEditorStateSync) return;
-
-            _editorDebouncer.Debounce("editor-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+            if (_suppressEditorStateSync)
             {
-                _suppressEditorStateSync = true;
-                try
-                {
-                    _vm.EditorSelectionStart = Editor.SelectionStart;
-                    _vm.EditorSelectionLength = Editor.SelectionLength;
-                    _vm.EditorCaretOffset = Editor.CaretOffset;
+                return;
+            }
 
-                    SimpleLogger.Log($"Editor selection synced to ViewModel: Start={Editor.SelectionStart}, Length={Editor.SelectionLength}, Caret={Editor.CaretOffset}");
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            });
+            ScheduleEditorStateSyncIfNeeded();
         };
 
-        // Also hook into caret position changes for more comprehensive coverage
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
         {
-            if (_suppressEditorStateSync) return;
-
-            _editorDebouncer.Debounce("editor-caret", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+            if (_suppressEditorStateSync)
             {
-                _suppressEditorStateSync = true;
-                try
-                {
-                    // Update caret offset when caret position changes
-                    _vm.EditorCaretOffset = Editor.CaretOffset;
+                return;
+            }
 
-                    SimpleLogger.Log($"Editor caret synced to ViewModel: Caret={Editor.CaretOffset}");
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            });
+            ScheduleEditorStateSyncIfNeeded();
         };
 
         // ViewModel -> Editor synchronization
         _vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    // Coalesce caret + selection updates, and skip no-ops
+    private void ScheduleEditorStateSyncIfNeeded()
+    {
+        int selectionStart = Editor.SelectionStart;
+        int selectionLength = Editor.SelectionLength;
+        int caretOffset = Editor.CaretOffset;
+
+        if (selectionStart == _vm.EditorSelectionStart &&
+            selectionLength == _vm.EditorSelectionLength &&
+            caretOffset == _vm.EditorCaretOffset)
+        {
+            return; // nothing changed
+        }
+
+        _editorDebouncer.DebounceOnUI("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+        {
+            _suppressEditorStateSync = true;
+            try
+            {
+                // Take the latest values at execution time to coalesce multiple events
+                _vm.EditorSelectionStart = Editor.SelectionStart;
+                _vm.EditorSelectionLength = Editor.SelectionLength;
+                _vm.EditorCaretOffset = Editor.CaretOffset;
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
+        },
+        DispatcherPriority.Background);
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressEditorStateSync) return;
+        if (_suppressEditorStateSync)
+        {
+            return;
+        }
 
         switch (e.PropertyName)
         {
             case nameof(_vm.DiagramText):
                 if (Editor.Text != _vm.DiagramText)
                 {
-                    _editorDebouncer.Debounce("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+                    _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
-                        SimpleLogger.Log($"ViewModel text changed, updating Editor ({Editor.Text.Length} -> {_vm.DiagramText.Length} chars)");
                         _suppressEditorTextChanged = true;
                         _suppressEditorStateSync = true;
                         try
@@ -206,14 +235,15 @@ public partial class MainWindow : Window
                             _suppressEditorTextChanged = false;
                             _suppressEditorStateSync = false;
                         }
-                    });
+                    },
+                    DispatcherPriority.Background);
                 }
                 break;
 
             case nameof(_vm.EditorSelectionStart):
             case nameof(_vm.EditorSelectionLength):
             case nameof(_vm.EditorCaretOffset):
-                _editorDebouncer.Debounce("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+                _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
                 {
                     _suppressEditorStateSync = true;
                     try
@@ -231,15 +261,14 @@ public partial class MainWindow : Window
                             Editor.SelectionStart = validSelectionStart;
                             Editor.SelectionLength = validSelectionLength;
                             Editor.CaretOffset = validCaretOffset;
-
-                            SimpleLogger.Log($"ViewModel selection synced to Editor: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset}");
                         }
                     }
                     finally
                     {
                         _suppressEditorStateSync = false;
                     }
-                });
+                },
+                DispatcherPriority.Background);
                 break;
         }
     }
@@ -248,18 +277,25 @@ public partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            // Make sure caret is visible:
-            Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
-
-            // Ensure selection is visible
-            Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
-            if (!Editor.IsFocused)
+            // Suppress event reactions during programmatic focus/caret adjustments
+            _suppressEditorStateSync = true;
+            try
             {
-                Editor.Focus();
-            }
+                // Make sure caret is visible:
+                Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
 
-            // after focusing, ensure the caret is visible
-            Editor.TextArea.Caret.BringCaretToView();
+                // Ensure selection is visible
+                Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+                if (!Editor.IsFocused)
+                {
+                    Editor.Focus();
+                }
+                Editor.TextArea.Caret.BringCaretToView();
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
         }, DispatcherPriority.Background);
     }
 
@@ -275,7 +311,12 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
-            // TODO - show a message to the user
+
+            //TODO - show a message to the user
+            //await Dispatcher.UIThread.InvokeAsync(async () =>
+            //{
+            //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
+            //});
         }
     }
 
@@ -302,6 +343,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException(error);
             }
 
+            // Needs to be on UI thread
             await InitializeWebViewAsync();
 
             // Step 3: Update command states
@@ -354,7 +396,6 @@ public partial class MainWindow : Window
     private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-
         SimpleLogger.Log("=== WebView Initialization Started ===");
 
         // Temporarily disable live preview during WebView initialization
@@ -365,6 +406,7 @@ public partial class MainWindow : Window
             SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
         });
 
+        bool success = false;
         try
         {
             // Step 1: Initialize the MermaidRenderer
@@ -378,19 +420,32 @@ public partial class MainWindow : Window
             SimpleLogger.Log("Performing initial Mermaid render...");
             await _renderer.RenderAsync(_vm.DiagramText);
 
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: true);
+            success = true;
             SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
+        }
+        catch (OperationCanceledException)
+        {
+            // Treat cancellations distinctly; still propagate
+            SimpleLogger.Log("WebView initialization was canceled.");
+            throw;
+        }
+        catch (Exception ex) when (ex is AssetIntegrityException or MissingAssetException)
+        {
+            // Let asset-related exceptions bubble up for higher-level handling
+            throw;
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success: false);
+            // Log and rethrow so OnOpenedAsync observes the failure and can abort the sequence
             SimpleLogger.LogError("WebView initialization failed", ex);
+            throw;
         }
         finally
         {
-            // Re-enable live preview after WebView is ready
+            stopwatch.Stop();
+            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
+
+            // Re-enable live preview after WebView is ready (or on failure)
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.LivePreviewEnabled = originalLivePreview;
@@ -399,6 +454,7 @@ public partial class MainWindow : Window
         }
     }
 
+    [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
         SimpleLogger.Log("Close button clicked");

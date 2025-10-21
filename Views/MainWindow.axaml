@@ -32,21 +32,32 @@
         Command="{Binding RenderCommand}"
         Content="Render" />
       <Button
-        Width="80"
         Command="{Binding ClearCommand}"
         Content="Clear" />
       <Button
-        Width="80"
+        Command="{Binding ExportCommand}"
+        Content="Export" />
+      <Button
         Click="OnCloseClick"
         Content="Close" />
       <CheckBox
         Margin="12,0,0,0"
-        Content="Live Preview"
+        Content="Live Preview:"
+        FlowDirection="RightToLeft"
         IsChecked="{Binding LivePreviewEnabled}" />
-      <TextBlock Margin="20,0,4,0" Text="Bundled:" />
+      <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
       <TextBlock Text="{Binding BundledMermaidVersion}" />
       <TextBlock Margin="12,0,4,0" Text="Latest:" />
-      <TextBlock Text="{Binding LatestMermaidVersion}" />
+      <TextBlock Text="{Binding LatestMermaidVersion}" />-->
+      <TextBlock
+        Margin="12,0,0,0"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        Text="Version:" />
+      <TextBlock
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        Text="{Binding CurrentMermaidPadVersion}" />
     </StackPanel>
     <Grid ColumnDefinitions="*,4,*">
       <edit:TextEditor
@@ -54,6 +65,7 @@
         Grid.Column="0"
         FontFamily="Consolas"
         HorizontalScrollBarVisibility="Auto"
+        LineNumbersForeground="Lime"
         ShowLineNumbers="True"
         SyntaxHighlighting="Mermaid"
         VerticalScrollBarVisibility="Auto" />

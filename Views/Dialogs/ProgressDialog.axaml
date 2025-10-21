@@ -1,0 +1,137 @@
+<Window
+  x:Class="MermaidPad.Views.Dialogs.ProgressDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels.Dialogs"
+  Title="Exporting..."
+  Width="450"
+  Height="220"
+  d:DesignHeight="200"
+  d:DesignWidth="400"
+  x:DataType="vm:ProgressDialogViewModel"
+  Background="#F5F5F5"
+  CanResize="False"
+  ExtendClientAreaToDecorationsHint="True"
+  ShowInTaskbar="False"
+  SystemDecorations="None"
+  WindowStartupLocation="CenterOwner"
+  mc:Ignorable="d">
+
+  <Window.Styles>
+    <Style Selector="Window">
+      <Setter Property="TransparencyLevelHint" Value="None" />
+    </Style>
+  </Window.Styles>
+
+  <Border
+    Background="White"
+    BorderBrush="#D0D0D0"
+    BorderThickness="1"
+    CornerRadius="8">
+    <Grid Margin="30">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <!--  Title  -->
+      <TextBlock
+        Grid.Row="0"
+        Margin="0,0,0,20"
+        HorizontalAlignment="Center"
+        FontSize="16"
+        FontWeight="SemiBold"
+        Text="{Binding Title}" />
+
+      <!--  Status Message  -->
+      <TextBlock
+        Grid.Row="1"
+        Margin="0,0,0,10"
+        HorizontalAlignment="Center"
+        Foreground="#666666"
+        Text="{Binding StatusMessage}" />
+
+      <!--  Progress Bar  -->
+      <ProgressBar
+        Grid.Row="2"
+        Height="24"
+        Margin="0,0,0,10"
+        Maximum="100"
+        Minimum="0"
+        ShowProgressText="False"
+        Value="{Binding ProgressValue}">
+        <ProgressBar.Styles>
+          <Style Selector="ProgressBar:indeterminate /template/ Border#ProgressBarRoot">
+            <Setter Property="Background" Value="#E0E0E0" />
+          </Style>
+          <Style Selector="ProgressBar /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="#4CAF50" />
+          </Style>
+        </ProgressBar.Styles>
+      </ProgressBar>
+
+      <!--  Percentage Text  -->
+      <TextBlock
+        Grid.Row="3"
+        Margin="0,0,0,10"
+        HorizontalAlignment="Center"
+        FontSize="12"
+        Foreground="#888888"
+        Text="{Binding ProgressText}" />
+
+      <!--  Step Details  -->
+      <Border
+        Grid.Row="4"
+        Margin="0,0,0,15"
+        Padding="10"
+        Background="#F9F9F9"
+        CornerRadius="4"
+        IsVisible="{Binding ShowDetails}">
+        <StackPanel>
+          <TextBlock
+            FontSize="11"
+            Foreground="#666666"
+            Text="{Binding StepDescription}"
+            TextWrapping="Wrap" />
+          <TextBlock
+            Margin="0,5,0,0"
+            FontSize="11"
+            Foreground="#888888"
+            IsVisible="{Binding HasEstimatedTime}"
+            Text="{Binding EstimatedTime}" />
+        </StackPanel>
+      </Border>
+
+      <!--  Action Buttons - Cancel or Close  -->
+      <Grid Grid.Row="5">
+        <!--  Cancel Button - visible during export  -->
+        <Button
+          Width="100"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Bottom"
+          Command="{Binding CancelCommand}"
+          Content="Cancel"
+          IsVisible="{Binding CanCancel}" />
+
+        <!--  Close Button - visible when export is complete  -->
+        <Button
+          Width="100"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Bottom"
+          Command="{Binding CloseCommand}"
+          Content="Close"
+          IsVisible="{Binding IsComplete}">
+          <Button.Classes>
+            <x:String>accent</x:String>
+          </Button.Classes>
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

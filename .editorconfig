@@ -5,14 +5,14 @@ root = true
 indent_style = space
 indent_size = 2
 tab_width = 2
+insert_final_newline = true
 
 [*.cs]
 
 #### Core EditorConfig Options ####
 
 # License header
-file_header_template = unset
-
+file_header_template = MIT License\nCopyright (c) 2025 Dave Black\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the "Software"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.
 # Indentation and spacing
 indent_size = 4
 indent_style = space
@@ -45,7 +45,7 @@ dotnet_diagnostic.IDE0028.severity = none
 
 # Default severity for analyzer diagnostics with category 'Interoperability'
 dotnet_analyzer_diagnostic.category-Interoperability.severity = error
-csharp_using_directive_placement = outside_namespace:silent
+csharp_using_directive_placement = outside_namespace:suggestion
 csharp_prefer_simple_using_statement = true:suggestion
 csharp_prefer_braces = true:suggestion
 csharp_style_namespace_declarations = file_scoped:suggestion
@@ -63,6 +63,9 @@ csharp_style_expression_bodied_lambdas = true:silent
 csharp_style_expression_bodied_local_functions = true:suggestion
 csharp_indent_labels = one_less_than_current
 
+#IDE0073: Require file header
+dotnet_diagnostic.IDE0073.severity = warning
+
 # IDE0079: Remove unnecessary suppression
 dotnet_diagnostic.IDE0079.severity = none
 csharp_style_throw_expression = true:suggestion
@@ -75,6 +78,11 @@ csharp_style_implicit_object_creation_when_type_is_apparent = true:suggestion
 csharp_style_prefer_implicitly_typed_lambda_expression = true:suggestion
 csharp_style_prefer_tuple_swap = true:suggestion
 csharp_space_around_binary_operators = before_and_after
+csharp_prefer_static_local_function = true:error
+csharp_prefer_static_anonymous_function = true:error
+csharp_style_prefer_readonly_struct = true:error
+csharp_style_prefer_readonly_struct_member = true:suggestion
+csharp_style_prefer_simple_property_accessors = true:suggestion
 
 [*.{cs,vb}]
 #### Naming styles ####
@@ -135,7 +143,7 @@ dotnet_style_operator_placement_when_wrapping = beginning_of_line
 tab_width = 4
 indent_size = 4
 end_of_line = crlf
-dotnet_style_prefer_conditional_expression_over_return = true:suggestion
+dotnet_style_prefer_conditional_expression_over_return = false:suggestion
 dotnet_style_explicit_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
@@ -147,3 +155,12 @@ dotnet_style_namespace_match_folder = true:suggestion
 # Resharper
 # Use preferred style of 'new' expression when created type is evident
 resharper_arrange_object_creation_when_type_evident_highlighting = none
+resharper_convert_to_primary_constructor_highlighting = none
+resharper_can_simplify_dictionary_try_get_value_with_get_value_or_default_highlighting = none
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:silent
+dotnet_style_qualification_for_field = false:silent
+dotnet_style_qualification_for_property = false:silent
+dotnet_style_qualification_for_method = false:silent
+dotnet_style_qualification_for_event = false:silent
+dotnet_diagnostic.CA1062.severity = error
+dotnet_diagnostic.CA1016.severity = none

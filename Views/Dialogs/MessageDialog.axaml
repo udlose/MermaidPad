@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels.Dialogs"
+  Title="{Binding Title}"
+  Width="400"
+  MinHeight="150"
+  x:Class="MermaidPad.Views.Dialogs.MessageDialog"
+  x:DataType="vm:MessageDialogViewModel"
+  CanResize="False"
+  ShowInTaskbar="False"
+  SizeToContent="Height"
+  WindowStartupLocation="CenterOwner">
+
+  <DockPanel Margin="20">
+    <StackPanel
+      Margin="0,20,0,0"
+      HorizontalAlignment="Right"
+      DockPanel.Dock="Bottom"
+      Orientation="Horizontal"
+      Spacing="10">
+      <Button
+        Click="OnOkClick"
+        Content="OK"
+        IsDefault="True" />
+    </StackPanel>
+
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <!--  Icon  -->
+      <PathIcon
+        Grid.Column="0"
+        Width="32"
+        Height="32"
+        Margin="0,0,15,0"
+        Data="{Binding IconData}"
+        Foreground="{Binding IconColor}" />
+
+      <!--  Message  -->
+      <TextBlock
+        Grid.Column="1"
+        VerticalAlignment="Center"
+        Text="{Binding Message}"
+        TextWrapping="Wrap" />
+    </Grid>
+  </DockPanel>
+</Window>

@@ -416,3 +416,7 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Generated files (except for NamespacePlaceholder.cs)
+Generated/*
+!Generated/NamespacePlaceholder.cs

@@ -1,3 +1,23 @@
+// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 using MermaidPad.Models;
 using System.Diagnostics;
 using System.Text.Json;
@@ -38,13 +58,6 @@ public sealed class SettingsService
             // Validate that the settings path is within the expected config directory
             string configDir = GetConfigDirectory();
             string fullSettingsPath = Path.GetFullPath(_settingsPath);
-            string fullConfigDir = Path.GetFullPath(configDir);
-
-            if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
-            {
-                Debug.WriteLine("Settings path validation failed.");
-                return new AppSettings();
-            }
 
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
@@ -55,48 +68,28 @@ public sealed class SettingsService
 
             if (File.Exists(fullSettingsPath))
             {
-                // Extra validation: ensure the file is not a symlink or reparse point
-                FileInfo fileInfo = new FileInfo(fullSettingsPath);
-                if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
+                // Use SecurityService for comprehensive validation
+                (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
+                if (!isSecure && !string.IsNullOrEmpty(reason))
                 {
-                    Debug.WriteLine("Settings file is a reparse point (symlink/junction), aborting read.");
+                    SimpleLogger.LogError($"Settings file validation failed: {reason}");
                     return new AppSettings();
                 }
 
-                // SEC0112 fix: Use a whitelist approach to validate the file path before opening
-                // Only allow reading if the path is exactly the expected settings.json in the config directory
-                string expectedSettingsPath = Path.Combine(fullConfigDir, SettingsFileName);
-                if (string.Equals(fullSettingsPath, expectedSettingsPath, StringComparison.OrdinalIgnoreCase))
+                // Use SecurityService for secure file stream creation
+                string json;
+                using (FileStream fs = SecurityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
+                using (StreamReader reader = new StreamReader(fs))
                 {
-                    // Extra validation: ensure the file is not a symlink or reparse point (already done above)
-                    // Additional validation: ensure the file is not a hard link
-                    if (IsSingleLink(expectedSettingsPath))
-                    {
-                        // Use File.OpenRead which is less error-prone and more restrictive than FileStream constructor
-                        string json;
-                        using (FileStream fs = File.OpenRead(expectedSettingsPath))
-                        using (StreamReader reader = new StreamReader(fs))
-                        {
-                            json = reader.ReadToEnd();
-                        }
-                        return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
-                    }
-                    else
-                    {
-                        Debug.WriteLine("Settings file is a hard link, aborting read.");
-                        return new AppSettings();
-                    }
+                    json = reader.ReadToEnd();
                 }
-                else
-                {
-                    Debug.WriteLine("Settings file path is not the expected config file, aborting read.");
-                    return new AppSettings();
-                }
+
+                return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings load failed: {ex}");
+            SimpleLogger.LogError($"Settings load failed: {ex}");
         }
         return new AppSettings();
     }
@@ -136,32 +129,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Settings save failed: {ex}");
+            SimpleLogger.LogError($"Settings save failed: {ex}");
         }
-    }
-
-    private static bool IsSingleLink(string filePath)
-    {
-        // On Windows, check if the file has only one hard link
-        // This is a simple check to see if the file is not a symlink or reparse point
-        if (OperatingSystem.IsWindows())
-        {
-            try
-            {
-                FileInfo fileInfo = new FileInfo(filePath);
-                return fileInfo.Exists && fileInfo.LinkTarget is null && !fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error checking file links: {ex}");
-                return false;
-            }
-        }
-
-        // On non-Windows systems, we assume the file is not a symlink or reparse point
-        // This is a simplification, as non-Windows systems may not have the same link semantics
-        // Note: This may not be fully accurate for all non-Windows systems
-        // but is a reasonable assumption for most use cases.
-        return true;
     }
 }

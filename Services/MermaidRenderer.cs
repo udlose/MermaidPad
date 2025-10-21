@@ -1,7 +1,28 @@
+// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Services.Platforms;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text;
 
@@ -11,17 +32,25 @@ namespace MermaidPad.Services;
 /// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
+[SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
-    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFileName}";
-    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFileName}";
-    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFileName}";
+    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFilePath}";
+    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFilePath}";
+    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFilePath}";
+    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+
     private WebView? _webView;
     private int _renderAttemptCount;
     private HttpListener? _httpListener;
     private byte[]? _htmlContent;
     private byte[]? _mermaidJs;
     private byte[]? _jsYamlJs;
+    private byte[]? _mermaidLayoutElkJs;
+    private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
+    private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
     private int _serverPort;
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
@@ -37,7 +66,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
 
-        await InitializeWithHttpServerAsync();
+        await InitializeWithHttpServerAsync();  // NO ConfigureAwait - caller expects to continue on UI thread
     }
 
     /// <summary>
@@ -47,21 +76,23 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private async Task InitializeWithHttpServerAsync()
     {
         // Step 1: Prepare content (HTML and JS separately)
-        await PrepareContentFromDiskAsync();
+        await PrepareContentFromDiskAsync()
+            .ConfigureAwait(false);
 
         // Step 2: Start HTTP server
         StartHttpServer();
 
         // Step 3: Wait for server ready
         SimpleLogger.Log("Waiting for HTTP server to be ready...");
-        bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10));
+        bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10))
+            .ConfigureAwait(false);
         if (!serverReady)
         {
             throw new TimeoutException("HTTP server failed to start within timeout");
         }
 
         // Step 4: Navigate to server
-        await NavigateToServerAsync();
+        await NavigateToServerAsync();  // Navigation needs UI context, so no ConfigureAwait(false) here
     }
 
     /// <summary>
@@ -72,27 +103,29 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         Stopwatch sw = Stopwatch.StartNew();
 
-        try
-        {
-            // Get assets in parallel
-            Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFileName);
-            Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFileName);
-            Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFileName);
-            await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask);
-            _htmlContent = await indexHtmlTask;
-            _mermaidJs = await jsTask;
-            _jsYamlJs = await jsYamlTask;
-        }
-        catch (Exception e)
-        {
-            SimpleLogger.LogError("Error reading asset files", e);
-            return;
-        }
+        // Get assets in parallel
+        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
+        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
+        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
+        Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
+        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
+        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
+        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
+            .ConfigureAwait(false);
+        _htmlContent = await indexHtmlTask.ConfigureAwait(false);
+        _mermaidJs = await jsTask.ConfigureAwait(false);
+        _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
+        _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
+        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
+        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
 
         sw.Stop();
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
         SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
+        SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
 
         SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
@@ -144,8 +177,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 try
                 {
                     // Use WaitAsync for responsive cancellation while waiting for requests
-                    context = await _httpListener.GetContextAsync().WaitAsync(cancellationToken);
-                    await ProcessRequestAsync(context);
+                    context = await _httpListener.GetContextAsync()
+                        .WaitAsync(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    await ProcessRequestAsync(context)
+                        .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -200,44 +237,57 @@ public sealed class MermaidRenderer : IAsyncDisposable
             string? contentType = null;
 
             // Separate file handling is needed to avoid JavaScript injection issues
-            switch (requestPath)
+            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
             {
-                case MermaidRequestPath when _mermaidJs is not null:
-                    {
-                        responseBytes = _mermaidJs;
-                        contentType = "application/javascript; charset=utf-8";
-                        break;
-                    }
-                case MermaidRequestPath:
-                    {
-                        context.Response.StatusCode = 404;
-                        break;
-                    }
-                case "/" or IndexRequestPath:
-                    {
-                        responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
-                        contentType = "text/html; charset=utf-8";
-                        break;
-                    }
-                case JsYamlRequestPath when _jsYamlJs is not null:
-                    {
-                        responseBytes = _jsYamlJs;
-                        contentType = "application/javascript; charset=utf-8";
-                        break;
-                    }
-                default:
-                    {
-                        context.Response.StatusCode = 404;
-                        SimpleLogger.Log($"404 for: {requestPath}");
-                        break;
-                    }
+                responseBytes = _mermaidJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.StatusCode = 404;
+            }
+            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
+            {
+                responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
+                contentType = "text/html; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
+            {
+                responseBytes = _jsYamlJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
+                     _mermaidLayoutElkChunkSP2CHFBEJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
+                     _mermaidLayoutElkRenderAVRWSH4DJs is not null)
+            {
+                responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else
+            {
+                context.Response.StatusCode = 404;
+                SimpleLogger.Log($"404 for: {requestPath}");
             }
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
             {
+                // set the response code before writing to the output stream
+                context.Response.StatusCode = 200;
                 context.Response.ContentType = contentType;
                 context.Response.ContentLength64 = responseBytes.Length;
-                await context.Response.OutputStream.WriteAsync(responseBytes);
+                await context.Response.OutputStream.WriteAsync(responseBytes)
+                    .ConfigureAwait(false);
+
                 SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
             }
         }
@@ -286,7 +336,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         // Wait for navigation
         for (int i = 0; i < 50 && !navigationCompleted; i++)
         {
-            await Task.Delay(100);
+            await Task.Delay(100);  // NO ConfigureAwait - caller needs UI context
         }
 
         if (navigationCompleted)
@@ -364,9 +414,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return;
         }
 
-        // Simple JavaScript execution - no unnecessary complexity
+        // Simple JavaScript execution
         string escaped;
-        if (!mermaidSource.AsSpan().Contains('\\') && !mermaidSource.AsSpan().Contains('`'))
+        ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
+        if (!sourceSpan.Contains('\\') && !sourceSpan.Contains('`'))
         {
             escaped = mermaidSource;
         }
@@ -415,6 +466,36 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Executes JavaScript in the WebView and returns the result.
+    /// </summary>
+    /// <param name="script">The JavaScript code to execute.</param>
+    /// <returns>The result of the JavaScript execution as a string, or null if execution fails.</returns>
+    public async Task<string?> ExecuteScriptAsync(string script)
+    {
+        if (_webView is null)
+        {
+            SimpleLogger.LogError("WebView not initialized for script execution");
+            return null;
+        }
+
+        try
+        {
+            return await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                string? result = await _webView.ExecuteScriptAsync(script);
+                SimpleLogger.LogJavaScript(script, true, writeToDebug: true, result);
+                return result;
+            });
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogJavaScript(script, false, writeToDebug: true, ex.Message);
+            SimpleLogger.LogError("Script execution failed", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Disposes the MermaidRenderer, stopping the HTTP server and cleaning up resources.
     /// </summary>
     /// <returns>A task representing the asynchronous disposal operation.</returns>
@@ -425,7 +506,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Cancel server operations
             if (_serverCancellation is not null)
             {
-                await _serverCancellation.CancelAsync();
+                await _serverCancellation.CancelAsync()
+                    .ConfigureAwait(false);
             }
 
             // Stop and close HTTP listener
@@ -441,7 +523,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 try
                 {
                     const int maxWaitSeconds = 5;
-                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds));
+                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
+                        .ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
