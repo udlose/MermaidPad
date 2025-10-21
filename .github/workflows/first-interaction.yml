@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Greetings
+
+on:
+  pull_request:
+    types:
+      - opened
+  issues:
+    types:
+      - opened
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  greeting:
+    name: Greet First-Time Contributors
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/first-interaction@v3
+        with:
+          repo_token: ${{ secrets.FIRST_INTERACTION }}
+          issue-message: |
+            # Welcome to MermaidPad!
+
+            Thanks for taking the time to file an issue - I really appreciate first-time contributions.
+            To help me triage and fix this faster, please include:
+            - A short summary of the problem or suggestion.
+            - Steps to reproduce:
+              - exact steps
+              - sample diagram text
+              - screenshots
+              - and anything else you think would be helpful
+            - MermaidPad version
+            - Your OS: e.g., Windows 11, macOS 14, Ubuntu 22.04, etc.
+            - Your CPU Architecture: e.g., x86, x64, ARM, ARM64
+            - Screenshots or error output, if available.
+
+            Before you wait for a reply, you may also find helpful details in `CONTRIBUTING.md` and `README.md`.
+            A maintainer will review this soon and may ask for additional information. Thank you - your contribution helps make MermaidPad better!
+
+          pr-message: |
+            # Thanks for your first Pull Request!
+
+            I really appreciate you contributing to MermaidPad! To help the review proceed smoothly, please describe:
+            - What this PR changes and why (link an issue if one exists).
+            - How you tested the change (manual steps or automated tests).
+            - Whether any docs or screenshots were updated.
+            
+            > [!Important]
+            > Please make sure that any testing included testing of the published app, not just local dev builds.
+            >
+            > You can find instructions for building and testing the published app in `README.md#building--publishing`.            
+
+            CI checks will run automatically. If you can, please ensure:
+            - The change is covered by tests or manual verification.
+            - Documentation or README updates are included for user-facing changes.
+
+            A maintainer will review your PR soon and may request small adjustments. Thanks again - your work helps the project grow!
