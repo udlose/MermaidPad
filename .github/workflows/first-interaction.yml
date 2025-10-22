@@ -22,8 +22,9 @@ jobs:
     steps:
       - uses: actions/first-interaction@v3
         with:
-          repo_token: ${{ secrets.FIRST_INTERACTION }}
-          issue-message: |
+          #repo_token: ${{ secrets.FIRST_INTERACTION }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
             # Welcome to MermaidPad!
 
             Thanks for taking the time to file an issue - I really appreciate first-time contributions.
@@ -42,7 +43,7 @@ jobs:
             Before you wait for a reply, you may also find helpful details in `CONTRIBUTING.md` and `README.md`.
             A maintainer will review this soon and may ask for additional information. Thank you - your contribution helps make MermaidPad better!
 
-          pr-message: |
+          pr_message: |
             # Thanks for your first Pull Request!
 
             I really appreciate you contributing to MermaidPad! To help the review proceed smoothly, please describe:
