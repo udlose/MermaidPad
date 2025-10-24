@@ -252,7 +252,7 @@ public sealed partial class ExportService
             // marshal only the UI-bound implementation to the UI thread.
             if (!Dispatcher.UIThread.CheckAccess())
             {
-                await Dispatcher.UIThread.InvokeAsync(() => ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken));
+                await Dispatcher.UIThread.InvokeAsync(async () => await ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken));
                 return;
             }
 
@@ -276,11 +276,7 @@ public sealed partial class ExportService
     /// This method assumes it is running on the UI thread.
     /// </summary>
     [SuppressMessage("Style", "IDE0047:Remove unnecessary parentheses", Justification = "Improves readability")]
-    private async Task ExportPngOnUiThreadAsync(
-        string targetPath,
-        PngExportOptions options,
-        IProgress<ExportProgress>? progress,
-        CancellationToken cancellationToken)
+    private async Task ExportPngOnUiThreadAsync(string targetPath, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
     {
         try
         {
@@ -344,7 +340,8 @@ public sealed partial class ExportService
             }
 
             // Decode and write the PNG to disk (handles pooled buffer + fallback)
-            int bytesWritten = await DecodeAndWritePngAsync(base64Data, targetPath, linkedCts.Token).ConfigureAwait(false);
+            int bytesWritten = await DecodeAndWritePngAsync(base64Data, targetPath, linkedCts.Token)
+                .ConfigureAwait(false);
 
             // Clean up JavaScript globals
             await _mermaidRenderer.ExecuteScriptAsync("globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';");
@@ -415,8 +412,8 @@ public sealed partial class ExportService
         else
         {
             // Not on UI thread - marshal to UI thread
-            result = await Dispatcher.UIThread.InvokeAsync(
-                () => _mermaidRenderer.ExecuteScriptAsync(script));
+            result = await Dispatcher.UIThread.InvokeAsync(async () =>
+                await _mermaidRenderer.ExecuteScriptAsync(script));
         }
 
         // Remove any JSON escaping if present
@@ -590,7 +587,8 @@ public sealed partial class ExportService
 
                 if (written > 0)
                 {
-                    await fs.WriteAsync(new ReadOnlyMemory<byte>(outputBuffer, 0, written), cancellationToken).ConfigureAwait(false);
+                    await fs.WriteAsync(new ReadOnlyMemory<byte>(outputBuffer, 0, written), cancellationToken)
+                        .ConfigureAwait(false);
                     totalWritten += written;
                 }
 
