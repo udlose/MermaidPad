@@ -22,12 +22,13 @@ jobs:
     steps:
       - uses: actions/first-interaction@v3
         with:
+          # TODO - DaveBlack: which is better to use here?
           #repo_token: ${{ secrets.FIRST_INTERACTION }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           issue_message: |
             # Welcome to MermaidPad!
 
-            Thanks for taking the time to file an issue - I really appreciate first-time contributions.
+            Thanks for taking the time to file an issue - I really appreciate first-time contributions to improve MermaidPad!
             To help me triage and fix this faster, please include:
             - A short summary of the problem or suggestion.
             - Steps to reproduce:
