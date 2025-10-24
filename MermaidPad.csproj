@@ -118,7 +118,7 @@
 
 	<ItemGroup>
 		<None Include=".github/workflows/build-and-release.yml" />
-		<None Include=".github/workflows/code-ql.yml" />
+		<None Include=".github/workflows/codeql.yml" />
 		<None Include=".github/workflows/first-interaction.yml" />
 		<None Include=".github/workflows/macos-universal-dmg.yml" />
 		<None Include=".github/workflows/macos-bundle.yml" />
