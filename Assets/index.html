@@ -693,7 +693,6 @@
               const dataUrl = canvas.toDataURL('image/png');
               
               // Validate that toDataURL() succeeded
-              // Validate that toDataURL() succeeded
               // Some browsers return 'data:,' if canvas.toDataURL() fails (e.g., canvas is empty, too large, or encoding error)
               if (!dataUrl || dataUrl === 'data:,' || !dataUrl.includes(',')) {
                   throw new Error('Failed to encode canvas to PNG. The canvas size may be too large for this browser. Try reducing scale or DPI.');
