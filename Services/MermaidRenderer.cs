@@ -412,9 +412,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             try
             {
-                async Task ClearOutputAsync() => await _webView.ExecuteScriptAsync("clearOutput();");
-                await Dispatcher.UIThread.InvokeAsync(ClearOutputAsync);
+                // Copy locals to explicit locals to make intent clear and avoid captures
+                WebView webView = _webView!;
+
+                // Explicit call (lambda still captures webView local, but the static local function prevents
+                // implicit capture of surrounding variables inside the function body).
+                await Dispatcher.UIThread.InvokeAsync(async () => await ClearOutputAsync(webView));
+
                 SimpleLogger.Log("Cleared output");
+
+                // Static local function to avoid capturing outer variables inside the function
+                static Task ClearOutputAsync(WebView webViewParam) => webViewParam.ExecuteScriptAsync("clearOutput();");
             }
             catch (Exception ex)
             {
@@ -443,7 +451,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 string? result = await _webView.ExecuteScriptAsync(script);
                 SimpleLogger.Log($"Render result: {result ?? "(null)"}");
             }
-            await Dispatcher.UIThread.InvokeAsync(RenderMermaidAsync);
+
+            // Explicit invocation on UI thread
+            await Dispatcher.UIThread.InvokeAsync(async () => await RenderMermaidAsync());
         }
         catch (Exception ex)
         {
