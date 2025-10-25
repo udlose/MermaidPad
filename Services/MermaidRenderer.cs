@@ -506,13 +506,15 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 string? result = await _webView.ExecuteScriptAsync(script);
-                SimpleLogger.LogJavaScript(script, true, writeToDebug: true, result);
+                // TODO should i re-enable this later?
+                // SimpleLogger.LogJavaScript(script, true, writeToDebug: true, result);
                 return result;
             });
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogJavaScript(script, false, writeToDebug: true, ex.Message);
+            // TODO should i re-enable this later?
+            // SimpleLogger.LogJavaScript(script, false, writeToDebug: true, ex.Message);
             SimpleLogger.LogError("Script execution failed", ex);
             return null;
         }
