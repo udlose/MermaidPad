@@ -102,9 +102,14 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Processes SVG content by applying optional optimization.
+    /// Processes the provided SVG content based on the specified export options.
     /// </summary>
-    /// <remarks>This method is now async because optimization uses streaming XmlReader/XmlWriter for large files.</remarks>
+    /// <remarks>If the <paramref name="options"/> specify optimization, the method applies the optimization
+    /// process to the SVG content.</remarks>
+    /// <param name="svgContent">The SVG content to process, represented as a read-only memory block of characters.</param>
+    /// <param name="options">The options that determine how the SVG content should be processed, such as whether to optimize it.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>A <see cref="ReadOnlyMemory{T}"/> containing the processed SVG content.</returns>
     private static async Task<ReadOnlyMemory<char>> ProcessSvgContentAsync(
         ReadOnlyMemory<char> svgContent,
         SvgExportOptions options,
@@ -122,8 +127,15 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Writes SVG content to file using <see cref="ReadOnlyMemory{char}"/> for zero-copy efficiency.
+    /// Writes the specified SVG content to a file at the given path asynchronously.
     /// </summary>
+    /// <remarks>This method ensures that the target directory exists before writing the file. The content is
+    /// written using UTF-8 encoding.</remarks>
+    /// <param name="targetPath">The full path of the file where the SVG content will be written. If the directory does not exist, it will be
+    /// created.</param>
+    /// <param name="svgContent">The SVG content to write, provided as a <see cref="ReadOnlyMemory{Char}"/> for efficient, zero-copy operations.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will be canceled if the token is triggered.</param>
+    /// <returns>A task that represents the asynchronous write operation.</returns>
     private static async Task WriteSvgToFileAsync(string targetPath, ReadOnlyMemory<char> svgContent, CancellationToken cancellationToken)
     {
         // Ensure directory exists
@@ -139,14 +151,19 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Optimizes SVG content using streaming XML processing for minimal memory overhead.
+    /// Optimizes the provided SVG content by removing unnecessary elements, attributes, and whitespace based on the
+    /// specified options.
     /// </summary>
-    /// <remarks>
-    /// Uses XmlReader/XmlWriter for single-pass streaming optimization. For a 10 MB SVG,
-    /// this uses ~20 MB peak memory vs ~110 MB with XDocument approach. Processes asynchronously
-    /// to avoid blocking threads. The input uses a custom MemoryTextReader for zero-copy reading,
-    /// avoiding the need to call ToString() on the input ReadOnlyMemory.
-    /// </remarks>
+    /// <remarks>This method processes the SVG content asynchronously, applying optimizations such as removing
+    /// comments, skipping metadata elements, and optionally minifying the content. It ensures that the resulting SVG
+    /// remains valid.  The method is designed to handle large SVG files efficiently, but it may log a warning if the
+    /// input size exceeds 5 MB.  If the input content is invalid XML, the method logs an error and returns the original
+    /// content.</remarks>
+    /// <param name="svgContent">The SVG content to optimize, represented as a read-only memory of characters.</param>
+    /// <param name="options">The options that control the optimization process, such as whether to remove comments or minify the SVG.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will terminate early if cancellation is requested.</param>
+    /// <returns>A <see cref="ReadOnlyMemory{T}"/> containing the optimized SVG content. If the optimization fails, the original
+    /// content is returned.</returns>
     private static async Task<ReadOnlyMemory<char>> OptimizeSvgAsync(ReadOnlyMemory<char> svgContent,
         SvgExportOptions options, CancellationToken cancellationToken = default)
     {
@@ -373,9 +390,19 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// UI-thread-bound portion of the PNG export. Separated to avoid recursive marshalling to the UI thread.
-    /// This method assumes it is running on the UI thread.
+    /// Exports a PNG image asynchronously on the UI thread using the specified options and writes it to the target
+    /// path.
     /// </summary>
+    /// <remarks>This method performs the export operation in multiple steps, including initiating the export,
+    /// tracking progress, retrieving and decoding the PNG data, and writing it to the specified file path. If the
+    /// operation is canceled or an error occurs, the method ensures proper cleanup and logs the failure.</remarks>
+    /// <param name="targetPath">The file path where the exported PNG image will be saved. This path must be writable.</param>
+    /// <param name="options">The <see cref="PngExportOptions"/> that specify the configuration for the PNG export process.</param>
+    /// <param name="progress">An optional <see cref="IProgress{T}"/> instance to report the progress of the export operation.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> to observe while waiting for the operation to complete. The operation can be
+    /// canceled by the caller.</param>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the PNG export process finishes
+    /// successfully or fails.</returns>
     [SuppressMessage("Style", "IDE0047:Remove unnecessary parentheses", Justification = "Improves readability")]
     private async Task ExportPngOnUiThreadAsync(string targetPath, PngExportOptions options, IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
     {
@@ -415,6 +442,14 @@ public sealed class ExportService
         }
     }
 
+    /// <summary>
+    /// Initiates an asynchronous export operation to generate a PNG image using the specified export options.
+    /// </summary>
+    /// <remarks>This method serializes the provided export options into a JSON object and executes a
+    /// JavaScript function to perform the export operation. The export process is handled asynchronously.</remarks>
+    /// <param name="options">The options that define the scale, DPI, and background color for the PNG export. The <see
+    /// cref="PngExportOptions.BackgroundColor"/> property can be set to <c>null</c> to use a transparent background.</param>
+    /// <returns></returns>
     private async Task StartBrowserExportAsync(PngExportOptions options)
     {
         string exportOptionsJson = JsonSerializer.Serialize(new
@@ -431,8 +466,16 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Waits for export completion using callback mechanism with timeout.
+    /// Waits for the completion of an export operation, monitoring its progress and respecting a specified timeout and
+    /// cancellation token.
     /// </summary>
+    /// <remarks>This method registers a callback to monitor the export progress and waits asynchronously for
+    /// the operation to complete. If the operation does not complete within the specified timeout, or if the
+    /// cancellation token is triggered, the wait is terminated.</remarks>
+    /// <param name="progress">An optional progress reporter that receives updates about the export operation's progress.</param>
+    /// <param name="timeout">The maximum amount of time to wait for the export operation to complete.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests, which can be used to terminate the wait operation prematurely.</param>
+    /// <returns></returns>
     private async Task WaitForExportCompletionAsync(IProgress<ExportProgress>? progress, TimeSpan timeout, CancellationToken cancellationToken)
     {
         TaskCompletionSource<bool> completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -479,8 +522,8 @@ public sealed class ExportService
     /// Resets global variables used for PNG export in the rendering context.
     /// </summary>
     /// <remarks>This method clears the values of the global variables <c>__pngExportResult__</c> and
-    /// <c>__pngExportStatus__</c> in the JavaScript execution environment. It ensures that these variables are set to
-    /// their default states before initiating a new export operation.</remarks>
+    /// <c>__pngExportStatus__</c> in the JavaScript execution environment. It ensures that any previous export state is
+    /// removed, preparing the context for a new export operation.</remarks>
     /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task CleanupExportGlobalVariablesAsync()
     {
@@ -538,80 +581,6 @@ public sealed class ExportService
 
         // Remove any JSON escaping if present and return as memory
         return UnwrapJsonString(result.AsMemory());
-    }
-
-    /// <summary>
-    /// Handles the progress updates for an export operation by parsing the provided status JSON, reporting progress,
-    /// and signaling task completion or failure.
-    /// </summary>
-    /// <remarks>This method parses the provided JSON to extract progress information, including the current
-    /// step, percentage complete, and any associated message. It maps the step to an <see cref="ExportStep"/> value and
-    /// reports progress using the <paramref name="progress"/> parameter if provided. If the step indicates completion,
-    /// the task is marked as successfully completed. If the step indicates an error, the task is marked as failed with
-    /// an appropriate exception.</remarks>
-    /// <param name="statusJson">A JSON string representing the current status of the export operation. The JSON is expected to contain
-    /// properties such as "step", "percent", and "message".</param>
-    /// <param name="completionSource">A <see cref="TaskCompletionSource{TResult}"/> used to signal the completion or failure of the export operation.</param>
-    /// <param name="progress">An optional <see cref="IProgress{T}"/> instance used to report progress updates to the caller.</param>
-    private static void HandleExportProgress(string statusJson, TaskCompletionSource<bool> completionSource, IProgress<ExportProgress>? progress)
-    {
-        if (string.IsNullOrWhiteSpace(statusJson))
-        {
-            return;
-        }
-
-        try
-        {
-            using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
-            JsonElement root = statusDoc.RootElement;
-
-            string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
-            int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
-            string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? string.Empty : string.Empty;
-
-            SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
-
-            ExportStep exportStep = step switch
-            {
-                "initializing" => ExportStep.Initializing,
-                "rendering" => ExportStep.Rendering,
-                "creating-canvas" => ExportStep.CreatingCanvas,
-                "converting" or "drawing" => ExportStep.Rendering,
-                "encoding" => ExportStep.Encoding,
-                "complete" => ExportStep.Complete,
-                _ => ExportStep.Rendering
-            };
-
-            // Report progress
-            if (progress is not null)
-            {
-                ReportProgress(progress, new ExportProgress
-                {
-                    Step = exportStep,
-                    PercentComplete = percent,
-                    Message = message
-                });
-            }
-
-            // Handle completion or error
-            if (step == "complete")
-            {
-                SimpleLogger.Log("PNG export completed successfully");
-                completionSource.TrySetResult(true);
-            }
-            else if (step == "error")
-            {
-                string errorMsg = string.IsNullOrWhiteSpace(message)
-                    ? "PNG export failed with unknown error"
-                    : $"PNG export failed: {message}";
-
-                completionSource.TrySetException(new InvalidOperationException(errorMsg));
-            }
-        }
-        catch (JsonException ex)
-        {
-            SimpleLogger.LogError("Failed to parse export status JSON", ex);
-        }
     }
 
     #region Base64 Decoding
@@ -932,6 +901,80 @@ public sealed class ExportService
     #endregion
 
     #region Progress Reporting
+
+    /// <summary>
+    /// Handles the progress updates for an export operation by parsing the provided status JSON, reporting progress,
+    /// and signaling task completion or failure.
+    /// </summary>
+    /// <remarks>This method parses the provided JSON to extract progress information, including the current
+    /// step, percentage complete, and any associated message. It maps the step to an <see cref="ExportStep"/> value and
+    /// reports progress using the <paramref name="progress"/> parameter if provided. If the step indicates completion,
+    /// the task is marked as successfully completed. If the step indicates an error, the task is marked as failed with
+    /// an appropriate exception.</remarks>
+    /// <param name="statusJson">A JSON string representing the current status of the export operation. The JSON is expected to contain
+    /// properties such as "step", "percent", and "message".</param>
+    /// <param name="completionSource">A <see cref="TaskCompletionSource{TResult}"/> used to signal the completion or failure of the export operation.</param>
+    /// <param name="progress">An optional <see cref="IProgress{T}"/> instance used to report progress updates to the caller.</param>
+    private static void HandleExportProgress(string statusJson, TaskCompletionSource<bool> completionSource, IProgress<ExportProgress>? progress)
+    {
+        if (string.IsNullOrWhiteSpace(statusJson))
+        {
+            return;
+        }
+
+        try
+        {
+            using JsonDocument statusDoc = JsonDocument.Parse(statusJson);
+            JsonElement root = statusDoc.RootElement;
+
+            string step = root.TryGetProperty("step", out JsonElement stepEl) ? stepEl.GetString() ?? "unknown" : "unknown";
+            int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
+            string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? string.Empty : string.Empty;
+
+            SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
+
+            ExportStep exportStep = step switch
+            {
+                "initializing" => ExportStep.Initializing,
+                "rendering" => ExportStep.Rendering,
+                "creating-canvas" => ExportStep.CreatingCanvas,
+                "converting" or "drawing" => ExportStep.Rendering,
+                "encoding" => ExportStep.Encoding,
+                "complete" => ExportStep.Complete,
+                _ => ExportStep.Rendering
+            };
+
+            // Report progress
+            if (progress is not null)
+            {
+                ReportProgress(progress, new ExportProgress
+                {
+                    Step = exportStep,
+                    PercentComplete = percent,
+                    Message = message
+                });
+            }
+
+            // Handle completion or error
+            if (step == "complete")
+            {
+                SimpleLogger.Log("PNG export completed successfully");
+                completionSource.TrySetResult(true);
+            }
+            else if (step == "error")
+            {
+                string errorMsg = string.IsNullOrWhiteSpace(message)
+                    ? "PNG export failed with unknown error"
+                    : $"PNG export failed: {message}";
+
+                completionSource.TrySetException(new InvalidOperationException(errorMsg));
+            }
+        }
+        catch (JsonException ex)
+        {
+            SimpleLogger.LogError("Failed to parse export status JSON", ex);
+        }
+    }
 
     /// <summary>
     /// Reports the current export progress to the specified progress handler, ensuring updates are marshaled to the UI
