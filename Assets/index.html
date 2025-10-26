@@ -134,6 +134,229 @@
     body.dark-theme #output svg .messageText {
       fill: #e0e0e0 !important;
     }
+
+    /* ============================================
+   HOVER HIGHLIGHTING STYLES FOR MERMAID DIAGRAMS
+   Add these styles to the <style> section in index.html
+   ============================================ */
+
+    /* Enable smooth transitions for all interactive elements */
+    #output svg .node,
+    #output svg .edgePath path,
+    #output svg .flowchart-link,
+    #output svg .actor,
+    #output svg .activation,
+    #output svg rect,
+    #output svg circle,
+    #output svg ellipse,
+    #output svg polygon,
+    #output svg path,
+    #output svg .messageText,
+    #output svg .labelText,
+    #output svg .nodeLabel,
+    #output svg .edgeLabel {
+      transition: all 0.2s ease-in-out;
+      cursor: pointer;
+    }
+
+    /* ============================================
+   LIGHT THEME HOVER EFFECTS
+   ============================================ */
+
+    /* Node hover effects - Light theme */
+    body.light-theme #output svg .node:hover rect,
+    body.light-theme #output svg .node:hover circle,
+    body.light-theme #output svg .node:hover ellipse,
+    body.light-theme #output svg .node:hover polygon {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(0, 122, 204, 0.6));
+    }
+
+    /* Node label hover - Light theme */
+    body.light-theme #output svg .node:hover .nodeLabel,
+    body.light-theme #output svg .node:hover text {
+      font-weight: 600 !important;
+      fill: #005a9e !important;
+    }
+
+    /* Edge/Path hover effects - Light theme */
+    body.light-theme #output svg .edgePath:hover path,
+    body.light-theme #output svg .flowchart-link:hover {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 6px rgba(0, 122, 204, 0.5));
+    }
+
+    /* Edge label hover - Light theme */
+    body.light-theme #output svg .edgeLabel:hover,
+    body.light-theme #output svg .edgeLabel:hover text {
+      fill: #005a9e !important;
+      font-weight: 600 !important;
+    }
+
+    /* Sequence diagram specific - Light theme */
+    body.light-theme #output svg .actor:hover rect,
+    body.light-theme #output svg .actor:hover circle {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(0, 122, 204, 0.6));
+    }
+
+    body.light-theme #output svg .activation:hover rect {
+      fill: #cce5ff !important;
+      stroke: #007acc !important;
+      stroke-width: 2px !important;
+    }
+
+    body.light-theme #output svg .messageLine:hover {
+      stroke: #007acc !important;
+      stroke-width: 2.5px !important;
+    }
+
+    /* Class diagram specific - Light theme */
+    body.light-theme #output svg .classGroup:hover rect {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(0, 122, 204, 0.6));
+    }
+
+    /* State diagram specific - Light theme */
+    body.light-theme #output svg .stateGroup:hover rect,
+    body.light-theme #output svg .stateGroup:hover circle {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(0, 122, 204, 0.6));
+    }
+
+    /* ============================================
+   DARK THEME HOVER EFFECTS
+   ============================================ */
+
+    /* Node hover effects - Dark theme */
+    body.dark-theme #output svg .node:hover rect,
+    body.dark-theme #output svg .node:hover circle,
+    body.dark-theme #output svg .node:hover ellipse,
+    body.dark-theme #output svg .node:hover polygon {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 10px rgba(77, 184, 255, 0.7));
+    }
+
+    /* Node label hover - Dark theme */
+    body.dark-theme #output svg .node:hover .nodeLabel,
+    body.dark-theme #output svg .node:hover text {
+      font-weight: 600 !important;
+      fill: #ffffff !important;
+      filter: drop-shadow(0 0 4px rgba(77, 184, 255, 0.8));
+    }
+
+    /* Edge/Path hover effects - Dark theme */
+    body.dark-theme #output svg .edgePath:hover path,
+    body.dark-theme #output svg .flowchart-link:hover {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(77, 184, 255, 0.6));
+    }
+
+    /* Edge label hover - Dark theme */
+    body.dark-theme #output svg .edgeLabel:hover,
+    body.dark-theme #output svg .edgeLabel:hover text {
+      fill: #ffffff !important;
+      font-weight: 600 !important;
+      filter: drop-shadow(0 0 4px rgba(77, 184, 255, 0.8));
+    }
+
+    /* Sequence diagram specific - Dark theme */
+    body.dark-theme #output svg .actor:hover rect,
+    body.dark-theme #output svg .actor:hover circle {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 10px rgba(77, 184, 255, 0.7));
+    }
+
+    body.dark-theme #output svg .activation:hover rect {
+      fill: #1a4d6b !important;
+      stroke: #4db8ff !important;
+      stroke-width: 2px !important;
+    }
+
+    body.dark-theme #output svg .messageLine:hover {
+      stroke: #4db8ff !important;
+      stroke-width: 2.5px !important;
+      filter: drop-shadow(0 0 6px rgba(77, 184, 255, 0.5));
+    }
+
+    /* Class diagram specific - Dark theme */
+    body.dark-theme #output svg .classGroup:hover rect {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 10px rgba(77, 184, 255, 0.7));
+    }
+
+    /* State diagram specific - Dark theme */
+    body.dark-theme #output svg .stateGroup:hover rect,
+    body.dark-theme #output svg .stateGroup:hover circle {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 10px rgba(77, 184, 255, 0.7));
+    }
+
+    /* ============================================
+   ADDITIONAL HOVER ENHANCEMENTS
+   ============================================ */
+
+    /* Pie chart segments */
+    body.light-theme #output svg .pieCircle:hover {
+      filter: brightness(1.2) drop-shadow(0 0 8px rgba(0, 122, 204, 0.6));
+      transform: scale(1.05);
+      transform-origin: center;
+    }
+
+    body.dark-theme #output svg .pieCircle:hover {
+      filter: brightness(1.3) drop-shadow(0 0 10px rgba(77, 184, 255, 0.7));
+      transform: scale(1.05);
+      transform-origin: center;
+    }
+
+    /* Gantt chart bars */
+    body.light-theme #output svg .task:hover {
+      filter: brightness(1.15) drop-shadow(0 0 6px rgba(0, 122, 204, 0.5));
+    }
+
+    body.dark-theme #output svg .task:hover {
+      filter: brightness(1.25) drop-shadow(0 0 8px rgba(77, 184, 255, 0.6));
+    }
+
+    /* Generic rect elements (fallback for all diagram types) */
+    body.light-theme #output svg rect:hover {
+      stroke: #007acc !important;
+      stroke-width: 2.5px !important;
+    }
+
+    body.dark-theme #output svg rect:hover {
+      stroke: #4db8ff !important;
+      stroke-width: 2.5px !important;
+    }
+
+    /* Improve hover cursor for all interactive elements */
+    #output svg .node,
+    #output svg .edgePath,
+    #output svg .actor,
+    #output svg .classGroup,
+    #output svg .stateGroup,
+    #output svg .task,
+    #output svg .pieCircle {
+      cursor: pointer;
+    }
+
+    /* Prevent text selection during hover interactions */
+    #output svg text {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
   </style>
   <!-- Apply theme immediately before any scripts load -->
   <script>
@@ -315,473 +538,566 @@
   </script>
   <!-- Render functions in separate script -->
   <script>
-        // Get transition duration from CSS custom property
-        const getTransitionDuration = () => {
-            const duration = getComputedStyle(document.documentElement)
-                .getPropertyValue('--loading-transition-duration')
-                .trim();
-            // Remove 'ms' suffix and convert to number
-            const numericValue = Number.parseFloat(duration.replace('ms', ''));
-            return Number.isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
-        };
+    // Get transition duration from CSS custom property
+    const getTransitionDuration = () => {
+      const duration = getComputedStyle(document.documentElement)
+        .getPropertyValue('--loading-transition-duration')
+        .trim();
+      // Remove 'ms' suffix and convert to number
+      const numericValue = Number.parseFloat(duration.replace('ms', ''));
+      return Number.isNaN(numericValue) ? 300 : numericValue; // Fallback to 300ms if parsing fails
+    };
 
-        // Loading indicator management
-        globalThis.updateLoadingStatus = (message) => {
-            const statusElement = document.getElementById('loading-status');
-            if (statusElement) {
-                statusElement.textContent = message;
-            }
-        };
+    // Loading indicator management
+    globalThis.updateLoadingStatus = (message) => {
+      const statusElement = document.getElementById('loading-status');
+      if (statusElement) {
+        statusElement.textContent = message;
+      }
+    };
 
-        globalThis.hideLoadingIndicator = () => {
-            const loadingContainer = document.getElementById('loading-container');
-            const output = document.getElementById('output');
+    globalThis.hideLoadingIndicator = () => {
+      const loadingContainer = document.getElementById('loading-container');
+      const output = document.getElementById('output');
 
-            if (loadingContainer) {
-                loadingContainer.classList.add('hidden');
-                // Remove from DOM after transition completes (duration from CSS variable)
-                setTimeout(() => {
-                    loadingContainer.style.display = 'none';
-                }, getTransitionDuration());
-            }
+      if (loadingContainer) {
+        loadingContainer.classList.add('hidden');
+        // Remove from DOM after transition completes (duration from CSS variable)
+        setTimeout(() => {
+          loadingContainer.style.display = 'none';
+        }, getTransitionDuration());
+      }
 
-            if (output) {
-                output.classList.add('visible');
-            }
-        };
+      if (output) {
+        output.classList.add('visible');
+      }
+    };
 
-        // Render function with proper error handling
-        globalThis.renderMermaid = source => {
-            globalThis.lastMermaidSource = source; // Save for re-rendering
-            const output = document.getElementById('output');
+    // Render function with proper error handling
+    globalThis.renderMermaid = source => {
+      globalThis.lastMermaidSource = source; // Save for re-rendering
+      const output = document.getElementById('output');
 
-            // Helper functions
-            const createErrorElement = (message) => {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error';
-                errorDiv.textContent = message; // XSS-safe
-                return errorDiv;
-            };
-
-            const showError = (message) => {
-                // Hide loading indicator and show error
-                globalThis.hideLoadingIndicator();
-                output.innerHTML = '';
-                output.appendChild(createErrorElement(message));
-            };
-
-            // ReSharper disable once InconsistentNaming
-            const setSafeSVG = (htmlContent) => {
-                const trimmed = htmlContent.trim();
-                if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
-                    output.innerHTML = htmlContent;
-                } else {
-                    showError('Invalid diagram content received');
-                }
-            };
-
-            // Check if initialization failed
-            if (globalThis.mermaidInitializationFailed) {
-                showError('Mermaid initialization failed. Please refresh the page.');
-                return;
-            }
-
-            // Check if mermaid is initialized
-            if (!globalThis.mermaidInitialized) {
-                // Store for later rendering
-                globalThis.pendingMermaidRender = source;
-
-                // Check if we should retry (with limit)
-                if (!globalThis.renderRetryCount) {
-                    globalThis.renderRetryCount = 0;
-                }
-
-                if (globalThis.renderRetryCount < 10) {
-                    globalThis.renderRetryCount++;
-                    setTimeout(() => globalThis.renderMermaid(source), 200);
-                    return;
-                } else {
-                    showError('Mermaid is still loading. Please try again.');
-                    globalThis.renderRetryCount = 0;
-                    return;
-                }
-            }
-
-            // Reset retry count on successful initialization
-            globalThis.renderRetryCount = 0;
-
-            // Parse front-matter config if present
-            const fmRegex = /^---\s*([\s\S]*?)---\s*/;
-            let diagramSource = source;
-            const match = source.match(fmRegex);
-
-            if (match) {
-                try {
-                    const parsed = globalThis.jsyaml.load(match[1]);
-                    if (parsed && parsed.config) {
-                        const customConfig = parsed.config;
-
-                        // Re-initialize with new config
-                        const configWithTheme = {
-                            ...customConfig,
-                            theme: customConfig.theme || globalThis.currentTheme,
-                            startOnLoad: false
-                        };
-
-                        // Log config for debugging if using ELK
-                        if (globalThis.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
-                            console.log('Using ELK layout with config:', configWithTheme);
-                        }
-
-                        globalThis.mermaid.initialize(configWithTheme);
-                    }
-                    // Remove front-matter from diagram source
-                    diagramSource = source.replace(fmRegex, "");
-                } catch (err) {
-                    showError(`YAML parse error: ${err.message}`);
-                    return;
-                }
-            }
-
-            // Render the diagram
-            const id = `mermaid-svg-${Date.now()}`;
-            globalThis.mermaid.render(id, diagramSource)
-                .then(result => {
-                    setSafeSVG(result.svg);
-                    if (typeof result.bindFunctions === 'function') {
-                        result.bindFunctions(output);
-                    }
-                    // Hide loading indicator after diagram is successfully rendered
-                    globalThis.hideLoadingIndicator();
-                })
-                .catch(e => {
-                    showError(e.message);
-                });
-        };
-
-        globalThis.clearOutput = () => {
-            const output = document.getElementById('output');
-            if (output) {
-                output.innerHTML = '';
-            }
-        };
-
-      // ==========================================
-      // BROWSER-BASED PNG EXPORT FUNCTION
-      // Renders the current diagram to PNG using canvas
-      // ==========================================
-      globalThis.exportToPNG = async function(options) {
-          console.log('=== BROWSER-BASED PNG EXPORT STARTED ===');
-          console.log('Export options:', options);
-
-          // Helper to set status and notify host (if available)
-          const setExportStatus = (statusObj) => {
-              try {
-                  const json = JSON.stringify(statusObj);
-                  globalThis.__pngExportStatus__ = json;
-
-                  // Prefer WebView2 style postMessage (safe check using globalThis)
-                  const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
-                  if (typeof webviewPostMessage === 'function') {
-                      try {
-                          webviewPostMessage({ type: 'png-export-progress', status: statusObj });
-                      } catch (postErr) {
-                          console.warn('chrome.webview.postMessage failed', postErr);
-                      }
-                      return;
-                  }
-
-                  // Fallback for other hosts - window.external may be deprecated but check safely on globalThis
-                  const externalNotify = globalThis.external?.notify;
-                  if (typeof externalNotify === 'function') {
-                      try {
-                          externalNotify(JSON.stringify({ type: 'png-export-progress', status: statusObj }));
-                      } catch (notifyErr) {
-                          console.warn('external.notify failed', notifyErr);
-                      }
-                  }
-              } catch (eStatus) {
-                  // Ignore status delivery errors - keep working locally
-                  console.warn('Failed to set or notify export status', eStatus);
-              }
-          };
-
-          try {
-              // Set status for polling
-              setExportStatus({ 
-                  step: 'initializing', 
-                  percent: 0, 
-                  message: 'Starting PNG export...' 
-              });
-
-              // Validate we have diagram source
-              if (!globalThis.lastMermaidSource) {
-                  throw new Error('No diagram source available for export');
-              }
-
-              // Parse options with defaults
-              const scale = options?.scale || 2;
-              const backgroundColor = options?.backgroundColor || 'white';
-              const dpi = options?.dpi || 96;
-              
-              // Calculate DPI scale (96 is the baseline DPI)
-              const dpiScale = dpi / 96;
-              const effectiveScale = scale * dpiScale;
-
-              console.log(`Using scale: ${scale}, DPI: ${dpi}, effective scale: ${effectiveScale}`);
-
-              // Update progress: Rendering
-              setExportStatus({ 
-                  step: 'rendering', 
-                  percent: 20, 
-                  message: 'Rendering diagram...' 
-              });
-
-              // Render fresh SVG with current config
-              const id = `png-export-${Date.now()}`;
-              const renderResult = await globalThis.mermaid.render(id, globalThis.lastMermaidSource);
-
-              if (!renderResult?.svg) {
-                  throw new Error('Failed to render diagram for PNG export');
-              }
-
-              // Update progress: Creating canvas
-              setExportStatus({ 
-                  step: 'creating-canvas', 
-                  percent: 40, 
-                  message: 'Creating canvas...' 
-              });
-
-              // Create temporary container for SVG
-              const container = document.createElement('div');
-              container.style.position = 'absolute';
-              container.style.left = '-99999px';
-              container.style.top = '-99999px';
-              container.innerHTML = renderResult.svg;
-              document.body.appendChild(container);
-
-              const svgElement = container.querySelector('svg');
-              if (!svgElement) {
-                  document.body.removeChild(container);
-                  throw new Error('Could not find SVG element in rendered output');
-              }
-
-              // Get dimensions from viewBox or bounding box
-              const viewBox = svgElement.getAttribute('viewBox');
-              let width, height;
-
-              if (viewBox) {
-                  const parts = viewBox.split(' ');
-                  width = Number.parseFloat(parts[2]);
-                  height = Number.parseFloat(parts[3]);
-              } else {
-                  const bbox = svgElement.getBoundingClientRect();
-                  width = bbox.width || 800;
-                  height = bbox.height || 600;
-              }
-
-              const scaledWidth = Math.round(width * effectiveScale);
-              const scaledHeight = Math.round(height * effectiveScale);
-              const totalPixels = scaledWidth * scaledHeight;
-              const estimatedMemoryMB = (totalPixels * 4) / (1024 * 1024); // 4 bytes per pixel
-              
-              console.log(`SVG dimensions: ${width}x${height}, scaled: ${scaledWidth}x${scaledHeight}`);
-              console.log(`Total pixels: ${totalPixels.toLocaleString()}, estimated memory: ${estimatedMemoryMB.toFixed(0)} MB`);
-
-              // Validate canvas size limits
-              const maxDimension = 32767; // Browser spec limit per dimension
-              const maxPixels = 16384 * 16384; // 16384 x 16384 = 256M pixels (practical limit)
-              const maxMemoryMB = 1024; // 1 GB practical memory limit
-              
-              if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
-                  document.body.removeChild(container);
-                  throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
-              }
-              
-              if (totalPixels > maxPixels) {
-                  document.body.removeChild(container);
-                  const oneMillion = 1000000;
-                  throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
-              }
-              
-              if (estimatedMemoryMB > maxMemoryMB) {
-                  document.body.removeChild(container);
-                  throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
-              }
-
-              // Update progress: Converting to bitmap
-              setExportStatus({ 
-                  step: 'converting', 
-                  percent: 60, 
-                  message: 'Converting to bitmap...' 
-              });
-
-              // Create canvas with scaled dimensions
-              const canvas = document.createElement('canvas');
-              canvas.width = scaledWidth;
-              canvas.height = scaledHeight;
-
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                  document.body.removeChild(container);
-                  throw new Error('Failed to get canvas 2D context');
-              }
-
-              // Scale context for high-DPI rendering
-              ctx.scale(effectiveScale, effectiveScale);
-
-              // Draw background if not transparent
-              if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
-                  ctx.fillStyle = backgroundColor;
-                  ctx.fillRect(0, 0, width, height);
-              }
-
-              // Serialize SVG to string
-              const svgString = new XMLSerializer().serializeToString(svgElement);
-              
-              // Clean up DOM
-              document.body.removeChild(container);
-
-              // Convert SVG to data URI (avoids canvas tainting issues with blob URLs)
-              // Encode the SVG string properly for data URI
-              const encodedSvg = encodeURIComponent(svgString)
-                  .replace(/'/g, '%27')
-                  .replace(/"/g, '%22');
-              
-              const dataUri = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
-
-              // Load SVG into image
-              const img = new Image();
-              
-              // Create promise for image loading
-              const imageLoadPromise = new Promise((resolve, reject) => {
-                  img.onload = () => {
-                      resolve();
-                  };
-
-                  img.onerror = (error) => {
-                      reject(new Error(`Failed to load SVG as image: ${error}`));
-                  };
-
-                  // Set timeout for image loading (30 seconds)
-                  setTimeout(() => {
-                      reject(new Error('Image loading timeout'));
-                  }, 30000);
-              });
-
-              img.src = dataUri;
-              await imageLoadPromise;
-
-              // Update progress: Drawing to canvas
-              setExportStatus({ 
-                  step: 'drawing', 
-                  percent: 80, 
-                  message: 'Drawing to canvas...' 
-              });
-
-              // Draw image to canvas
-              ctx.drawImage(img, 0, 0, width, height);
-
-              // Update progress: Encoding
-              setExportStatus({ 
-                  step: 'encoding', 
-                  percent: 90, 
-                  message: 'Encoding PNG...' 
-              });
-
-              // Convert canvas to PNG data URL
-              const dataUrl = canvas.toDataURL('image/png');
-              
-              // Validate that toDataURL() succeeded
-              // Some browsers return 'data:,' if canvas.toDataURL() fails (e.g., canvas is empty, too large, or encoding error)
-              if (!dataUrl || dataUrl === 'data:,' || !dataUrl.includes(',')) {
-                  throw new Error('Failed to encode canvas to PNG. The canvas size may be too large for this browser. Try reducing scale or DPI.');
-              }
-              
-              // Extract base64 data (remove "data:image/png;base64," prefix)
-              const base64Data = dataUrl.split(',')[1];
-              
-              // Validate base64 data
-              if (!base64Data || base64Data.length === 0) {
-                  throw new Error('PNG encoding produced empty data. Try reducing scale or DPI.');
-              }
-
-              // Update progress: Complete
-              setExportStatus({ 
-                  step: 'complete', 
-                  percent: 100, 
-                  message: 'Export complete!' 
-              });
-
-              console.log('✓ PNG export successful, data length:', base64Data.length);
-
-              // Store result for retrieval
-              globalThis.__pngExportResult__ = base64Data;
-
-              // Notify host that result is available (lightweight notification)
-              try {
-                  const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
-                  if (typeof webviewPostMessage === 'function') {
-                      webviewPostMessage({ type: 'png-export-complete', length: base64Data.length });
-                  } else {
-                      const externalNotify = globalThis.external?.notify;
-                      if (typeof externalNotify === 'function') {
-                          externalNotify(JSON.stringify({ type: 'png-export-complete', length: base64Data.length }));
-                      }
-                  }
-              } catch (e) {
-                  // ignore notification errors
-              }
-
-              return { 
-                  success: true, 
-                  dataLength: base64Data.length,
-                  dimensions: { width: canvas.width, height: canvas.height }
-              };
-
-          } catch (error) {
-              console.error('✗ PNG export failed:', error);
-              
-              setExportStatus({ 
-                  step: 'error', 
-                  percent: 0, 
-                  message: error.message 
-              });
-
-              globalThis.__pngExportResult__ = null;
-
-              return { 
-                  success: false, 
-                  error: error.message 
-              };
-          }
+      // Helper functions
+      const createErrorElement = (message) => {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+        errorDiv.textContent = message; // XSS-safe
+        return errorDiv;
       };
 
-      console.log('Browser-based PNG export function registered: globalThis.exportToPNG');
+      const showError = (message) => {
+        // Hide loading indicator and show error
+        globalThis.hideLoadingIndicator();
+        output.innerHTML = '';
+        output.appendChild(createErrorElement(message));
+      };
 
-      // Legacy export functions (kept for compatibility)
-      globalThis.exportDiagram = {
-          getSVG: () => {
-            try {
-                const svg = document.querySelector('#output svg');
-                if (!svg) {
-                    console.error('No SVG found in output');
-                    return null;
-                }
-
-                // Clone and ensure proper attributes
-                const clone = svg.cloneNode(true);
-                clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-                clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-                // Mermaid already includes styles, just serialize
-                return new XMLSerializer().serializeToString(clone);
-            } catch (error) {
-                console.error('Error getting SVG:', error);
-                return null;
-            }
+      // ReSharper disable once InconsistentNaming
+      const setSafeSVG = (htmlContent) => {
+        const trimmed = htmlContent.trim();
+        if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
+          output.innerHTML = htmlContent;
+          // Enhance hover interactivity after SVG is rendered
+          if (typeof globalThis.enhanceHoverability === 'function') {
+            const hoverActivationDelay = 50; // ms
+            setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
+          }
+        } else {
+          showError('Invalid diagram content received');
         }
+      };
+
+      // Check if initialization failed
+      if (globalThis.mermaidInitializationFailed) {
+        showError('Mermaid initialization failed. Please refresh the page.');
+        return;
+      }
+
+      // Check if mermaid is initialized
+      if (!globalThis.mermaidInitialized) {
+        // Store for later rendering
+        globalThis.pendingMermaidRender = source;
+
+        // Check if we should retry (with limit)
+        if (!globalThis.renderRetryCount) {
+          globalThis.renderRetryCount = 0;
+        }
+
+        if (globalThis.renderRetryCount < 10) {
+          globalThis.renderRetryCount++;
+          setTimeout(() => globalThis.renderMermaid(source), 200);
+          return;
+        } else {
+          showError('Mermaid is still loading. Please try again.');
+          globalThis.renderRetryCount = 0;
+          return;
+        }
+      }
+
+      // Reset retry count on successful initialization
+      globalThis.renderRetryCount = 0;
+
+      // Parse front-matter config if present
+      const fmRegex = /^---\s*([\s\S]*?)---\s*/;
+      let diagramSource = source;
+      const match = source.match(fmRegex);
+
+      if (match) {
+        try {
+          const parsed = globalThis.jsyaml.load(match[1]);
+          if (parsed && parsed.config) {
+            const customConfig = parsed.config;
+
+            // Re-initialize with new config
+            const configWithTheme = {
+              ...customConfig,
+              theme: customConfig.theme || globalThis.currentTheme,
+              startOnLoad: false
+            };
+
+            // Log config for debugging if using ELK
+            if (globalThis.elkLayoutAvailable && customConfig.flowchart?.defaultRenderer === 'elk') {
+              console.log('Using ELK layout with config:', configWithTheme);
+            }
+
+            globalThis.mermaid.initialize(configWithTheme);
+          }
+          // Remove front-matter from diagram source
+          diagramSource = source.replace(fmRegex, "");
+        } catch (err) {
+          showError(`YAML parse error: ${err.message}`);
+          return;
+        }
+      }
+
+      // Render the diagram
+      const id = `mermaid-svg-${Date.now()}`;
+      globalThis.mermaid.render(id, diagramSource)
+        .then(result => {
+          setSafeSVG(result.svg);
+          if (typeof result.bindFunctions === 'function') {
+            result.bindFunctions(output);
+          }
+          // Hide loading indicator after diagram is successfully rendered
+          globalThis.hideLoadingIndicator();
+        })
+        .catch(e => {
+          showError(e.message);
+        });
     };
+
+    globalThis.clearOutput = () => {
+      const output = document.getElementById('output');
+      if (output) {
+        output.innerHTML = '';
+      }
+    };
+
+    // ==========================================
+    // BROWSER-BASED PNG EXPORT FUNCTION
+    // Renders the current diagram to PNG using canvas
+    // ==========================================
+    globalThis.exportToPNG = async function (options) {
+      console.log('=== BROWSER-BASED PNG EXPORT STARTED ===');
+      console.log('Export options:', options);
+
+      // Helper to set status and notify host (if available)
+      const setExportStatus = (statusObj) => {
+        try {
+          const json = JSON.stringify(statusObj);
+          globalThis.__pngExportStatus__ = json;
+
+          // Prefer WebView2 style postMessage (safe check using globalThis)
+          const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
+          if (typeof webviewPostMessage === 'function') {
+            try {
+              webviewPostMessage({ type: 'png-export-progress', status: statusObj });
+            } catch (postErr) {
+              console.warn('chrome.webview.postMessage failed', postErr);
+            }
+            return;
+          }
+
+          // Fallback for other hosts - window.external may be deprecated but check safely on globalThis
+          const externalNotify = globalThis.external?.notify;
+          if (typeof externalNotify === 'function') {
+            try {
+              externalNotify(JSON.stringify({ type: 'png-export-progress', status: statusObj }));
+            } catch (notifyErr) {
+              console.warn('external.notify failed', notifyErr);
+            }
+          }
+        } catch (eStatus) {
+          // Ignore status delivery errors - keep working locally
+          console.warn('Failed to set or notify export status', eStatus);
+        }
+      };
+
+      try {
+        // Set status for polling
+        setExportStatus({
+          step: 'initializing',
+          percent: 0,
+          message: 'Starting PNG export...'
+        });
+
+        // Validate we have diagram source
+        if (!globalThis.lastMermaidSource) {
+          throw new Error('No diagram source available for export');
+        }
+
+        // Parse options with defaults
+        const scale = options?.scale || 2;
+        const backgroundColor = options?.backgroundColor || 'white';
+        const dpi = options?.dpi || 96;
+
+        // Calculate DPI scale (96 is the baseline DPI)
+        const dpiScale = dpi / 96;
+        const effectiveScale = scale * dpiScale;
+
+        console.log(`Using scale: ${scale}, DPI: ${dpi}, effective scale: ${effectiveScale}`);
+
+        // Update progress: Rendering
+        setExportStatus({
+          step: 'rendering',
+          percent: 20,
+          message: 'Rendering diagram...'
+        });
+
+        // Render fresh SVG with current config
+        const id = `png-export-${Date.now()}`;
+        const renderResult = await globalThis.mermaid.render(id, globalThis.lastMermaidSource);
+
+        if (!renderResult?.svg) {
+          throw new Error('Failed to render diagram for PNG export');
+        }
+
+        // Update progress: Creating canvas
+        setExportStatus({
+          step: 'creating-canvas',
+          percent: 40,
+          message: 'Creating canvas...'
+        });
+
+        // Create temporary container for SVG
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-99999px';
+        container.style.top = '-99999px';
+        container.innerHTML = renderResult.svg;
+        document.body.appendChild(container);
+
+        const svgElement = container.querySelector('svg');
+        if (!svgElement) {
+          document.body.removeChild(container);
+          throw new Error('Could not find SVG element in rendered output');
+        }
+
+        // Get dimensions from viewBox or bounding box
+        const viewBox = svgElement.getAttribute('viewBox');
+        let width, height;
+
+        if (viewBox) {
+          const parts = viewBox.split(' ');
+          width = Number.parseFloat(parts[2]);
+          height = Number.parseFloat(parts[3]);
+        } else {
+          const bbox = svgElement.getBoundingClientRect();
+          width = bbox.width || 800;
+          height = bbox.height || 600;
+        }
+
+        const scaledWidth = Math.round(width * effectiveScale);
+        const scaledHeight = Math.round(height * effectiveScale);
+        const totalPixels = scaledWidth * scaledHeight;
+        const estimatedMemoryMB = (totalPixels * 4) / (1024 * 1024); // 4 bytes per pixel
+
+        console.log(`SVG dimensions: ${width}x${height}, scaled: ${scaledWidth}x${scaledHeight}`);
+        console.log(`Total pixels: ${totalPixels.toLocaleString()}, estimated memory: ${estimatedMemoryMB.toFixed(0)} MB`);
+
+        // Validate canvas size limits
+        const maxDimension = 32767; // Browser spec limit per dimension
+        const maxPixels = 16384 * 16384; // 16384 x 16384 = 256M pixels (practical limit)
+        const maxMemoryMB = 1024; // 1 GB practical memory limit
+
+        if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
+          document.body.removeChild(container);
+          throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
+        }
+
+        if (totalPixels > maxPixels) {
+          document.body.removeChild(container);
+          const oneMillion = 1000000;
+          throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
+        }
+
+        if (estimatedMemoryMB > maxMemoryMB) {
+          document.body.removeChild(container);
+          throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
+        }
+
+        // Update progress: Converting to bitmap
+        setExportStatus({
+          step: 'converting',
+          percent: 60,
+          message: 'Converting to bitmap...'
+        });
+
+        // Create canvas with scaled dimensions
+        const canvas = document.createElement('canvas');
+        canvas.width = scaledWidth;
+        canvas.height = scaledHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          document.body.removeChild(container);
+          throw new Error('Failed to get canvas 2D context');
+        }
+
+        // Scale context for high-DPI rendering
+        ctx.scale(effectiveScale, effectiveScale);
+
+        // Draw background if not transparent
+        if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
+          ctx.fillStyle = backgroundColor;
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        // Serialize SVG to string
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+
+        // Clean up DOM
+        document.body.removeChild(container);
+
+        // Convert SVG to data URI (avoids canvas tainting issues with blob URLs)
+        // Encode the SVG string properly for data URI
+        const encodedSvg = encodeURIComponent(svgString)
+          .replace(/'/g, '%27')
+          .replace(/"/g, '%22');
+
+        const dataUri = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
+
+        // Load SVG into image
+        const img = new Image();
+
+        // Create promise for image loading
+        const imageLoadPromise = new Promise((resolve, reject) => {
+          img.onload = () => {
+            resolve();
+          };
+
+          img.onerror = (error) => {
+            reject(new Error(`Failed to load SVG as image: ${error}`));
+          };
+
+          // Set timeout for image loading (30 seconds)
+          setTimeout(() => {
+            reject(new Error('Image loading timeout'));
+          }, 30000);
+        });
+
+        img.src = dataUri;
+        await imageLoadPromise;
+
+        // Update progress: Drawing to canvas
+        setExportStatus({
+          step: 'drawing',
+          percent: 80,
+          message: 'Drawing to canvas...'
+        });
+
+        // Draw image to canvas
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Update progress: Encoding
+        setExportStatus({
+          step: 'encoding',
+          percent: 90,
+          message: 'Encoding PNG...'
+        });
+
+        // Convert canvas to PNG data URL
+        const dataUrl = canvas.toDataURL('image/png');
+
+        // Validate that toDataURL() succeeded
+        // Some browsers return 'data:,' if canvas.toDataURL() fails (e.g., canvas is empty, too large, or encoding error)
+        if (!dataUrl || dataUrl === 'data:,' || !dataUrl.includes(',')) {
+          throw new Error('Failed to encode canvas to PNG. The canvas size may be too large for this browser. Try reducing scale or DPI.');
+        }
+
+        // Extract base64 data (remove "data:image/png;base64," prefix)
+        const base64Data = dataUrl.split(',')[1];
+
+        // Validate base64 data
+        if (!base64Data || base64Data.length === 0) {
+          throw new Error('PNG encoding produced empty data. Try reducing scale or DPI.');
+        }
+
+        // Update progress: Complete
+        setExportStatus({
+          step: 'complete',
+          percent: 100,
+          message: 'Export complete!'
+        });
+
+        console.log('✓ PNG export successful, data length:', base64Data.length);
+
+        // Store result for retrieval
+        globalThis.__pngExportResult__ = base64Data;
+
+        // Notify host that result is available (lightweight notification)
+        try {
+          const webviewPostMessage = globalThis.chrome?.webview?.postMessage;
+          if (typeof webviewPostMessage === 'function') {
+            webviewPostMessage({ type: 'png-export-complete', length: base64Data.length });
+          } else {
+            const externalNotify = globalThis.external?.notify;
+            if (typeof externalNotify === 'function') {
+              externalNotify(JSON.stringify({ type: 'png-export-complete', length: base64Data.length }));
+            }
+          }
+        } catch (e) {
+          // ignore notification errors
+        }
+
+        return {
+          success: true,
+          dataLength: base64Data.length,
+          dimensions: { width: canvas.width, height: canvas.height }
+        };
+
+      } catch (error) {
+        console.error('✗ PNG export failed:', error);
+
+        setExportStatus({
+          step: 'error',
+          percent: 0,
+          message: error.message
+        });
+
+        globalThis.__pngExportResult__ = null;
+
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    };
+
+    console.log('Browser-based PNG export function registered: globalThis.exportToPNG');
+
+    // Legacy export functions (kept for compatibility)
+    globalThis.exportDiagram = {
+      getSVG: () => {
+        try {
+          const svg = document.querySelector('#output svg');
+          if (!svg) {
+            console.error('No SVG found in output');
+            return null;
+          }
+
+          // Clone and ensure proper attributes
+          const clone = svg.cloneNode(true);
+          clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+          // Mermaid already includes styles, just serialize
+          return new XMLSerializer().serializeToString(clone);
+        } catch (error) {
+          console.error('Error getting SVG:', error);
+          return null;
+        }
+      }
+    };
+
+    // ==========================================
+    // HOVER ENHANCEMENT FUNCTION
+    // Adds invisible wider hit areas to paths/lines for easier hovering
+    // ==========================================
+    globalThis.enhanceHoverability = function () {
+      const output = document.getElementById('output');
+      if (!output) return;
+
+      const svg = output.querySelector('svg');
+      if (!svg) return;
+
+      console.log('🎯 Enhancing diagram hover interactivity...');
+
+      // Find all paths that are likely connectors/edges
+      const paths = svg.querySelectorAll('path.flowchart-link, .edgePath path, path[class*="edge"], path[marker-end]');
+
+      paths.forEach((path) => {
+        // Skip if already enhanced
+        if (path.hasAttribute('data-hover-enhanced')) return;
+
+        // Create an invisible wider clone for easier hovering
+        const hitArea = path.cloneNode(true);
+        hitArea.classList.add('hit-area');
+        hitArea.setAttribute('data-hover-enhanced', 'true');
+        hitArea.style.strokeWidth = '20px';
+        hitArea.style.stroke = 'transparent';
+        hitArea.style.fill = 'none';
+        hitArea.style.pointerEvents = 'stroke';
+        hitArea.style.cursor = 'pointer';
+
+        // Insert the hit area right after the original path
+        path.parentNode.insertBefore(hitArea, path.nextSibling);
+
+        // When hovering over the hit area, trigger hover on the original path
+        hitArea.addEventListener('mouseenter', () => {
+          path.classList.add('hover-active');
+          const event = new MouseEvent('mouseenter', { bubbles: true });
+          path.dispatchEvent(event);
+        });
+
+        hitArea.addEventListener('mouseleave', () => {
+          path.classList.remove('hover-active');
+          const event = new MouseEvent('mouseleave', { bubbles: true });
+          path.dispatchEvent(event);
+        });
+
+        // Mark original as enhanced
+        path.setAttribute('data-hover-enhanced', 'true');
+      });
+
+      // Enhance lines (for sequence diagrams, etc.)
+      const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
+
+      lines.forEach((line) => {
+        // Skip if already enhanced
+        if (line.hasAttribute('data-hover-enhanced')) return;
+
+        // Create an invisible wider clone
+        const hitArea = line.cloneNode(true);
+        hitArea.classList.add('hit-area');
+        hitArea.setAttribute('data-hover-enhanced', 'true');
+        hitArea.style.strokeWidth = '20px';
+        hitArea.style.stroke = 'transparent';
+        hitArea.style.pointerEvents = 'stroke';
+        hitArea.style.cursor = 'pointer';
+
+        line.parentNode.insertBefore(hitArea, line.nextSibling);
+
+        hitArea.addEventListener('mouseenter', () => {
+          line.classList.add('hover-active');
+          const event = new MouseEvent('mouseenter', { bubbles: true });
+          line.dispatchEvent(event);
+        });
+
+        hitArea.addEventListener('mouseleave', () => {
+          line.classList.remove('hover-active');
+          const event = new MouseEvent('mouseleave', { bubbles: true });
+          line.dispatchEvent(event);
+        });
+
+        line.setAttribute('data-hover-enhanced', 'true');
+      });
+
+      console.log(`✓ Enhanced ${paths.length} paths and ${lines.length} lines for better hover interaction`);
+    };
+
+    console.log('Hover enhancement function registered: globalThis.enhanceHoverability');
   </script>
 </head>
 <body>
