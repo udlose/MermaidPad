@@ -56,5 +56,5 @@ public interface IImageConversionService
     /// </summary>
     /// <param name="svgContent">The SVG content</param>
     /// <returns>Width and height of the SVG</returns>
-    Task<(float Width, float Height)> GetSvgDimensionsAsync(string svgContent);
+    Task<(float Width, float Height)> GetSvgDimensionsAsync(ReadOnlyMemory<char> svgContent);
 }
