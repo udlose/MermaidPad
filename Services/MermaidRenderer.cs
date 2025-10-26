@@ -57,10 +57,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
 
-    // Fields for centralized export-status callbacks / poller:
+    // Fields for centralized export-status callbacks / polling:
     private readonly List<Action<string>> _exportProgressCallbacks = new List<Action<string>>();
-    private CancellationTokenSource? _exportPollerCts;
-    private Task? _exportPollerTask;
+    private CancellationTokenSource? _exportPollingCts;
+    private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
 
@@ -524,7 +524,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Registers a callback to receive updates on the export progress.
     /// </summary>
     /// <remarks>The provided callback will be added to the list of registered callbacks and invoked
-    /// periodically with updates on the export progress. If no poller is currently running,
+    /// periodically with updates on the export progress. If no polling is currently running,
     /// this method will start a background task to monitor and report export progress.</remarks>
     /// <param name="callback">An <see cref="Action{T}"/> delegate that will be invoked with a
     /// string parameter containing the export progress
@@ -537,13 +537,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             _exportProgressCallbacks.Add(callback);
 
-            // Start poller if needed
-            if (_exportPollerCts?.IsCancellationRequested != false)
+            // Start polling if needed
+            if (_exportPollingCts?.IsCancellationRequested != false)
             {
-                _exportPollerCts = new CancellationTokenSource();
+                _exportPollingCts = new CancellationTokenSource();
 
                 // Store the Task so DisposeAsync can await clean shutdown
-                _exportPollerTask = StartExportStatusPollerAsync(_exportPollerCts.Token);
+                _exportPollingTask = StartExportStatusPollingAsync(_exportPollingCts.Token);
             }
         }
     }
@@ -570,16 +570,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
             {
                 try
                 {
-                    _exportPollerCts?.Cancel();
-                    _exportPollerCts?.Dispose();
+                    _exportPollingCts?.Cancel();
+                    _exportPollingCts?.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Failed to stop export status poller", ex);
+                    SimpleLogger.LogError("Failed to stop export status polling", ex);
                 }
                 finally
                 {
-                    _exportPollerCts = null;
+                    _exportPollingCts = null;
                     _lastExportStatus = null;
                 }
             }
@@ -598,9 +598,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="token">A <see cref="CancellationToken"/> used to cancel the polling task. The task will stop gracefully when
     /// cancellation is requested.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation of the polling task.</returns>
-    private async Task StartExportStatusPollerAsync(CancellationToken token)
+    private async Task StartExportStatusPollingAsync(CancellationToken token)
     {
-        SimpleLogger.Log("Starting export status poller");
+        SimpleLogger.Log("Starting export status polling");
         try
         {
             const int pollingIntervalMs = 200;
@@ -648,7 +648,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Ignore transient script errors but log for diagnostics
-                    SimpleLogger.LogError("Export status poller script error", ex);
+                    SimpleLogger.LogError("Export status polling script error", ex);
                 }
 
                 try
@@ -663,7 +663,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         finally
         {
-            SimpleLogger.Log("Export status poller stopped");
+            SimpleLogger.Log("Export status polling stopped");
         }
     }
 
@@ -671,8 +671,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Asynchronously releases the resources used by the current instance.
     /// </summary>
     /// <remarks>This method performs a clean shutdown of internal components, including canceling ongoing
-    /// operations, stopping background tasks, and releasing unmanaged resources. It ensures that all asynchronous
-    /// operations are awaited and disposed of properly to prevent resource leaks. Exceptions encountered during
+    /// operations, stopping background tasks, and releasing unmanaged resources.
+    /// It ensures that all asynchronous operations are awaited and disposed of
+    /// properly to prevent resource leaks. Exceptions encountered during
     /// disposal are logged but do not propagate.</remarks>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous disposal operation.</returns>
     public async ValueTask DisposeAsync()
@@ -693,34 +694,34 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             _httpListener?.Close();
 
-            // Stop and cleanup export poller if running
+            // Stop and cleanup export polling if running
             try
             {
-                // Cancel poller
-                if (_exportPollerCts is not null)
+                // Cancel polling
+                if (_exportPollingCts is not null)
                 {
                     try
                     {
-                        await _exportPollerCts.CancelAsync()
+                        await _exportPollingCts.CancelAsync()
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError("Failed to cancel export poller CTS", ex);
+                        SimpleLogger.LogError("Failed to cancel export polling CTS", ex);
                     }
                 }
 
-                // Await poller task for a short timeout to ensure clean shutdown
-                if (_exportPollerTask is not null)
+                // Await polling task for a short timeout to ensure clean shutdown
+                if (_exportPollingTask is not null)
                 {
                     try
                     {
-                        await _exportPollerTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        await _exportPollingTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
                         // Log but do not rethrow during dispose
-                        SimpleLogger.LogError("Export poller did not stop cleanly", ex);
+                        SimpleLogger.LogError("Export polling did not stop cleanly", ex);
                     }
                 }
             }
@@ -735,14 +736,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
                 try
                 {
-                    _exportPollerCts?.Dispose();
+                    _exportPollingCts?.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Failed to dispose export poller CTS", ex);
+                    SimpleLogger.LogError("Failed to dispose export polling CTS", ex);
                 }
-                _exportPollerCts = null;
-                _exportPollerTask = null;
+                _exportPollingCts = null;
+                _exportPollingTask = null;
             }
 
             // Wait for server task to complete (with timeout)
