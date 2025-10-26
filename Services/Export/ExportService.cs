@@ -1159,7 +1159,8 @@ public sealed class ExportService
 
             if (toRead > 0)
             {
-                _memory.Span.Slice(_position, toRead).CopyTo(buffer.AsSpan(index, toRead));
+                _memory.Span.Slice(_position, toRead)
+                    .CopyTo(buffer.AsSpan(index, toRead));
                 _position += toRead;
             }
 
