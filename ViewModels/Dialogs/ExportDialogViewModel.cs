@@ -97,9 +97,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     public partial bool PreserveAspectRatio { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool IncludeXmlDeclaration { get; set; } = true;
-
-    [ObservableProperty]
     public partial bool OptimizeSvg { get; set; } = false;
 
     [ObservableProperty]
@@ -203,7 +200,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             } : null,
             SvgOptions = IsSvgSelected ? new SvgExportOptions
             {
-                IncludeXmlDeclaration = IncludeXmlDeclaration,
                 Optimize = OptimizeSvg
             } : null
         };
@@ -219,36 +215,37 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// <returns></returns>
     private async Task LoadActualSvgDimensionsAsync()
     {
-        try
-        {
-            if (_exportService is not null)
-            {
-                // Get the current SVG content
-                string? svgContent = await _exportService.GetSvgContentAsync();
+        //TODO - DaveBlack: what should i do with this?
+        //try
+        //{
+        //    if (_exportService is not null)
+        //    {
+        //        // Get the current SVG content
+        //        ReadOnlyMemory<char> svgContent = await _exportService.GetSvgContentAsync();
 
-                if (!string.IsNullOrWhiteSpace(svgContent) && _imageConversionService is not null)
-                {
-                    // Get actual dimensions from the SVG
-                    (float width, float height) = await _imageConversionService.GetSvgDimensionsAsync(svgContent);
+        //        if (!svgContent.IsEmpty && _imageConversionService is not null)
+        //        {
+        //            // Get actual dimensions from the SVG
+        //            (float width, float height) = await _imageConversionService.GetSvgDimensionsAsync(svgContent);
 
-                    if (width > 0 && height > 0)
-                    {
-                        _actualSvgWidth = width;
-                        _actualSvgHeight = height;
-                        _dimensionsLoaded = true;
+        //            if (width > 0 && height > 0)
+        //            {
+        //                _actualSvgWidth = width;
+        //                _actualSvgHeight = height;
+        //                _dimensionsLoaded = true;
 
-                        // Update estimates with real dimensions
-                        UpdateEstimates();
-                        return;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to load SVG dimensions: {ex}");
-            SimpleLogger.LogError($"Failed to load SVG dimensions: {ex}");
-        }
+        //                // Update estimates with real dimensions
+        //                UpdateEstimates();
+        //                return;
+        //            }
+        //        }
+        //    }
+        //}
+        //catch (Exception ex)
+        //{
+        //    Debug.WriteLine($"Failed to load SVG dimensions: {ex}");
+        //    SimpleLogger.LogError($"Failed to load SVG dimensions: {ex}");
+        //}
 
         // Fallback to default dimensions if loading fails
         _actualSvgWidth = 800;
