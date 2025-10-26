@@ -1179,9 +1179,9 @@ public sealed class ExportService
         }
 
         /// <summary>
-        /// Reads the next byte from the memory buffer and advances the position by one.
+        /// Reads the next character from the memory buffer and advances the position by one.
         /// </summary>
-        /// <returns>The next byte in the memory buffer as an integer,
+        /// <returns>The next character in the memory buffer as an integer,
         /// or -1 if the end of the buffer has been reached.</returns>
         public override int Read()
         {
