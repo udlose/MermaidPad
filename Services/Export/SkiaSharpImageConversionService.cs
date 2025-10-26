@@ -142,55 +142,60 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
     /// <param name="svgContent">The SVG image content as a string. Must be a valid SVG XML document. Cannot be null or empty.</param>
     /// <returns>A tuple containing the width and height of the SVG image, in pixels. Returns (0, 0) if the SVG content is
     /// invalid or dimensions cannot be determined.</returns>
-    public async Task<(float Width, float Height)> GetSvgDimensionsAsync(string svgContent)
+    public async Task<(float Width, float Height)> GetSvgDimensionsAsync(ReadOnlyMemory<char> svgContent)
     {
-        // Validate SVG content before parsing to prevent XML exceptions
-        if (string.IsNullOrWhiteSpace(svgContent))
-        {
-            SimpleLogger.LogError("GetSvgDimensionsAsync called with null or empty SVG content");
-            return (0, 0);
-        }
+        //TODO what should i do with this?
+        throw new NotImplementedException("TODO");
+        //// Validate SVG content before parsing to prevent XML exceptions
+        //if (svgContent.IsEmpty)
+        //{
+        //    SimpleLogger.LogError("GetSvgDimensionsAsync called with null or empty SVG content");
+        //    return (0, 0);
+        //}
 
-        // Basic validation - check if it looks like SVG
-        ReadOnlySpan<char> svgSpan = svgContent.AsSpan().TrimStart();
-        if (!svgSpan.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) &&
-            !svgSpan.StartsWith("<svg", StringComparison.OrdinalIgnoreCase))
-        {
-            SimpleLogger.LogError("SVG content does not start with XML declaration or <svg> tag");
-            return (0, 0);
-        }
+        //// Basic validation - check if it looks like SVG
+        //ReadOnlySpan<char> svgSpan = svgContent.Span.TrimStart();
+        //if (!svgSpan.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) &&
+        //    !svgSpan.StartsWith("<svg", StringComparison.OrdinalIgnoreCase))
+        //{
+        //    SimpleLogger.LogError("SVG content does not start with XML declaration or <svg> tag");
+        //    return (0, 0);
+        //}
 
-        return await Task.Run(() =>
-        {
-            try
-            {
-                using SKSvg svg = new SKSvg();
-                using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent));
+        //return await Task.Run(() =>
+        //{
+        //    try
+        //    {
+        //        //TODO this is ridiculous to load the whole SVG just to get dimensions - find a better way!!!
 
-                using SKPicture? picture = svg.Load(stream);
-                if (picture is null)
-                {
-                    SimpleLogger.LogError("Failed to load SVG picture - picture is null");
-                    return (0, 0);
-                }
 
-                SKRect bounds = picture.CullRect;
+        //        using SKSvg svg = new SKSvg();
+        //        using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(svgContent.Span.));
 
-                if (bounds.Width <= 0 || bounds.Height <= 0)
-                {
-                    SimpleLogger.LogError($"SVG has invalid dimensions: {bounds.Width}x{bounds.Height}");
-                    return (0, 0);
-                }
+        //        using SKPicture? picture = svg.Load(stream);
+        //        if (picture is null)
+        //        {
+        //            SimpleLogger.LogError("Failed to load SVG picture - picture is null");
+        //            return (0, 0);
+        //        }
 
-                return (bounds.Width, bounds.Height);
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.LogError("Failed to get SVG dimensions", ex);
-                return (0, 0);
-            }
-        })
-        .ConfigureAwait(false);
+        //        SKRect bounds = picture.CullRect;
+
+        //        if (bounds.Width <= 0 || bounds.Height <= 0)
+        //        {
+        //            SimpleLogger.LogError($"SVG has invalid dimensions: {bounds.Width}x{bounds.Height}");
+        //            return (0, 0);
+        //        }
+
+        //        return (bounds.Width, bounds.Height);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        SimpleLogger.LogError("Failed to get SVG dimensions", ex);
+        //        return (0, 0);
+        //    }
+        //})
+        //.ConfigureAwait(false);
     }
 
     /// <summary>
