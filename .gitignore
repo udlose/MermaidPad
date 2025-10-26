@@ -417,6 +417,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# DiagSession files
+*.diagsession
+
 # Generated files (except for NamespacePlaceholder.cs)
 Generated/*
 !Generated/NamespacePlaceholder.cs
