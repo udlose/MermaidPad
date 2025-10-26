@@ -136,9 +136,8 @@
     }
 
     /* ============================================
-   HOVER HIGHLIGHTING STYLES FOR MERMAID DIAGRAMS
-   Add these styles to the <style> section in index.html
-   ============================================ */
+    HOVER HIGHLIGHTING STYLES FOR MERMAID DIAGRAMS
+    ============================================ */
 
     /* Enable smooth transitions for all interactive elements */
     #output svg .node,
@@ -160,8 +159,8 @@
     }
 
     /* ============================================
-   LIGHT THEME HOVER EFFECTS
-   ============================================ */
+    LIGHT THEME HOVER EFFECTS
+    ============================================ */
 
     /* Node hover effects - Light theme */
     body.light-theme #output svg .node:hover rect,
@@ -230,8 +229,8 @@
     }
 
     /* ============================================
-   DARK THEME HOVER EFFECTS
-   ============================================ */
+    DARK THEME HOVER EFFECTS
+    ============================================ */
 
     /* Node hover effects - Dark theme */
     body.dark-theme #output svg .node:hover rect,
@@ -303,8 +302,8 @@
     }
 
     /* ============================================
-   ADDITIONAL HOVER ENHANCEMENTS
-   ============================================ */
+    ADDITIONAL HOVER ENHANCEMENTS
+    ============================================ */
 
     /* Pie chart segments */
     body.light-theme #output svg .pieCircle:hover {
@@ -356,6 +355,50 @@
       -webkit-user-select: none;
       -moz-user-select: none;
       -ms-user-select: none;
+    }
+
+    /* ============================================
+    CLASS-BASED HOVER EFFECTS (for JavaScript-triggered hovers)
+    Mirror the :hover rules above for .hover-active class.
+
+    Why both :hover and .hover-active?
+      The :hover pseudo-class handles direct pointer hovers on elements,
+      providing immediate visual feedback when the user hovers over an element.
+      The .hover-active class is applied via JavaScript to enable hover effects
+      on elements that may not be directly hovered (e.g., hit areas, accessibility
+      features, or programmatic interactions). This ensures consistent hover
+      styling whether triggered by pointer events or by script.
+    ============================================ */
+
+    /* Light theme - class-based hover for paths/edges */
+    body.light-theme #output svg path.hover-active,
+    body.light-theme #output svg .edgePath path.hover-active,
+    body.light-theme #output svg .flowchart-link.hover-active {
+      stroke: #007acc !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 6px rgba(0, 122, 204, 0.5));
+    }
+
+    body.light-theme #output svg line.hover-active,
+    body.light-theme #output svg .messageLine.hover-active {
+      stroke: #007acc !important;
+      stroke-width: 2.5px !important;
+    }
+
+    /* Dark theme - class-based hover for paths/edges */
+    body.dark-theme #output svg path.hover-active,
+    body.dark-theme #output svg .edgePath path.hover-active,
+    body.dark-theme #output svg .flowchart-link.hover-active {
+      stroke: #4db8ff !important;
+      stroke-width: 3px !important;
+      filter: drop-shadow(0 0 8px rgba(77, 184, 255, 0.6));
+    }
+
+    body.dark-theme #output svg line.hover-active,
+    body.dark-theme #output svg .messageLine.hover-active {
+      stroke: #4db8ff !important;
+      stroke-width: 2.5px !important;
+      filter: drop-shadow(0 0 6px rgba(77, 184, 255, 0.5));
     }
   </style>
   <!-- Apply theme immediately before any scripts load -->
@@ -599,8 +642,9 @@
         if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
           output.innerHTML = htmlContent;
           // Enhance hover interactivity after SVG is rendered
+          // Use longer delay for ELK layouts to prevent jumping/flickering
           if (typeof globalThis.enhanceHoverability === 'function') {
-            const hoverActivationDelay = 50; // ms
+            const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
             setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
           }
         } else {
@@ -699,7 +743,7 @@
     // Renders the current diagram to PNG using canvas
     // ==========================================
     globalThis.exportToPNG = async function (options) {
-      console.log('=== BROWSER-BASED PNG EXPORT STARTED ===');
+      console.log('Browser-based PNG export started');
       console.log('Export options:', options);
 
       // Helper to set status and notify host (if available)
@@ -941,7 +985,7 @@
           message: 'Export complete!'
         });
 
-        console.log('✓ PNG export successful, data length:', base64Data.length);
+        console.log('PNG export successful, data length:', base64Data.length);
 
         // Store result for retrieval
         globalThis.__pngExportResult__ = base64Data;
@@ -968,7 +1012,7 @@
         };
 
       } catch (error) {
-        console.error('✗ PNG export failed:', error);
+        console.error('PNG export failed:', error);
 
         setExportStatus({
           step: 'error',
@@ -1014,87 +1058,111 @@
     // ==========================================
     // HOVER ENHANCEMENT FUNCTION
     // Adds invisible wider hit areas to paths/lines for easier hovering
+    // Uses a single delegated event listener to avoid memory leaks
+    // Uses event delegation on OUTPUT container (persists across renders)
+    // Hit areas are recreated on each render (inside SVG which gets replaced)
     // ==========================================
     globalThis.enhanceHoverability = function () {
+      const hitAreaWidth = 20; // Adjustable hover detection width in pixels
       const output = document.getElementById('output');
       if (!output) return;
 
       const svg = output.querySelector('svg');
       if (!svg) return;
 
-      console.log('🎯 Enhancing diagram hover interactivity...');
+      // Check if event delegation is already initialized on OUTPUT container
+      // (OUTPUT persists across renders, unlike SVG which gets replaced)
+      const isInitialized = output.hasAttribute('data-hover-delegation-init');
 
-      // Find all paths that are likely connectors/edges
+      // Find all paths and lines that need hit areas
       const paths = svg.querySelectorAll('path.flowchart-link, .edgePath path, path[class*="edge"], path[marker-end]');
+      const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
 
+      // Create hit areas for paths (these get recreated on each render since SVG is replaced)
       paths.forEach((path) => {
-        // Skip if already enhanced
         if (path.hasAttribute('data-hover-enhanced')) return;
 
-        // Create an invisible wider clone for easier hovering
-        const hitArea = path.cloneNode(true);
+        const hitArea = path.cloneNode(false);
         hitArea.classList.add('hit-area');
         hitArea.setAttribute('data-hover-enhanced', 'true');
-        hitArea.style.strokeWidth = '20px';
+        hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.fill = 'none';
         hitArea.style.pointerEvents = 'stroke';
         hitArea.style.cursor = 'pointer';
 
-        // Insert the hit area right after the original path
+        // Insert the hit area immediately after the original path (stable sibling relationship)
         path.parentNode.insertBefore(hitArea, path.nextSibling);
-
-        // When hovering over the hit area, trigger hover on the original path
-        hitArea.addEventListener('mouseenter', () => {
-          path.classList.add('hover-active');
-          const event = new MouseEvent('mouseenter', { bubbles: true });
-          path.dispatchEvent(event);
-        });
-
-        hitArea.addEventListener('mouseleave', () => {
-          path.classList.remove('hover-active');
-          const event = new MouseEvent('mouseleave', { bubbles: true });
-          path.dispatchEvent(event);
-        });
-
-        // Mark original as enhanced
         path.setAttribute('data-hover-enhanced', 'true');
+        path.setAttribute('data-hover-target', 'true');
       });
 
-      // Enhance lines (for sequence diagrams, etc.)
-      const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
-
+      // Create hit areas for lines
       lines.forEach((line) => {
-        // Skip if already enhanced
         if (line.hasAttribute('data-hover-enhanced')) return;
 
-        // Create an invisible wider clone
-        const hitArea = line.cloneNode(true);
+        const hitArea = line.cloneNode(false);
         hitArea.classList.add('hit-area');
         hitArea.setAttribute('data-hover-enhanced', 'true');
-        hitArea.style.strokeWidth = '20px';
+        hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.pointerEvents = 'stroke';
         hitArea.style.cursor = 'pointer';
 
+        // Insert the hit area immediately after the original line (stable sibling relationship)
         line.parentNode.insertBefore(hitArea, line.nextSibling);
-
-        hitArea.addEventListener('mouseenter', () => {
-          line.classList.add('hover-active');
-          const event = new MouseEvent('mouseenter', { bubbles: true });
-          line.dispatchEvent(event);
-        });
-
-        hitArea.addEventListener('mouseleave', () => {
-          line.classList.remove('hover-active');
-          const event = new MouseEvent('mouseleave', { bubbles: true });
-          line.dispatchEvent(event);
-        });
-
         line.setAttribute('data-hover-enhanced', 'true');
+        line.setAttribute('data-hover-target', 'true');
       });
 
-      console.log(`✓ Enhanced ${paths.length} paths and ${lines.length} lines for better hover interaction`);
+      // Only attach event listeners ONCE to the OUTPUT container
+      // These listeners persist across renders since OUTPUT doesn't get replaced
+      if (!isInitialized) {
+        // Use event delegation on OUTPUT container (not SVG which gets replaced)
+        output.addEventListener('mouseover', (e) => {
+          // Early exit: Skip if not hovering over SVG elements (performance optimization)
+          if (!e.target.closest('svg')) return;
+
+          const hitArea = e.target.closest('.hit-area');
+          if (!hitArea) return;
+
+          // Get original element via previousElementSibling (O(1) fast, stable in our architecture)
+          // Safe because: hit area is inserted immediately after original, and SVG is replaced entirely on each render
+          const original = hitArea.previousElementSibling;
+          if (original && original.hasAttribute('data-hover-target')) {
+            original.classList.add('hover-active');
+          }
+        }, { capture: true });
+
+        output.addEventListener('mouseout', (e) => {
+          // Early exit: Skip if not hovering over SVG elements (performance optimization)
+          if (!e.target.closest('svg')) return;
+
+          const hitArea = e.target.closest('.hit-area');
+          if (!hitArea) return;
+
+          // Check if we're actually leaving the hit-area, not just moving to a child element
+          // relatedTarget is where the mouse is moving TO
+          if (hitArea.contains(e.relatedTarget)) return;
+
+          // Get original element via previousElementSibling (O(1) fast, stable in our architecture)
+          // Safe because: hit area is inserted immediately after original, and SVG is replaced entirely on each render
+          const original = hitArea.previousElementSibling;
+          if (original && original.hasAttribute('data-hover-target')) {
+            original.classList.remove('hover-active');
+          }
+        }, { capture: true });
+
+        // Mark OUTPUT container as initialized (persists across SVG replacements)
+        output.setAttribute('data-hover-delegation-init', 'true');
+        
+        console.log('Hover event delegation initialized (one-time setup)');
+      }
+
+      // Log hit area creation on first render only (when event delegation is first initialized)
+      if (!isInitialized && paths.length + lines.length > 0) {
+        console.log(`Created hit areas for ${paths.length} paths and ${lines.length} lines`);
+      }
     };
 
     console.log('Hover enhancement function registered: globalThis.enhanceHoverability');
