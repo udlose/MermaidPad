@@ -23,9 +23,8 @@ namespace MermaidPad.Services.Export;
 /// <summary>
 /// SVG-specific export options
 /// </summary>
-public class SvgExportOptions
+public sealed class SvgExportOptions
 {
-    public bool IncludeXmlDeclaration { get; set; } = true;
     public bool Optimize { get; set; } = false;
     public bool MinifySvg { get; set; } = false;
     public bool RemoveComments { get; set; } = true;
