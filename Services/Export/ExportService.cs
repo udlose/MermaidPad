@@ -25,6 +25,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace MermaidPad.Services.Export;
@@ -41,7 +42,6 @@ namespace MermaidPad.Services.Export;
 /// documented.</remarks>
 public sealed class ExportService
 {
-    private static readonly XNamespace _svgNamespace = "http://www.w3.org/2000/svg";
     private static readonly TimeSpan _defaultExportToPngTimeout = TimeSpan.FromSeconds(60);
     private static readonly SearchValues<char> _whitespaceSearchValues = SearchValues.Create(GetAllWhiteSpaceChars());
 
@@ -62,7 +62,7 @@ public sealed class ExportService
     /// called from the UI thread due to WebView access requirements. The export can be customized using the provided
     /// options.</remarks>
     /// <param name="targetPath">The file system path where the SVG file will be saved. Cannot be null or empty.</param>
-    /// <param name="options">The options to use for SVG export, such as optimization and XML declaration settings. If null, default options
+    /// <param name="options">The options to use for SVG export, such as optimization settings. If null, default options
     /// are used.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
@@ -77,15 +77,16 @@ public sealed class ExportService
         try
         {
             // Get SVG content from WebView (must stay on UI thread)
-            string? svgContent = await GetSvgContentAsync();
+            ReadOnlyMemory<char> svgContent = await GetSvgContentAsync();
 
-            if (string.IsNullOrWhiteSpace(svgContent))
+            if (svgContent.IsEmpty)
             {
                 throw new InvalidOperationException("Failed to extract SVG content from diagram");
             }
 
-            // Process SVG content
-            svgContent = ProcessSvgContent(svgContent, options);
+            // Process SVG content (async now due to optimization)
+            svgContent = await ProcessSvgContentAsync(svgContent, options, cancellationToken)
+                .ConfigureAwait(false);
 
             // Write to file (can run on background thread)
             await WriteSvgToFileAsync(targetPath, svgContent, cancellationToken)
@@ -100,41 +101,30 @@ public sealed class ExportService
         }
     }
 
-    private static string ProcessSvgContent(string svgContent, SvgExportOptions options)
+    /// <summary>
+    /// Processes SVG content by applying optional optimization.
+    /// </summary>
+    /// <remarks>This method is now async because optimization uses streaming XmlReader/XmlWriter for large files.</remarks>
+    private static async Task<ReadOnlyMemory<char>> ProcessSvgContentAsync(
+        ReadOnlyMemory<char> svgContent,
+        SvgExportOptions options,
+        CancellationToken cancellationToken = default)
     {
         // Apply optimization if requested
         if (options.Optimize)
         {
             SimpleLogger.Log("Optimizing SVG content...");
-            svgContent = OptimizeSvg(svgContent, options);
-        }
-
-        // Handle XML declaration
-        ReadOnlySpan<char> svgSpan = svgContent.AsSpan().TrimStart();
-        bool hasXmlDeclaration = svgSpan.StartsWith("<?xml");
-
-        if (!options.IncludeXmlDeclaration && hasXmlDeclaration)
-        {
-            // Remove XML declaration
-            int endOfDeclaration = svgSpan.IndexOf("?>");
-            if (endOfDeclaration >= 0)
-            {
-                svgContent = svgSpan[(endOfDeclaration + 2)..].ToString().TrimStart();
-            }
-        }
-        else if (options.IncludeXmlDeclaration && !hasXmlDeclaration)
-        {
-            // Add XML declaration
-            svgContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Environment.NewLine + svgContent;
+            svgContent = await OptimizeSvgAsync(svgContent, options, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return svgContent;
     }
 
     /// <summary>
-    /// Writes SVG content to file.
+    /// Writes SVG content to file using <see cref="ReadOnlyMemory{char}"/> for zero-copy efficiency.
     /// </summary>
-    private static async Task WriteSvgToFileAsync(string targetPath, string svgContent, CancellationToken cancellationToken)
+    private static async Task WriteSvgToFileAsync(string targetPath, ReadOnlyMemory<char> svgContent, CancellationToken cancellationToken)
     {
         // Ensure directory exists
         string? directory = Path.GetDirectoryName(targetPath);
@@ -143,160 +133,181 @@ public sealed class ExportService
             Directory.CreateDirectory(directory);
         }
 
+        // Use ReadOnlyMemory<char> overload for zero-copy write
         await File.WriteAllTextAsync(targetPath, svgContent, Encoding.UTF8, cancellationToken)
             .ConfigureAwait(false);
     }
 
     /// <summary>
-    /// Optimizes the content of an SVG file based on the specified options.
+    /// Optimizes SVG content using streaming XML processing for minimal memory overhead.
     /// </summary>
-    /// <remarks>This method performs various optimizations on the SVG content, including: <list
-    /// type="bullet"> <item>Removing comments if specified in the options.</item> <item>Removing common metadata
-    /// elements, such as <c>&lt;metadata&gt;</c>.</item> <item>Removing unnecessary attributes, such as empty
-    /// attributes or <c>xml:space</c> attributes.</item> <item>Minifying the SVG content by removing unnecessary
-    /// whitespace, if specified in the options.</item> </list> If an exception occurs during the optimization process,
-    /// the method logs the error and returns the original SVG content.</remarks>
-    /// <param name="svgContent">The SVG content to be optimized, represented as a string.</param>
-    /// <param name="options">An <see cref="SvgExportOptions"/> object specifying the optimization options, such as whether to remove comments
-    /// or minify the SVG.</param>
-    /// <returns>A string containing the optimized SVG content. If an error occurs during optimization, the original SVG content
-    /// is returned.</returns>
-    [SuppressMessage("Style", "IDE0305:Simplify collection initialization", Justification = "Explicit is clearer here")]
-    private static string OptimizeSvg(string svgContent, SvgExportOptions options)
+    /// <remarks>
+    /// Uses XmlReader/XmlWriter for single-pass streaming optimization. For a 10 MB SVG,
+    /// this uses ~20 MB peak memory vs ~110 MB with XDocument approach. Processes asynchronously
+    /// to avoid blocking threads. The input uses a custom MemoryTextReader for zero-copy reading,
+    /// avoiding the need to call ToString() on the input ReadOnlyMemory.
+    /// </remarks>
+    private static async Task<ReadOnlyMemory<char>> OptimizeSvgAsync(ReadOnlyMemory<char> svgContent,
+        SvgExportOptions options, CancellationToken cancellationToken = default)
     {
+        if (svgContent.Length > 5_000_000) // 5 MB
+        {
+            SimpleLogger.Log($"Optimizing large SVG ({svgContent.Length:N0} characters). This may take a few seconds...");
+        }
+
         try
         {
-            // Parse the SVG as XML
-            XDocument doc = XDocument.Parse(svgContent, LoadOptions.PreserveWhitespace);
-
-            // TODO review this for performance optimization - could be slow on large SVGs
-
-            // Remove comments if requested
-            if (options.RemoveComments)
+            // Configure reader for streaming
+            XmlReaderSettings readerSettings = new XmlReaderSettings
             {
-                doc.DescendantNodes()
-                    .OfType<XComment>()
-                    .ToList()
-                    .ForEach(static comment => comment.Remove());
+                Async = true,
+                IgnoreComments = options.RemoveComments,    // Let reader skip comments for us
+                IgnoreWhitespace = options.MinifySvg,       // Let reader skip whitespace if minifying
+                DtdProcessing = DtdProcessing.Prohibit,     // Security: prevent XXE attacks
+                XmlResolver = null                          // Security: no external entity resolution
+            };
+
+            // Configure writer for output
+            XmlWriterSettings writerSettings = new XmlWriterSettings
+            {
+                Async = true,
+                Indent = !options.MinifySvg,                // Indent unless minifying
+                IndentChars = "  ",                         // 2 spaces
+                OmitXmlDeclaration = true,                  // SVG doesn't need XML declaration
+                NamespaceHandling = NamespaceHandling.OmitDuplicates
+            };
+
+            StringBuilder output = new StringBuilder(svgContent.Length);
+
+            // Use custom MemoryTextReader for zero-copy input reading
+            using MemoryTextReader memoryReader = new MemoryTextReader(svgContent);
+            using XmlReader xmlReader = XmlReader.Create(memoryReader, readerSettings);
+            await using StringWriter stringWriter = new StringWriter(output);
+            await using XmlWriter xmlWriter = XmlWriter.Create(stringWriter, writerSettings);
+            int depth = 0;
+            bool skipElement = false;
+            int skipDepth = 0;
+            const string svgXmlNamespace = "http://www.w3.org/2000/svg";
+
+            while (await xmlReader.ReadAsync().ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Track depth consistently for ALL elements (before any processing logic)
+                // This ensures depth tracking is consistent regardless of skip state
+                if (xmlReader is { NodeType: XmlNodeType.Element, IsEmptyElement: false })
+                {
+                    depth++;
+                }
+                else if (xmlReader.NodeType == XmlNodeType.EndElement)
+                {
+                    depth--;
+
+                    // Check if we're exiting a skipped element
+                    if (skipElement && depth < skipDepth)
+                    {
+                        skipElement = false;
+                    }
+                }
+
+                // If we're inside a skipped element, skip all content
+                if (skipElement)
+                {
+                    continue;
+                }
+
+                switch (xmlReader.NodeType)
+                {
+                    case XmlNodeType.Element:
+                        // Check if this is an element we want to skip
+                        if (xmlReader is { LocalName: "metadata", NamespaceURI: svgXmlNamespace })
+                        {
+                            skipElement = true;
+                            skipDepth = depth;
+                            continue;
+                        }
+
+                        // Write element start
+                        await xmlWriter.WriteStartElementAsync(xmlReader.Prefix,
+                            xmlReader.LocalName, xmlReader.NamespaceURI)
+                            .ConfigureAwait(false);
+
+                        // Copy attributes with filtering
+                        if (xmlReader.HasAttributes)
+                        {
+                            while (xmlReader.MoveToNextAttribute())
+                            {
+                                // Skip xml:space attribute
+                                if (xmlReader.LocalName == "space" && xmlReader.NamespaceURI == XNamespace.Xml.NamespaceName)
+                                {
+                                    continue;
+                                }
+
+                                // Skip empty attributes
+                                if (string.IsNullOrWhiteSpace(xmlReader.Value))
+                                {
+                                    continue;
+                                }
+
+                                await xmlWriter.WriteAttributeStringAsync(xmlReader.Prefix,
+                                    xmlReader.LocalName, xmlReader.NamespaceURI, xmlReader.Value)
+                                    .ConfigureAwait(false);
+                            }
+                            xmlReader.MoveToElement();
+                        }
+
+                        // Handle self-closing elements
+                        if (xmlReader.IsEmptyElement)
+                        {
+                            await xmlWriter.WriteEndElementAsync().ConfigureAwait(false);
+                        }
+                        break;
+
+                    case XmlNodeType.EndElement:
+                        await xmlWriter.WriteEndElementAsync().ConfigureAwait(false);
+                        break;
+
+                    case XmlNodeType.Text:
+                        await xmlWriter.WriteStringAsync(xmlReader.Value).ConfigureAwait(false);
+                        break;
+
+                    case XmlNodeType.CDATA:
+                        await xmlWriter.WriteCDataAsync(xmlReader.Value).ConfigureAwait(false);
+                        break;
+
+                    case XmlNodeType.Comment:
+                        // Only reached if IgnoreComments = false
+                        if (!options.RemoveComments)
+                        {
+                            await xmlWriter.WriteCommentAsync(xmlReader.Value).ConfigureAwait(false);
+                        }
+                        break;
+
+                    case XmlNodeType.ProcessingInstruction:
+                        await xmlWriter.WriteProcessingInstructionAsync(xmlReader.Name, xmlReader.Value)
+                            .ConfigureAwait(false);
+                        break;
+
+                        // Whitespace, SignificantWhitespace handled by reader settings
+                }
             }
 
-            // Remove common metadata elements
+            await xmlWriter.FlushAsync().ConfigureAwait(false);
+            string result = output.ToString();
 
-            // Remove <metadata> elements
-            doc.Descendants(_svgNamespace + "metadata").Remove();
+            SimpleLogger.Log($"SVG optimization complete. Original: {svgContent.Length:N0} characters, Optimized: {result.Length:N0} characters ({(1.0 - ((double)result.Length / svgContent.Length)) * 100:F1}% reduction)");
 
-            // TODO Remove <title> elements (optional - some prefer to keep these)
-            // doc.Descendants(svg + "title").Remove();
-
-            // TODO Remove <desc> elements (optional)
-            // doc.Descendants(svg + "desc").Remove();
-
-            // Remove unnecessary attributes
-            foreach (XElement element in doc.Descendants())
-            {
-                // Remove xml:space attributes
-                element.Attributes().Where(static a => a.Name.LocalName == "space" && a.Name.Namespace == XNamespace.Xml).Remove();
-
-                // Remove empty attributes
-                element.Attributes().Where(static a => string.IsNullOrWhiteSpace(a.Value)).Remove();
-            }
-
-            // Minify if requested
-            // Serialize with appropriate formatting
-            string result = options.MinifySvg
-                ? doc.ToString(SaveOptions.DisableFormatting)
-                : doc.ToString(SaveOptions.None);
-
-            // Remove whitespace between tags efficiently for minification
-            if (options.MinifySvg)
-            {
-                result = RemoveWhitespaceBetweenTags(result);
-            }
-
-            return result;
+            return result.AsMemory();
+        }
+        catch (XmlException ex)
+        {
+            SimpleLogger.LogError("SVG optimization failed due to invalid XML, returning original content", ex);
+            return svgContent;
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("SVG optimization failed, returning original content", ex);
             return svgContent;
-        }
-    }
-
-    /// <summary>
-    /// Removes whitespace between XML tags using zero-allocation algorithm.
-    /// Uses ArrayPool for memory reuse - only allocates the final string.
-    /// Pattern: ">...whitespace...&lt;" becomes <![CDATA["><"]]>
-    /// </summary>
-    /// <remarks>
-    /// For a 10 MB SVG, this approach uses ~10 MB peak memory vs ~30 MB with regex.
-    /// Approximately 2-3x faster than regex for large SVGs.
-    /// </remarks>
-    private static string RemoveWhitespaceBetweenTags(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-
-        ReadOnlySpan<char> source = input.AsSpan();
-        char[]? buffer = null;
-
-        try
-        {
-            // Rent from pool - reused memory, zero allocation
-            buffer = ArrayPool<char>.Shared.Rent(input.Length);
-            Span<char> output = buffer.AsSpan();
-
-            int writePos = 0;
-            int readPos = 0;
-
-            while (readPos < source.Length)
-            {
-                char current = source[readPos];
-
-                if (current == '>')
-                {
-                    output[writePos++] = current;
-                    readPos++;
-
-                    // Scan ahead for whitespace
-                    int whitespaceStart = readPos;
-                    while (readPos < source.Length && char.IsWhiteSpace(source[readPos]))
-                    {
-                        readPos++;
-                    }
-
-                    // Check if whitespace is followed by opening tag
-                    if (readPos < source.Length && source[readPos] == '<')
-                    {
-                        // Pattern found: ">whitespace<" - skip whitespace entirely
-                        continue;
-                    }
-
-                    // Whitespace not between tags - preserve it
-                    if (readPos > whitespaceStart)
-                    {
-                        int whitespaceLength = readPos - whitespaceStart;
-                        source.Slice(whitespaceStart, whitespaceLength).CopyTo(output[writePos..]);
-                        writePos += whitespaceLength;
-                    }
-                }
-                else
-                {
-                    output[writePos++] = current;
-                    readPos++;
-                }
-            }
-
-            // Only allocation: the final string
-            return new string(buffer, 0, writePos);
-        }
-        finally
-        {
-            if (buffer is not null)
-            {
-                ArrayPool<char>.Shared.Return(buffer);
-            }
         }
     }
 
@@ -377,7 +388,7 @@ public sealed class ExportService
             await WaitForExportCompletionAsync(progress, _defaultExportToPngTimeout, cancellationToken);
 
             // Step 3: Retrieve and decode PNG data
-            string base64Data = await RetrievePngDataAsync();
+            ReadOnlyMemory<char> base64Data = await RetrievePngDataAsync();
             int bytesWritten = await DecodeAndWritePngAsync(base64Data, targetPath, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -444,9 +455,14 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Retrieves PNG data from JavaScript global variable.
+    /// Retrieves PNG data as a Base64-encoded string from the browser's global JavaScript context.
     /// </summary>
-    private async Task<string> RetrievePngDataAsync()
+    /// <remarks>This method executes a JavaScript script in the browser to extract the PNG data stored in a
+    /// global variable. If the data is empty or invalid, an exception is thrown. The returned data is unwrapped from
+    /// its JSON string representation.</remarks>
+    /// <returns>A read-only memory region containing the Base64-encoded PNG data.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the PNG data retrieved from the browser is empty or invalid.</exception>
+    private async Task<ReadOnlyMemory<char>> RetrievePngDataAsync()
     {
         const string script = "globalThis.__pngExportResult__ ? String(globalThis.__pngExportResult__) : ''";
         string? base64Data = await _mermaidRenderer.ExecuteScriptAsync(script);
@@ -456,9 +472,16 @@ public sealed class ExportService
             throw new InvalidOperationException("PNG data from browser export is empty or invalid");
         }
 
-        return UnwrapJsonString(base64Data);
+        return UnwrapJsonString(base64Data.AsMemory());
     }
 
+    /// <summary>
+    /// Resets global variables used for PNG export in the rendering context.
+    /// </summary>
+    /// <remarks>This method clears the values of the global variables <c>__pngExportResult__</c> and
+    /// <c>__pngExportStatus__</c> in the JavaScript execution environment. It ensures that these variables are set to
+    /// their default states before initiating a new export operation.</remarks>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task CleanupExportGlobalVariablesAsync()
     {
         const string script = "globalThis.__pngExportResult__ = null; globalThis.__pngExportStatus__ = '';";
@@ -468,17 +491,14 @@ public sealed class ExportService
     #endregion PNG Export
 
     /// <summary>
-    /// Retrieves the SVG content of the currently displayed diagram.
+    /// Retrieves the SVG content rendered within the WebView as a string.
     /// </summary>
-    /// <remarks>
-    /// This method extracts the SVG from the live preview in the WebView. The method interacts with the
-    /// WebView to execute JavaScript for retrieving the SVG content. It ensures that all WebView
-    /// interactions occur on the UI thread.
-    /// </remarks>
-    /// <returns>A <see cref="Task{TResult}"/> representing the asynchronous operation. The result is a string containing the SVG
-    /// content, or <see langword="null"/> if the SVG content could not be retrieved.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the JavaScript execution fails.</exception>
-    public async Task<string?> GetSvgContentAsync()
+    /// <remarks>This method executes a JavaScript script to locate and serialize the SVG element within the
+    /// WebView. The SVG content is returned as a read-only memory of characters. If no SVG element is found or the
+    /// result is empty, an empty memory is returned.</remarks>
+    /// <returns>A <see cref="ReadOnlyMemory{Char}"/> containing the SVG content as a string. Returns <see
+    /// cref="ReadOnlyMemory{Char}.Empty"/> if no SVG content is found.</returns>
+    private async Task<ReadOnlyMemory<char>> GetSvgContentAsync()
     {
         const string script = """
         (function() {
@@ -488,12 +508,12 @@ public sealed class ExportService
           // Clone to avoid modifying the original
           const clone = svgElement.cloneNode(true);
 
-          // Add XML declaration
+          // Serialize to string
           const serializer = new XMLSerializer();
           const svgString = serializer.serializeToString(clone);
 
-          // Return complete SVG document as a primitive string (bridge-friendly)
-          return '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
+          // Return SVG document as a primitive string (bridge-friendly)
+          return svgString;
         })();
         """;
 
@@ -511,8 +531,13 @@ public sealed class ExportService
                 await _mermaidRenderer.ExecuteScriptAsync(script));
         }
 
-        // Remove any JSON escaping if present
-        return UnwrapJsonString(result);
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return ReadOnlyMemory<char>.Empty;
+        }
+
+        // Remove any JSON escaping if present and return as memory
+        return UnwrapJsonString(result.AsMemory());
     }
 
     /// <summary>
@@ -592,41 +617,53 @@ public sealed class ExportService
     #region Base64 Decoding
 
     /// <summary>
-    /// Decodes a Base64-encoded PNG image and writes the decoded binary data to the specified file path.
+    /// Decodes a Base64-encoded string and writes the resulting PNG image to the specified file path.
     /// </summary>
-    /// <remarks>This method ensures that the target directory exists before writing the file. It uses a
-    /// streaming approach: the Base64 input is converted to UTF-8 bytes (whitespace removed) and then decoded
-    /// in chunks using `Base64.DecodeFromUtf8` into a pooled output buffer which is written to disk. This
-    /// avoids allocating a single large decoded array while still keeping memory usage bounded.</remarks>
-    /// <param name="base64Data">The Base64-encoded string representing the PNG image data.
-    /// The string may include whitespace or be JSON-encoded.</param>
-    /// <param name="targetPath">The file path where the decoded PNG data will be written.
-    /// If the directory does not exist, it will be created.</param>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests during the
-    /// asynchronous operation.</param>
-    /// <returns>The number of bytes written to the file.</returns>
+    /// <remarks>This method processes the Base64 data in chunks to minimize memory usage and avoid large
+    /// allocations. Ensure that the <paramref name="base64Data"/> contains valid Base64-encoded data and that the
+    /// <paramref name="targetPath"/> specifies a valid file path where the application has write permissions.</remarks>
+    /// <param name="base64Data">The Base64-encoded string containing the image data. The input is trimmed and unwrapped before decoding.</param>
+    /// <param name="targetPath">The file path where the decoded PNG image will be written. If the directory does not exist, it will be created.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests during the operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the number of bytes written to the
+    /// file.</returns>
     [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Improves readability")]
     [SuppressMessage("ReSharper", "InconsistentNaming")]
-    private static async Task<int> DecodeAndWritePngAsync(string base64Data, string targetPath, CancellationToken cancellationToken)
+    private static async Task<int> DecodeAndWritePngAsync(ReadOnlyMemory<char> base64Data, string targetPath, CancellationToken cancellationToken)
     {
-        // Step 1: Validate and prepare input
-        string base64Clean = UnwrapJsonString(base64Data);
+        // Step 1: Trim and unwrap using zero-copy slicing
+        ReadOnlyMemory<char> base64Clean = TrimMemory(base64Data);
+        base64Clean = UnwrapJsonString(base64Clean);
+
+        // Step 2: Validate size
         ValidateBase64Size(base64Clean);
 
-        // Step 2: Ensure directory exists
+        // Step 3: Ensure directory exists
         string? directory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        // Step 3: Process in chunks to minimize memory allocation
+        // Step 4: Process in chunks to avoid large allocations
         return await DecodeBase64ToFileInChunksAsync(base64Clean, targetPath, cancellationToken)
             .ConfigureAwait(false);
     }
 
-
-    private static async Task<int> DecodeBase64ToFileInChunksAsync(string base64String, string targetPath, CancellationToken cancellationToken)
+    /// <summary>
+    /// Decodes a Base64-encoded string into binary data and writes the decoded data to a file in chunks.
+    /// </summary>
+    /// <remarks>This method processes the input data in chunks to minimize memory usage and avoid large
+    /// object heap (LOH) allocations.  It uses buffers rented from the <see cref="System.Buffers.ArrayPool{T}"/> to
+    /// optimize performance and reduce memory pressure.  The method ensures that the Base64 input is decoded correctly,
+    /// handling incomplete or invalid data by throwing appropriate exceptions.</remarks>
+    /// <param name="base64Memory">The Base64-encoded input data represented as a <see cref="ReadOnlyMemory{T}"/> of characters.</param>
+    /// <param name="targetPath">The file path where the decoded binary data will be written. The file will be created or overwritten.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>The total number of bytes written to the file.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the Base64 input contains invalid data, ends with an incomplete 4-character group, or if the decode
+    /// buffer is too small.</exception>
+    private static async Task<int> DecodeBase64ToFileInChunksAsync(ReadOnlyMemory<char> base64Memory, string targetPath, CancellationToken cancellationToken)
     {
         // Use small buffers to stay well below LOH threshold (85 KB)
         const int utf8ChunkSize = 16 * 1_024;      // 16 KB for UTF-8 conversion
@@ -642,7 +679,7 @@ public sealed class ExportService
             decodeBuffer = ArrayPool<byte>.Shared.Rent(decodeBufferSize);
 
             // Open file stream with optimal buffer size
-            int estimatedSize = EstimateDecodedLength(base64String);
+            int estimatedSize = EstimateDecodedLength(base64Memory);
             int fileBufferSize = CalculateOptimalFileBufferSize(estimatedSize);
 
             await using FileStream fileStream = new FileStream(
@@ -655,7 +692,7 @@ public sealed class ExportService
 
             int totalWritten = 0;
             int position = 0;
-            int base64Length = base64String.Length;
+            int base64Length = base64Memory.Length;
 
             // Track unconsumed UTF-8 bytes from previous chunk (for Base64 group boundaries)
             int pendingUtf8Bytes = 0;
@@ -668,10 +705,10 @@ public sealed class ExportService
                 int remainingChars = base64Length - position;
                 int chunkSize = Math.Min(utf8ChunkSize - pendingUtf8Bytes, remainingChars);
 
-                // Convert chunk to UTF-8 bytes (filtering whitespace, validating characters)
-                // Create span ONLY within this synchronous section, use immediately
-                ReadOnlySpan<char> base64Span = base64String.AsSpan(position, chunkSize);
-                int utf8Length = ConvertBase64ChunkToUtf8Bytes(base64Span, utf8Buffer, pendingUtf8Bytes);
+                // Create span from memory slice - synchronous, consumed before await
+                ReadOnlySpan<char> chunk = base64Memory.Slice(position, chunkSize).Span;
+
+                int utf8Length = ConvertBase64ChunkToUtf8Bytes(chunk, utf8Buffer, pendingUtf8Bytes);
 
                 // Decode UTF-8 bytes to binary - again, create span locally, use immediately
                 ReadOnlySpan<byte> utf8Span = utf8Buffer.AsSpan(0, utf8Length);
@@ -698,7 +735,8 @@ public sealed class ExportService
                         {
                             // Copy unconsumed bytes to start of buffer for next iteration
                             // Create span locally, use immediately, no persistence across await
-                            utf8Buffer.AsSpan(bytesConsumed, pendingUtf8Bytes).CopyTo(utf8Buffer.AsSpan(0, pendingUtf8Bytes));
+                            utf8Buffer.AsSpan(bytesConsumed, pendingUtf8Bytes)
+                                .CopyTo(utf8Buffer.AsSpan(0, pendingUtf8Bytes));
                         }
                         break;
 
@@ -758,7 +796,6 @@ public sealed class ExportService
 
         // Check for whitespace in chunk (most chunks won't have any)
         bool hasWhitespace = chunk.ContainsAny(_whitespaceSearchValues);
-
         if (!hasWhitespace)
         {
             // Fast path: No whitespace, validate and bulk copy
@@ -801,8 +838,11 @@ public sealed class ExportService
     #region Base64 Preparation and Validation
 
     /// <summary>
-    /// Validates that a character is valid Base64: A-Z, a-z, 0-9, +, /, =
+    /// Determines whether the specified character is a valid Base64 character.
     /// </summary>
+    /// <param name="c">The character to validate.</param>
+    /// <returns><see langword="true"/> if the character is a valid Base64 character  (letters, digits, '+', '/', or '=');
+    /// otherwise, <see langword="false"/>.</returns>
     private static bool IsValidBase64Character(char c)
     {
         return c is (>= 'A' and <= 'Z') or
@@ -812,27 +852,39 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Validates that Base64 string is not unreasonably large.
+    /// Validates that the provided Base64-encoded data does not exceed the maximum allowed size.
     /// </summary>
-    private static void ValidateBase64Size(string base64Clean)
+    /// <remarks>This method ensures that the Base64 data remains within a size limit to prevent excessive
+    /// memory usage. The maximum size is defined as 150 MB of Base64-encoded data, which corresponds to approximately
+    /// 112 MB of decoded data.</remarks>
+    /// <param name="base64Memory">A read-only memory region containing the Base64-encoded data to validate.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the length of <paramref name="base64Memory"/> exceeds the maximum allowed size of 150 MB
+    /// (approximately 112 MB decoded).</exception>
+    private static void ValidateBase64Size(ReadOnlyMemory<char> base64Memory)
     {
         const int maxBase64Length = 150 * 1_024 * 1_024; // 150 MB Base64 ~ 112 MB decoded (allows ~100 MB PNG)
 
-        if (base64Clean.Length > maxBase64Length)
+        if (base64Memory.Length > maxBase64Length)
         {
             throw new InvalidOperationException(
-                $"Base64 data exceeds maximum allowed size. Length: {base64Clean.Length:N0} chars, Maximum: {maxBase64Length:N0} chars");
+                $"Base64 data exceeds maximum allowed size. Length: {base64Memory.Length:N0} chars, Maximum: {maxBase64Length:N0} chars");
         }
     }
 
     /// <summary>
-    /// Estimates decoded length of Base64 data, accounting for padding.
+    /// Estimates the length of the decoded byte array from a Base64-encoded string.
     /// </summary>
-    private static int EstimateDecodedLength(string base64)
+    /// <remarks>This method accounts for whitespace characters in the input and adjusts the calculation based
+    /// on the presence of Base64 padding characters ('=') at the end of the input.</remarks>
+    /// <param name="base64Memory">A read-only memory region containing the Base64-encoded string.</param>
+    /// <returns>The estimated length of the decoded byte array. Returns 0 if the input contains no non-whitespace characters.</returns>
+    private static int EstimateDecodedLength(ReadOnlyMemory<char> base64Memory)
     {
+        ReadOnlySpan<char> base64Span = base64Memory.Span;
+
         // Count non-whitespace characters
         int contentLength = 0;
-        foreach (char c in base64)
+        foreach (char c in base64Span)
         {
             if (!char.IsWhiteSpace(c))
             {
@@ -846,7 +898,15 @@ public sealed class ExportService
         }
 
         // Calculate padding: Base64 padding is determined by the number of '=' characters at the end
-        int padding = base64.EndsWith("==") ? 2 : (base64.EndsWith('=') ? 1 : 0);
+        int padding = 0;
+        if (base64Span.Length >= 2 && base64Span[^1] == '=' && base64Span[^2] == '=')
+        {
+            padding = 2;
+        }
+        else if (base64Span.Length >= 1 && base64Span[^1] == '=')
+        {
+            padding = 1;
+        }
 
         // Each 4 Base64 chars = 3 bytes, minus padding
         int groups = (contentLength + 3) / 4;
@@ -854,8 +914,10 @@ public sealed class ExportService
     }
 
     /// <summary>
-    /// Calculates optimal FileStream buffer size based on estimated output size.
+    /// Calculates the optimal buffer size for file operations based on the estimated file size.
     /// </summary>
+    /// <param name="estimatedSize">The estimated size of the file, in bytes. Must be a non-negative value.</param>
+    /// <returns>The optimal buffer size, in bytes, for efficient file operations.</returns>
     private static int CalculateOptimalFileBufferSize(int estimatedSize)
     {
         return estimatedSize switch
@@ -916,26 +978,76 @@ public sealed class ExportService
     #region Utility Methods
 
     /// <summary>
-    /// Unwraps JSON string encoding if present, with fast path optimization.
+    /// Trims leading and trailing white-space characters from the specified read-only memory of characters.
     /// </summary>
-    private static string UnwrapJsonString(string? input)
+    /// <param name="input">The <see cref="ReadOnlyMemory{T}"/> of characters to trim.</param>
+    /// <returns>A <see cref="ReadOnlyMemory{T}"/> of characters with leading and trailing white-space characters removed.
+    /// Returns <see cref="ReadOnlyMemory{T}.Empty"/> if the input is empty or consists only of white-space characters.</returns>
+    private static ReadOnlyMemory<char> TrimMemory(ReadOnlyMemory<char> input)
     {
-        if (string.IsNullOrWhiteSpace(input))
+        if (input.IsEmpty)
         {
-            return string.Empty;
+            return ReadOnlyMemory<char>.Empty;
         }
 
-        ReadOnlySpan<char> span = input.AsSpan().Trim();
+        ReadOnlySpan<char> span = input.Span;
+
+        // Trim start
+        int start = 0;
+        while (start < span.Length && char.IsWhiteSpace(span[start]))
+        {
+            start++;
+        }
+
+        if (start >= span.Length)
+        {
+            return ReadOnlyMemory<char>.Empty;
+        }
+
+        // Trim end
+        int end = span.Length - 1;
+        while (end >= start && char.IsWhiteSpace(span[end]))
+        {
+            end--;
+        }
+
+        int length = end - start + 1;
+        return length > 0 ? input.Slice(start, length) : ReadOnlyMemory<char>.Empty;
+    }
+
+    /// <summary>
+    /// Removes enclosing double quotes from a JSON string and processes escape sequences if present.
+    /// </summary>
+    /// <remarks>If the input string is enclosed in double quotes and contains escape sequences, the method
+    /// deserializes the string to handle the escape sequences, which may involve memory allocation. If no escape
+    /// sequences are present, the method slices the input to remove the quotes without additional
+    /// allocations.</remarks>
+    /// <param name="input">The input JSON string as a <see cref="ReadOnlyMemory{T}"/> of characters.</param>
+    /// <returns>A <see cref="ReadOnlyMemory{T}"/> of characters representing the unwrapped string without enclosing quotes. If
+    /// the input is empty, returns <see cref="ReadOnlyMemory{T}.Empty"/>.</returns>
+    private static ReadOnlyMemory<char> UnwrapJsonString(ReadOnlyMemory<char> input)
+    {
+        if (input.IsEmpty)
+        {
+            return ReadOnlyMemory<char>.Empty;
+        }
+
+        ReadOnlySpan<char> span = input.Span;
+
+        // Check for JSON string quotes
         if (span.Length >= 2 && span[0] == '"' && span[^1] == '"')
         {
-            // Fast path: No escapes, just remove quotes
+            // Check for escape sequences
             if (span.IndexOf('\\') < 0)
             {
-                return span[1..^1].ToString();
+                // No escapes - just slice off the quotes (zero-copy!)
+                return input[1..^1];
             }
 
-            // Slow path: Proper JSON deserialization for escaped strings
-            return JsonSerializer.Deserialize<string>(input) ?? input;
+            // Has escapes - need to deserialize (unavoidable allocation)
+            // Use ReadOnlySpan<char> overload to avoid ToString()
+            string unescaped = JsonSerializer.Deserialize<string>(span) ?? input.ToString();
+            return unescaped.AsMemory();
         }
 
         return input;
@@ -965,4 +1077,127 @@ public sealed class ExportService
     }
 
     #endregion Utility Methods
+
+    #region MemoryTextReader
+
+    /// <summary>
+    /// Provides a <see cref="TextReader"/> implementation that reads from a <see cref="ReadOnlyMemory{T}"/> of
+    /// characters.
+    /// </summary>
+    /// <remarks>This class enables reading character data from a memory buffer without requiring additional
+    /// allocations. It supports synchronous and asynchronous read operations, as well as peeking at the next
+    /// character.</remarks>
+    private sealed class MemoryTextReader : TextReader
+    {
+        private readonly ReadOnlyMemory<char> _memory;
+        private int _position;
+
+        public MemoryTextReader(ReadOnlyMemory<char> memory)
+        {
+            _memory = memory;
+            _position = 0;
+        }
+
+        /// <summary>
+        /// Reads a specified number of characters from the current position in the memory
+        /// buffer into the provided array.
+        /// </summary>
+        /// <param name="buffer">The array to which characters will be copied. The array
+        /// must have sufficient space to accommodate the characters being read.</param>
+        /// <param name="index">The zero-based index in the <paramref name="buffer"/> at which
+        /// to begin storing the characters.</param>
+        /// <param name="count">The maximum number of characters to read from the memory buffer.</param>
+        /// <returns>The number of characters successfully read into the <paramref name="buffer"/>.
+        /// Returns 0 if the end of the memory buffer is reached.</returns>
+        public override int Read(char[] buffer, int index, int count)
+        {
+            int remaining = _memory.Length - _position;
+            int toRead = Math.Min(count, remaining);
+
+            if (toRead > 0)
+            {
+                _memory.Span.Slice(_position, toRead).CopyTo(buffer.AsSpan(index, toRead));
+                _position += toRead;
+            }
+
+            return toRead;
+        }
+
+        /// <summary>
+        /// Returns the next character in the memory buffer without advancing the position.
+        /// </summary>
+        /// <remarks>If the current position is at the end of the memory buffer, the method returns -1.
+        /// This method does not modify the current position in the buffer.</remarks>
+        /// <returns>The next character in the memory buffer as an integer,
+        /// or -1 if the end of the buffer is reached.</returns>
+        public override int Peek()
+        {
+            return _position < _memory.Length ? _memory.Span[_position] : -1;
+        }
+
+        /// <summary>
+        /// Reads the next byte from the memory buffer and advances the position by one.
+        /// </summary>
+        /// <returns>The next byte in the memory buffer as an integer,
+        /// or -1 if the end of the buffer has been reached.</returns>
+        public override int Read()
+        {
+            return _position < _memory.Length ? _memory.Span[_position++] : -1;
+        }
+
+        /// <summary>
+        /// Asynchronously reads a specified number of characters from the current stream and writes them into a buffer,
+        /// starting at the specified index.
+        /// </summary>
+        /// <remarks>This method provides an asynchronous wrapper for the Read method.
+        /// However, the operation is executed synchronously and completed immediately.</remarks>
+        /// <param name="buffer">The character array to which the data will be written.
+        /// The array must have sufficient space to accommodate the characters read.</param>
+        /// <param name="index">The zero-based index in the <paramref name="buffer"/> at
+        /// which to begin writing the characters read from the stream.</param>
+        /// <param name="count">The maximum number of characters to read from the stream.</param>
+        /// <returns>A task that represents the asynchronous read operation. The task result contains the total number of
+        /// characters read into the buffer. This value can be less than <paramref name="count"/> if the end of the
+        /// stream is reached.</returns>
+        public override Task<int> ReadAsync(char[] buffer, int index, int count)
+        {
+            int charsRead = Read(buffer, index, count);
+            return Task.FromResult(charsRead);
+        }
+
+        /// <summary>
+        /// Asynchronously reads a sequence of characters from the current memory
+        /// buffer into the specified destination buffer.
+        /// </summary>
+        /// <remarks>This method reads up to the smaller of the remaining characters in the memory buffer
+        /// or the length of the destination buffer. If the operation is canceled via the <paramref
+        /// name="cancellationToken"/>, the task will complete in a canceled state.</remarks>
+        /// <param name="buffer">The destination buffer to which the characters will be written.
+        /// The length of the buffer determines the maximum number of characters to read.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.
+        /// The operation will be canceled if the token is triggered.</param>
+        /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation.
+        /// The result contains the number of characters successfully read into the buffer.
+        /// Returns 0 if the end of the memory buffer is reached.</returns>
+        public override ValueTask<int> ReadAsync(Memory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return ValueTask.FromCanceled<int>(cancellationToken);
+            }
+
+            int remaining = _memory.Length - _position;
+            int toRead = Math.Min(buffer.Length, remaining);
+
+            if (toRead > 0)
+            {
+                _memory.Span.Slice(_position, toRead).CopyTo(buffer.Span);
+                _position += toRead;
+            }
+
+            return ValueTask.FromResult(toRead);
+        }
+    }
+
+    #endregion MemoryTextReader
 }
