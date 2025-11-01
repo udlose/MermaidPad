@@ -614,6 +614,40 @@
       if (output) {
         output.classList.add('visible');
       }
+
+      try {
+        // Set the flag for C# polling (AvaloniaWebView doesn't support postMessage events)
+        globalThis.__renderingComplete__ = true;
+        console.log('Set __renderingComplete__ flag for C# polling');
+
+        // Try platform-specific notifications
+
+        // Try WebView2 (Windows) - check existence on globalThis to avoid implicit declaration warning
+        if (globalThis.chrome && globalThis.chrome.webview && globalThis.chrome.webview.postMessage) {
+          try {
+            globalThis.chrome.webview.postMessage('renderingComplete');
+            console.log('Sent postMessage via chrome.webview (may not be received by AvaloniaWebView)');
+          } catch (chromeError) {
+            // Silently ignore - AvaloniaWebView may not support this
+            console.debug('chrome.webview.postMessage failed:', chromeError.message);
+          }
+        }
+
+        // Try WebKit (macOS/Linux) - check existence on globalThis to avoid implicit declaration warning
+        if (globalThis.webkit && globalThis.webkit.messageHandlers && globalThis.webkit.messageHandlers.renderingComplete) {
+          try {
+            globalThis.webkit.messageHandlers.renderingComplete.postMessage('');
+            console.log('Sent postMessage via webkit.messageHandlers (may not be received by AvaloniaWebView)');
+          } catch (webkitError) {
+            // Silently ignore - AvaloniaWebView may not support this
+            console.debug('webkit.messageHandlers failed:', webkitError.message);
+          }
+        }
+      } catch (outerError) {
+        // Even if postMessage fails, ensure the flag is set
+        console.error('Error in render completion notification:', outerError.message);
+        globalThis.__renderingComplete__ = true;
+      }
     };
 
     // Render function with proper error handling
