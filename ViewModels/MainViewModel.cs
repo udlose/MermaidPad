@@ -111,6 +111,12 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial int EditorCaretOffset { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the WebView is ready for rendering operations.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsWebViewReady { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
@@ -136,8 +142,33 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Renders the current diagram text in the preview.
+    /// Handles changes to the WebView readiness state.
     /// </summary>
+    /// <remarks>This method updates the state of related commands based on the WebView readiness state. When
+    /// the WebView becomes ready, associated commands are enabled.</remarks>
+    /// <param name="value">A boolean value indicating the new readiness state of the WebView.  <see langword="true"/> if the WebView is
+    /// ready; otherwise, <see langword="false"/>.</param>
+    partial void OnIsWebViewReadyChanged(bool value)
+    {
+        SimpleLogger.Log($"IsWebViewReady changed to: {value}");
+
+        // Update command states when WebView ready state changes
+        RenderCommand.NotifyCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
+
+        if (value)
+        {
+            SimpleLogger.Log("WebView is now ready - commands enabled");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously renders the diagram text using the configured renderer.
+    /// </summary>
+    /// <remarks>This method clears any previous errors before rendering. The rendering process may require
+    /// access to the UI context, so it does not use <see cref="Task.ConfigureAwait(bool)"/>. Ensure that the <see
+    /// cref="CanRender"/> method returns <see langword="true"/> before invoking this command.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanRender))]
     private async Task RenderAsync()
@@ -149,14 +180,18 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Determines whether the render command can execute.
+    /// Determines whether the diagram can be rendered based on the current state.
     /// </summary>
-    /// <returns><c>true</c> if the diagram text is not empty; otherwise, <c>false</c>.</returns>
-    private bool CanRender() => !string.IsNullOrWhiteSpace(DiagramText);
+    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null or whitespace; otherwise, <see
+    /// langword="false"/>.</returns>
+    private bool CanRender() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
-    /// Clears the diagram text and resets editor selection and caret.
+    /// Clears the diagram text, resets the editor selection and caret position, and removes the last error.
     /// </summary>
+    /// <remarks>This method updates several UI-related properties and invokes the renderer to clear the
+    /// diagram.  It must be executed on the UI thread to ensure proper synchronization with the user
+    /// interface.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanClear))]
     private async Task ClearAsync()
@@ -173,10 +208,11 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Determines whether the clear command can execute.
+    /// Determines whether the diagram can be cleared based on the current state.
     /// </summary>
-    /// <returns><c>true</c> if the diagram text is not empty; otherwise, <c>false</c>.</returns>
-    private bool CanClear() => !string.IsNullOrWhiteSpace(DiagramText);
+    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
+    /// otherwise, <see langword="false"/>.</returns>
+    private bool CanClear() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
     /// Exports the current diagram to SVG or PNG format.
@@ -232,10 +268,11 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Determines whether the export command can execute.
+    /// Determines whether the export operation can be performed.
     /// </summary>
-    /// <returns><c>true</c> if there is a diagram to export; otherwise, <c>false</c>.</returns>
-    private bool CanExport() => !string.IsNullOrWhiteSpace(DiagramText);
+    /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
+    /// otherwise, <see langword="false"/>.</returns>
+    private bool CanExport() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
     /// Exports the diagram with progress tracking if requested

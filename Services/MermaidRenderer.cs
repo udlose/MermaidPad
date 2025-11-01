@@ -64,6 +64,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
 
+    // WebView ready detection
+    public event EventHandler? WebViewReadyChanged;
+    private DispatcherTimer? _webViewReadyTimer;
+    private const int WebViewReadyPollIntervalMs = 100;
+
     /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
     /// </summary>
@@ -75,10 +80,73 @@ public sealed class MermaidRenderer : IAsyncDisposable
         _webView = webView;
 
         await InitializeWithHttpServerAsync();  // NO ConfigureAwait - caller expects to continue on UI thread
+
+        StartWebViewReadyTimer();
     }
 
     /// <summary>
-    /// Prepares content and starts the local HTTP server for serving Mermaid assets.
+    /// Starts a timer to periodically check if the WebView has completed its first render.
+    /// </summary>
+    /// <remarks>The timer runs at a fixed interval and triggers the <see cref="OnWebViewReadyTimerTick"/>
+    /// event handler on each tick. This method is typically used to monitor the readiness of the WebView for
+    /// further operations.</remarks>
+    private void StartWebViewReadyTimer()
+    {
+        SimpleLogger.Log("Starting WebView ready detection timer");
+
+        _webViewReadyTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(WebViewReadyPollIntervalMs)
+        };
+
+        _webViewReadyTimer.Tick += OnWebViewReadyTimerTick;
+        _webViewReadyTimer.Start();
+
+        SimpleLogger.Log("WebView ready timer started (checks for first render completion)");
+    }
+
+    /// <summary>
+    /// Handles the tick event of the WebView readiness timer, checking if the WebView has completed its first render.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript script to determine if the WebView has completed its first
+    /// render. If the render is complete, the timer is stopped, and the <see cref="WebViewReadyChanged"/> event is
+    /// raised. Errors during the readiness check are logged but do not interrupt the process.</remarks>
+    /// <param name="sender">The source of the event, typically the timer triggering the tick.</param>
+    /// <param name="e">The event data associated with the tick event.</param>
+    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "DispatcherTimer event handler - cannot be changed to Task-returning")]
+    private async void OnWebViewReadyTimerTick(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_webView is null)
+            {
+                return;
+            }
+
+            // Query JavaScript to check if FIRST RENDER has completed
+            // This flag is set in hideLoadingIndicator() which is called AFTER successful render
+            const string readyCheckScript = "typeof globalThis.__renderingComplete__ !== 'undefined' && globalThis.__renderingComplete__ === true";
+            string? result = await ExecuteScriptAsync(readyCheckScript);
+
+            if (result == "true")
+            {
+                // First render is complete! Stop the timer and fire the event
+                _webViewReadyTimer?.Stop();
+                SimpleLogger.Log("WebView is ready - First render completed");
+
+                // Fire the event (already on UI thread)
+                WebViewReadyChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Silently ignore errors during polling (WebView might not be fully loaded yet)
+            SimpleLogger.LogError("Error checking WebView ready status", ex);
+        }
+    }
+
+    /// <summary>
+    /// Initializes the application by preparing content, starting an HTTP server, and navigating to the server.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task InitializeWithHttpServerAsync()
@@ -680,6 +748,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         try
         {
+            // Stop and dispose WebView ready timer
+            if (_webViewReadyTimer is not null)
+            {
+                _webViewReadyTimer.Stop();
+                _webViewReadyTimer.Tick -= OnWebViewReadyTimerTick;
+                _webViewReadyTimer = null;
+            }
+
             // Cancel server operations
             if (_serverCancellation is not null)
             {
