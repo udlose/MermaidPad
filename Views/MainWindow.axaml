@@ -5,11 +5,16 @@
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+  xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="MermaidPad - The Cross-Platform Mermaid Chart Editor"
   Width="1200"
   Height="800"
   x:DataType="vm:MainViewModel"
   Icon="/Assets/AppIcon.ico">
+
+  <Window.Resources>
+    <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
+  </Window.Resources>
 
   <Window.Styles>
     <Style Selector="edit|TextEditor ScrollBar[Orientation=Vertical]">
@@ -30,13 +35,16 @@
       <Button
         Width="90"
         Command="{Binding RenderCommand}"
-        Content="Render" />
+        Content="Render"
+        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Button
         Command="{Binding ClearCommand}"
-        Content="Clear" />
+        Content="Clear"
+        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Button
         Command="{Binding ExportCommand}"
-        Content="Export" />
+        Content="Export"
+        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Button
         Click="OnCloseClick"
         Content="Close" />
@@ -44,7 +52,9 @@
         Margin="12,0,0,0"
         Content="Live Preview:"
         FlowDirection="RightToLeft"
-        IsChecked="{Binding LivePreviewEnabled}" />
+        IsChecked="{Binding LivePreviewEnabled}"
+        IsEnabled="{Binding IsWebViewReady}"
+        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
       <TextBlock Text="{Binding BundledMermaidVersion}" />
       <TextBlock Margin="12,0,4,0" Text="Latest:" />
