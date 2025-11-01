@@ -156,7 +156,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Starts an HTTP server to serve the content. 3. Waits for the HTTP server to be ready, with a timeout of 10
     /// seconds. 4. Navigates to the HTTP server once it is ready.  If the HTTP server fails to start within the timeout
     /// period, a <see cref="TimeoutException"/> is thrown.</remarks>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the HTTP server does not become ready within the 10-second timeout period.</exception>
     private async Task InitializeWithHttpServerAsync()
     {
@@ -495,7 +495,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// to the caller.</remarks>
     /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty, or consists only of whitespace, the output in
     /// the WebView will be cleared instead.</param>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
         _renderAttemptCount++;
