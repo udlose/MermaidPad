@@ -24,9 +24,13 @@
 - Edit Mermaid markup and preview diagrams in real-time
 - "Live Preview" for instant rendering
 - Bundled `mermaid.min.js` for offline use
-- Automatic update of MermaidJS bundle on startup (if online)
 - Persistent storage of last diagram in user settings (`AppData\MermaidPad\settings.json`)
 - Adjustable editor pane via draggable divider
+- SHA256 integrity check for bundled file assets (verifies assets at startup and during updates)
+- Adaptive layout support for ELK (improves automatic layout fitting and reflow)
+- Export diagrams to `.png` and `.svg` (high-fidelity exports that preserve viewBox and styles)
+- Highlight connectors on hover for easier tracing of relationships
+- Performance optimizations across rendering, export and asset verification for faster, lower-memory operation
 - Native OS dialogs for error and information messages:
   - **Windows:** MessageBox
   - **Linux:** zenity, kdialog, yad, Xdialog, gxmessage, or console fallback
@@ -376,6 +380,10 @@ Tips for maintainers
 ## Roadmap
 
 - ✅ SVG/PNG export (completed)
+- ✅ SHA256 asset integrity verification (completed)
+- ✅ Adaptive ELK layout support (completed)
+- ✅ Highlight connectors on hover (completed)
+- ✅ Performance optimizations (completed)
 - Syntax highlighting (AvaloniaEdit custom definition)
 - Application update mechanism
 
