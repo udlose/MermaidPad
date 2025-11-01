@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AsyncAwaitBestPractices;
 using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Services.Platforms;
@@ -106,42 +107,45 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Handles the tick event of the WebView readiness timer, checking if the WebView has completed its first render.
+    /// Handles the timer tick event to check the readiness status of the WebView control.
+    /// </summary>
+    /// <remarks>This method ensures that the readiness status of the WebView is checked asynchronously. If
+    /// the WebView instance is null, the method exits without performing any action.</remarks>
+    /// <param name="sender">The source of the event, typically the timer triggering the tick.</param>
+    /// <param name="e">The event data associated with the timer tick.</param>
+    private void OnWebViewReadyTimerTick(object? sender, EventArgs e)
+    {
+        if (_webView is null)
+        {
+            return;
+        }
+
+        OnWebViewReadyTimerTickAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Error checking WebView ready status", ex));
+    }
+
+    /// <summary>
+    /// Handles the periodic timer tick to check if the WebView's first render has completed.
     /// </summary>
     /// <remarks>This method executes a JavaScript script to determine if the WebView has completed its first
-    /// render. If the render is complete, the timer is stopped, and the <see cref="WebViewReadyChanged"/> event is
-    /// raised. Errors during the readiness check are logged but do not interrupt the process.</remarks>
-    /// <param name="sender">The source of the event, typically the timer triggering the tick.</param>
-    /// <param name="e">The event data associated with the tick event.</param>
-    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "DispatcherTimer event handler - cannot be changed to Task-returning")]
-    private async void OnWebViewReadyTimerTick(object? sender, EventArgs e)
+    /// render.  If the render is complete, the timer is stopped, and the <see cref="WebViewReadyChanged"/> event is
+    /// raised.</remarks>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task OnWebViewReadyTimerTickAsync()
     {
-        try
+        // Query JavaScript to check if FIRST RENDER has completed
+        // This flag is set in hideLoadingIndicator() which is called AFTER successful render
+        const string readyCheckScript = "typeof globalThis.__renderingComplete__ !== 'undefined' && globalThis.__renderingComplete__ === true";
+        string? result = await ExecuteScriptAsync(readyCheckScript);
+
+        if (result == "true")
         {
-            if (_webView is null)
-            {
-                return;
-            }
+            // First render is complete! Stop the timer and fire the event
+            _webViewReadyTimer?.Stop();
+            SimpleLogger.Log("WebView is ready - First render completed");
 
-            // Query JavaScript to check if FIRST RENDER has completed
-            // This flag is set in hideLoadingIndicator() which is called AFTER successful render
-            const string readyCheckScript = "typeof globalThis.__renderingComplete__ !== 'undefined' && globalThis.__renderingComplete__ === true";
-            string? result = await ExecuteScriptAsync(readyCheckScript);
-
-            if (result == "true")
-            {
-                // First render is complete! Stop the timer and fire the event
-                _webViewReadyTimer?.Stop();
-                SimpleLogger.Log("WebView is ready - First render completed");
-
-                // Fire the event (already on UI thread)
-                WebViewReadyChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Silently ignore errors during polling (WebView might not be fully loaded yet)
-            SimpleLogger.LogError("Error checking WebView ready status", ex);
+            // Fire the event (already on UI thread)
+            WebViewReadyChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
