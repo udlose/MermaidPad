@@ -118,6 +118,10 @@ public sealed partial class MainWindow : Window
             Editor.SelectionLength = validSelectionLength;
             Editor.CaretOffset = validCaretOffset;
 
+            // Since this is yaml/diagram text, convert tabs to spaces for correct rendering
+            Editor.Options.ConvertTabsToSpaces = true;
+            Editor.Options.IndentationSize = 2;
+
             SimpleLogger.Log($"Editor state set: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset} (text length: {textLength})");
         }
         finally
