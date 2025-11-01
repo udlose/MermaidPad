@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AsyncAwaitBestPractices;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -333,27 +334,41 @@ public sealed partial class MainWindow : Window
     /// <param name="sender">Event sender (renderer).</param>
     /// <param name="e">Event arguments (unused).</param>
     /// <remarks>
-    /// This handler runs on the UI thread via a DispatcherTimer event in the renderer. It cancels the
-    /// WebView-ready timeout and sets the view model's <see cref="MainViewModel.IsWebViewReady"/> to true.
+    /// This handler runs on the UI thread via a DispatcherTimer event in the renderer. It delegates to
+    /// <see cref="OnWebViewReadyChangedAsync"/> to perform asynchronous cancellation and state updates.
     /// </remarks>
-    private async void OnWebViewReadyChanged(object? sender, EventArgs e)
+    private void OnWebViewReadyChanged(object? sender, EventArgs e)
+    {
+        OnWebViewReadyChangedAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("WebView ready changed failed", ex));
+    }
+
+    /// <summary>
+    /// Asynchronously handles the WebView ready event by canceling the timeout and updating the view model state.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// This method cancels the WebView-ready timeout and sets the view model's <see cref="MainViewModel.IsWebViewReady"/> to true.
+    /// Must execute on the UI thread because it updates observable properties that trigger UI updates.
+    /// </remarks>
+    private async Task OnWebViewReadyChangedAsync()
     {
         SimpleLogger.Log($"{nameof(OnWebViewReadyChanged)} event received. UI commands are enabled");
 
         // Cancel the timeout since WebView is ready
-        try
+        if (_webViewReadyTimeoutCts is not null)
         {
-            if (_webViewReadyTimeoutCts is not null)
+            try
             {
                 await _webViewReadyTimeoutCts.CancelAsync();
             }
-        }
-        catch (ObjectDisposedException)
-        {
-            // CTS already disposed, ignore
+            catch (ObjectDisposedException)
+            {
+                // CTS already disposed, ignore
+            }
         }
 
-        // Update view model. already on UI thread via DispatcherTimer event
+        // Update view model - must be on UI thread for property change notifications
         _vm.IsWebViewReady = true;
     }
 
@@ -363,73 +378,53 @@ public sealed partial class MainWindow : Window
     /// <param name="sender">Event sender (window).</param>
     /// <param name="e">Event arguments (unused).</param>
     /// <remarks>
-    /// This method delegates to <see cref="OnOpenedAsync"/> to perform asynchronous initialization,
-    /// subscribes to renderer events, and starts a failsafe timeout to enable UI if the WebView never becomes ready.
-    /// Exceptions are logged for diagnostics.
+    /// This method delegates to <see cref="OnOpenedCoreAsync"/> to perform asynchronous initialization,
+    /// subscribe to renderer events, and start a failsafe timeout to enable UI if the WebView never becomes ready.
+    /// Uses SafeFireAndForget to handle the async operation without blocking the event handler.
     /// </remarks>
-    private async void OnOpened(object? sender, EventArgs e)
+    private void OnOpened(object? sender, EventArgs e)
     {
-        try
-        {
-            SimpleLogger.Log("Window opened event triggered");
-            await OnOpenedAsync();
-            BringFocusToEditor();
-
-            // Subscribe to renderer's WebViewReadyChanged event
-            _renderer.WebViewReadyChanged += OnWebViewReadyChanged;
-
-            // Start a failsafe timeout in case WebView never becomes ready
-            _webViewReadyTimeoutCts = new CancellationTokenSource();
-            CancellationToken timeoutToken = _webViewReadyTimeoutCts.Token;
-
-            // Start timeout task without Task.Run (Delay is already non-blocking)
-            _webViewReadyTimeoutTask = WebViewReadyTimeoutAsync(timeoutToken);
-
-            SimpleLogger.Log($"WebView ready timeout set for {WebViewReadyTimeoutSeconds} seconds");
-        }
-        catch (Exception ex)
-        {
-            SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
-            //TODO - show a message to the user
-            //await Dispatcher.UIThread.InvokeAsync(async () =>
-            //{
-            //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
-            //});
-        }
+        OnOpenedCoreAsync()
+            .SafeFireAndForget(onException: static ex =>
+            {
+                SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
+                //TODO - show a message to the user (this would need UI thread!)
+                //Dispatcher.UIThread.Post(async () =>
+                //{
+                //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
+                //});
+            }
+            //TODO - re-enable this if I add UI operations in the future
+            //continueOnCapturedContext: true  // Needed for UI operations and event subscriptions
+            );
     }
 
     /// <summary>
-    /// Asynchronously waits for a configured timeout and forces UI enablement if the renderer never becomes ready.
+    /// Performs the complete window open sequence including initialization, event subscription, and timeout setup.
     /// </summary>
-    /// <param name="timeoutToken">Cancellation token used to cancel the timeout when the WebView becomes ready.</param>
-    /// <returns>A task that completes when the timeout expires or is canceled.</returns>
-    private async Task WebViewReadyTimeoutAsync(CancellationToken timeoutToken)
+    /// <returns>A task representing the asynchronous open sequence.</returns>
+    /// <remarks>
+    /// This method orchestrates the window open sequence by calling <see cref="OnOpenedAsync"/>, bringing focus to the editor,
+    /// subscribing to renderer events, and starting a failsafe timeout in case the WebView never becomes ready.
+    /// Must execute on the UI thread for event subscriptions and UI-related operations.
+    /// </remarks>
+    private async Task OnOpenedCoreAsync()
     {
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds), timeoutToken)
-                .ConfigureAwait(false);
+        SimpleLogger.Log("Window opened event triggered");
+        await OnOpenedAsync();
+        BringFocusToEditor();
 
-            // Timeout occurred - force enable buttons
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (!_vm.IsWebViewReady)
-                {
-                    _vm.IsWebViewReady = true;
-                    _vm.LastError = "WebView initialization timed out. Some features may not work correctly.";
-                    SimpleLogger.Log($"IsWebViewReady set to true due to timeout ({WebViewReadyTimeoutSeconds}s)");
-                }
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            // Timeout was cancelled (WebView became ready before timeout), this is expected
-            SimpleLogger.Log("WebView ready timeout was cancelled (WebView became ready)");
-        }
-        catch (Exception ex)
-        {
-            SimpleLogger.LogError($"Unexpected exception in {nameof(WebViewReadyTimeoutAsync)}", ex);
-        }
+        // Subscribe to renderer's WebViewReadyChanged event
+        _renderer.WebViewReadyChanged += OnWebViewReadyChanged;
+
+        // Start a failsafe timeout in case WebView never becomes ready
+        _webViewReadyTimeoutCts = new CancellationTokenSource();
+        CancellationToken timeoutToken = _webViewReadyTimeoutCts.Token;
+
+        // Start timeout task without Task.Run (Delay is already non-blocking)
+        _webViewReadyTimeoutTask = WebViewReadyTimeoutAsync(timeoutToken);
+
+        SimpleLogger.Log($"WebView ready timeout set for {WebViewReadyTimeoutSeconds} seconds");
     }
 
     /// <summary>
@@ -439,7 +434,6 @@ public sealed partial class MainWindow : Window
     /// <exception cref="InvalidOperationException">Thrown if required update assets cannot be resolved.</exception>
     /// <remarks>
     /// This method logs timing information, performs an update check by calling <see cref="MainViewModel.CheckForMermaidUpdatesAsync"/>,
-
     /// initializes the renderer via <see cref="InitializeWebViewAsync"/>, and notifies commands to refresh their CanExecute state.
     /// Exceptions are propagated for higher-level handling.
     /// </remarks>
@@ -491,91 +485,132 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Handles the window close sequence, cleaning up resources, cancelling background tasks, and persisting state.
+    /// Asynchronously waits for a configured timeout and forces UI enablement if the renderer never becomes ready.
+    /// </summary>
+    /// <param name="timeoutToken">Cancellation token used to cancel the timeout when the WebView becomes ready.</param>
+    /// <returns>A task that completes when the timeout expires or is canceled.</returns>
+    private async Task WebViewReadyTimeoutAsync(CancellationToken timeoutToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds), timeoutToken)
+                .ConfigureAwait(false);
+
+            // Timeout occurred - force enable buttons
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (!_vm.IsWebViewReady)
+                {
+                    _vm.IsWebViewReady = true;
+                    _vm.LastError = "WebView initialization timed out. Some features may not work correctly.";
+                    SimpleLogger.Log($"IsWebViewReady set to true due to timeout ({WebViewReadyTimeoutSeconds}s)");
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout was cancelled (WebView became ready before timeout), this is expected
+            SimpleLogger.Log("WebView ready timeout was cancelled (WebView became ready)");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError($"Unexpected exception in {nameof(WebViewReadyTimeoutAsync)}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Handles the window close event and initiates the cleanup sequence.
     /// </summary>
     /// <param name="sender">Event sender (window).</param>
     /// <param name="e">Cancel event args allowing the close to be canceled (not used here).</param>
     /// <remarks>
+    /// This method delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
+    /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
+    /// </remarks>
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        OnClosingAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+    }
+
+    /// <summary>
+    /// Performs the complete window close sequence, cleaning up resources, cancelling background tasks, and persisting state.
+    /// </summary>
+    /// <returns>A task representing the asynchronous cleanup operation.</returns>
+    /// <remarks>
     /// - Unsubscribes renderer events to avoid leaks.
     /// - Cancels and drains the WebView ready timeout task without blocking the UI thread.
     /// - Persists view model state and disposes renderer resources (awaits asynchronous dispose if supported).
-    /// Any exceptions during cleanup are logged but not rethrown.
+    /// Must execute on the UI thread for ViewModel property access and potential UI cleanup in DisposeAsync.
     /// </remarks>
-    private async void OnClosing(object? sender, CancelEventArgs e)
+    private async Task OnClosingAsync()
     {
-        try
+        SimpleLogger.Log("Window closing, cleaning up...");
+
+        // Unsubscribe from event to prevent memory leaks - must be on UI thread
+        _renderer.WebViewReadyChanged -= OnWebViewReadyChanged;
+
+        // drain the task after cancelling the CTS without blocking the UI thread
+        #region drain task
+
+        // Request cancellation first so the timeout task can finish quickly
+        if (_webViewReadyTimeoutCts is not null)
         {
-            SimpleLogger.Log("Window closing, cleaning up...");
-
-            // Unsubscribe from event to prevent memory leaks
-            _renderer.WebViewReadyChanged -= OnWebViewReadyChanged;
-
-            // drain the task after cancelling the CTS without blocking the UI thread
-            #region drain task
-
-            // Request cancellation first so the timeout task can finish quickly
-            if (_webViewReadyTimeoutCts is not null)
+            try
             {
-                try
-                {
-                    await _webViewReadyTimeoutCts.CancelAsync();
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Already disposed, ignore
-                }
+                await _webViewReadyTimeoutCts.CancelAsync();
             }
-
-            // Snapshot the task reference to avoid races if the field changes
-            Task? timeoutTask = _webViewReadyTimeoutTask;
-            if (timeoutTask is not null)
+            catch (ObjectDisposedException)
             {
-                try
-                {
-                    // Await briefly; if it doesn't finish, just log and continue closing
-                    await timeoutTask.WaitAsync(TimeSpan.FromMilliseconds(250));
-                }
-                catch (TimeoutException)
-                {
-                    SimpleLogger.Log("WebView ready timeout task did not complete within the close timeout.");
-                }
-                catch (Exception ex)
-                {
-                    // Shouldn't normally happen (task handles OCE internally), but log just in case
-                    SimpleLogger.LogError("WebView ready timeout task faulted during window close.", ex);
-                }
+                // Already disposed, ignore
             }
-
-            // Dispose CTS after draining
-            if (_webViewReadyTimeoutCts is not null)
-            {
-                try
-                {
-                    _webViewReadyTimeoutCts.Dispose();
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Already disposed, ignore
-                }
-            }
-
-            #endregion drain task
-
-            // Save state and dispose renderer
-            _vm.Persist();
-
-            if (_renderer is IAsyncDisposable disposableRenderer)
-            {
-                await disposableRenderer.DisposeAsync();
-                SimpleLogger.Log("MermaidRenderer disposed");
-            }
-
-            SimpleLogger.Log("Window cleanup completed successfully");
         }
-        catch (Exception ex)
+
+        // Snapshot the task reference to avoid races if the field changes
+        Task? timeoutTask = _webViewReadyTimeoutTask;
+        if (timeoutTask is not null)
         {
-            SimpleLogger.LogError("Failed during window close cleanup", ex);
+            try
+            {
+                // Await briefly; if it doesn't finish, just log and continue closing
+                await timeoutTask.WaitAsync(TimeSpan.FromMilliseconds(250));
+            }
+            catch (TimeoutException)
+            {
+                SimpleLogger.Log("WebView ready timeout task did not complete within the close timeout.");
+            }
+            catch (Exception ex)
+            {
+                // Shouldn't normally happen (task handles OCE internally), but log just in case
+                SimpleLogger.LogError("WebView ready timeout task faulted during window close.", ex);
+            }
         }
+
+        // Dispose CTS after draining
+        if (_webViewReadyTimeoutCts is not null)
+        {
+            try
+            {
+                _webViewReadyTimeoutCts.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed, ignore
+            }
+        }
+
+        #endregion drain task
+
+        // Save state
+        _vm.Persist();
+
+        if (_renderer is IAsyncDisposable disposableRenderer)
+        {
+            await disposableRenderer.DisposeAsync();
+            SimpleLogger.Log("MermaidRenderer disposed");
+        }
+
+        SimpleLogger.Log("Window cleanup completed successfully");
     }
 
     /// <summary>
