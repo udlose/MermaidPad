@@ -148,7 +148,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <summary>
     /// Initializes the application by preparing content, starting an HTTP server, and navigating to the server.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method performs the following steps: 1. Prepares the required content from disk. 2.
+    /// Starts an HTTP server to serve the content. 3. Waits for the HTTP server to be ready, with a timeout of 10
+    /// seconds. 4. Navigates to the HTTP server once it is ready.  If the HTTP server fails to start within the timeout
+    /// period, a <see cref="TimeoutException"/> is thrown.</remarks>
+    /// <returns></returns>
+    /// <exception cref="TimeoutException">Thrown if the HTTP server does not become ready within the 10-second timeout period.</exception>
     private async Task InitializeWithHttpServerAsync()
     {
         // Step 1: Prepare content (HTML and JS separately)
@@ -172,9 +177,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Reads the required HTML and JS asset files from disk.
+    /// Asynchronously loads and prepares content from disk, including HTML, JavaScript, and other assets, for use in
+    /// the application.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method retrieves multiple assets in parallel to optimize performance. The loaded content
+    /// is stored in memory for subsequent use. The method logs the size of each asset and the total time taken to
+    /// complete the operation.</remarks>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task PrepareContentFromDiskAsync()
     {
         Stopwatch sw = Stopwatch.StartNew();
@@ -208,8 +217,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Starts the local HTTP server to serve Mermaid assets.
+    /// Starts an HTTP server on an available port and begins listening for incoming requests.
     /// </summary>
+    /// <remarks>This method initializes an <see cref="HttpListener"/> instance, binds it to an available port
+    /// on localhost, and starts a background task to handle incoming HTTP requests asynchronously. The server runs
+    /// until explicitly stopped.</remarks>
     private void StartHttpServer()
     {
         _serverPort = GetAvailablePort();
@@ -396,9 +408,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Navigates the WebView to the local HTTP server URL.
+    /// Navigates the embedded web view to the server URL asynchronously.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method sets the web view's URL to the server address and waits for the navigation to
+    /// complete. If the navigation does not complete within the specified timeout,
+    /// a <see cref="InvalidOperationException"/> is thrown. The method must be called on
+    /// the UI thread as it interacts with the web view and dispatcher.</remarks>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the navigation does not complete within the allowed time.</exception>
     private async Task NavigateToServerAsync()
     {
         string serverUrl = $"http://localhost:{_serverPort}/";
@@ -436,9 +453,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Finds an available port in the range 8083-8199 for the HTTP server.
+    /// Finds and returns the first available port within the range 8083 to 8199.
     /// </summary>
-    /// <returns>An available port number.</returns>
+    /// <remarks>This method attempts to bind to each port in the specified range, starting from 8083, to
+    /// determine if it is available for use. If a port is in use, the method proceeds to the next port. If no available
+    /// ports are found within the range, an <see cref="InvalidOperationException"/> is thrown.</remarks>
+    /// <returns>The first available port number within the range 8083 to 8199.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no available ports are found in the range 8083-8199.</exception>
     private static int GetAvailablePort()
     {
         for (int port = 8083; port < 8200; port++)
@@ -461,10 +482,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Renders the specified Mermaid diagram source in the WebView.
+    /// Renders a Mermaid diagram in the associated WebView control using the provided Mermaid source code.
     /// </summary>
-    /// <param name="mermaidSource">The Mermaid diagram source code.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method executes JavaScript in the WebView to render the Mermaid diagram. The source code
+    /// is escaped to ensure compatibility with JavaScript string literals. If the WebView is not initialized, the
+    /// method logs an error and exits without performing any action.  This method must be called on the UI thread, as
+    /// it interacts with the WebView control. Exceptions during rendering or clearing are logged but do not propagate
+    /// to the caller.</remarks>
+    /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty, or consists only of whitespace, the output in
+    /// the WebView will be cleared instead.</param>
+    /// <returns></returns>
     public async Task RenderAsync(string mermaidSource)
     {
         _renderAttemptCount++;
