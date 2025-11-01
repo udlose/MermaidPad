@@ -769,7 +769,7 @@ public static class SimpleLogger
     /// and return <see langword="null"/>.</remarks>
     /// <returns>A <see cref="FileStream"/> representing the acquired lock if successful; otherwise, <see langword="null"/>.</returns>
     [MustDisposeResource]
-    [SuppressMessage("Security", "SEC0012:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
+    [SuppressMessage("Security", "SEC0012 - Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static FileStream? TryAcquireLogLock()
     {
         try
@@ -847,7 +847,7 @@ public static class SimpleLogger
     /// file is a symbolic link, the write operation is aborted.</remarks>
     /// <param name="content">The content to write to the log file. If <paramref name="content"/> is <see langword="null"/> or empty, the log
     /// file is cleared.</param>
-    [SuppressMessage("Security", "SEC0016:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
+    [SuppressMessage("Security", "SEC0016 - Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void WriteToLogFile(string content)
     {
         // Validate before writing
@@ -887,7 +887,7 @@ public static class SimpleLogger
     /// <remarks>This method checks for the presence of a lock file at the predefined path and deletes it if
     /// found. Any exceptions encountered during the operation are logged for debugging purposes but do not interrupt
     /// the program's execution.</remarks>
-    [SuppressMessage("Security", "SEC0016:Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
+    [SuppressMessage("Security", "SEC0016 - Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void CleanupStaleLockFile()
     {
         try
