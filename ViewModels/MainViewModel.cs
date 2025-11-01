@@ -54,6 +54,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
 
+    private const string DebounceRenderKey = "render";
+
     /// <summary>
     /// Gets or sets the current diagram text.
     /// </summary>
@@ -463,7 +465,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (LivePreviewEnabled)
         {
-            _editorDebouncer.Debounce("render", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+            _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
                 try
                 {
@@ -506,7 +508,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         else
         {
-            _editorDebouncer.Cancel("render");
+            _editorDebouncer.Cancel(DebounceRenderKey);
         }
     }
 
