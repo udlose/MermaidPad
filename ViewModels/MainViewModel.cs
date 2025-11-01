@@ -219,7 +219,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// interactions, such as displaying dialogs, are executed on the UI thread. </para> <para> Any errors encountered
     /// during the export process are logged and reflected in the <c>LastError</c> property, which can be used to
     /// display error messages in the UI. </para></remarks>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task ExportAsync()
     {
@@ -286,7 +286,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <param name="window">The parent window for displaying the progress dialog, if applicable.</param>
     /// <param name="options">The export options specifying the file format, file path, and additional settings such as progress visibility
     /// and cancellation support.</param>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous export operation.</returns>
     /// <exception cref="NotSupportedException">Thrown if the specified export format is not supported.</exception>
     private async Task ExportWithProgressAsync(Window window, ExportOptions options)
     {
@@ -478,7 +478,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// be called on the UI thread as it interacts with the user interface.</remarks>
     /// <param name="window">The parent window that owns the dialog. This parameter cannot be <see langword="null"/>.</param>
     /// <param name="message">The message to display in the dialog. This parameter cannot be <see langword="null"/> or empty.</param>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ShowSuccessMessageAsync(Window window, string message)
     {
         try
@@ -570,7 +570,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <remarks>This method performs a network call to check for updates asynchronously. The application
     /// state is updated with the  bundled and latest checked Mermaid versions, ensuring that property updates occur on
     /// the UI thread.</remarks>
-    /// <returns></returns>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task CheckForMermaidUpdatesAsync()
     {
         // This CAN use ConfigureAwait(false) for the network call
@@ -629,6 +629,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Gets sample Mermaid diagram text.
     /// </summary>
+    /// <returns>A string containing the sample Mermaid diagram text.</returns>
     private static string SampleText => """
 graph TD
   A[Start] --> B{Decision}
