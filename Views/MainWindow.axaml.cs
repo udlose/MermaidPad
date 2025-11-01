@@ -42,6 +42,10 @@ public sealed partial class MainWindow : Window
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
 
+    private Task? _webViewReadyTimeoutTask;
+    private CancellationTokenSource? _webViewReadyTimeoutCts;
+    private const int WebViewReadyTimeoutSeconds = 30;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -54,35 +58,12 @@ public sealed partial class MainWindow : Window
         DataContext = _vm;
 
         SimpleLogger.Log("=== MainWindow Initialization Started ===");
-        SimpleLogger.Log("Window created, services resolved from DI container");
 
         Opened += OnOpened;
         Closing += OnClosing;
 
         // Focus the editor when the window is activated
-        Activated += (_, _) =>
-        {
-            SimpleLogger.Log("Window activated, bringing focus to editor");
-            BringFocusToEditor();
-            //Dispatcher.UIThread.Post(() =>
-            //{
-            //    IInputElement? focused = FocusManager?.GetFocusedElement();
-            //    Debug.WriteLine($"[Activated] Focused control: {focused?.GetType().Name ?? "null"}");
-
-            //    // Make sure caret is visible:
-            //    Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
-
-            //    // Ensure selection is visible
-            //    Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
-            //    if (!Editor.IsFocused)
-            //    {
-            //        Editor.Focus();
-            //        Editor.TextArea.Caret.BringCaretToView();
-            //    }
-            //    IInputElement? afterFocus = FocusManager?.GetFocusedElement();
-            //    Debug.WriteLine($"[Activated] After Editor.Focus(), focused control: {afterFocus?.GetType().Name ?? "null"}");
-            //}, DispatcherPriority.Background);
-        };
+        Activated += (_, _) => BringFocusToEditor();
 
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
@@ -299,7 +280,31 @@ public sealed partial class MainWindow : Window
         }, DispatcherPriority.Background);
     }
 
-    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "Event handler")]
+    /// <summary>
+    /// Called when the WebView becomes ready for rendering operations.
+    /// This runs on the UI thread via DispatcherTimer event.
+    /// </summary>
+    private async void OnWebViewReadyChanged(object? sender, EventArgs e)
+    {
+        SimpleLogger.Log($"{nameof(OnWebViewReadyChanged)} event received. UI commands are enabled");
+
+        // Cancel the timeout since WebView is ready
+        try
+        {
+            if (_webViewReadyTimeoutCts is not null)
+            {
+                await _webViewReadyTimeoutCts.CancelAsync();
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // CTS already disposed, ignore
+        }
+
+        // Update view model. already on UI thread via DispatcherTimer event
+        _vm.IsWebViewReady = true;
+    }
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         try
@@ -307,16 +312,56 @@ public sealed partial class MainWindow : Window
             SimpleLogger.Log("Window opened event triggered");
             await OnOpenedAsync();
             BringFocusToEditor();
+
+            // Subscribe to renderer's WebViewReadyChanged event
+            _renderer.WebViewReadyChanged += OnWebViewReadyChanged;
+
+            // Start a failsafe timeout in case WebView never becomes ready
+            _webViewReadyTimeoutCts = new CancellationTokenSource();
+            CancellationToken timeoutToken = _webViewReadyTimeoutCts.Token;
+
+            // Start timeout task without Task.Run (Delay is already non-blocking)
+            _webViewReadyTimeoutTask = WebViewReadyTimeoutAsync(timeoutToken);
+
+            SimpleLogger.Log($"WebView ready timeout set for {WebViewReadyTimeoutSeconds} seconds");
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
-
             //TODO - show a message to the user
             //await Dispatcher.UIThread.InvokeAsync(async () =>
             //{
             //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
             //});
+        }
+    }
+
+    private async Task WebViewReadyTimeoutAsync(CancellationToken timeoutToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds), timeoutToken)
+                .ConfigureAwait(false);
+
+            // Timeout occurred - force enable buttons
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (!_vm.IsWebViewReady)
+                {
+                    _vm.IsWebViewReady = true;
+                    _vm.LastError = "WebView initialization timed out. Some features may not work correctly.";
+                    SimpleLogger.Log($"IsWebViewReady set to true due to timeout ({WebViewReadyTimeoutSeconds}s)");
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout was cancelled (WebView became ready before timeout), this is expected
+            SimpleLogger.Log("WebView ready timeout was cancelled (WebView became ready)");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError($"Unexpected exception in {nameof(WebViewReadyTimeoutAsync)}", ex);
         }
     }
 
@@ -367,29 +412,80 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "Event handler")]
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
         try
         {
-            SimpleLogger.Log("Window closing, saving current state...");
+            SimpleLogger.Log("Window closing, cleaning up...");
 
-            // Since we now have real-time sync, the ViewModel is already up-to-date
-            // Just persist the current state
+            // Unsubscribe from event to prevent memory leaks
+            _renderer.WebViewReadyChanged -= OnWebViewReadyChanged;
+
+            // drain the task after cancelling the CTS without blocking the UI thread
+            #region drain task
+
+            // Request cancellation first so the timeout task can finish quickly
+            if (_webViewReadyTimeoutCts is not null)
+            {
+                try
+                {
+                    await _webViewReadyTimeoutCts.CancelAsync();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed, ignore
+                }
+            }
+
+            // Snapshot the task reference to avoid races if the field changes
+            Task? timeoutTask = _webViewReadyTimeoutTask;
+            if (timeoutTask is not null)
+            {
+                try
+                {
+                    // Await briefly; if it doesn't finish, just log and continue closing
+                    await timeoutTask.WaitAsync(TimeSpan.FromMilliseconds(250));
+                }
+                catch (TimeoutException)
+                {
+                    SimpleLogger.Log("WebView ready timeout task did not complete within the close timeout.");
+                }
+                catch (Exception ex)
+                {
+                    // Shouldn't normally happen (task handles OCE internally), but log just in case
+                    SimpleLogger.LogError("WebView ready timeout task faulted during window close.", ex);
+                }
+            }
+
+            // Dispose CTS after draining
+            if (_webViewReadyTimeoutCts is not null)
+            {
+                try
+                {
+                    _webViewReadyTimeoutCts.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed, ignore
+                }
+            }
+
+            #endregion drain task
+
+            // Save state and dispose renderer
             _vm.Persist();
 
-            // Dispose the renderer (stops HTTP server if running)
             if (_renderer is IAsyncDisposable disposableRenderer)
             {
                 await disposableRenderer.DisposeAsync();
                 SimpleLogger.Log("MermaidRenderer disposed");
             }
 
-            SimpleLogger.Log("Window state saved successfully");
+            SimpleLogger.Log("Window cleanup completed successfully");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to save window state during close", ex);
+            SimpleLogger.LogError("Failed during window close cleanup", ex);
         }
     }
 
