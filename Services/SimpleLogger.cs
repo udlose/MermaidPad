@@ -649,6 +649,7 @@ public static class SimpleLogger
     /// a fallback.</remarks>
     /// <param name="content">The content to write to the log file. Cannot be <see langword="null"/> or empty.</param>
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed in finally block")]
+    [SuppressMessage(category: "Security", "SEC0016 - Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void WriteEntryWithLock(string content)
     {
         const int maxRetries = 3;
