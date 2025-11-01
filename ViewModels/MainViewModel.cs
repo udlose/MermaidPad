@@ -156,11 +156,6 @@ public sealed partial class MainViewModel : ViewModelBase
         RenderCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
-
-        if (value)
-        {
-            SimpleLogger.Log("WebView is now ready - commands enabled");
-        }
     }
 
     /// <summary>
@@ -215,9 +210,16 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool CanClear() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
-    /// Exports the current diagram to SVG or PNG format.
+    /// Initiates the export process by displaying an export dialog to the user and performing the export operation
+    /// based on the selected options.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method displays a dialog to the user for configuring export options. If the user
+    /// confirms the dialog, the export operation is performed asynchronously with progress feedback. If the user
+    /// cancels the dialog, the method exits without performing the export. <para> The method ensures that all UI
+    /// interactions, such as displaying dialogs, are executed on the UI thread. </para> <para> Any errors encountered
+    /// during the export process are logged and reflected in the <c>LastError</c> property, which can be used to
+    /// display error messages in the UI. </para></remarks>
+    /// <returns></returns>
     [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task ExportAsync()
     {
@@ -275,8 +277,17 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool CanExport() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
-    /// Exports the diagram with progress tracking if requested
+    /// Exports data to a specified file format, optionally displaying a progress dialog during the operation.
     /// </summary>
+    /// <remarks>If the <see cref="ExportOptions.ShowProgress"/> property is set to <see langword="true"/> and
+    /// the export format is PNG, a progress dialog is displayed to provide feedback during the export process.  The
+    /// dialog allows cancellation if <see cref="ExportOptions.AllowCancellation"/> is enabled.  For other formats or
+    /// when progress is not shown, the export operation runs without displaying a dialog.</remarks>
+    /// <param name="window">The parent window for displaying the progress dialog, if applicable.</param>
+    /// <param name="options">The export options specifying the file format, file path, and additional settings such as progress visibility
+    /// and cancellation support.</param>
+    /// <returns></returns>
+    /// <exception cref="NotSupportedException">Thrown if the specified export format is not supported.</exception>
     private async Task ExportWithProgressAsync(Window window, ExportOptions options)
     {
         try
@@ -461,8 +472,13 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Shows a success message dialog
+    /// Displays a success message dialog with the specified message and a checkmark icon.
     /// </summary>
+    /// <remarks>The dialog includes a title, a success message, and a green checkmark icon.  This method must
+    /// be called on the UI thread as it interacts with the user interface.</remarks>
+    /// <param name="window">The parent window that owns the dialog. This parameter cannot be <see langword="null"/>.</param>
+    /// <param name="message">The message to display in the dialog. This parameter cannot be <see langword="null"/> or empty.</param>
+    /// <returns></returns>
     private async Task ShowSuccessMessageAsync(Window window, string message)
     {
         try
@@ -490,14 +506,13 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Handles changes to the diagram text and triggers rendering if live preview is enabled.
+    /// Handles changes to the diagram text and triggers appropriate updates, such as rendering the diagram and updating
+    /// command states.
     /// </summary>
-    /// <remarks>
-    /// If live preview is enabled, this method de-bounces the rendering operation to occur 500
-    /// milliseconds after the last change. It also reevaluates the execution status of the Render and Clear
-    /// commands.
-    /// </remarks>
-    /// <param name="value">The updated diagram text, which is not used directly in this method.</param>
+    /// <remarks>If live preview is enabled, this method debounces rendering operations to optimize
+    /// performance.  It also ensures that related commands update their execution states to reflect the current
+    /// context.</remarks>
+    /// <param name="value">The new value of the diagram text.</param>
     partial void OnDiagramTextChanged(string value)
     {
         if (LivePreviewEnabled)
@@ -550,9 +565,12 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Checks for Mermaid.js updates and updates the version properties.
+    /// Checks for updates to the Mermaid library and updates the application state with the latest version information.
     /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>This method performs a network call to check for updates asynchronously. The application
+    /// state is updated with the  bundled and latest checked Mermaid versions, ensuring that property updates occur on
+    /// the UI thread.</remarks>
+    /// <returns></returns>
     public async Task CheckForMermaidUpdatesAsync()
     {
         // This CAN use ConfigureAwait(false) for the network call
@@ -565,8 +583,12 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Initializes the current MermaidPad version from assembly info
+    /// Initializes the current version of the MermaidPad application by retrieving the version information from the
+    /// executing assembly.
     /// </summary>
+    /// <remarks>This method attempts to retrieve the version number of the executing assembly and formats it
+    /// as a string in the format "Major.Minor.Build". If the version cannot be determined, the <see
+    /// cref="CurrentMermaidPadVersion"/> property is set to "Unknown".</remarks>
     private void InitializeCurrentMermaidPadVersion()
     {
         try
@@ -586,8 +608,12 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Persists the current state to the settings service.
+    /// Persists the current application settings to storage.
     /// </summary>
+    /// <remarks>This method updates the settings service with the current state of the application,
+    /// including diagram text, live preview settings, Mermaid version information, and editor  selection details. After
+    /// updating the settings, the method saves them to ensure they  are persisted across application
+    /// sessions.</remarks>
     public void Persist()
     {
         _settingsService.Settings.LastDiagramText = DiagramText;

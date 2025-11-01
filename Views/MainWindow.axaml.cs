@@ -32,6 +32,11 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
 
+/// <summary>
+/// Main application window that contains the editor and preview WebView.
+/// Manages synchronization between the editor control and the <see cref="MainViewModel"/>,
+/// initializes and manages the <see cref="MermaidRenderer"/>, and handles window lifecycle events.
+/// </summary>
 public sealed partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
@@ -46,6 +51,14 @@ public sealed partial class MainWindow : Window
     private CancellationTokenSource? _webViewReadyTimeoutCts;
     private const int WebViewReadyTimeoutSeconds = 30;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MainWindow"/> class.
+    /// </summary>
+    /// <remarks>
+    /// The constructor resolves required services from the application's DI container,
+    /// initializes the editor state from the view model, and hooks up synchronization and lifecycle handlers.
+    /// No long-running or blocking work is performed here; heavier initialization happens during the window open sequence.
+    /// </remarks>
     public MainWindow()
     {
         InitializeComponent();
@@ -81,6 +94,13 @@ public sealed partial class MainWindow : Window
         SimpleLogger.Log("=== MainWindow Initialization Completed ===");
     }
 
+    /// <summary>
+    /// Sets the editor text, selection, and caret position while validating bounds and preventing circular updates.
+    /// </summary>
+    /// <param name="text">The text to set into the editor. Must not be <see langword="null"/>.</param>
+    /// <param name="selectionStart">Requested selection start index.</param>
+    /// <param name="selectionLength">Requested selection length.</param>
+    /// <param name="caretOffset">Requested caret offset.</param>
     private void SetEditorStateWithValidation(string text, int selectionStart, int selectionLength, int caretOffset)
     {
         _suppressEditorStateSync = true; // Prevent circular updates during initialization
@@ -105,6 +125,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Wires up synchronization between the editor control and the view model.
+    /// </summary>
+    /// <remarks>
+    /// - Subscribes to editor text/selection/caret events and updates the view model using a debounce dispatcher.
+    /// - Subscribes to view model property changes and applies them to the editor.
+    /// - Suppresses reciprocal updates to avoid feedback loops.
+    /// </remarks>
     private void SetupEditorViewModelSync()
     {
         // Editor -> ViewModel synchronization (text)
@@ -159,7 +187,14 @@ public sealed partial class MainWindow : Window
         _vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
-    // Coalesce caret + selection updates, and skip no-ops
+    /// <summary>
+    /// Coalesces caret and selection updates and schedules a debounced update of the view model's editor state.
+    /// </summary>
+    /// <remarks>
+    /// The method compares the current editor state with the view model and only schedules an update
+    /// when a change is detected. Values are read again at the time the debounced action runs to coalesce
+    /// multiple rapid events into a single update.
+    /// </remarks>
     private void ScheduleEditorStateSyncIfNeeded()
     {
         int selectionStart = Editor.SelectionStart;
@@ -191,6 +226,11 @@ public sealed partial class MainWindow : Window
         DispatcherPriority.Background);
     }
 
+    /// <summary>
+    /// Handles property changes on the view model and synchronizes relevant values to the editor control.
+    /// </summary>
+    /// <param name="sender">The object raising the property changed event (typically the view model).</param>
+    /// <param name="e">Property changed event arguments describing which property changed.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_suppressEditorStateSync)
@@ -254,6 +294,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Brings focus to the editor control and adjusts visuals for caret and selection.
+    /// </summary>
+    /// <remarks>
+    /// This method executes on the UI thread via the dispatcher and temporarily suppresses
+    /// editor <see cref="_suppressEditorStateSync"/> to avoid generating spurious model updates.
+    /// </remarks>
     private void BringFocusToEditor()
     {
         Dispatcher.UIThread.Post(() =>
@@ -281,9 +328,14 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Called when the WebView becomes ready for rendering operations.
-    /// This runs on the UI thread via DispatcherTimer event.
+    /// Called when the renderer's WebView signals that it is ready for rendering operations.
     /// </summary>
+    /// <param name="sender">Event sender (renderer).</param>
+    /// <param name="e">Event arguments (unused).</param>
+    /// <remarks>
+    /// This handler runs on the UI thread via a DispatcherTimer event in the renderer. It cancels the
+    /// WebView-ready timeout and sets the view model's <see cref="MainViewModel.IsWebViewReady"/> to true.
+    /// </remarks>
     private async void OnWebViewReadyChanged(object? sender, EventArgs e)
     {
         SimpleLogger.Log($"{nameof(OnWebViewReadyChanged)} event received. UI commands are enabled");
@@ -305,6 +357,16 @@ public sealed partial class MainWindow : Window
         _vm.IsWebViewReady = true;
     }
 
+    /// <summary>
+    /// Handles the window <see cref="OnOpened"/> event and starts the asynchronous open sequence.
+    /// </summary>
+    /// <param name="sender">Event sender (window).</param>
+    /// <param name="e">Event arguments (unused).</param>
+    /// <remarks>
+    /// This method delegates to <see cref="OnOpenedAsync"/> to perform asynchronous initialization,
+    /// subscribes to renderer events, and starts a failsafe timeout to enable UI if the WebView never becomes ready.
+    /// Exceptions are logged for diagnostics.
+    /// </remarks>
     private async void OnOpened(object? sender, EventArgs e)
     {
         try
@@ -336,6 +398,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Asynchronously waits for a configured timeout and forces UI enablement if the renderer never becomes ready.
+    /// </summary>
+    /// <param name="timeoutToken">Cancellation token used to cancel the timeout when the WebView becomes ready.</param>
+    /// <returns>A task that completes when the timeout expires or is canceled.</returns>
     private async Task WebViewReadyTimeoutAsync(CancellationToken timeoutToken)
     {
         try
@@ -365,6 +432,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Performs the longer-running open sequence: check for updates, initialize the WebView, and update command states.
+    /// </summary>
+    /// <returns>A task representing the asynchronous open sequence.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if required update assets cannot be resolved.</exception>
+    /// <remarks>
+    /// This method logs timing information, performs an update check by calling <see cref="MainViewModel.CheckForMermaidUpdatesAsync"/>,
+
+    /// initializes the renderer via <see cref="InitializeWebViewAsync"/>, and notifies commands to refresh their CanExecute state.
+    /// Exceptions are propagated for higher-level handling.
+    /// </remarks>
     private async Task OnOpenedAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -412,6 +490,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handles the window close sequence, cleaning up resources, cancelling background tasks, and persisting state.
+    /// </summary>
+    /// <param name="sender">Event sender (window).</param>
+    /// <param name="e">Cancel event args allowing the close to be canceled (not used here).</param>
+    /// <remarks>
+    /// - Unsubscribes renderer events to avoid leaks.
+    /// - Cancels and drains the WebView ready timeout task without blocking the UI thread.
+    /// - Persists view model state and disposes renderer resources (awaits asynchronous dispose if supported).
+    /// Any exceptions during cleanup are logged but not rethrown.
+    /// </remarks>
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
         try
@@ -489,6 +578,18 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Initializes the WebView and performs the initial render of the current diagram text.
+    /// </summary>
+    /// <returns>A task that completes when initialization and initial render have finished.</returns>
+    /// <exception cref="OperationCanceledException">Propagated if initialization is canceled.</exception>
+    /// <exception cref="AssetIntegrityException">Propagated for asset integrity errors.</exception>
+    /// <exception cref="MissingAssetException">Propagated when required assets are missing.</exception>
+    /// <remarks>
+    /// Temporarily disables live preview while initialization is in progress to prevent unwanted renders.
+    /// Performs renderer initialization, waits briefly for content to load, and then triggers an initial render.
+    /// Re-enables the live preview setting in a finally block to ensure UI state consistency.
+    /// </remarks>
     private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -550,6 +651,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Handler for the close button click. Closes the window.
+    /// </summary>
+    /// <param name="sender">Event sender (button).</param>
+    /// <param name="e">Routed event arguments.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
