@@ -387,10 +387,11 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            // TODO - re-enable this once a more complete update mechanism is in place
             // Step 1: Check for Mermaid updates
-            SimpleLogger.Log("Step 1: Checking for Mermaid updates...");
-            await _vm.CheckForMermaidUpdatesAsync();
-            SimpleLogger.Log("Mermaid update check completed");
+            //SimpleLogger.Log("Step 1: Checking for Mermaid updates...");
+            //await _vm.CheckForMermaidUpdatesAsync();
+            //SimpleLogger.Log("Mermaid update check completed");
 
             // Step 2: Initialize WebView (editor state is already synchronized via constructor)
             SimpleLogger.Log("Step 2: Initializing WebView...");
@@ -424,7 +425,7 @@ public sealed partial class MainWindow : Window
             SimpleLogger.LogError("Window opened sequence failed", ex);
             throw;
         }
-        }
+    }
 
     /// <summary>
     /// Handles the window close event and initiates the cleanup sequence.
