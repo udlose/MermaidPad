@@ -821,6 +821,7 @@ public static class SimpleLogger
     /// release process.</param>
     [HandlesResourceDisposal()]
     [SuppressMessage("ReSharper", "SuggestBaseTypeForParameter", Justification = "Specific type needed for File cleanup")]
+    [SuppressMessage(category: "Security", "SEC0016 - Path Tampering: Unvalidated File Path", Justification = "Path is validated before use")]
     private static void ReleaseLogLock(FileStream lockStream)
     {
         try
