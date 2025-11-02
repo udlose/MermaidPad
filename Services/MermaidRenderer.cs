@@ -93,18 +93,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
-
         if (_webView is null)
         {
             throw new InvalidOperationException("WebView not initialized");
     }
 
-        if (IsWebViewReady)
-    {
-            return Task.CompletedTask;
-        }
-
-        return EnsureFirstRenderReadyCoreAsync(timeout);
+        return IsWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
     }
 
     /// <summary>
@@ -129,8 +123,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
             string? rawReturnValue = await ExecuteScriptAsync(script);
             if (!string.IsNullOrWhiteSpace(rawReturnValue))
             {
-                rawReturnValue = rawReturnValue.Trim().Trim('"');
-                if (string.Equals(rawReturnValue, "true", StringComparison.OrdinalIgnoreCase))
+                string trimmedReturnValue = rawReturnValue.Trim().Trim('"');
+                if (string.Equals(trimmedReturnValue, "true", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!IsWebViewReady)
                     {
@@ -623,6 +617,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="callback">An <see cref="Action{T}"/> delegate that will be invoked with a
     /// string parameter containing the export progress
     /// details. The parameter cannot be <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="callback"/> is <see langword="null"/>.</exception>
     public void RegisterExportProgressCallback(Action<string> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
