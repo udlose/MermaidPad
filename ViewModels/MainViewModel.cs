@@ -483,7 +483,6 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            // Create message dialog using DI
             MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
             messageViewModel.Title = "Export Complete";
             messageViewModel.Message = message;
@@ -553,9 +552,13 @@ public sealed partial class MainViewModel : ViewModelBase
             // SafeFireAndForget handles context, but the error handler updates UI
             _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: ex =>
             {
-                // This runs on UI thread due to SafeFireAndForget
-                LastError = $"Failed to render diagram: {ex.Message}";
-                Debug.WriteLine(ex);
+                // Even though SafeFireAndForget has a continueOnCapturedContext param, it doesn't guarantee UI thread here
+                Dispatcher.UIThread.Post(() =>
+                {
+                    LastError = $"Failed to render diagram: {ex.Message}";
+                    Debug.WriteLine(ex);
+                });
+                SimpleLogger.LogError("Live preview render failed", ex);
             });
         }
         else
