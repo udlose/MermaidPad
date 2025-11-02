@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using AsyncAwaitBestPractices;
 using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Services.Platforms;
@@ -65,10 +64,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
 
-    // WebView ready detection
-    public event EventHandler? WebViewReadyChanged;
-    private DispatcherTimer? _webViewReadyTimer;
-    private const int WebViewReadyPollIntervalMs = 100;
+    public bool IsWebViewReady { get; private set; }
 
     /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
@@ -80,73 +76,74 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
 
-        await InitializeWithHttpServerAsync();  // NO ConfigureAwait - caller expects to continue on UI thread
-
-        StartWebViewReadyTimer();
+        // Prepare content, start HTTP server, navigate
+        await InitializeWithHttpServerAsync(); // NO ConfigureAwait: caller expects to continue on UI thread
     }
 
     /// <summary>
-    /// Starts a timer to periodically check if the WebView has completed its first render.
+    /// Ensures that the WebView is fully initialized and ready for its first render within the specified timeout
+    /// period.
     /// </summary>
-    /// <remarks>The timer runs at a fixed interval and triggers the <see cref="OnWebViewReadyTimerTick"/>
-    /// event handler on each tick. This method is typically used to monitor the readiness of the WebView for
-    /// further operations.</remarks>
-    private void StartWebViewReadyTimer()
+    /// <param name="timeout">The maximum amount of time to wait for the WebView to become ready. Must be greater than <see
+    /// cref="TimeSpan.Zero"/>.</param>
+    /// <returns>A task that completes when the WebView is ready for its first render. If the WebView is already ready, the task
+    /// completes immediately.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
+    public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
-        SimpleLogger.Log("Starting WebView ready detection timer");
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
 
-        _webViewReadyTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(WebViewReadyPollIntervalMs)
-        };
-
-        _webViewReadyTimer.Tick += OnWebViewReadyTimerTick;
-        _webViewReadyTimer.Start();
-
-        SimpleLogger.Log("WebView ready timer started (checks for first render completion)");
-    }
-
-    /// <summary>
-    /// Handles the timer tick event to check the readiness status of the WebView control.
-    /// </summary>
-    /// <remarks>This method ensures that the readiness status of the WebView is checked asynchronously. If
-    /// the WebView instance is null, the method exits without performing any action.</remarks>
-    /// <param name="sender">The source of the event, typically the timer triggering the tick.</param>
-    /// <param name="e">The event data associated with the timer tick.</param>
-    private void OnWebViewReadyTimerTick(object? sender, EventArgs e)
-    {
         if (_webView is null)
         {
-            return;
+            throw new InvalidOperationException("WebView not initialized");
+    }
+
+        if (IsWebViewReady)
+    {
+            return Task.CompletedTask;
         }
 
-        OnWebViewReadyTimerTickAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Error checking WebView ready status", ex));
+        return EnsureFirstRenderReadyCoreAsync(timeout);
     }
 
     /// <summary>
-    /// Handles the periodic timer tick to check if the WebView's first render has completed.
+    /// Ensures that the first render of the WebView2 control is complete within the specified timeout period.
     /// </summary>
-    /// <remarks>This method executes a JavaScript script to determine if the WebView has completed its first
-    /// render.  If the render is complete, the timer is stopped, and the <see cref="WebViewReadyChanged"/> event is
-    /// raised.</remarks>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task OnWebViewReadyTimerTickAsync()
+    /// <remarks>This method repeatedly checks the rendering status of the WebView2 control by executing a
+    /// script in the WebView2 environment. If the rendering is not completed within the specified timeout, a <see
+    /// cref="TimeoutException"/> is thrown.</remarks>
+    /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
+    private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
-        // Query JavaScript to check if FIRST RENDER has completed
-        // This flag is set in hideLoadingIndicator() which is called AFTER successful render
-        const string readyCheckScript = "typeof globalThis.__renderingComplete__ !== 'undefined' && globalThis.__renderingComplete__ === true";
-        string? result = await ExecuteScriptAsync(readyCheckScript);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        const int renderReadyPollingIntervalMs = 100;
 
-        if (result == "true")
+        while (stopwatch.Elapsed < timeout)
         {
-            // First render is complete! Stop the timer and fire the event
-            _webViewReadyTimer?.Stop();
-            SimpleLogger.Log("WebView is ready - First render completed");
+            // Return only a primitive, never a Promise. WebView2 ExecuteScriptAsync doesn't support Promises.
+            // WebView2 will JSON-encode strings (e.g., "\"true\"" or "\"pending\"")
+            const string script = "globalThis.__renderingComplete__ === true ? 'true' : 'pending'";
+            string? rawReturnValue = await ExecuteScriptAsync(script);
+            if (!string.IsNullOrWhiteSpace(rawReturnValue))
+            {
+                rawReturnValue = rawReturnValue.Trim().Trim('"');
+                if (string.Equals(rawReturnValue, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!IsWebViewReady)
+                    {
+                        IsWebViewReady = true;
+                    }
+                    return;
+                }
+            }
 
-            // Fire the event (already on UI thread)
-            WebViewReadyChanged?.Invoke(this, EventArgs.Empty);
+            await Task.Delay(renderReadyPollingIntervalMs);
         }
+
+        throw new TimeoutException($"First render not signaled within {(int)timeout.TotalMilliseconds} ms.");
     }
 
     /// <summary>
@@ -199,6 +196,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
         Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
         Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
+
         await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
             .ConfigureAwait(false);
 
@@ -216,7 +214,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
         SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
         SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
-
         SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
@@ -551,7 +548,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 SimpleLogger.Log($"Render result: {result ?? "(null)"}");
             }
 
-            // Explicit invocation on UI thread
             await Dispatcher.UIThread.InvokeAsync(async () => await RenderMermaidAsync());
         }
         catch (Exception ex)
@@ -565,7 +561,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
             StringBuilder sb = new StringBuilder(sourceSpan.Length);
             foreach (char c in sourceSpan)
             {
-                // Prefer Append(char) for single characters
                 switch (c)
                 {
                     case '\\':
@@ -779,15 +774,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         try
         {
-            // Stop and dispose WebView ready timer
-            if (_webViewReadyTimer is not null)
-            {
-                _webViewReadyTimer.Stop();
-                _webViewReadyTimer.Tick -= OnWebViewReadyTimerTick;
-                _webViewReadyTimer = null;
-            }
-
-            // Cancel server operations
+            // Cancel server ops
             if (_serverCancellation is not null)
             {
                 await _serverCancellation.CancelAsync()
@@ -823,7 +810,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 {
                     try
                     {
-                        await _exportPollingTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                        await _exportPollingTask.WaitAsync(TimeSpan.FromSeconds(2))
+                            .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
