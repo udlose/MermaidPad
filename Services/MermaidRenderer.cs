@@ -71,11 +71,24 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InitializeAsync(WebView webView)
+    public Task InitializeAsync(WebView webView)
     {
+        ArgumentNullException.ThrowIfNull(webView);
+
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
 
+        return InitializeCoreAsync();
+    }
+
+    /// <summary>
+    /// Initializes the core components of the MermaidRenderer asynchronously.
+    /// </summary>
+    /// <remarks>This method prepares the necessary content, starts the HTTP server, and performs navigation.
+    /// It must be called on the UI thread as the caller expects to continue execution on the same thread.</remarks>
+    /// <returns>A task that represents the asynchronous initialization operation.</returns>
+    private async Task InitializeCoreAsync()
+    {
         // Prepare content, start HTTP server, navigate
         await InitializeWithHttpServerAsync(); // NO ConfigureAwait: caller expects to continue on UI thread
     }
@@ -96,7 +109,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         if (_webView is null)
         {
             throw new InvalidOperationException("WebView not initialized");
-    }
+        }
 
         return IsWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
     }
@@ -581,28 +594,51 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="script">The JavaScript code to execute. Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the result of the script execution
     /// as a string, or <see langword="null"/> if the WebView is not initialized or an error occurs during execution.</returns>
-    public async Task<string?> ExecuteScriptAsync(string script)
+    /// <exception cref="ArgumentException">Thrown if <paramref name="script"/> is <see langword="null"/> or empty.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
+    public Task<string?> ExecuteScriptAsync(string script)
     {
+        ArgumentException.ThrowIfNullOrEmpty(script);
         if (_webView is null)
         {
-            SimpleLogger.LogError("WebView not initialized for script execution");
-            return null;
+            throw new InvalidOperationException("WebView not initialized");
         }
 
+        return ExecuteScriptCoreAsync(script);
+    }
+
+    /// <summary>
+    /// Executes the specified JavaScript code asynchronously within the context of the web view.
+    /// </summary>
+    /// <remarks>This method invokes the script execution on the UI thread. If an exception occurs during
+    /// execution, it is logged, and the method returns <see langword="null"/>.</remarks>
+    /// <param name="script">The JavaScript code to execute. Cannot be <see langword="null"/> or empty.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the result of the script execution
+    /// as a string, or <see langword="null"/> if the execution fails.</returns>
+    private async Task<string?> ExecuteScriptCoreAsync(string script)
+    {
         try
         {
+            // Capture snapshot of the field to avoid a race between the caller's check and this call.
+            WebView? webView = _webView;
+
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                string? result = await _webView.ExecuteScriptAsync(script);
-                // TODO should i re-enable this later?
-                // SimpleLogger.LogJavaScript(script, true, writeToDebug: true, result);
+                // Re-check on the UI thread to be defensive — use the captured reference if available,
+                // otherwise read the field on the UI thread.
+                webView ??= _webView;
+                if (webView is null)
+                {
+                    SimpleLogger.Log("ExecuteScriptCoreAsync: WebView is null at UI invocation");
+                    return null;
+                }
+
+                string? result = await webView.ExecuteScriptAsync(script);
                 return result;
             });
         }
         catch (Exception ex)
         {
-            // TODO should i re-enable this later?
-            // SimpleLogger.LogJavaScript(script, false, writeToDebug: true, ex.Message);
             SimpleLogger.LogError("Script execution failed", ex);
             return null;
         }
