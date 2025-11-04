@@ -505,58 +505,74 @@
         }
     }
 
-    // Main initialization function
+    // Main initialization function (call-site uses suppressHideLoadingIndicator: true)
     async function initializeApplication() {
-        try {
-            // Wait for both scripts to load
-            console.log('Waiting for scripts to load...');
-            await Promise.all([
-                waitForScriptLoad('jsyaml-script'),
-                waitForScriptLoad('mermaid-script')
-            ]);
+      try {
+        // Wait for both scripts to load
+        console.log('Waiting for scripts to load...');
+        await Promise.all([
+          waitForScriptLoad('jsyaml-script'),
+          waitForScriptLoad('mermaid-script')
+        ]);
 
-            console.log('Scripts loaded, initializing Mermaid...');
+        console.log('Scripts loaded, initializing Mermaid...');
 
-            // Update loading status
-            globalThis.updateLoadingStatus('Loading rendering engine...');
+        // Update loading status
+        globalThis.updateLoadingStatus('Loading rendering engine...');
 
-            // Try to load ELK layout
-            await loadElkLayout();
+        // Try to load ELK layout
+        await loadElkLayout();
 
-            // Initialize mermaid (with or without ELK)
-            globalThis.mermaid.initialize({
-                startOnLoad: false,
-                theme: globalThis.currentTheme
-            });
+        // Initialize mermaid (with or without ELK)
+        globalThis.mermaid.initialize({
+          startOnLoad: false,
+          theme: globalThis.currentTheme
+        });
 
-            // Set initialization flag
-            globalThis.mermaidInitialized = true;
-            console.log('Mermaid initialized successfully');
+        // Set initialization flag
+        globalThis.mermaidInitialized = true;
+        console.log('Mermaid initialized successfully');
 
-            // Process any pending render
-            if (globalThis.pendingMermaidRender) {
-                console.log('Processing pending render...');
-                globalThis.renderMermaid(globalThis.pendingMermaidRender);
-                globalThis.pendingMermaidRender = null;
+        // Process any pending render without impacting init state
+        if (globalThis.pendingMermaidRender) {
+          console.log('Processing pending render...');
+          try {
+            // Tell renderMermaid to NOT hide the loading indicator (init owns it)
+            const renderResult = await globalThis.renderMermaid(globalThis.pendingMermaidRender, { suppressHideLoadingIndicator: true });
+            if (!renderResult?.success) {
+              // Error already rendered by renderMermaid; just log.
+              console.warn('Pending render failed.');
             }
-        } catch (error) {
-            console.error('Failed to initialize application:', error);
-            // Set flag to prevent infinite retries
-            globalThis.mermaidInitializationFailed = true;
-
-            // Hide loading indicator and show error
-            globalThis.hideLoadingIndicator();
-
-            const output = document.getElementById('output');
-            if (output) {
-                output.classList.add('visible');
-                output.innerHTML = `<div class="error">Failed to initialize: ${error.message}</div>`;
-            }
+          } catch (renderError) {
+            // Guard: renderMermaid should return a result rather than throw, but protect anyway.
+            console.error('Failed to render Mermaid diagram:', renderError);
+          } finally {
+            globalThis.pendingMermaidRender = null;
+          }
         }
+      } catch (error) {
+        console.error('Failed to initialize application:', error);
+        // Set flag to prevent infinite retries (this is for init failures only)
+        globalThis.mermaidInitializationFailed = true;
+
+        const output = document.getElementById('output');
+        if (output) {
+          output.classList.add('visible');
+          output.innerHTML = `<div class="error">Failed to initialize: ${error.message}</div>`;
+        }
+      } finally {
+        // Always hide the loading indicator after all initialization and any pending render
+        console.log('Initialization complete, hiding loading indicator.');
+        globalThis.hideLoadingIndicator();
+      }
     }
 
-    // Start initialization
-    initializeApplication();
+    // Start initialization - use top-level await (module)
+    try {
+      await initializeApplication();
+    } catch (err) {
+      console.error('initializeApplication failed:', err);
+    }
 
     // Setup theme change listener
     document.addEventListener('DOMContentLoaded', () => {
@@ -651,7 +667,9 @@
     };
 
     // Render function with proper error handling
-    globalThis.renderMermaid = source => {
+    // signature: renderMermaid(source, options = { suppressHideLoadingIndicator: false })
+    globalThis.renderMermaid = async (source, options = {}) => {
+      const suppressHide = !!options.suppressHideLoadingIndicator;
       globalThis.lastMermaidSource = source; // Save for re-rendering
       const output = document.getElementById('output');
 
@@ -664,19 +682,28 @@
       };
 
       const showError = (message) => {
-        // Hide loading indicator and show error
-        globalThis.hideLoadingIndicator();
-        output.innerHTML = '';
-        output.appendChild(createErrorElement(message));
+        // Render error into output; hide loader only if caller did not suppress it.
+        if (output) {
+          output.innerHTML = '';
+          output.appendChild(createErrorElement(message));
+        }
+        if (!suppressHide) {
+          try {
+            globalThis.hideLoadingIndicator();
+          } catch (e) {
+            console.error('Error hiding loading indicator:', e)
+        }
+        }
       };
 
       // ReSharper disable once InconsistentNaming
       const setSafeSVG = (htmlContent) => {
         const trimmed = htmlContent.trim();
         if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
-          output.innerHTML = htmlContent;
+          if (output) {
+            output.innerHTML = htmlContent;
+          }
           // Enhance hover interactivity after SVG is rendered
-          // Use longer delay for ELK layouts to prevent jumping/flickering
           if (typeof globalThis.enhanceHoverability === 'function') {
             const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
             setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
@@ -689,7 +716,7 @@
       // Check if initialization failed
       if (globalThis.mermaidInitializationFailed) {
         showError('Mermaid initialization failed. Please refresh the page.');
-        return;
+        return { success: false, error: 'Initialization failed' };
       }
 
       // Check if mermaid is initialized
@@ -697,23 +724,27 @@
         // Store for later rendering
         globalThis.pendingMermaidRender = source;
 
-        // Check if we should retry (with limit)
+        // Retry logic (same behavior, but return a result)
         if (!globalThis.renderRetryCount) {
           globalThis.renderRetryCount = 0;
         }
 
         if (globalThis.renderRetryCount < 10) {
           globalThis.renderRetryCount++;
-          setTimeout(() => globalThis.renderMermaid(source), 200);
-          return;
+          setTimeout(() => globalThis.renderMermaid(source, options), 200);
+          return { success: false, error: 'Mermaid is initializing; retry scheduled' };
         } else {
-          showError('Mermaid is still loading. Please try again.');
-          globalThis.renderRetryCount = 0;
-          return;
+          try {
+            showError('Mermaid is still loading. Please try again.');
+            return { success: false, error: 'Mermaid loading timeout' };
+          } finally {
+            // Ensure retry count is reset even if showError throws
+            globalThis.renderRetryCount = 0;
+          }
         }
       }
 
-      // Reset retry count on successful initialization
+      // Reset retry count on successful initialization path
       globalThis.renderRetryCount = 0;
 
       // Parse front-matter config if present
@@ -745,24 +776,32 @@
           diagramSource = source.replace(fmRegex, "");
         } catch (err) {
           showError(`YAML parse error: ${err.message}`);
-          return;
+          return { success: false, error: `YAML parse error: ${err.message}` };
         }
       }
 
       // Render the diagram
       const id = `mermaid-svg-${Date.now()}`;
-      globalThis.mermaid.render(id, diagramSource)
-        .then(result => {
-          setSafeSVG(result.svg);
-          if (typeof result.bindFunctions === 'function') {
-            result.bindFunctions(output);
-          }
-          // Hide loading indicator after diagram is successfully rendered
-          globalThis.hideLoadingIndicator();
-        })
-        .catch(e => {
-          showError(e.message);
-        });
+      try {
+        const result = await globalThis.mermaid.render(id, diagramSource);
+        setSafeSVG(result.svg);
+        if (typeof result.bindFunctions === 'function') {
+          result.bindFunctions(output);
+        }
+        // Hide loader for normal renders (unless caller suppressed)
+        if (!suppressHide) {
+          try {
+            globalThis.hideLoadingIndicator();
+          } catch (e) {
+            console.error('Error hiding loading indicator', e)
+        }
+        }
+        return { success: true };
+      } catch (e) {
+        showError(e.message);
+        // Do NOT rethrow; return a failure result to avoid leaking into init failure path
+        return { success: false, error: e.message };
+      }
     };
 
     globalThis.clearOutput = () => {
@@ -791,8 +830,8 @@
           if (typeof webviewPostMessage === 'function') {
             try {
               webviewPostMessage({ type: 'png-export-progress', status: statusObj });
-            } catch (postErr) {
-              console.warn('chrome.webview.postMessage failed', postErr);
+            } catch (postError) {
+              console.warn('chrome.webview.postMessage failed', postError);
             }
             return;
           }
@@ -802,13 +841,13 @@
           if (typeof externalNotify === 'function') {
             try {
               externalNotify(JSON.stringify({ type: 'png-export-progress', status: statusObj }));
-            } catch (notifyErr) {
-              console.warn('external.notify failed', notifyErr);
+            } catch (exportProgressError) {
+              console.warn('external.notify failed', exportProgressError);
             }
           }
-        } catch (eStatus) {
+        } catch (statusError) {
           // Ignore status delivery errors - keep working locally
-          console.warn('Failed to set or notify export status', eStatus);
+          console.warn('Failed to set or notify export status', statusError);
         }
       };
 
@@ -1036,7 +1075,8 @@
             }
           }
         } catch (e) {
-          // ignore notification errors
+          // log notification errors
+          console.error('Error notifying host that result is available', e);
         }
 
         return {
