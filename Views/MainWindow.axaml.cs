@@ -512,7 +512,7 @@ public sealed partial class MainWindow : Window
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _vm.IsWebViewReady = true;
-                    _vm.LastError = $"WebView initialization timed out. Some features may not work correctly. (> {WebViewReadyTimeoutSeconds}s)";
+                    _vm.LastError = $"WebView initialization timed out after {WebViewReadyTimeoutSeconds} seconds. Some features may not work correctly.";
                 });
                 SimpleLogger.Log($"WebView readiness timed out after {WebViewReadyTimeoutSeconds}s; enabling commands with warning");
             }

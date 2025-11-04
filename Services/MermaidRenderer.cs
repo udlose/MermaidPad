@@ -150,7 +150,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             await Task.Delay(renderReadyPollingIntervalMs);
         }
 
-        throw new TimeoutException($"First render not signaled within {(int)timeout.TotalMilliseconds} ms.");
+        throw new TimeoutException($"First render not signaled within {timeout.TotalSeconds:0.##} seconds.");
     }
 
     /// <summary>
