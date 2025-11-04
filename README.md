@@ -376,9 +376,43 @@ Tips for maintainers
 - If you change publish settings (single-file, self-contained), update `Directory.Build.props` and update CI accordingly.
 
 ---
+## JavaScript/HTML Linting (ESLint v9)
+
+MermaidPad ships web assets (e.g., `Assets/index.html`). We use **ESLint v9** with the **flat config** to keep these tidy.
+
+### Prerequisites
+- **Node.js 18+** (Node 20+ recommended)
+
+### Install (once per clone)
+```bash
+npm init -y
+npm i -D eslint @eslint/js eslint-plugin-html globals
+```
+
+### How to run
+Run ESLint against the sources only (avoids crawling `bin/` or WebView profiles):
+
+```bash
+npx eslint "Assets/**/*.{html,js,ts}"
+```
+
+> Windows note: keep the **double quotes** around the glob patterns.
+
+
+### Common issues
+- **“ESLint couldn't find an eslint.config…”**  
+  Ensure `eslint.config.mjs` exists **at repo root** (ESLint v9 uses flat config by default).
+- **“Cannot use import statement outside a module” when loading config**  
+  Use `eslint.config.mjs` (ESM). Alternatively, set `"type": "module"` in `package.json`—but that affects all `.js` files in the package.
+- **ESLint is linting build output/WebView2 files**  
+  Verify the **global** `ignores` block above and run ESLint with the explicit `Assets/**/*` glob as shown.
+- **“'import' and 'export' may appear only with 'sourceType: module'” in HTML**  
+  Keep the HTML override (`files: ['Assets/**/*.html']` + `sourceType: 'module'`).
+- **See what ESLint will apply**  
+  `npx eslint --print-config "Assets/index.html"` shows the merged config; `npx eslint "Assets/**/*.{html,js,ts}" --debug` shows which files are being linted.
+
 
 ## Roadmap
-
 - ✅ SVG/PNG export (completed)
 - ✅ SHA256 asset integrity verification (completed)
 - ✅ Adaptive ELK layout support (completed)
