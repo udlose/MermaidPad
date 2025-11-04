@@ -457,11 +457,11 @@
             }
 
             // Check if already loaded
-            if (scriptId === 'mermaid-script' && typeof globalThis.mermaid !== 'undefined') {
+            if (scriptId === 'mermaid-script' && globalThis.mermaid !== undefined) {
                 resolve();
                 return;
             }
-            if (scriptId === 'jsyaml-script' && typeof globalThis.jsyaml !== 'undefined') {
+            if (scriptId === 'jsyaml-script' && globalThis.jsyaml !== undefined) {
                 resolve();
                 return;
             }
@@ -692,7 +692,7 @@
             globalThis.hideLoadingIndicator();
           } catch (e) {
             console.error('Error hiding loading indicator:', e)
-        }
+          }
         }
       };
 
@@ -794,7 +794,7 @@
             globalThis.hideLoadingIndicator();
           } catch (e) {
             console.error('Error hiding loading indicator', e)
-        }
+          }
         }
         return { success: true };
       } catch (e) {
@@ -907,7 +907,7 @@
 
         const svgElement = container.querySelector('svg');
         if (!svgElement) {
-          document.body.removeChild(container);
+          container.remove();
           throw new Error('Could not find SVG element in rendered output');
         }
 
@@ -939,18 +939,18 @@
         const maxMemoryMB = 1024; // 1 GB practical memory limit
 
         if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
-          document.body.removeChild(container);
+          container.remove();
           throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
         }
 
         if (totalPixels > maxPixels) {
-          document.body.removeChild(container);
+          container.remove();
           const oneMillion = 1000000;
           throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
         }
 
         if (estimatedMemoryMB > maxMemoryMB) {
-          document.body.removeChild(container);
+          container.remove();
           throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
         }
 
@@ -968,7 +968,7 @@
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          document.body.removeChild(container);
+          container.remove();
           throw new Error('Failed to get canvas 2D context');
         }
 
@@ -985,13 +985,13 @@
         const svgString = new XMLSerializer().serializeToString(svgElement);
 
         // Clean up DOM
-        document.body.removeChild(container);
+        container.remove();
 
         // Convert SVG to data URI (avoids canvas tainting issues with blob URLs)
         // Encode the SVG string properly for data URI
         const encodedSvg = encodeURIComponent(svgString)
-          .replace(/'/g, '%27')
-          .replace(/"/g, '%22');
+          .replaceAll('\'', '%27')
+          .replaceAll('"', '%22');
 
         const dataUri = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
 
@@ -1146,19 +1146,19 @@
 
       // Check if event delegation is already initialized on OUTPUT container
       // (OUTPUT persists across renders, unlike SVG which gets replaced)
-      const isInitialized = output.hasAttribute('data-hover-delegation-init');
+      const isInitialized = !!output.dataset.hoverDelegationInit;
 
       // Find all paths and lines that need hit areas
       const paths = svg.querySelectorAll('path.flowchart-link, .edgePath path, path[class*="edge"], path[marker-end]');
       const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
 
       // Create hit areas for paths (these get recreated on each render since SVG is replaced)
-      paths.forEach((path) => {
-        if (path.hasAttribute('data-hover-enhanced')) return;
+      for (const path of paths) {
+        if (path.dataset.hoverEnhanced) return;
 
         const hitArea = path.cloneNode(false);
         hitArea.classList.add('hit-area');
-        hitArea.setAttribute('data-hover-enhanced', 'true');
+        hitArea.dataset.hoverEnhanced = 'true';
         hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.fill = 'none';
@@ -1167,17 +1167,17 @@
 
         // Insert the hit area immediately after the original path (stable sibling relationship)
         path.parentNode.insertBefore(hitArea, path.nextSibling);
-        path.setAttribute('data-hover-enhanced', 'true');
-        path.setAttribute('data-hover-target', 'true');
-      });
+        path.dataset.hoverEnhanced = 'true';
+        path.dataset.hoverTarget = 'true';
+      }
 
       // Create hit areas for lines
-      lines.forEach((line) => {
-        if (line.hasAttribute('data-hover-enhanced')) return;
+      for (const line of lines) {
+        if (line.dataset.hoverEnhanced) return;
 
         const hitArea = line.cloneNode(false);
         hitArea.classList.add('hit-area');
-        hitArea.setAttribute('data-hover-enhanced', 'true');
+        hitArea.dataset.hoverEnhanced = 'true';
         hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.pointerEvents = 'stroke';
@@ -1185,9 +1185,9 @@
 
         // Insert the hit area immediately after the original line (stable sibling relationship)
         line.parentNode.insertBefore(hitArea, line.nextSibling);
-        line.setAttribute('data-hover-enhanced', 'true');
-        line.setAttribute('data-hover-target', 'true');
-      });
+        line.dataset.hoverEnhanced = 'true';
+        line.dataset.hoverTarget = 'true';
+      }
 
       // Only attach event listeners ONCE to the OUTPUT container
       // These listeners persist across renders since OUTPUT doesn't get replaced
@@ -1203,7 +1203,7 @@
           // Get original element via previousElementSibling (O(1) fast, stable in our architecture)
           // Safe because: hit area is inserted immediately after original, and SVG is replaced entirely on each render
           const original = hitArea.previousElementSibling;
-          if (original && original.hasAttribute('data-hover-target')) {
+          if (original?.dataset?.hoverTarget) {
             original.classList.add('hover-active');
           }
         }, { capture: true });
@@ -1222,13 +1222,13 @@
           // Get original element via previousElementSibling (O(1) fast, stable in our architecture)
           // Safe because: hit area is inserted immediately after original, and SVG is replaced entirely on each render
           const original = hitArea.previousElementSibling;
-          if (original && original.hasAttribute('data-hover-target')) {
+          if (original?.dataset?.hoverTarget) {
             original.classList.remove('hover-active');
           }
         }, { capture: true });
 
         // Mark OUTPUT container as initialized (persists across SVG replacements)
-        output.setAttribute('data-hover-delegation-init', 'true');
+        output.dataset.hoverDelegationInit = 'true';
         
         console.log('Hover event delegation initialized (one-time setup)');
       }
