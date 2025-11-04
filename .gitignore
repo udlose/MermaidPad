@@ -419,6 +419,7 @@ FodyWeavers.xsd
 
 # DiagSession files
 *.diagsession
+Diagnostics/**/*.diagsession
 
 # Generated files (except for NamespacePlaceholder.cs)
 Generated/*
