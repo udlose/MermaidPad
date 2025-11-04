@@ -64,6 +64,10 @@
 		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
 		<!--        This line important -->
 		<AvaloniaXaml Remove="**/*.axaml" />
+		<AvaloniaXaml Remove="node_modules/**" />
+		<Compile Remove="node_modules/**" />
+		<EmbeddedResource Remove="node_modules/**" />
+		<None Remove="node_modules/**" />
 		<!--        This line important -->
 	</ItemGroup>
 	<ItemGroup>
@@ -108,7 +112,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<AdditionalFiles Remove="node_modules/**" />
 		<AvaloniaResource Remove="**/*.axaml" />
+		<AvaloniaResource Remove="node_modules/**" />
 	</ItemGroup>
 
 	<ItemGroup>
