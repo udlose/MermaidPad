@@ -67,13 +67,29 @@ public sealed class ExportService
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be extracted from the diagram.</exception>
-    public async Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
+    public Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
         options ??= new SvgExportOptions();
         SimpleLogger.Log($"Starting SVG export to: {targetPath}");
 
+        return ExportSvgCoreAsync(targetPath, options, cancellationToken);
+    }
+
+    /// <summary>
+    /// Exports the SVG content to the specified file path, applying optional processing options.
+    /// </summary>
+    /// <remarks>This method retrieves the SVG content, processes it based on the provided options, and writes
+    /// it to the specified file path. If the SVG content cannot be extracted, an <see
+    /// cref="InvalidOperationException"/> is thrown.</remarks>
+    /// <param name="targetPath">The full file path where the SVG content will be saved. This cannot be null or empty.</param>
+    /// <param name="options">Optional parameters for customizing the SVG export process. If null, default options are used.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will terminate early if the token is canceled.</param>
+    /// <returns>A task representing the asynchronous export operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be extracted from the diagram.</exception>
+    private async Task ExportSvgCoreAsync(string targetPath, SvgExportOptions options, CancellationToken cancellationToken)
+    {
         try
         {
             // Get SVG content from WebView (must stay on UI thread)
@@ -333,21 +349,16 @@ public sealed class ExportService
     #region PNG Export
 
     /// <summary>
-    /// Exports the current diagram as a PNG image to the specified file path asynchronously using browser-based rendering.
+    /// Exports the current content to a PNG file at the specified path.
     /// </summary>
-    /// <remarks>
-    /// This method uses the browser's canvas API to render the diagram to PNG, which provides pixel-perfect
-    /// accuracy matching the live preview. This approach correctly handles foreignObject elements, HTML/CSS styling,
-    /// and all Mermaid features including ELK layouts. The export operation runs asynchronously with progress reporting.
-    /// </remarks>
-    /// <param name="targetPath">The file path where the exported PNG image will be saved. Cannot be null or empty.</param>
-    /// <param name="options">The options to use for PNG export, such as DPI and scale factor. If null, default options are used.</param>
-    /// <param name="progress">An optional progress reporter that receives updates about the export operation. Progress updates are marshaled
-    /// to the UI thread if provided.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
+    /// <param name="targetPath">The file path where the PNG will be saved. Cannot be null or empty.</param>
+    /// <param name="options">Optional settings for the PNG export, such as DPI and scale factor.
+    /// If not provided, default options are used.</param>
+    /// <param name="progress">An optional progress reporter to track the export operation's progress.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.
+    /// The operation will terminate early if cancellation is requested.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the PNG export fails.</exception>
-    public async Task ExportPngAsync(string targetPath, PngExportOptions? options = null,
+    public Task ExportPngAsync(string targetPath, PngExportOptions? options = null,
         IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
@@ -355,6 +366,28 @@ public sealed class ExportService
         options ??= new PngExportOptions();
         SimpleLogger.Log($"Starting browser-based PNG export to: {targetPath} (DPI: {options.Dpi}, Scale: {options.ScaleFactor}x)");
 
+        return ExportPngCoreAsync(targetPath, options, progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Exports content to a PNG file asynchronously, with support for progress reporting and cancellation.
+    /// </summary>
+    /// <remarks>This method ensures that any UI-bound operations required for the export are executed on the
+    /// UI thread. If the operation is canceled, an <see cref="OperationCanceledException"/> is thrown. If an error
+    /// occurs during the export, the exception is logged and rethrown.</remarks>
+    /// <param name="targetPath">The file path where the PNG will be saved. This cannot be null or empty.</param>
+    /// <param name="options">The options specifying the configuration for the PNG export, such as resolution and quality.</param>
+    /// <param name="progress">An optional progress reporter that receives updates about the export
+    /// process, including the current step and percentage completed.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the export operation.</param>
+    /// <returns>
+    /// A <see cref="Task"/> that represents the asynchronous export operation. The task completes when the PNG export is finished,
+    /// or throws an exception if the operation is cancelled or an error occurs.
+    /// </returns>
+
+    private async Task ExportPngCoreAsync(string targetPath, PngExportOptions options,
+        IProgress<ExportProgress>? progress, CancellationToken cancellationToken)
+    {
         try
         {
             // Report initial progress - marshal to UI thread
@@ -1142,6 +1175,18 @@ public sealed class ExportService
         }
 
         /// <summary>
+        /// Returns the next character in the memory buffer without advancing the position.
+        /// </summary>
+        /// <remarks>If the current position is at the end of the memory buffer, the method returns -1.
+        /// This method does not modify the current position in the buffer.</remarks>
+        /// <returns>The next character in the memory buffer as an integer,
+        /// or -1 if the end of the buffer is reached.</returns>
+        public override int Peek()
+        {
+            return _position < _memory.Length ? _memory.Span[_position] : -1;
+        }
+
+        /// <summary>
         /// Reads a specified number of characters from the current position in the memory
         /// buffer into the provided array.
         /// </summary>
@@ -1165,18 +1210,6 @@ public sealed class ExportService
             }
 
             return toRead;
-        }
-
-        /// <summary>
-        /// Returns the next character in the memory buffer without advancing the position.
-        /// </summary>
-        /// <remarks>If the current position is at the end of the memory buffer, the method returns -1.
-        /// This method does not modify the current position in the buffer.</remarks>
-        /// <returns>The next character in the memory buffer as an integer,
-        /// or -1 if the end of the buffer is reached.</returns>
-        public override int Peek()
-        {
-            return _position < _memory.Length ? _memory.Span[_position] : -1;
         }
 
         /// <summary>

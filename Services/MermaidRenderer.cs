@@ -105,7 +105,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
     public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         if (_webView is null)
         {
             throw new InvalidOperationException("WebView not initialized");
