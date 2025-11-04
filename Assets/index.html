@@ -404,33 +404,33 @@
   <!-- Apply theme immediately before any scripts load -->
   <script>
     // Immediate theme application to prevent flash
-    (function() {
-        const getSystemTheme = () => {
-            if (globalThis.matchMedia && globalThis.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
-                return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
-            }
-            return 'default';
-        };
-
-        const applyTheme = theme => {
-            document.body.classList.toggle('dark-theme', theme === 'dark');
-            document.body.classList.toggle('light-theme', theme === 'default');
-        };
-
-        // Store functions globally for reuse
-        globalThis.getSystemTheme = getSystemTheme;
-        globalThis.applyTheme = applyTheme;
-        globalThis.currentTheme = getSystemTheme();
-
-        // Apply theme immediately if body exists
-        if (document.body) {
-            applyTheme(globalThis.currentTheme);
-        } else {
-            // If body doesn't exist yet, apply on DOMContentLoaded
-            document.addEventListener('DOMContentLoaded', function() {
-                applyTheme(globalThis.currentTheme);
-            }, { once: true });
+    (function () {
+      const getSystemTheme = () => {
+        if (globalThis.matchMedia && globalThis.matchMedia('(prefers-color-scheme: dark)').media !== 'not all') {
+          return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
         }
+        return 'default';
+      };
+
+      const applyTheme = theme => {
+        document.body.classList.toggle('dark-theme', theme === 'dark');
+        document.body.classList.toggle('light-theme', theme === 'default');
+      };
+
+      // Store functions globally for reuse
+      globalThis.getSystemTheme = getSystemTheme;
+      globalThis.applyTheme = applyTheme;
+      globalThis.currentTheme = getSystemTheme();
+
+      // Apply theme immediately if body exists
+      if (document.body) {
+        applyTheme(globalThis.currentTheme);
+      } else {
+        // If body doesn't exist yet, apply on DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function () {
+          applyTheme(globalThis.currentTheme);
+        }, { once: true });
+      }
     })();
   </script>
 
@@ -448,61 +448,61 @@
 
     // Promise-based script loading with timeout
     function waitForScriptLoad(scriptId, timeout = 5000) {
-        return new Promise((resolve, reject) => {
-            const script = document.getElementById(scriptId);
+      return new Promise((resolve, reject) => {
+        const script = document.getElementById(scriptId);
 
-            if (!script) {
-                reject(new Error(`Script element with id '${scriptId}' not found`));
-                return;
-            }
+        if (!script) {
+          reject(new Error(`Script element with id '${scriptId}' not found`));
+          return;
+        }
 
-            // Check if already loaded
-            if (scriptId === 'mermaid-script' && globalThis.mermaid !== undefined) {
-                resolve();
-                return;
-            }
-            if (scriptId === 'jsyaml-script' && globalThis.jsyaml !== undefined) {
-                resolve();
-                return;
-            }
+        // Check if already loaded
+        if (scriptId === 'mermaid-script' && globalThis.mermaid !== undefined) {
+          resolve();
+          return;
+        }
+        if (scriptId === 'jsyaml-script' && globalThis.jsyaml !== undefined) {
+          resolve();
+          return;
+        }
 
-            // Set up timeout
-            const timeoutId = setTimeout(() => {
-                reject(new Error(`Script '${scriptId}' load timeout after ${timeout}ms`));
-            }, timeout);
+        // Set up timeout
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`Script '${scriptId}' load timeout after ${timeout}ms`));
+        }, timeout);
 
-            // Set up load event listener
-            const handleLoad = () => {
-                clearTimeout(timeoutId);
-                resolve();
-            };
+        // Set up load event listener
+        const handleLoad = () => {
+          clearTimeout(timeoutId);
+          resolve();
+        };
 
-            const handleError = (error) => {
-                clearTimeout(timeoutId);
-                reject(new Error(`Script '${scriptId}' failed to load: ${error.message || 'Unknown error'}`));
-            };
+        const handleError = (error) => {
+          clearTimeout(timeoutId);
+          reject(new Error(`Script '${scriptId}' failed to load: ${error.message || 'Unknown error'}`));
+        };
 
-            script.addEventListener('load', handleLoad, { once: true });
-            script.addEventListener('error', handleError, { once: true });
-        });
+        script.addEventListener('load', handleLoad, { once: true });
+        script.addEventListener('error', handleError, { once: true });
+      });
     }
 
     // Load ELK layout module
     async function loadElkLayout() {
-        try {
-            const elkModule = await import('./mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs');
-            const elkLayouts = elkModule.default;
+      try {
+        const elkModule = await import('./mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs');
+        const elkLayouts = elkModule.default;
 
-            // Register ELK layouts with Mermaid
-            globalThis.mermaid.registerLayoutLoaders(elkLayouts);
-            globalThis.elkLayoutAvailable = true;
-            console.log('ELK layout registered successfully');
-            return true;
-        } catch (err) {
-            console.error('Failed to load ELK layout:', err);
-            console.log('Continuing without ELK layout support');
-            return false;
-        }
+        // Register ELK layouts with Mermaid
+        globalThis.mermaid.registerLayoutLoaders(elkLayouts);
+        globalThis.elkLayoutAvailable = true;
+        console.log('ELK layout registered successfully');
+        return true;
+      } catch (err) {
+        console.error('Failed to load ELK layout:', err);
+        console.log('Continuing without ELK layout support');
+        return false;
+      }
     }
 
     // Main initialization function (call-site uses suppressHideLoadingIndicator: true)
@@ -576,23 +576,23 @@
 
     // Setup theme change listener
     document.addEventListener('DOMContentLoaded', () => {
-        // Theme is already applied, but listen for changes
-        if (globalThis.matchMedia) {
-            globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-                globalThis.currentTheme = e.matches ? 'dark' : 'default';
-                globalThis.applyTheme(globalThis.currentTheme);
+      // Theme is already applied, but listen for changes
+      if (globalThis.matchMedia) {
+        globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+          globalThis.currentTheme = e.matches ? 'dark' : 'default';
+          globalThis.applyTheme(globalThis.currentTheme);
 
-                // Re-render if we have content and Mermaid is initialized
-                if (globalThis.lastMermaidSource && globalThis.mermaidInitialized) {
-                    // Re-initialize Mermaid with new theme
-                    globalThis.mermaid.initialize({
-                        startOnLoad: false,
-                        theme: globalThis.currentTheme
-                    });
-                    globalThis.renderMermaid(globalThis.lastMermaidSource);
-                }
+          // Re-render if we have content and Mermaid is initialized
+          if (globalThis.lastMermaidSource && globalThis.mermaidInitialized) {
+            // Re-initialize Mermaid with new theme
+            globalThis.mermaid.initialize({
+              startOnLoad: false,
+              theme: globalThis.currentTheme
             });
-        }
+            globalThis.renderMermaid(globalThis.lastMermaidSource);
+          }
+        });
+      }
     });
   </script>
   <!-- Render functions in separate script -->
@@ -1154,8 +1154,10 @@
 
       // Create hit areas for paths (these get recreated on each render since SVG is replaced)
       for (const path of paths) {
-        if (path.dataset.hoverEnhanced) return;
-
+        if (path.dataset.hoverEnhanced) {
+          console.debug('Skipping already-enhanced path', path);
+          continue;
+        }
         const hitArea = path.cloneNode(false);
         hitArea.classList.add('hit-area');
         hitArea.dataset.hoverEnhanced = 'true';
@@ -1173,7 +1175,10 @@
 
       // Create hit areas for lines
       for (const line of lines) {
-        if (line.dataset.hoverEnhanced) return;
+        if (line.dataset.hoverEnhanced) {
+          console.debug('Skipping already-enhanced line', line);
+          continue;
+        }
 
         const hitArea = line.cloneNode(false);
         hitArea.classList.add('hit-area');
@@ -1229,7 +1234,7 @@
 
         // Mark OUTPUT container as initialized (persists across SVG replacements)
         output.dataset.hoverDelegationInit = 'true';
-        
+
         console.log('Hover event delegation initialized (one-time setup)');
       }
 
