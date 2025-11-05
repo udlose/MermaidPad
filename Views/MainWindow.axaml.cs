@@ -118,6 +118,7 @@ public sealed partial class MainWindow : Window
 
             // Since this is yaml/diagram text, convert tabs to spaces for correct rendering
             Editor.Options.ConvertTabsToSpaces = true;
+            Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
 
             SimpleLogger.Log($"Editor state set: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset} (text length: {textLength})");
