@@ -17,14 +17,12 @@ flowchart TD
     E --> F1[Windows x64 Build]
     E --> F2[Windows ARM64 Build] 
     E --> F3[Linux x64 Build]
-    E --> F4[Linux ARM64 Build]
     E --> F5[macOS x64 Build]
     E --> F6[macOS ARM64 Build]
     
     F1 --> G1[Upload win-x64.zip]
     F2 --> G2[Upload win-arm64.zip]
     F3 --> G3[Upload linux-x64.zip]
-    F4 --> G4[Upload linux-arm64.zip]
     F5 --> G5[Upload osx-x64.zip]
     F6 --> G6[Upload osx-arm64.zip]
     
@@ -45,7 +43,6 @@ flowchart TD
     G1 --> Q[Create GitHub Release]
     G2 --> Q
     G3 --> Q
-    G4 --> Q
     J --> Q
     K --> Q
     P --> Q
@@ -84,7 +81,7 @@ flowchart TD
 **Build Matrix Targets**:
 ```yaml
 - Windows x64/ARM64 → .exe files
-- Linux x64/ARM64 → ELF executables → .AppImage, etc.
+- Linux x64 → ELF executables → .AppImage, etc.
 - macOS x64/ARM64 → Mac → .app bundles and .dmg files
 ```
 
