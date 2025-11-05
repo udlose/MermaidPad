@@ -267,7 +267,7 @@ jobs:
 
             - #### Linux
             - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64.zip`
-            - **arm64**: Not supported (CefGlue limitation – see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
+            - **arm64**: Not supported (CefGlue limitation - see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
 
 
             Extract, make executable (`chmod +x MermaidPad`), and run `./MermaidPad`
