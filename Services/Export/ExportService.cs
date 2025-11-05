@@ -43,8 +43,43 @@ namespace MermaidPad.Services.Export;
 public sealed class ExportService
 {
     private static readonly TimeSpan _defaultExportToPngTimeout = TimeSpan.FromSeconds(60);
-    private static readonly SearchValues<char> _whitespaceSearchValues = SearchValues.Create(GetAllWhiteSpaceChars());
 
+    /// <summary>
+    /// Represents a collection of Unicode characters that are considered whitespace for text processing operations.
+    /// </summary>
+    /// <remarks>This array includes common whitespace characters such as space, tab, and line feed, as well
+    /// as less frequently used Unicode whitespace characters. It can be used to identify or filter out whitespace in
+    /// strings according to Unicode standards.</remarks>
+    private static readonly char[] _whiteSpaceChars =
+    [
+        '\u0009', // CHARACTER TABULATION
+        '\u000A', // LINE FEED
+        '\u000B', // LINE TABULATION
+        '\u000C', // FORM FEED
+        '\u000D', // CARRIAGE RETURN
+        '\u0020', // SPACE
+        '\u0085', // NEXT LINE
+        '\u00A0', // NO-BREAK SPACE
+        '\u1680', // OGHAM SPACE MARK
+        '\u180E', // MONGOLIAN VOWEL SEPARATOR
+        '\u2000', // EN QUAD
+        '\u2001', // EM QUAD
+        '\u2002', // EN SPACE
+        '\u2003', // EM SPACE
+        '\u2004', // THREE-PER-EM SPACE
+        '\u2005', // FOUR-PER-EM SPACE
+        '\u2006', // SIX-PER-EM SPACE
+        '\u2007', // FIGURE SPACE
+        '\u2008', // PUNCTUATION SPACE
+        '\u2009', // THIN SPACE
+        '\u200A', // HAIR SPACE
+        '\u2028', // LINE SEPARATOR
+        '\u2029', // PARAGRAPH SEPARATOR
+        '\u202F', // NARROW NO-BREAK SPACE
+        '\u205F', // MEDIUM MATHEMATICAL SPACE
+        '\u3000' // IDEOGRAPHIC SPACE
+    ];
+    private static readonly SearchValues<char> _whitespaceSearchValues = SearchValues.Create(_whiteSpaceChars);
     private readonly MermaidRenderer _mermaidRenderer;
 
     public ExportService(MermaidRenderer mermaidRenderer)
@@ -1127,29 +1162,6 @@ public sealed class ExportService
         }
 
         return input;
-    }
-
-    /// <summary>
-    /// Retrieves an array of all Unicode characters classified as white space.
-    /// </summary>
-    /// <remarks>The method iterates through all Unicode characters and identifies those that are categorized
-    /// as white space using the <see cref="char.IsWhiteSpace(char)"/> method. The resulting array includes all such
-    /// characters defined in the Unicode standard.</remarks>
-    /// <returns>An array of <see cref="char"/> containing all Unicode white space characters. The array will be empty if no
-    /// white space characters are found.</returns>
-    private static char[] GetAllWhiteSpaceChars()
-    {
-        List<char> list = new List<char>();
-        for (int i = char.MinValue; i <= char.MaxValue; i++)
-        {
-            char c = (char)i;
-            if (char.IsWhiteSpace(c))
-            {
-                list.Add(c);
-            }
-        }
-
-        return list.ToArray();
     }
 
     #endregion Utility Methods
