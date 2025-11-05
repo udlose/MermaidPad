@@ -98,7 +98,7 @@ The Homebrew cask is automatically updated after each release.
 #### Advanced Users: Individual Architecture Downloads
 Architecture-specific downloads are available for developers and advanced users:
 - **Intel x64:** `MermaidPad-[version]-osx-x64.app.zip`
-- **Apple Silicon ARM64:** `MermaidPad-[version]-osx-arm64.app.zip`
+- **Apple Silicon arm64:** `MermaidPad-[version]-osx-arm64.app.zip`
 
 These require manual unzipping and permission setting (`chmod +x MermaidPad`).
 
@@ -106,7 +106,7 @@ These require manual unzipping and permission setting (`chmod +x MermaidPad`).
 
 Download the appropriate version for your processor:
 - **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-win-x64.zip`
-- **ARM64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
+- **arm64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
 
 **Installation:**
 1. Download and extract the appropriate .zip file
@@ -116,7 +116,7 @@ Download the appropriate version for your processor:
 
 Download the appropriate version for your processor:
 - **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-linux-x64.zip`
-- **ARM64 (Raspberry Pi 4+, etc.):** `MermaidPad-[version]-linux-arm64.zip`
+- **arm64:** Not supported (CefGlue limitation – see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
 
 **Installation:**
 1. Download and extract the appropriate .zip file
@@ -127,7 +127,7 @@ Download the appropriate version for your processor:
 
 Individual architecture-specific downloads are also available for all platforms:
 - **macOS Intel x64:** `MermaidPad-[version]-osx-x64.zip`
-- **macOS Apple Silicon ARM64:** `MermaidPad-[version]-osx-arm64.zip`
+- **macOS Apple Silicon arm64:** `MermaidPad-[version]-osx-arm64.zip`
 - **macOS App Bundles:** `MermaidPad-[version]-osx-[arch].app.zip`
 
 These are provided for developers, CI/CD systems, and users who need specific architectures.
@@ -141,7 +141,7 @@ Visit the [Releases page](https://github.com/udlose/MermaidPad/releases/latest) 
 **Recommended Downloads by Platform:**
 - **macOS:** `MermaidPad-[version]-universal.dmg` (works on all Macs)
 - **Windows:** `MermaidPad-[version]-win-x64.zip` or `MermaidPad-[version]-win-arm64.zip`
-- **Linux:** `MermaidPad-[version]-linux-x64.zip` or `MermaidPad-[version]-linux-arm64.zip`
+- **Linux:** `MermaidPad-[version]-linux-x64.zip`
 
 ---
 
@@ -292,7 +292,7 @@ pie
 
 MermaidPad uses an automated build and release process that creates optimized distributions for each platform:
 
-- **Cross-platform builds** for Windows (x64/ARM64), Linux (x64/ARM64), and macOS (x64/ARM64)
+- **Cross-platform builds** for Windows (x64/arm64), Linux (x64/arm64), and macOS (x64/arm64)
 - **Universal macOS DMG** combining both Intel and Apple Silicon binaries
 - **macOS app bundles** with proper code signing and Gatekeeper compatibility
 
@@ -310,13 +310,13 @@ Source of truth:
 
 Key settings
 - Target framework: net9.0 (see `Directory.Build.props`)
-- Supported RIDs (publish targets): win-x64; win-arm64; linux-x64; linux-arm64; osx-arm64; osx-x64
+- Supported RIDs (publish targets): win-x64; win-arm64; linux-x64; osx-arm64; osx-x64
 - Publishing defaults: framework-dependent, not single-file (`PublishSelfContained=false`, `PublishSingleFile=false`)
 
 CI behavior (summary)
 - The GitHub Action `build-and-release.yml`:
   - Extracts version from a tag (`vX.Y.Z`) or manual input
-  - Builds a matrix across RIDs: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`
+  - Builds a matrix across RIDs: `win-x64`, `win-arm64`, `linux-x64`, `osx-x64`, `osx-arm64`
   - Runs `dotnet restore` and `dotnet publish` for each RID:
     `dotnet publish MermaidPad.csproj -c Release -r <RID> -o ./publish -p:Version=<version> -p:AssemblyVersion=<version> -p:FileVersion=<version>`
   - Prepares artifacts and uploads zip files named: `MermaidPad-<version>-<rid>.zip`
@@ -330,7 +330,7 @@ Local reproducible publish
 3. Publish for a specific RID (replace `<rid>` and `<version>`):
    - Example (Linux x64):
      `dotnet publish MermaidPad.csproj -c Release -r linux-x64 -o ./publish -p:Version=1.2.3 -p:AssemblyVersion=1.2.3 -p:FileVersion=1.2.3`
-   - RIDs available: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`
+   - RIDs available: `win-x64`, `win-arm64`, `linux-x64`, `osx-x64`, `osx-arm64`
 4. Package the publish folder the same way CI does:
    - macOS/Linux:
      ```bash

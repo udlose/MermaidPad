@@ -44,6 +44,26 @@ public static class PlatformCompatibilityChecker
         PlatformInfo currentInfo = GetCurrentPlatformInfo();
         PlatformInfo targetInfo = GetBuildTargetInfo();
 
+        // Check for unsupported platforms - linux-arm64 is not supported
+        if (string.Equals(currentInfo.OS, "linux", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(currentInfo.Architecture, "arm64", StringComparison.OrdinalIgnoreCase))
+        {
+            string message = $"The linux-arm64 version is not supported at this time due to CefGlue limitations. See the releases page for available versions:{Environment.NewLine}{Environment.NewLine}{DownloadUrl}";
+
+            try
+            {
+                PlatformServiceFactory.Instance.ShowNativeDialog("Warning: Unsupported Platform Detected", message);
+            }
+            catch (Exception ex)
+            {
+                // Fallback if platform service fails
+                Console.WriteLine("Warning: Unsupported Platform Detected: " + message);
+                Console.WriteLine($"Dialog error: {ex.Message}");
+            }
+
+            PauseAndExitWithError();
+        }
+
         // Check for platform/architecture mismatch
         if (IsMismatch(currentInfo, targetInfo))
         {
@@ -59,7 +79,24 @@ public static class PlatformCompatibilityChecker
                 Console.WriteLine($"Dialog error: {ex.Message}");
             }
 
-            Environment.Exit(1);
+            PauseAndExitWithError();
+        }
+
+        static void PauseAndExitWithError()
+        {
+            try
+            {
+                // Introduce a delay to ensure users have time to read the message
+                Thread.Sleep(10_000); // Wait for 10 seconds before exiting
+            }
+            catch (ThreadInterruptedException)
+            {
+                // Handle any potential interruption gracefully
+            }
+            finally
+            {
+                Environment.Exit(1);
+            }
         }
     }
 
@@ -213,7 +250,7 @@ public static class PlatformCompatibilityChecker
                 Version osVersion = Environment.OSVersion.Version;
                 if (osVersion.Major >= 11) // macOS 11+ supports Apple Silicon
                 {
-                    return true; // Likely running x64 under Rosetta on ARM64 hardware
+                    return true; // Likely running x64 under Rosetta on arm64 hardware
                 }
             }
 
@@ -263,18 +300,19 @@ public static class PlatformCompatibilityChecker
     private static bool IsWindowsArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Windows x86 can run on x64 (WOW64), so don't flag this
-        if (target.Architecture == "x86" && current.Architecture == "x64")
+        if (string.Equals(target.Architecture, "x86", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(current.Architecture, "x64", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
         // All other architecture mismatches are problematic
-        return current.Architecture != target.Architecture;
+        return !string.Equals(current.Architecture, target.Architecture, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     /// Checks for architecture mismatches specific to macOS.
-    /// Flags running x64 apps under Rosetta on ARM64 hardware and direct architecture mismatches.
+    /// Flags running x64 apps under Rosetta on arm64 hardware and direct architecture mismatches.
     /// </summary>
     /// <param name="current">The current platform information.</param>
     /// <param name="target">The build target platform information.</param>
@@ -284,13 +322,15 @@ public static class PlatformCompatibilityChecker
     private static bool IsMacOSArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Flag Rosetta translation (x64 app on arm64 hardware)
-        if (current.IsTranslated && target.Architecture == "x64" && current.Architecture == "x64")
+        if (current.IsTranslated &&
+            string.Equals(target.Architecture, "x64", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(current.Architecture, "x64", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         // Also flag direct architecture mismatches
-        return current.Architecture != target.Architecture;
+        return !string.Equals(current.Architecture, target.Architecture, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -305,7 +345,7 @@ public static class PlatformCompatibilityChecker
     private static bool IsLinuxArchitectureMismatch(PlatformInfo current, PlatformInfo target)
     {
         // Linux typically doesn't have as robust cross-architecture support as Windows
-        return current.Architecture != target.Architecture;
+        return !string.Equals(current.Architecture, target.Architecture, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -355,9 +395,9 @@ public static class PlatformCompatibilityChecker
     /// </returns>
     private static string GetNativeRidForCurrent(PlatformInfo current)
     {
-        if (current.OS == "osx" && current.IsTranslated)
+        if (string.Equals(current.OS, "osx", StringComparison.OrdinalIgnoreCase) && current.IsTranslated)
         {
-            // If we're under Rosetta, the hardware is actually ARM64
+            // If we're under Rosetta, the hardware is actually arm64
             return "osx-arm64";
         }
 
