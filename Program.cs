@@ -34,7 +34,7 @@ internal static class Program
     public static void Main(string[] args)
     {
         // CRITICAL: Check platform compatibility FIRST, before any other initialization
-        // This prevents crashes from architecture mismatches (e.g., x64 app on ARM64 via Rosetta)
+        // This attempts to prevent crashes from architecture mismatches (e.g., x64 app on arm64 via Rosetta)
         PlatformCompatibilityChecker.CheckCompatibility();
 
         // If we get here, platform compatibility is OK
