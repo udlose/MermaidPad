@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download published artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip
           path: ./publish
@@ -123,14 +123,14 @@ jobs:
 
       # # Upload the .app bundle immediately after creation
       # - name: Upload .app bundle artifact
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@v5
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts/MermaidPad.app
 
       # # Download the .app bundle artifact for zipping and release
       # - name: Download .app bundle artifact
-      #   uses: actions/download-artifact@v5
+      #   uses: actions/download-artifact@v6
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts
@@ -167,7 +167,7 @@ jobs:
 
       # Upload the zipped .app bundle as the artifact
       - name: Upload .app bundle zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
           path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip

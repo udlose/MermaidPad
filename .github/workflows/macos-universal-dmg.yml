@@ -41,13 +41,13 @@ jobs:
 
       # Download the .app bundle artifacts that were uploaded by macos-bundle.yml
       - name: Download macOS x64 app bundle
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: MermaidPad-${{ inputs.version }}-osx-x64.app.zip
           path: ./artifacts/x64-app
 
       - name: Download macOS ARM64 app bundle  
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: MermaidPad-${{ inputs.version }}-osx-arm64.app.zip
           path: ./artifacts/arm64-app
@@ -213,7 +213,7 @@ jobs:
 
       # Upload the .dmg file as an artifact
       - name: Upload .dmg artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.DMG_FILENAME }}
           path: ${{ env.DMG_FILEPATH }}
