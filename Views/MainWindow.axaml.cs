@@ -20,6 +20,8 @@
 
 using AsyncAwaitBestPractices;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -267,6 +269,8 @@ public sealed partial class MainWindow : Window
 
             case nameof(_vm.EditorSelectionStart):
             case nameof(_vm.EditorSelectionLength):
+            case nameof(_vm.CanCopyClipboard):
+            case nameof(_vm.CanPasteClipboard):
             case nameof(_vm.EditorCaretOffset):
                 _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
                 {
@@ -562,5 +566,30 @@ public sealed partial class MainWindow : Window
     {
         SimpleLogger.Log("Close button clicked");
         Close();
+    }
+
+    /// <summary>
+    /// Handler for the Context Menu, to get updated Clipboard State
+    /// </summary>
+    /// <param name="sender">Event sender (Context Menu).</param>
+    /// <param name="e">Cancel Event Arguments.</param>
+    private void GetContextMenuState(object? sender, CancelEventArgs e)
+    {
+        //Get Clipboard state
+        _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
+        _vm.CanPasteClipboard = GetTextFromClipboardAsync(this).Result != String.Empty;
+    }
+
+    /// <summary>
+    /// Task that returns the text data format from the Clipboard
+    /// </summary>
+    /// <param name="window">Window window.</param>
+    private static async Task<string> GetTextFromClipboardAsync(Window window)
+    {
+        IClipboard? clipboard = window?.Clipboard;
+
+        var response = await clipboard.TryGetTextAsync();
+
+        return response;
     }
 }
