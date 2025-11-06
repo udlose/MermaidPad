@@ -80,9 +80,14 @@
 		  SyntaxHighlighting="Mermaid"
 		  VerticalScrollBarVisibility="Auto">
 			<edit:TextEditor.ContextMenu>
-				<ContextMenu>
-					<MenuItem Header="Copy" />
-					<MenuItem Header="Paste" />
+				<ContextMenu
+					Opening="GetContextMenuState">
+					<MenuItem 
+						Header="Copy" 
+						IsEnabled="{Binding CanCopyClipboard}"/>
+					<MenuItem 
+						Header="Paste" 
+						IsEnabled="{Binding CanPasteClipboard}"/>
 				</ContextMenu>
 			</edit:TextEditor.ContextMenu>
 		</edit:TextEditor>
