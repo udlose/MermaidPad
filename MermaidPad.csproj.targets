@@ -134,21 +134,20 @@ internal static class AssetHashes
 			<Compile Include="$(AssetHashesFileRepoPath)" />
 		</ItemGroup>
 
-		<!-- Validation (single read; instance Contains checks, as preferred) -->
+		<!-- Validation -->
 		<PropertyGroup Condition="Exists('$(AssetHashesFileRepoPath)')">
 			<GeneratedContent>$([System.IO.File]::ReadAllText('$(AssetHashesFileRepoPath)'))</GeneratedContent>
 		</PropertyGroup>
 
+		<Error Condition="!Exists('$(AssetHashesFileRepoPath)')" Text="Asset hash generation failed: generated file not found at $(AssetHashesFileRepoPath)" />
 		<Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(GeneratedContent)','\binternal\s+static\s+class\s+AssetHashes')) != 'True'"
 			   Text="Asset hash generation failed: expected 'internal static class AssetHashes' not found in $(AssetHashesFileRepoPath)." />
-
 		<Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(GeneratedContent)','\bnamespace\s+MermaidPad\.Generated')) != 'True'"
 			   Text="Asset hash generation failed: expected namespace 'MermaidPad.Generated' not found in $(AssetHashesFileRepoPath)." />
 	</Target>
 
 	<!-- Clean up generated file(s) ONLY (never delete your placeholder files or the folder) -->
 	<Target Name="CleanAssetHashes" BeforeTargets="Clean">
-		<Delete Files="$(AssetHashesFileRepoPath);$(AssetHashesTempFileRepoPath)"
-				TreatErrorsAsWarnings="true" />
+		<Delete Files="$(AssetHashesFileRepoPath);$(AssetHashesTempFileRepoPath)" TreatErrorsAsWarnings="true" />
 	</Target>
 </Project>
