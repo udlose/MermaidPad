@@ -3,29 +3,24 @@
 	<Import Project="Directory.Build.targets" Condition="Exists('Directory.Build.targets')" />
 
 	<PropertyGroup>
-		<!-- Directory under project for repo-root generated artifacts -->
 		<AssetHashesDir>Generated</AssetHashesDir>
+		<GeneratedRepoDir>$(MSBuildProjectDirectory)/$(AssetHashesDir)</GeneratedRepoDir>
 
-		<!-- obj/.../Generated (IntermediateOutputPath may contain RID subfolders) -->
-		<GeneratedObjDir>$([System.IO.Path]::Combine('$(IntermediateOutputPath)', '$(AssetHashesDir)'))</GeneratedObjDir>
-
-		<!-- {repo-root}/Generated -->
-		<GeneratedRepoDir>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(AssetHashesDir)'))</GeneratedRepoDir>
-
-		<!-- Full file paths -->
 		<AssetHashFileName>AssetHashes.cs</AssetHashFileName>
-		<AssetHashesFile>$([System.IO.Path]::Combine('$(GeneratedObjDir)', '$(AssetHashFileName)'))</AssetHashesFile>
-		<AssetHashesTempFile>$(AssetHashesFile).tmp</AssetHashesTempFile>
-
-		<!-- Repo-root file paths (only used for cleaning explicit filenames) -->
-		<AssetHashesFileRepoPath>$([System.IO.Path]::Combine('$(GeneratedRepoDir)', '$(AssetHashFileName)'))</AssetHashesFileRepoPath>
+		<AssetHashesFileRepoPath>$(GeneratedRepoDir)/$(AssetHashFileName)</AssetHashesFileRepoPath>
+		<AssetHashesTempFileRepoPath>$(AssetHashesFileRepoPath).tmp</AssetHashesTempFileRepoPath>
 	</PropertyGroup>
 
+	<!-- Evaluation-time: on real builds remove the SDK implicit Compile for Generated/AssetHashes.cs to avoid CS2002 -->
+	<ItemGroup Condition="'$(DesignTimeBuild)' != 'true'">
+		<Compile Remove="$(AssetHashesDir)/$(AssetHashFileName)" />
+	</ItemGroup>
+
 	<!-- Generate asset hashes at build time for integrity verification -->
-	<!-- Run before CoreCompile so generated file is available to the compiler -->
+	<!-- Runs before CoreCompile so the compiler sees the file in the same build -->
 	<Target Name="GenerateAssetHashes" BeforeTargets="CoreCompile">
-		<!-- Ensure target folder exists -->
-		<MakeDir Directories="$(GeneratedObjDir)" />
+		<!-- Ensure repo-root Generated folder exists -->
+		<MakeDir Directories="$(GeneratedRepoDir)" />
 
 		<!-- Calculate SHA256 for each asset file -->
 		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/index.html" Algorithm="SHA256">
@@ -54,9 +49,8 @@
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-SP2CHFBE Hash: $(MermaidElkLayoutChunkSP2CHFBEHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-Render-AVRWSH4D Hash: $(MermaidElkLayoutChunkRenderAVRWSH4DHash)" />
 
-		<!-- Put the entire generated file text into an item metadata value to preserve semicolons and angle brackets -->
 		<ItemGroup>
-			<AssetHashFile Include="AssetHashes.cs">
+			<AssetHashFile Include="$(AssetHashFileName)">
 				<Text>
 					<![CDATA[// MIT License
 // Copyright (c) 2025 Dave Black
@@ -109,8 +103,12 @@ internal static class AssetHashes
 	/// </summary>
 	internal static bool VerifyHash(string assetName, string actualHash)
 	{
+		if (string.IsNullOrWhiteSpace(assetName) || string.IsNullOrWhiteSpace(actualHash))
+		{
+			return false;
+		}
 		return EmbeddedAssetHashes.TryGetValue(assetName, out var expectedHash) &&
-				string.Equals(expectedHash, actualHash);
+			string.Equals(expectedHash, actualHash);
 	}
 }
 ]]>
@@ -118,40 +116,39 @@ internal static class AssetHashes
 			</AssetHashFile>
 		</ItemGroup>
 
-		<!-- Atomically write the file: write temp then move into place -->
-		<WriteLinesToFile Encoding="utf-8" File="$(AssetHashesTempFile)" Lines="@(AssetHashFile->'%(Text)')" Overwrite="true" ContinueOnError="false" />
-		<Move SourceFiles="$(AssetHashesTempFile)" DestinationFiles="$(AssetHashesFile)" OverwriteReadOnlyFiles="true" ContinueOnError="false" />
+		<!-- Atomic write to repo-root -->
+		<WriteLinesToFile Encoding="utf-8"
+						  File="$(AssetHashesTempFileRepoPath)"
+						  Lines="@(AssetHashFile->'%(Text)')"
+						  Overwrite="true"
+						  ContinueOnError="false" />
+		<Move SourceFiles="$(AssetHashesTempFileRepoPath)"
+			  DestinationFiles="$(AssetHashesFileRepoPath)"
+			  OverwriteReadOnlyFiles="true"
+			  ContinueOnError="false" />
 
-		<Message Importance="high" Text="Generated asset hashes file: $(AssetHashesFile)" />
+		<Message Importance="high" Text="Generated asset hashes file path: $(AssetHashesFileRepoPath)" />
 
-		<!-- IMPORTANT: add the generated file to the Compile item list at execution time
-		     Only add the obj-generated file if a repo-root Generated/AssetHashes.cs does NOT already exist.
-		     This avoids duplicating the SDK's implicit Compile item for repo/Generated/AssetHashes.cs. -->
-		<ItemGroup Condition="!Exists('$(AssetHashesFileRepoPath)')">
-			<Compile Include="$(AssetHashesFile)" />
+		<!-- Real builds: explicitly include the repo-root file once (the implicit item was removed at evaluation) -->
+		<ItemGroup Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(AssetHashesFileRepoPath)')">
+			<Compile Include="$(AssetHashesFileRepoPath)" />
 		</ItemGroup>
 
-		<!-- Quick content validation to fail early with a clear message if generation produced an unexpected file -->
-		<Error Condition="!Exists('$(AssetHashesFile)')" Text="Asset hash generation failed: generated file not found: $(AssetHashesFile)" />
-
-		<PropertyGroup Condition="Exists('$(AssetHashesFile)')">
-			<GeneratedContent>$([System.IO.File]::ReadAllText('$(AssetHashesFile)'))</GeneratedContent>
+		<!-- Validation (single read; instance Contains checks, as preferred) -->
+		<PropertyGroup Condition="Exists('$(AssetHashesFileRepoPath)')">
+			<GeneratedContent>$([System.IO.File]::ReadAllText('$(AssetHashesFileRepoPath)'))</GeneratedContent>
 		</PropertyGroup>
 
-		<Error Condition="!$(GeneratedContent.Contains('internal static class AssetHashes'))" Text="Asset hash generation failed: expected token 'internal static class AssetHashes' not found in $(AssetHashesFile)." />
-		<Error Condition="!$(GeneratedContent.Contains('namespace MermaidPad.Generated'))" Text="Asset hash generation failed: expected namespace 'MermaidPad.Generated' not found in $(AssetHashesFile)." />
+		<Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(GeneratedContent)','\binternal\s+static\s+class\s+AssetHashes')) != 'True'"
+			   Text="Asset hash generation failed: expected 'internal static class AssetHashes' not found in $(AssetHashesFileRepoPath)." />
+
+		<Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(GeneratedContent)','\bnamespace\s+MermaidPad\.Generated')) != 'True'"
+			   Text="Asset hash generation failed: expected namespace 'MermaidPad.Generated' not found in $(AssetHashesFileRepoPath)." />
 	</Target>
 
-	<!-- Clean up generated files -->
+	<!-- Clean up generated file(s) ONLY (never delete your placeholder files or the folder) -->
 	<Target Name="CleanAssetHashes" BeforeTargets="Clean">
-		<!-- Remove only the known generated files (obj) and temp files; tolerate missing files -->
-		<Delete Files="$(AssetHashesFile);$(AssetHashesTempFile)" TreatErrorsAsWarnings="true" />
-
-		<!-- Repo-root: only delete AssetHashes.* files (do NOT sweep the entire Generated folder; preserve placeholder file) -->
-		<ItemGroup Condition="Exists('$(GeneratedRepoDir)')">
-			<FilesToDeleteRepo Include="$(GeneratedRepoDir)/AssetHashes*.cs" />
-			<FilesToDeleteRepo Include="$(GeneratedRepoDir)/AssetHashes*.tmp" />
-		</ItemGroup>
-		<Delete Files="@(FilesToDeleteRepo)" Condition="Exists('$(GeneratedRepoDir)')" TreatErrorsAsWarnings="true" />
+		<Delete Files="$(AssetHashesFileRepoPath);$(AssetHashesTempFileRepoPath)"
+				TreatErrorsAsWarnings="true" />
 	</Target>
 </Project>
