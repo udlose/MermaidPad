@@ -70,15 +70,22 @@
         Text="{Binding CurrentMermaidPadVersion}" />
     </StackPanel>
     <Grid ColumnDefinitions="*,4,*">
-      <edit:TextEditor
-        x:Name="Editor"
-        Grid.Column="0"
-        FontFamily="Consolas"
-        HorizontalScrollBarVisibility="Auto"
-        LineNumbersForeground="Lime"
-        ShowLineNumbers="True"
-        SyntaxHighlighting="Mermaid"
-        VerticalScrollBarVisibility="Auto" />
+		<edit:TextEditor
+		  x:Name="Editor"
+		  Grid.Column="0"
+		  FontFamily="Consolas"
+		  HorizontalScrollBarVisibility="Auto"
+		  LineNumbersForeground="Lime"
+		  ShowLineNumbers="True"
+		  SyntaxHighlighting="Mermaid"
+		  VerticalScrollBarVisibility="Auto">
+			<edit:TextEditor.ContextMenu>
+				<ContextMenu>
+					<MenuItem Header="Copy" />
+					<MenuItem Header="Paste" />
+				</ContextMenu>
+			</edit:TextEditor.ContextMenu>
+		</edit:TextEditor>
       <GridSplitter
         Grid.Column="1"
         Width="4"
