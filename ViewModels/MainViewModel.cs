@@ -117,6 +117,18 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial bool IsWebViewReady { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether there is available content to copy to the clipboard.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanCopyClipboard { get; set; }
+
+    ///// <summary>
+    ///// Gets or sets a value indicating whether there is available content in the clipboard to paste.
+    ///// </summary>
+    [ObservableProperty]
+    public partial bool CanPasteClipboard { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
