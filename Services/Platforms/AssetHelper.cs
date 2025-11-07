@@ -48,14 +48,26 @@ public static class AssetHelper
     internal const string IndexHtmlFilePath = "index.html";
 
     /// <summary>
-    /// The file name for the minified Mermaid JavaScript asset.
+    /// Represents the file path to the minified Mermaid.js library.
     /// </summary>
+    /// <remarks>This constant specifies the relative or absolute path to the "mermaid.min.js" file,  which is
+    /// typically used for rendering Mermaid diagrams in web applications.</remarks>
     internal const string MermaidMinJsFilePath = "mermaid.min.js";
 
     /// <summary>
-    /// The file name for the minified js-yaml JavaScript asset.
+    /// Represents the file path to the minimized JavaScript library "js-yaml".
     /// </summary>
+    /// <remarks>This constant specifies the relative path to the "js-yaml.min.js" file, which is typically
+    /// used for YAML parsing in JavaScript environments.</remarks>
     internal const string JsYamlFilePath = "js-yaml.min.js";
+
+    /// <summary>
+    /// Represents the file path to the minimized version of the Panzoom JavaScript library.
+    /// </summary>
+    /// <remarks>This constant provides the relative path to the "panzoom.min.js" file, which is typically
+    /// used for including the Panzoom library in web-based applications. Ensure that the file exists at the specified
+    /// location when referencing this constant.</remarks>
+    internal const string PanzoomMinJsFilePath = "panzoom.min.js";
 
     /// <summary>
     /// Represents the relative path to the Mermaid ELK layout module file.
@@ -99,6 +111,7 @@ public static class AssetHelper
     ///     <item><c>IndexHtmlFileName</c></item>
     ///     <item><c>MermaidMinJsFileName</c></item>
     ///     <item><c>JsYamlFileName</c></item>
+    ///     <item><c>PanzoomMinJsFileName</c></item>
     ///     <item><c>MermaidLayoutElkPath</c></item>
     ///     <item><c>MermaidLayoutElkChunkSP2CHFBEPath</c></item>
     ///     <item><c>MermaidLayoutElkRenderAVRWSH4DPath</c></item>
@@ -109,6 +122,7 @@ public static class AssetHelper
         IndexHtmlFilePath,
         MermaidMinJsFilePath,
         JsYamlFilePath,
+        PanzoomMinJsFilePath,
         MermaidLayoutElkPath,
         MermaidLayoutElkChunkSP2CHFBEPath,
         MermaidLayoutElkRenderAVRWSH4DPath

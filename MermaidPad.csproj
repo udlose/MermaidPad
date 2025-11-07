@@ -85,6 +85,9 @@
 		<EmbeddedResource Include="Assets/js-yaml.min.js">
 			<LogicalName>MermaidPad.Assets.js-yaml.min.js</LogicalName>
 		</EmbeddedResource>
+		<EmbeddedResource Include="Assets/panzoom.min.js">
+			<LogicalName>MermaidPad.Assets.panzoom.min.js</LogicalName>
+		</EmbeddedResource>
 		<EmbeddedResource Include="Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs">
 			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.mermaid-layout-elk.esm.min.mjs</LogicalName>
 		</EmbeddedResource>

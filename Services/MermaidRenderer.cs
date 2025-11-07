@@ -39,6 +39,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFilePath}";
     private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFilePath}";
     private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFilePath}";
+    private const string PanzoomRequestPath = $"/{AssetHelper.PanzoomMinJsFilePath}";
     private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
     private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
     private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
@@ -49,6 +50,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private byte[]? _htmlContent;
     private byte[]? _mermaidJs;
     private byte[]? _jsYamlJs;
+    private byte[]? _panzoomJs;
     private byte[]? _mermaidLayoutElkJs;
     private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
     private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
@@ -64,6 +66,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
 
+    /// <summary>
+    /// Gets a value indicating whether the WebView component is fully initialized, has rendered (if necessary), and ready for use.
+    /// </summary>
     public bool IsWebViewReady { get; private set; }
 
     /// <summary>
@@ -200,16 +205,25 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
         Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
         Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
+        Task<byte[]> panzoomJsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.PanzoomMinJsFilePath);
         Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
         Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
         Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
 
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
+        await Task.WhenAll(
+            indexHtmlTask,
+            jsTask,
+            jsYamlTask,
+            panzoomJsTask,
+            mermaidLayoutElkTask,
+            mermaidLayoutElkChunkSP2CHFBETask,
+            mermaidLayoutElkRenderAVRWSH4DTask)
             .ConfigureAwait(false);
 
         _htmlContent = await indexHtmlTask.ConfigureAwait(false);
         _mermaidJs = await jsTask.ConfigureAwait(false);
         _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
+        _panzoomJs = await panzoomJsTask.ConfigureAwait(false);
         _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
         _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
         _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
@@ -218,6 +232,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
         SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
         SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
+        SimpleLogger.Log($"Prepared Panzoom: {_panzoomJs.Length} bytes");
         SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
         SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
         SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
@@ -351,6 +366,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
             {
                 responseBytes = _jsYamlJs;
+                contentType = "application/javascript; charset=utf-8";
+            }
+            else if (string.Equals(requestPath, PanzoomRequestPath, StringComparison.OrdinalIgnoreCase) && _panzoomJs is not null)
+            {
+                responseBytes = _panzoomJs;
                 contentType = "application/javascript; charset=utf-8";
             }
             else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
