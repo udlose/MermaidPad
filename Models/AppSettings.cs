@@ -20,14 +20,93 @@
 
 namespace MermaidPad.Models;
 
+/// <summary>
+/// Represents application settings that are persisted between runs of the application.
+/// </summary>
+/// <remarks>
+/// Instances of this class store user preferences and editor state (such as the last open diagram,
+/// editor selection and caret position, and mermaid version configuration). The settings are intended
+/// to be serialized and deserialized when saving and loading application state.
+/// </remarks>
 public sealed class AppSettings
 {
+    /// <summary>
+    /// Gets or sets the last diagram source text edited or opened by the user.
+    /// </summary>
+    /// <value>
+    /// The raw mermaid diagram text. This value may be <c>null</c> when no diagram has been saved.
+    /// </value>
     public string? LastDiagramText { get; set; }
+
+    /// <summary>
+    /// Gets or sets the version of the bundled Mermaid library shipped with the application.
+    /// </summary>
+    /// <value>
+    /// A semantic version string representing the bundled mermaid release. Default: "11.12.0".
+    /// </value>
     public string BundledMermaidVersion { get; set; } = "11.12.0";
+
+    /// <summary>
+    /// Gets or sets the latest Mermaid version string that was observed during the last update check.
+    /// </summary>
+    /// <value>
+    /// A semantic version string of the latest known Mermaid release, or <c>null</c> if an update check
+    /// has not been performed yet.
+    /// </value>
     public string? LatestCheckedMermaidVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether Mermaid should be automatically updated when a newer version is available.
+    /// </summary>
+    /// <value>
+    /// <c>true</c> to enable automatic updates; otherwise, <c>false</c>.
+    /// </value>
     public bool AutoUpdateMermaid { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether live preview of diagrams is enabled in the editor.
+    /// </summary>
+    /// <value>
+    /// <c>true</c> when live preview is enabled; otherwise, <c>false</c>. Default is <c>true</c>.
+    /// </value>
     public bool LivePreviewEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the zero-based start index of the editor selection when the application was last closed.
+    /// </summary>
+    /// <value>
+    /// The selection start index (zero-based). A value of 0 indicates the beginning of the document.
+    /// </value>
     public int EditorSelectionStart { get; set; }
+
+    /// <summary>
+    /// Gets or sets the length of the editor selection when the application was last closed.
+    /// </summary>
+    /// <value>
+    /// The number of characters selected. A value of 0 indicates no selection.
+    /// </value>
     public int EditorSelectionLength { get; set; }
+
+    /// <summary>
+    /// Gets or sets the caret offset within the editor when the application was last closed.
+    /// </summary>
+    /// <value>
+    /// The zero-based caret offset position in the editor document.</value>
     public int EditorCaretOffset { get; set; }
+
+    /// <summary>
+    /// Gets or sets the saved zoom level for the diagram preview.
+    /// Default is 1.0 (100%). Range: 0.1 (10%) to 5.0 (500%).
+    /// </summary>
+    public double ZoomLevel { get; set; } = 1.0;
+
+    /// <summary>
+    /// Gets or sets the saved horizontal pan offset for the diagram preview.
+    /// </summary>
+    public double PanOffsetX { get; set; }
+
+    /// <summary>
+    /// Gets or sets the saved vertical pan offset for the diagram preview.
+    /// </summary>
+    public double PanOffsetY { get; set; }
 }
