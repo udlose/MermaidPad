@@ -72,7 +72,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets or sets the version of the bundled Mermaid.js.
     /// </summary>
     [ObservableProperty]
-    public partial string BundledMermaidVersion { get; set; }
+    public partial string BundledMermaidVersion { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the latest Mermaid.js version available.
@@ -117,6 +117,25 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial bool IsWebViewReady { get; set; }
 
     /// <summary>
+    /// Gets or sets the zoom level for the diagram preview.
+    /// 100% = 1.0, 50% = 0.5, 200% = 2.0, etc.
+    /// </summary>
+    [ObservableProperty]
+    public partial double ZoomLevel { get; set; } = 1.0;    // 1.0 = 100%
+
+    /// <summary>
+    /// Gets or sets the horizontal pan offset for the diagram preview.
+    /// </summary>
+    [ObservableProperty]
+    public partial double PanOffsetX { get; set; } = 0.0;
+
+    /// <summary>
+    /// Gets or sets the vertical pan offset for the diagram preview.
+    /// </summary>
+    [ObservableProperty]
+    public partial double PanOffsetY { get; set; } = 0.0;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
@@ -132,13 +151,7 @@ public sealed partial class MainViewModel : ViewModelBase
         InitializeCurrentMermaidPadVersion();
 
         // Initialize properties from settings
-        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
-        BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
-        LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
-        LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
-        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
-        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
-        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
+        InitializeFromAppSettings();
     }
 
     /// <summary>
@@ -626,7 +639,31 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
         _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
+        _settingsService.Settings.ZoomLevel = ZoomLevel;
+        _settingsService.Settings.PanOffsetX = PanOffsetX;
+        _settingsService.Settings.PanOffsetY = PanOffsetY;
         _settingsService.Save();
+    }
+
+
+    /// <summary>
+    /// Initializes the application state by loading settings from the application's configuration.
+    /// </summary>
+    /// <remarks>This method retrieves various settings, such as diagram text, Mermaid.js versions, editor
+    /// state, and zoom/pan configurations, from the application's settings service. These settings are used to
+    /// restore the application's state to the last known configuration.</remarks>
+    private void InitializeFromAppSettings()
+    {
+        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
+        BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
+        LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+        LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
+        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
+        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
+        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
+        ZoomLevel = _settingsService.Settings.ZoomLevel;
+        PanOffsetX = _settingsService.Settings.PanOffsetX;
+        PanOffsetY = _settingsService.Settings.PanOffsetY;
     }
 
     /// <summary>

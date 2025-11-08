@@ -665,6 +665,125 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Restores the view state of the WebView by applying the specified zoom level and pan offsets.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>globalThis.restoreViewState</c> within
+    /// the WebView context. The function must be defined in the WebView's loaded content for the operation to succeed.
+    /// If the WebView instance is null, the method logs a warning and exits without performing any action.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply, in pixels.</param>
+    /// <param name="panY">The vertical pan offset to apply, in pixels.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="zoomLevel"/> is less than or equal to zero.</exception>
+    public Task RestoreViewStateAsync(double zoomLevel, double panX, double panY)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(zoomLevel, 0.0);
+        if (_webView is null)
+        {
+            SimpleLogger.Log("Cannot restore view state: WebView is null");
+            return Task.CompletedTask;
+        }
+
+        return RestoreViewStateCoreAsync(zoomLevel, panX, panY);
+    }
+
+    /// <summary>
+    /// Restores the view state of a web view by applying the specified zoom level and pan coordinates.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>restoreViewState</c> in the web view, if
+    /// it is defined. The function is invoked with the specified zoom level and pan coordinates. Ensure that the web
+    /// view is initialized and the <c>restoreViewState</c> function is available in the global JavaScript context
+    /// before calling this method.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply.</param>
+    /// <param name="panY">The vertical pan offset to apply.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    private async Task RestoreViewStateCoreAsync(double zoomLevel, double panX, double panY)
+    {
+        // minimize script injection possibilities by using Json serialization for the parameters
+        string zoomLevelJson = JsonSerializer.Serialize(zoomLevel);
+        string panXJson = JsonSerializer.Serialize(panX);
+        string panYJson = JsonSerializer.Serialize(panY);
+        string script = $@"
+        if (typeof globalThis.restoreViewState === 'function') {{
+            globalThis.restoreViewState({zoomLevelJson}, 
+                                        {panXJson}, 
+                                        {panYJson});
+        }}
+        ";
+        try
+        {
+            await _webView!.ExecuteScriptAsync(script);
+            SimpleLogger.Log($"Restored view state: zoom={zoomLevel}, pan=({panX}, {panY})");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Failed to restore view state", ex);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously retrieves the current view state, including zoom level and pan offsets, from the WebView.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function, <c>getViewState</c>, in the WebView's context to
+    /// obtain the view state. The JavaScript function must be defined globally as <c>globalThis.getViewState</c> and
+    /// return an object with the properties <c>zoom</c>, <c>panX</c>, and <c>panY</c>. If the function is not defined
+    /// or returns <c>null</c>, this method will return <c>null</c>.</remarks>
+    /// <returns>A tuple containing the zoom level, horizontal pan offset, and vertical pan offset, or <c>null</c> if the view
+    /// state cannot be retrieved.</returns>
+    public async Task<(double zoom, double panX, double panY)?> GetViewStateAsync()
+    {
+        if (_webView is null)
+        {
+            SimpleLogger.Log("Cannot get view state: WebView is null");
+            return null;
+        }
+
+        const string script = @"
+        (function() {
+            if (typeof globalThis.getViewState === 'function') {
+                const state = globalThis.getViewState();
+                return JSON.stringify(state);
+            }
+            return null;
+        })();
+        ";
+
+        try
+        {
+            string? result = await _webView.ExecuteScriptAsync(script);
+            if (string.IsNullOrEmpty(result) || result == "null" || result == "undefined")
+            {
+                SimpleLogger.Log($"globalThis.getViewState() returned: {result}");
+                return null;
+            }
+
+            using JsonDocument json = JsonDocument.Parse(result);
+            JsonElement root = json.RootElement;
+            if (root.TryGetProperty("zoom", out JsonElement zoomElem) &&
+                root.TryGetProperty("panX", out JsonElement panXElem) &&
+                root.TryGetProperty("panY", out JsonElement panYElem) &&
+                zoomElem.ValueKind == JsonValueKind.Number &&
+                panXElem.ValueKind == JsonValueKind.Number &&
+                panYElem.ValueKind == JsonValueKind.Number)
+            {
+                double zoom = zoomElem.GetDouble();
+                double panX = panXElem.GetDouble();
+                double panY = panYElem.GetDouble();
+                return (zoom, panX, panY);
+            }
+
+            SimpleLogger.Log("State JSON missing required properties or invalid types.");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Failed to get view state", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Registers a callback to receive updates on the export progress.
     /// </summary>
     /// <remarks>The provided callback will be added to the list of registered callbacks and invoked

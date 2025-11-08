@@ -20,6 +20,7 @@
 
 using AsyncAwaitBestPractices;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -49,6 +50,15 @@ public sealed partial class MainWindow : Window
     private bool _suppressEditorStateSync; // Prevent circular updates
 
     private const int WebViewReadyTimeoutSeconds = 30;
+    private const string ZoomCommandReset = "resetZoom";
+    private const string ZoomCommandIn = "zoomIn";
+    private const string ZoomCommandOut = "zoomOut";
+    private static readonly HashSet<string> _allowedZoomCommands =
+    [
+        ZoomCommandReset,
+        ZoomCommandIn,
+        ZoomCommandOut
+    ];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -73,6 +83,9 @@ public sealed partial class MainWindow : Window
 
         Opened += OnOpened;
         Closing += OnClosing;
+
+        // Add keyboard shortcuts for zoom
+        KeyDown += OnKeyDown;
 
         // Focus the editor when the window is activated
         Activated += (_, _) => BringFocusToEditor();
@@ -429,6 +442,74 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Handles the <see cref="OnKeyDown"/> event to process keyboard shortcuts for zoom commands.
+    /// </summary>
+    /// <remarks>This method listens for specific key combinations involving the <c>Control</c> key and
+    /// numeric or symbol keys to execute zoom-related commands: <list type="bullet"> <item><description><c>Ctrl+0</c>:
+    /// Resets the zoom level.</description></item> <item><description><c>Ctrl++</c>: Zooms in.</description></item>
+    /// <item><description><c>Ctrl+-</c>: Zooms out.</description></item> </list> The method ensures that the zoom
+    /// commands are executed only when the <c>Control</c> key is pressed and the WebView is ready. If a recognized key
+    /// combination is handled, the event is marked as handled by setting <see cref="KeyEventArgs.Handled"/> to <see
+    /// langword="true"/>.</remarks>
+    /// <param name="sender">The source of the event. This parameter is optional and may be <see langword="null"/>.</param>
+    /// <param name="e">The <see cref="KeyEventArgs"/> instance containing the event data, including the key pressed and any modifier
+    /// keys.</param>
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        bool isCtrlPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (!isCtrlPressed || !_vm.IsWebViewReady)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.D0: // Ctrl+0 - Reset zoom
+            case Key.NumPad0:
+                ExecuteZoomCommand(ZoomCommandReset);
+                e.Handled = true;
+                break;
+
+            case Key.OemPlus: // Ctrl++ - Zoom in
+            case Key.Add:
+                ExecuteZoomCommand(ZoomCommandIn);
+                e.Handled = true;
+                break;
+
+            case Key.OemMinus: // Ctrl+- - Zoom out
+            case Key.Subtract:
+                ExecuteZoomCommand(ZoomCommandOut);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Executes a specified zoom command by invoking a corresponding JavaScript function in the web preview.
+    /// </summary>
+    /// <remarks>If the specified JavaScript function does not exist or an error occurs during execution, the
+    /// failure is logged.</remarks>
+    /// <param name="command">The name of the JavaScript function to execute. This function must be defined in the global scope of the web
+    /// preview.</param>
+    private void ExecuteZoomCommand(string command)
+    {
+        if (!_allowedZoomCommands.Contains(command))
+        {
+            SimpleLogger.LogError($"Attempted to execute invalid zoom command: {command}");
+            return;
+        }
+
+        string script = $@"
+        if (typeof globalThis.{command} === 'function') {{
+            globalThis.{command}();
+        }}
+        ";
+
+        _renderer.ExecuteScriptAsync(script)
+            .SafeFireAndForget(onException: ex => SimpleLogger.LogError($"Exception while executing zoom command script: {command}", ex));
+    }
+
+    /// <summary>
     /// Handles the window close event and initiates the cleanup sequence.
     /// </summary>
     /// <param name="sender">Event sender (window).</param>
@@ -454,6 +535,16 @@ public sealed partial class MainWindow : Window
     private async Task OnClosingAsync()
     {
         SimpleLogger.Log("Window closing, cleaning up...");
+
+        // Get and save current zoom/pan state
+        var viewState = await _renderer.GetViewStateAsync();
+        if (viewState.HasValue)
+        {
+            _vm.ZoomLevel = viewState.Value.zoom;
+            _vm.PanOffsetX = viewState.Value.panX;
+            _vm.PanOffsetY = viewState.Value.panY;
+            SimpleLogger.Log($"Saved view state: zoom={viewState.Value.zoom}, pan=({viewState.Value.panX}, {viewState.Value.panY})");
+        }
 
         // Save state
         _vm.Persist();
@@ -500,6 +591,9 @@ public sealed partial class MainWindow : Window
 
             // Step 2: Kick first render; index.html sets globalThis.__renderingComplete__ in hideLoadingIndicator()
             await _renderer.RenderAsync(_vm.DiagramText);
+
+            // Step 2.5: Restore zoom and pan state
+            await _renderer.RestoreViewStateAsync(_vm.ZoomLevel, _vm.PanOffsetX, _vm.PanOffsetY);
 
             // Step 3: Await readiness
             try
