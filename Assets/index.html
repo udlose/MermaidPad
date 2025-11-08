@@ -1389,11 +1389,12 @@
       }
 
       // Create new panzoom instance
+      // Avoid the 'contain' option; it overrides minScale and prevents zooming out
+      // Pan limiting is handled manually in panLimitHandler
       globalThis.panzoomInstance = Panzoom(output, {
         maxScale: 4,          // 400% max zoom
         minScale: 0.1,        // 10% min zoom
         step: 0.25,           // 25% zoom increment
-        contain: 'outside',   // Allow panning beyond boundaries
         cursor: 'grab',       // Cursor style when panning
         animate: true,        // Smooth animations
         duration: 200,        // Animation duration in ms
@@ -1425,9 +1426,12 @@
         updateZoomDisplay();
       };
 
-      // Pan limit handler to prevent losing the diagram
+      // Pan limit handler to prevent completely "losing" the diagram
+      // Now accounts for container size and prevents panning when diagram fits
+      let isApplyingPanLimit = false; // Prevents recursion
+
       const panLimitHandler = function () {
-        if (!globalThis.panzoomInstance) return;
+        if (!globalThis.panzoomInstance || isApplyingPanLimit) return;
 
         const scale = globalThis.panzoomInstance.getScale();
         const pan = globalThis.panzoomInstance.getPan();
@@ -1437,16 +1441,41 @@
         if (!svg) return;
 
         const svgRect = svg.getBoundingClientRect();
+        const containerRect = output.getBoundingClientRect();
 
         // Calculate limits (keep at least 20% of diagram visible)
         const minVisiblePercent = 0.2;
         const scaledWidth = svgRect.width;
         const scaledHeight = svgRect.height;
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
 
-        const maxPanX = (scaledWidth * (1 - minVisiblePercent));
-        const minPanX = -(scaledWidth * (1 - minVisiblePercent));
-        const maxPanY = (scaledHeight * (1 - minVisiblePercent));
-        const minPanY = -(scaledHeight * (1 - minVisiblePercent));
+        // Calculate pan limits based on container size
+        // The maximum pan is the amount by which the diagram can be moved before only minVisiblePercent remains visible.
+        // If the diagram is smaller than the container, center it and prevent panning.
+        let maxPanX, minPanX, maxPanY, minPanY;
+
+        if (scaledWidth <= containerWidth) {
+          // Diagram fits horizontally - center it and prevent panning
+          maxPanX = minPanX = 0;
+        } else {
+          // Diagram is larger than container - allow panning with 20% visibility constraint
+          // Formula: maxPan = (scaledWidth - containerWidth) / 2 + (containerWidth * minVisiblePercent) / 2
+          // Simplified: maxPan = (scaledWidth - containerWidth * (1 - minVisiblePercent)) / 2
+          const panBudget = (scaledWidth - containerWidth * (1 - minVisiblePercent)) / 2;
+          maxPanX = panBudget;
+          minPanX = -panBudget;
+        }
+
+        if (scaledHeight <= containerHeight) {
+          // Diagram fits vertically - center it and prevent panning
+          maxPanY = minPanY = 0;
+        } else {
+          // Diagram is larger than container - allow panning with 20% visibility constraint
+          const panBudget = (scaledHeight - containerHeight * (1 - minVisiblePercent)) / 2;
+          maxPanY = panBudget;
+          minPanY = -panBudget;
+        }
 
         // Apply limits if exceeded
         let limitedX = pan.x;
@@ -1470,10 +1499,10 @@
         }
 
         if (needsCorrection) {
-          // Temporarily remove this listener to avoid recursion
-          output.removeEventListener('panzoomchange', panLimitHandler);
+          // Use anti-recursion flag instead of removing listener
+          isApplyingPanLimit = true;
           globalThis.panzoomInstance.pan(limitedX, limitedY, { animate: false });
-          output.addEventListener('panzoomchange', panLimitHandler);
+          isApplyingPanLimit = false;
         }
       };
 
@@ -1524,20 +1553,6 @@
       let initialX;
       let initialY;
 
-      const handleMouseDown = (e) => {
-        // Only allow dragging from toolbar background, not buttons
-        if (e.target.closest('.zoom-button') || e.target.closest('#zoom-level-display')) {
-          return;
-        }
-
-        isDragging = true;
-        initialX = e.clientX - (parseInt(toolbar.style.left) || 0);
-        initialY = e.clientY - (parseInt(toolbar.style.top) || 0);
-
-        toolbar.style.cursor = 'grabbing';
-        e.preventDefault();
-      };
-
       const handleMouseMove = (e) => {
         if (!isDragging) return;
 
@@ -1563,16 +1578,44 @@
         if (isDragging) {
           isDragging = false;
           toolbar.style.cursor = '';
+
+          // Remove mousemove/mouseup listeners after drag ends
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
         }
       };
 
-      // Attach handlers (these persist for lifetime of page since toolbar is never destroyed)
+      const handleMouseDown = (e) => {
+        // Only allow dragging from toolbar background, not buttons
+        if (e.target.closest('.zoom-button') || e.target.closest('#zoom-level-display')) {
+          return;
+        }
+
+        isDragging = true;
+
+        // Use offsetLeft/offsetTop to get rendered position
+        // This correctly handles the initial fixed position (bottom: 20px, right: 20px)
+        initialX = e.clientX - toolbar.offsetLeft;
+        initialY = e.clientY - toolbar.offsetTop;
+
+        toolbar.style.cursor = 'grabbing';
+
+        // Attach mousemove/mouseup only during drag
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        e.preventDefault();
+      };
+
+      // Only attach mousedown handler (mousemove/mouseup are attached dynamically during drag)
       toolbar.addEventListener('mousedown', handleMouseDown);
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
     }
 
     // Keyboard pan: Defined at global scope (initialized once)
+    // ArrowUp should pan UP (move content down = positive Y)
+    // ArrowDown should pan DOWN (move content up = negative Y)
+    // ArrowLeft should pan LEFT (move content right = positive X)
+    // ArrowRight should pan RIGHT (move content left = negative X)
     function handleKeyboardPan(event) {
       if (!globalThis.panzoomInstance) return;
 
@@ -1587,19 +1630,19 @@
 
       switch (event.key) {
         case 'ArrowUp':
-          globalThis.panzoomInstance.pan(0, panDistance, { relative: true });
-          handled = true;
-          break;
-        case 'ArrowDown':
           globalThis.panzoomInstance.pan(0, -panDistance, { relative: true });
           handled = true;
           break;
+        case 'ArrowDown':
+          globalThis.panzoomInstance.pan(0, panDistance, { relative: true });
+          handled = true;
+          break;
         case 'ArrowLeft':
-          globalThis.panzoomInstance.pan(panDistance, 0, { relative: true });
+          globalThis.panzoomInstance.pan(-panDistance, 0, { relative: true });
           handled = true;
           break;
         case 'ArrowRight':
-          globalThis.panzoomInstance.pan(-panDistance, 0, { relative: true });
+          globalThis.panzoomInstance.pan(panDistance, 0, { relative: true });
           handled = true;
           break;
       }
@@ -1651,17 +1694,34 @@
       }
     };
 
+    // Fit-to-screen to use intrinsic SVG dimensions
+    // getBoundingClientRect() returns scaled dimensions, not original dimensions
     globalThis.fitToScreen = function () {
       if (globalThis.panzoomInstance) {
         const output = document.getElementById('output');
         const svg = output?.querySelector('svg');
 
         if (svg) {
-          const svgRect = svg.getBoundingClientRect();
+          // Get intrinsic SVG dimensions (not scaled dimensions)
+          let svgWidth, svgHeight;
+
+          if (svg.hasAttribute('viewBox')) {
+            // Parse viewBox: "min-x min-y width height"
+            const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+            svgWidth = parseFloat(viewBox[2]);
+            svgHeight = parseFloat(viewBox[3]);
+          } else {
+            // Fallback to width/height attributes or clientWidth/clientHeight
+            svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+            svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          }
+
           const outputRect = output.getBoundingClientRect();
 
-          const scaleX = (outputRect.width - 40) / svgRect.width;
-          const scaleY = (outputRect.height - 40) / svgRect.height;
+          // Calculate scale with 40px padding
+          const padding = 40;
+          const scaleX = (outputRect.width - padding) / svgWidth;
+          const scaleY = (outputRect.height - padding) / svgHeight;
           const scale = Math.min(scaleX, scaleY, 1);
 
           globalThis.panzoomInstance.reset({ animate: false });
@@ -1696,17 +1756,16 @@
       if (globalThis.panzoomInstance) {
         const scale = globalThis.panzoomInstance.getScale();
         const pan = globalThis.panzoomInstance.getPan();
-        return {
+        // Return JSON string for C# ExecuteScriptAsync
+        return JSON.stringify({
           zoom: scale,
           panX: pan.x,
           panY: pan.y
-        };
+        });
       }
-      return { zoom: 1.0, panX: 0, panY: 0 };
+      // Return JSON string for default state
+      return JSON.stringify({ zoom: 1.0, panX: 0, panY: 0 });
     };
-
-    console.log('Pan/zoom functions registered');
-    console.log('Hover enhancement function registered: globalThis.enhanceHoverability');
   </script>
 </head>
 <body>
