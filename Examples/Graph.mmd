@@ -1,0 +1,14 @@
+graph TD
+    A[Start Build] --> B{runtimeFlavor specified?}
+    B -->|No| C[Default to CoreCLR + subset logic]
+    B -->|Yes| D{Which flavor?}
+    D -->|coreclr| E[CoreCLR only mode]
+    D -->|mono| F[Mono only mode]
+    C --> G[Build CoreCLR components + whatever's in subset]
+    E --> H{subset contains mono?}
+    F --> I{needs CoreCLR deps?}
+    H -->|Yes| J[CONFLICT - can't build mono in CoreCLR-only mode]
+    H -->|No| K[Build CoreCLR only]
+    I -->|Yes| L[FAIL - missing corehost dependencies]
+    I -->|No| M[Build Mono only]
+    G --> N[SUCCESS - builds both as needed]
