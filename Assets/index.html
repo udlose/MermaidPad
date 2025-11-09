@@ -800,9 +800,15 @@
             const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
             setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
           }
-          // Initialize pan/zoom after SVG is rendered
+          // Initialize pan/zoom after SVG is rendered (only if not already initialized)
           if (typeof globalThis.initializePanZoom === 'function') {
-            globalThis.initializePanZoom();
+            // Only initialize if this is the first render OR if panzoom was destroyed
+            if (!globalThis.panzoomInstance) {
+              console.log('First render - initializing pan/zoom');
+              globalThis.initializePanZoom();
+            } else {
+              console.log('Pan/zoom already initialized - skipping re-init');
+            }
           }
         } else {
           showError('Invalid diagram content received');
@@ -1342,7 +1348,8 @@
 
     // ==========================================
     // PANZOOM FUNCTIONALITY
-    // Initializes pan/zoom on the output container. Preserve zoom/pan state across renders
+    // Initializes pan/zoom on the output container
+    // FIXED: Now preserves zoom/pan state across renders
     // ==========================================
     globalThis.panzoomInstance = null;
     globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
@@ -1355,7 +1362,7 @@
         return;
       }
 
-      // Capture current state BEFORE destroying instance
+      // FIXED BUG #3: Capture current state BEFORE destroying instance
       let savedState = null;
       if (globalThis.panzoomInstance && globalThis.panzoomInitializedOnce) {
         try {
@@ -1417,7 +1424,7 @@
         startY: 0             // Default start centered
       });
 
-      // Restore saved state after creating new instance
+      // FIXED BUG #3: Restore saved state after creating new instance
       if (savedState) {
         try {
           // Reset to defaults first (without animation)
@@ -1435,6 +1442,56 @@
           console.log('Restored saved state:', savedState);
         } catch (e) {
           console.warn('Failed to restore state:', e);
+        }
+      }
+      // Apply initial centering if no saved state
+      else {
+        console.log("=== ATTEMPTING INITIAL CENTERING ===");
+        console.log("no saved state to apply");
+
+        try {
+          const svg = output.querySelector('svg');
+          console.log("SVG found:", !!svg);
+
+          if (svg) {
+            let svgWidth, svgHeight;
+            if (svg.hasAttribute('viewBox')) {
+              const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+              svgWidth = parseFloat(viewBox[2]);
+              svgHeight = parseFloat(viewBox[3]);
+              console.log("Using viewBox dimensions:", { svgWidth, svgHeight });
+            } else {
+              svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+              svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+              console.log("Using attribute/client dimensions:", { svgWidth, svgHeight });
+            }
+
+            const outputRect = output.getBoundingClientRect();
+            console.log("Output container dimensions:", {
+              width: outputRect.width,
+              height: outputRect.height
+            });
+
+            const outputPadding = 8;
+
+            // Center at initial 100% scale
+            const panX = (outputRect.width - svgWidth) / 2 - outputPadding;
+            const panY = (outputRect.height - svgHeight) / 2 - outputPadding;
+
+            console.log("Calculated pan values:", { panX, panY });
+
+            globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+            console.log("Pan applied successfully");
+
+            // Verify it was applied
+            const verifyPan = globalThis.panzoomInstance.getPan();
+            console.log("Verified pan after apply:", verifyPan);
+            console.log("=== INITIAL CENTERING COMPLETE ===");
+          } else {
+            console.warn("SVG not found in output container!");
+          }
+        } catch (e) {
+          console.error('Failed initial centering:', e);
         }
       }
 
@@ -1460,9 +1517,9 @@
         updateZoomDisplay();
       };
 
-      // Pan limit handler with correct formula and debouncing for re-entrancy
+      // FIXED BUG #1, #2, #4: Pan limit handler with correct formula and thread-safety
       // Allows panning at any zoom level while maintaining 20% minimum visibility
-      // Uses timestamp-based debouncing to prevent re-entrant corrections during rapid pan events
+      // Uses timestamp-based debouncing instead of boolean flag for thread-safety
       let lastPanLimitTime = 0;
       const panLimitDebounceMs = 16; // ~60fps - prevents re-entrancy during rapid pan events
 
@@ -1491,7 +1548,7 @@
         const containerWidth = containerRect.width;
         const containerHeight = containerRect.height;
 
-        // Calculate pan limits that work at any zoom level
+        // FIXED: Calculate pan limits that work at any zoom level
         // When panned fully right: only the leftmost 20% remains visible
         // When panned fully left: only the rightmost 20% remains visible
         // Formula works regardless of whether diagram is larger or smaller than container
@@ -1703,7 +1760,34 @@
 
     globalThis.resetZoom = function () {
       if (globalThis.panzoomInstance) {
-        globalThis.panzoomInstance.reset();
+        const output = document.getElementById('output');
+        const svg = output?.querySelector('svg');
+
+        if (svg) {
+          // Get intrinsic SVG dimensions
+          let svgWidth, svgHeight;
+          if (svg.hasAttribute('viewBox')) {
+            const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+            svgWidth = parseFloat(viewBox[2]);
+            svgHeight = parseFloat(viewBox[3]);
+          } else {
+            svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+            svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          }
+
+          const outputRect = output.getBoundingClientRect();
+
+          // Center at 100% zoom
+          const outputPadding = 8;
+          const panX = (outputRect.width - svgWidth) / 2 - outputPadding;
+          const panY = (outputRect.height - svgHeight) / 2 - outputPadding;
+
+          // Apply both zoom and pan without animation to avoid race conditions
+          globalThis.panzoomInstance.zoom(1.0, { animate: false });
+          globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+          console.log(`Reset: zoom=100%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+        }
       }
     };
 
@@ -1713,54 +1797,74 @@
         const svg = output?.querySelector('svg');
 
         if (svg) {
-          const currentScale = globalThis.panzoomInstance.getScale();
-          globalThis.panzoomInstance.reset({ animate: false });
-          globalThis.panzoomInstance.zoom(currentScale, { animate: true });
+          // Get intrinsic SVG dimensions
+          let svgWidth, svgHeight;
+          if (svg.hasAttribute('viewBox')) {
+            const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+            svgWidth = parseFloat(viewBox[2]);
+            svgHeight = parseFloat(viewBox[3]);
+          } else {
+            svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+            svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          }
+
+          const outputRect = output.getBoundingClientRect();
+          const scale = globalThis.panzoomInstance.getScale();
+
+          // Account for 8px padding in #output CSS
+          const outputPadding = 8;
+          const panX = (outputRect.width - svgWidth * scale) / 2 - outputPadding;
+          const panY = (outputRect.height - svgHeight * scale) / 2 - outputPadding;
+
+          globalThis.panzoomInstance.pan(panX, panY, { animate: true });
+          console.log(`Centered at ${Math.round(scale * 100)}%: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
         }
       }
     };
 
-    // Fit-to-screen is idempotent
+    // FIXED BUG #4: Fit-to-screen is now idempotent (same result on repeated clicks)
     // Uses intrinsic SVG dimensions and calculates proper center position
+    // FIXED: Removed 1.0 max scale limit to allow zooming out for large diagrams
     globalThis.fitToScreen = function () {
       if (globalThis.panzoomInstance) {
         const output = document.getElementById('output');
         const svg = output?.querySelector('svg');
 
         if (svg) {
-          // Get intrinsic SVG dimensions (not scaled dimensions)
+          // Get intrinsic SVG dimensions
           let svgWidth, svgHeight;
-
           if (svg.hasAttribute('viewBox')) {
-            // Parse viewBox: "min-x min-y width height"
             const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
             svgWidth = parseFloat(viewBox[2]);
             svgHeight = parseFloat(viewBox[3]);
           } else {
-            // Fallback to width/height attributes or clientWidth/clientHeight
             svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
             svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
           }
 
           const outputRect = output.getBoundingClientRect();
 
-          // Calculate scale with 40px padding
-          const padding = 40;
-          const scaleX = (outputRect.width - padding) / svgWidth;
-          const scaleY = (outputRect.height - padding) / svgHeight;
-          const targetScale = Math.min(scaleX, scaleY, 1);
+          // Calculate scale to fit with 40px diagram padding
+          const diagramPadding = 40;
+          const scaleX = (outputRect.width - diagramPadding) / svgWidth;
+          const scaleY = (outputRect.height - diagramPadding) / svgHeight;
+          const targetScale = Math.min(scaleX, scaleY);
 
-          // Don't call reset() - instead calculate proper center position
-          // This makes repeated clicks idempotent
-          // Calculate the centered position for the scaled diagram
-          const scaledWidth = svgWidth * targetScale;
-          const scaledHeight = svgHeight * targetScale;
-          const centerX = (outputRect.width - scaledWidth) / 2;
-          const centerY = (outputRect.height - scaledHeight) / 2;
+          // Clamp to panzoom limits
+          const minZoomScale = 0.1;
+          const maxZoomScale = 4;
+          const clampedScale = Math.max(minZoomScale, Math.min(maxZoomScale, targetScale));
 
-          // Apply zoom and pan in sequence
-          globalThis.panzoomInstance.zoom(targetScale, { animate: false });
-          globalThis.panzoomInstance.pan(centerX, centerY, { animate: true });
+          // Calculate centered pan at target scale
+          const outputPadding = 8;
+          const panX = (outputRect.width - svgWidth * clampedScale) / 2 - outputPadding;
+          const panY = (outputRect.height - svgHeight * clampedScale) / 2 - outputPadding;
+
+          // Apply both without animation to avoid conflicts
+          globalThis.panzoomInstance.zoom(clampedScale, { animate: false });
+          globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+          console.log(`Fit: scale=${(clampedScale * 100).toFixed(0)}%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
         }
       }
     };
@@ -1769,25 +1873,60 @@
     globalThis.restoreViewState = function (zoomLevel, panX, panY) {
       if (globalThis.panzoomInstance) {
         try {
-          globalThis.panzoomInstance.reset({ animate: false });
+          // If C# is restoring default (0, 0), apply centering instead
+          const panToleranceThreshold = 0.1;
+          if ((panX === 0 && panY === 0) || (Math.abs(panX) < panToleranceThreshold && Math.abs(panY) < panToleranceThreshold)) {
+            console.log('Detected default pan values - applying centering instead');
 
-          if (zoomLevel && zoomLevel !== 1.0) {
-            globalThis.panzoomInstance.zoom(zoomLevel, { animate: false });
-          }
+            const output = document.getElementById('output');
+            const svg = output?.querySelector('svg');
 
-          if (panX !== 0 || panY !== 0) {
+            if (svg) {
+              let svgWidth, svgHeight;
+              if (svg.hasAttribute('viewBox')) {
+                const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+                svgWidth = parseFloat(viewBox[2]);
+                svgHeight = parseFloat(viewBox[3]);
+              } else {
+                svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+                svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+              }
+
+              const outputRect = output.getBoundingClientRect();
+              const outputPadding = 8;
+              const scale = zoomLevel || 1.0;
+
+              // Calculate centered position
+              const centeredPanX = (outputRect.width - svgWidth * scale) / 2 - outputPadding;
+              const centeredPanY = (outputRect.height - svgHeight * scale) / 2 - outputPadding;
+
+              globalThis.panzoomInstance.zoom(scale, { animate: false });
+              globalThis.panzoomInstance.pan(centeredPanX, centeredPanY, { animate: false });
+
+              console.log(`Applied centering: zoom=${scale}, pan=(${centeredPanX.toFixed(1)}, ${centeredPanY.toFixed(1)})`);
+            }
+          } else {
+            // Normal restoration with saved pan values
+            globalThis.panzoomInstance.reset({ animate: false });
+
+            if (zoomLevel && zoomLevel !== 1.0) {
+              globalThis.panzoomInstance.zoom(zoomLevel, { animate: false });
+            }
+
             globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+            console.log(`Restored view state: zoom=${zoomLevel}, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
           }
 
           updateZoomDisplay();
-          console.log(`Restored view state: zoom=${zoomLevel}, pan=(${panX}, ${panY})`);
         } catch (e) {
           console.error('Error restoring view state:', e);
         }
       }
     };
 
-    // Return plain JSON object (not stringified). C# will handle the serialization
+    // FIXED BUG #5: Return plain JSON object (not stringified)
+    // C# will handle the serialization
     globalThis.getViewState = function () {
       if (globalThis.panzoomInstance) {
         const scale = globalThis.panzoomInstance.getScale();
@@ -1801,6 +1940,79 @@
       }
       // Return JSON string for default state
       return JSON.stringify({ zoom: 1.0, panX: 0, panY: 0 });
+    };
+
+    globalThis.debugPanZoom = function () {
+      if (!globalThis.panzoomInstance) {
+        console.log('No panzoom instance');
+        return;
+      }
+
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (!svg) {
+        console.log('No SVG found');
+        return;
+      }
+
+      // Get all dimensions
+      let svgWidth, svgHeight;
+      if (svg.hasAttribute('viewBox')) {
+        const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+        svgWidth = parseFloat(viewBox[2]);
+        svgHeight = parseFloat(viewBox[3]);
+      } else {
+        svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+        svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+      }
+
+      const svgRect = svg.getBoundingClientRect();
+      const outputRect = output.getBoundingClientRect();
+      const scale = globalThis.panzoomInstance.getScale();
+      const pan = globalThis.panzoomInstance.getPan();
+
+      // Get computed transform for verification
+      const transform = window.getComputedStyle(output).transform;
+
+      console.log('=== PAN/ZOOM DEBUG INFO ===');
+      console.log('SVG intrinsic dimensions:', { width: svgWidth, height: svgHeight });
+      console.log('SVG bounding rect (scaled):', {
+        width: svgRect.width,
+        height: svgRect.height,
+        left: svgRect.left,
+        top: svgRect.top
+      });
+      console.log('Container bounding rect:', {
+        width: outputRect.width,
+        height: outputRect.height,
+        left: outputRect.left,
+        top: outputRect.top
+      });
+      console.log('Current scale:', scale);
+      console.log('Current pan:', pan);
+      console.log('Computed transform:', transform);
+      console.log('SVG visual position relative to container:', {
+        left: svgRect.left - outputRect.left,
+        top: svgRect.top - outputRect.top
+      });
+      console.log('Expected centered position (if centered):', {
+        left: (outputRect.width - svgRect.width) / 2,
+        top: (outputRect.height - svgRect.height) / 2
+      });
+      console.log('========================');
+
+      return {
+        svgIntrinsic: { width: svgWidth, height: svgHeight },
+        svgScaled: { width: svgRect.width, height: svgRect.height },
+        container: { width: outputRect.width, height: outputRect.height },
+        scale: scale,
+        pan: pan,
+        visualOffset: {
+          left: svgRect.left - outputRect.left,
+          top: svgRect.top - outputRect.top
+        }
+      };
     };
   </script>
 </head>
