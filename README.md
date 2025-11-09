@@ -50,7 +50,7 @@ MermaidPad offers a streamlined experience for editing, previewing, and exportin
 - 23 different chart and diagram types supported (see examples below)
 - Edit Mermaid markup and preview diagrams in real-time
 - "Live Preview" for instant rendering
-- Includes bundled `mermaid.min.js` and other javascript assets for offline use
+- Includes bundled `mermaid.min.js` and other JavaScript assets for offline use
 - Persistent storage of last diagram in user settings (`AppData\MermaidPad\settings.json`)
 - Adjustable editor pane via draggable divider
 - SHA256 integrity check for bundled file assets (verifies assets at startup and during updates)
