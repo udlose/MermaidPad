@@ -575,7 +575,7 @@ public sealed partial class MainWindow : Window
     /// <param name="e">Cancel Event Arguments.</param>
     private void GetContextMenuState(object? sender, CancelEventArgs e)
     {
-        //Get Clipboard state
+        // Get Clipboard state
         _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
 
         UpdateCanPasteClipboardAsync()
