@@ -609,16 +609,19 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            // Perform clipboard I/O off the UI context
             clipboardText = await GetTextFromClipboardAsync(this)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
+            // Log and treat as no pasteable text
             SimpleLogger.LogError("Error reading clipboard text", ex);
         }
 
         bool canPaste = !string.IsNullOrWhiteSpace(clipboardText);
 
+        // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
     }
 }
