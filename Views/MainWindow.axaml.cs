@@ -583,10 +583,10 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Task that returns the text data format from the Clipboard, clipboard text can return null.
+    /// Task that returns the text data format from the Clipboard.
     /// </summary>
     /// <param name="window">The window instance</param>
-    private static async Task<string> GetTextFromClipboardAsync(Window window)
+    private static async Task<string?> GetTextFromClipboardAsync(Window window)
     {
         IClipboard? clipboard = window.Clipboard;
 
