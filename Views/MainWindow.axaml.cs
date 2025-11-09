@@ -594,7 +594,7 @@ public sealed partial class MainWindow : Window
         {
             return null;
         }
-         
+        
         string? clipboardText = await clipboard.TryGetTextAsync();
 
         return clipboardText;
