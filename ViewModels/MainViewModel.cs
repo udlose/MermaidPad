@@ -122,9 +122,9 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool CanCopyClipboard { get; set; }
 
-    ///// <summary>
-    ///// Gets or sets a value indicating whether there is available content in the clipboard to paste.
-    ///// </summary>
+    /// <summary>
+    /// Gets or sets a value indicating whether there is available content in the clipboard to paste.
+    /// </summary>
     [ObservableProperty]
     public partial bool CanPasteClipboard { get; set; }
 
