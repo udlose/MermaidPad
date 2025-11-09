@@ -46,9 +46,9 @@
       position: relative; /*for panzoom positioning*/
     }
 
-    #output.visible {
-      display: block;
-    }
+      #output.visible {
+        display: block;
+      }
 
     .error {
       color: #ff6f6f;
@@ -71,11 +71,11 @@
       transition: opacity var(--loading-transition-duration) ease-out, visibility 0s ease-out var(--loading-transition-duration);
     }
 
-    #loading-container.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
+      #loading-container.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
 
     .spinner {
       width: 2.5rem;
@@ -1342,16 +1342,30 @@
 
     // ==========================================
     // PANZOOM FUNCTIONALITY
-    // Initializes pan/zoom on the output container
+    // Initializes pan/zoom on the output container. Preserve zoom/pan state across renders
     // ==========================================
     globalThis.panzoomInstance = null;
     globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
+    globalThis.panzoomInitializedOnce = false; // Track first initialization
 
     globalThis.initializePanZoom = function () {
       const output = document.getElementById('output');
       if (!output) {
         console.error('Cannot initialize pan/zoom: output element not found');
         return;
+      }
+
+      // Capture current state BEFORE destroying instance
+      let savedState = null;
+      if (globalThis.panzoomInstance && globalThis.panzoomInitializedOnce) {
+        try {
+          const scale = globalThis.panzoomInstance.getScale();
+          const pan = globalThis.panzoomInstance.getPan();
+          savedState = { scale, panX: pan.x, panY: pan.y };
+          console.log('Captured state before re-init:', savedState);
+        } catch (e) {
+          console.warn('Failed to capture state:', e);
+        }
       }
 
       // Remove old event listeners to prevent memory leaks
@@ -1388,9 +1402,8 @@
         }
       }
 
-      // Create new panzoom instance
-      // Avoid the 'contain' option; it overrides minScale and prevents zooming out
-      // Pan limiting is handled manually in panLimitHandler
+      // Create new panzoom instance with default starting position
+      // IMPORTANT: We set defaults here, then restore saved state below if applicable
       globalThis.panzoomInstance = Panzoom(output, {
         maxScale: 4,          // 400% max zoom
         minScale: 0.1,        // 10% min zoom
@@ -1399,10 +1412,31 @@
         animate: true,        // Smooth animations
         duration: 200,        // Animation duration in ms
         easing: 'ease-in-out',
-        startScale: 1,        // Start at 100%
-        startX: 0,            // Start centered
-        startY: 0             // Start centered
+        startScale: 1,        // Default start at 100%
+        startX: 0,            // Default start centered
+        startY: 0             // Default start centered
       });
+
+      // Restore saved state after creating new instance
+      if (savedState) {
+        try {
+          // Reset to defaults first (without animation)
+          globalThis.panzoomInstance.reset({ animate: false });
+
+          // Then apply saved zoom and pan
+          if (savedState.scale !== 1.0) {
+            globalThis.panzoomInstance.zoom(savedState.scale, { animate: false });
+          }
+
+          if (savedState.panX !== 0 || savedState.panY !== 0) {
+            globalThis.panzoomInstance.pan(savedState.panX, savedState.panY, { animate: false });
+          }
+
+          console.log('Restored saved state:', savedState);
+        } catch (e) {
+          console.warn('Failed to restore state:', e);
+        }
+      }
 
       // Event handlers (stored for cleanup)
       const wheelHandler = function (event) {
@@ -1426,14 +1460,21 @@
         updateZoomDisplay();
       };
 
-      // Pan limit handler to prevent completely "losing" the diagram
-      // Now accounts for container size and prevents panning when diagram fits
-      let isApplyingPanLimit = false; // Prevents recursion
+      // Pan limit handler with correct formula and debouncing for re-entrancy
+      // Allows panning at any zoom level while maintaining 20% minimum visibility
+      // Uses timestamp-based debouncing to prevent re-entrant corrections during rapid pan events
+      let lastPanLimitTime = 0;
+      const panLimitDebounceMs = 16; // ~60fps - prevents re-entrancy during rapid pan events
 
       const panLimitHandler = function () {
-        if (!globalThis.panzoomInstance || isApplyingPanLimit) return;
+        if (!globalThis.panzoomInstance) return;
 
-        const scale = globalThis.panzoomInstance.getScale();
+        // Debounce to prevent race conditions during rapid pan events
+        const now = Date.now();
+        if (now - lastPanLimitTime < panLimitDebounceMs) {
+          return;
+        }
+
         const pan = globalThis.panzoomInstance.getPan();
 
         // Get dimensions
@@ -1450,32 +1491,15 @@
         const containerWidth = containerRect.width;
         const containerHeight = containerRect.height;
 
-        // Calculate pan limits based on container size
-        // The maximum pan is the amount by which the diagram can be moved before only minVisiblePercent remains visible.
-        // If the diagram is smaller than the container, center it and prevent panning.
-        let maxPanX, minPanX, maxPanY, minPanY;
+        // Calculate pan limits that work at any zoom level
+        // When panned fully right: only the leftmost 20% remains visible
+        // When panned fully left: only the rightmost 20% remains visible
+        // Formula works regardless of whether diagram is larger or smaller than container
+        const maxPanX = containerWidth - scaledWidth * minVisiblePercent;
+        const minPanX = -scaledWidth * (1 - minVisiblePercent);
 
-        if (scaledWidth <= containerWidth) {
-          // Diagram fits horizontally - center it and prevent panning
-          maxPanX = minPanX = 0;
-        } else {
-          // Diagram is larger than container - allow panning with 20% visibility constraint
-          // Formula: maxPan = (scaledWidth - containerWidth) / 2 + (containerWidth * minVisiblePercent) / 2
-          // Simplified: maxPan = (scaledWidth - containerWidth * (1 - minVisiblePercent)) / 2
-          const panBudget = (scaledWidth - containerWidth * (1 - minVisiblePercent)) / 2;
-          maxPanX = panBudget;
-          minPanX = -panBudget;
-        }
-
-        if (scaledHeight <= containerHeight) {
-          // Diagram fits vertically - center it and prevent panning
-          maxPanY = minPanY = 0;
-        } else {
-          // Diagram is larger than container - allow panning with 20% visibility constraint
-          const panBudget = (scaledHeight - containerHeight * (1 - minVisiblePercent)) / 2;
-          maxPanY = panBudget;
-          minPanY = -panBudget;
-        }
+        const maxPanY = containerHeight - scaledHeight * minVisiblePercent;
+        const minPanY = -scaledHeight * (1 - minVisiblePercent);
 
         // Apply limits if exceeded
         let limitedX = pan.x;
@@ -1499,10 +1523,9 @@
         }
 
         if (needsCorrection) {
-          // Use anti-recursion flag instead of removing listener
-          isApplyingPanLimit = true;
+          // Update timestamp before applying correction to prevent re-entrancy
+          lastPanLimitTime = now;
           globalThis.panzoomInstance.pan(limitedX, limitedY, { animate: false });
-          isApplyingPanLimit = false;
         }
       };
 
@@ -1541,8 +1564,11 @@
         }
       }
 
+      // Mark that we've initialized at least once
+      globalThis.panzoomInitializedOnce = true;
+
       updateZoomDisplay();
-      console.log('Pan/zoom initialized successfully (memory-safe)');
+      console.log('Pan/zoom initialized successfully (memory-safe, state-preserving)');
     };
 
     // Toolbar dragging functionality
@@ -1694,8 +1720,8 @@
       }
     };
 
-    // Fit-to-screen to use intrinsic SVG dimensions
-    // getBoundingClientRect() returns scaled dimensions, not original dimensions
+    // Fit-to-screen is idempotent
+    // Uses intrinsic SVG dimensions and calculates proper center position
     globalThis.fitToScreen = function () {
       if (globalThis.panzoomInstance) {
         const output = document.getElementById('output');
@@ -1722,10 +1748,19 @@
           const padding = 40;
           const scaleX = (outputRect.width - padding) / svgWidth;
           const scaleY = (outputRect.height - padding) / svgHeight;
-          const scale = Math.min(scaleX, scaleY, 1);
+          const targetScale = Math.min(scaleX, scaleY, 1);
 
-          globalThis.panzoomInstance.reset({ animate: false });
-          globalThis.panzoomInstance.zoom(scale, { animate: true });
+          // Don't call reset() - instead calculate proper center position
+          // This makes repeated clicks idempotent
+          // Calculate the centered position for the scaled diagram
+          const scaledWidth = svgWidth * targetScale;
+          const scaledHeight = svgHeight * targetScale;
+          const centerX = (outputRect.width - scaledWidth) / 2;
+          const centerY = (outputRect.height - scaledHeight) / 2;
+
+          // Apply zoom and pan in sequence
+          globalThis.panzoomInstance.zoom(targetScale, { animate: false });
+          globalThis.panzoomInstance.pan(centerX, centerY, { animate: true });
         }
       }
     };
@@ -1752,6 +1787,7 @@
       }
     };
 
+    // Return plain JSON object (not stringified). C# will handle the serialization
     globalThis.getViewState = function () {
       if (globalThis.panzoomInstance) {
         const scale = globalThis.panzoomInstance.getScale();

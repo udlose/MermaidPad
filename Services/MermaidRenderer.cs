@@ -739,11 +739,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return null;
         }
 
+        // Call globalThis.getViewState() which returns JSON.stringify({zoom, panX, panY})
         const string script = @"
         (function() {
             if (typeof globalThis.getViewState === 'function') {
-                const state = globalThis.getViewState();
-                return JSON.stringify(state);
+                return globalThis.getViewState();
             }
             return null;
         })();
@@ -758,7 +758,32 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 return null;
             }
 
-            using JsonDocument json = JsonDocument.Parse(result);
+            // Handle potential double-quoting by WebView bridge
+            // WebView may return: "\"{\\"zoom\\":1.5,\\"panX\\":10,\\"panY\\":20}\""
+            // We need to strip outer quotes if present before parsing
+            string jsonString = result;
+
+            // If the result starts and ends with quotes, it's double-quoted - deserialize once to unwrap
+            if (jsonString.StartsWith('\"') && jsonString.EndsWith('\"') && jsonString.Length > 2)
+            {
+                try
+                {
+                    // Deserialize to remove outer JSON encoding
+                    string? unwrapped = JsonSerializer.Deserialize<string>(jsonString);
+                    if (!string.IsNullOrEmpty(unwrapped))
+                    {
+                        jsonString = unwrapped;
+                        SimpleLogger.Log($"Unwrapped double-quoted JSON: {jsonString}");
+                    }
+                }
+                catch (JsonException)
+                {
+                    // If unwrapping fails, proceed with original string
+                    SimpleLogger.Log("JSON unwrapping failed, using original result");
+                }
+            }
+
+            using JsonDocument json = JsonDocument.Parse(jsonString);
             JsonElement root = json.RootElement;
             if (root.TryGetProperty("zoom", out JsonElement zoomElem) &&
                 root.TryGetProperty("panX", out JsonElement panXElem) &&
@@ -770,6 +795,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 double zoom = zoomElem.GetDouble();
                 double panX = panXElem.GetDouble();
                 double panY = panYElem.GetDouble();
+
+                SimpleLogger.Log($"Retrieved view state: zoom={zoom}, panX={panX}, panY={panY}");
                 return (zoom, panX, panY);
             }
 
