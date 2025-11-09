@@ -1,0 +1,36 @@
+classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +String breed
+        +bark()
+    }
+    Animal <|-- Dog
+    class Cat {
+        +String color
+        +meow()
+    }
+    Animal <|-- Cat
+    class Bird {
+        +String species
+        +fly()
+    }
+    Animal <|-- Bird
+    class Fish {
+        +String type
+        +swim()
+    }
+    Animal <|-- Fish
+    class Reptile {
+        +String habitat
+        +crawl()
+    }
+    Animal <|-- Reptile
+    class Insect {
+        +String wingspan
+        +buzz()
+    }
+    Animal <|-- Insect

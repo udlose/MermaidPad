@@ -1,0 +1,57 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+    %% Nodes
+    Arcade["<strong>Arcade SDK</strong><br/>(dotnet/arcade)<br/><strong>Not Shippable<br/>Status:✅</strong>"]
+    Runtime["*Runtime*<br/>(dotnet/runtime)<br/><strong>Status:✅</strong>"]
+    Extensions["Extensions<br/>(dotnet/extensions)"]
+    EFCore["Entity Framework Core<br/>(dotnet/efcore)<br/><strong>Status:✅</strong>"]
+    ASPNetCore["ASP.NET Core<br/>(dotnet/aspnetcore)<br/><strong>Status:✅</strong>"]
+    WinForms["WinForms<br/>(dotnet/winforms)<br/><strong>Status:✅</strong>"]
+    WPF["WPF<br/>(dotnet/wpf)<br/><strong>Status:✅</strong>"]
+    WindowsDesktop["Windows Desktop<br/>(dotnet/windowsdesktop)<br/><strong>Status:✅</strong>"]
+    SDK["SDK<br/>(dotnet/sdk)<br/><strong>Status:✅</strong>"]
+    Installer["Installer<br/>(dotnet/installer)<br/><strong>Status:✅</strong>"]
+
+    %% Build-time (Arcade SDK) dependencies
+    Arcade --> Runtime
+    Arcade --> Extensions
+    Arcade --> EFCore
+    Arcade --> ASPNetCore
+    Arcade --> WinForms
+    Arcade --> WPF
+    Arcade --> WindowsDesktop
+    Arcade --> SDK
+    Arcade --> Installer
+
+    %% Runtime as foundational dependency
+    Runtime --> Extensions
+    Runtime --> EFCore
+    Runtime --> ASPNetCore
+    Runtime --> WinForms
+    Runtime --> WPF
+    Runtime --> WindowsDesktop
+    Runtime --> SDK
+    Runtime --> Installer
+
+    %% Cross-component dependencies
+    EFCore --> ASPNetCore
+    EFCore --> SDK
+    
+    WinForms --> WPF
+    WinForms --> WindowsDesktop
+    WinForms --> Installer
+
+    WPF --> WindowsDesktop
+    WPF --> SDK
+    WPF --> Installer
+
+    ASPNetCore --> SDK
+    ASPNetCore --> Installer
+
+    WindowsDesktop --> SDK
+    WindowsDesktop --> Installer
+
+    SDK --> Installer

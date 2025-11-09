@@ -1,0 +1,7 @@
+stateDiagram
+    [*] --> Idle
+    Idle --> Processing : start
+    Processing --> Completed : finish
+    Processing --> Error : fail
+    Completed --> Idle : reset
+    Error --> Idle : reset
