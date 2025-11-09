@@ -1348,8 +1348,7 @@
 
     // ==========================================
     // PANZOOM FUNCTIONALITY
-    // Initializes pan/zoom on the output container
-    // FIXED: Now preserves zoom/pan state across renders
+    // Initializes pan/zoom on the output container. Preserves zoom/pan state across renders
     // ==========================================
     globalThis.panzoomInstance = null;
     globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
@@ -1362,7 +1361,7 @@
         return;
       }
 
-      // FIXED BUG #3: Capture current state BEFORE destroying instance
+      // Capture current state BEFORE destroying instance
       let savedState = null;
       if (globalThis.panzoomInstance && globalThis.panzoomInitializedOnce) {
         try {
@@ -1424,7 +1423,7 @@
         startY: 0             // Default start centered
       });
 
-      // FIXED BUG #3: Restore saved state after creating new instance
+      // Restore saved state after creating new instance
       if (savedState) {
         try {
           // Reset to defaults first (without animation)
@@ -1517,7 +1516,7 @@
         updateZoomDisplay();
       };
 
-      // FIXED BUG #1, #2, #4: Pan limit handler with correct formula and thread-safety
+      // Pan limit handler with correct formula and thread-safety
       // Allows panning at any zoom level while maintaining 20% minimum visibility
       // Uses timestamp-based debouncing instead of boolean flag for thread-safety
       let lastPanLimitTime = 0;
@@ -1548,7 +1547,7 @@
         const containerWidth = containerRect.width;
         const containerHeight = containerRect.height;
 
-        // FIXED: Calculate pan limits that work at any zoom level
+        // Calculate pan limits that work at any zoom level
         // When panned fully right: only the leftmost 20% remains visible
         // When panned fully left: only the rightmost 20% remains visible
         // Formula works regardless of whether diagram is larger or smaller than container
@@ -1822,9 +1821,8 @@
       }
     };
 
-    // FIXED BUG #4: Fit-to-screen is now idempotent (same result on repeated clicks)
-    // Uses intrinsic SVG dimensions and calculates proper center position
-    // FIXED: Removed 1.0 max scale limit to allow zooming out for large diagrams
+    // Fit-to-screen is idempotent. Uses intrinsic SVG dimensions and calculates proper center position
+    // Removed 1.0 max scale limit to allow zooming out for large diagrams
     globalThis.fitToScreen = function () {
       if (globalThis.panzoomInstance) {
         const output = document.getElementById('output');
