@@ -577,19 +577,48 @@ public sealed partial class MainWindow : Window
     {
         //Get Clipboard state
         _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
-        _vm.CanPasteClipboard = GetTextFromClipboardAsync(this).Result != String.Empty;
+
+        UpdateCanPasteClipboardAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to update CanPasteClipboard", ex));
     }
 
     /// <summary>
-    /// Task that returns the text data format from the Clipboard
+    /// Task that returns the text data format from the Clipboard, clipboard text can return null.
     /// </summary>
-    /// <param name="window">Window window.</param>
+    /// <param name="window">The window instance</param>
     private static async Task<string> GetTextFromClipboardAsync(Window window)
     {
-        IClipboard? clipboard = window?.Clipboard;
+        IClipboard? clipboard = window.Clipboard;
 
-        var response = await clipboard.TryGetTextAsync();
+        if (clipboard is null)
+        {
+            return null;
+        }
+         
+        string? clipboardText = await clipboard.TryGetTextAsync();
 
-        return response;
+        return clipboardText;
+    }
+
+    /// <summary>
+    /// Reads clipboard text asynchronously and updates the ViewModel's CanPasteClipboard on the UI thread.
+    /// </summary>
+    private async Task UpdateCanPasteClipboardAsync()
+    {
+        string? clipboardText = null;
+
+        try
+        {
+            clipboardText = await GetTextFromClipboardAsync(this)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error reading clipboard text", ex);
+        }
+
+        bool canPaste = !string.IsNullOrWhiteSpace(clipboardText);
+
+        await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
     }
 }
