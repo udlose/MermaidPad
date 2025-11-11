@@ -20,13 +20,13 @@
 
 using AsyncAwaitBestPractices;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
+using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
@@ -46,6 +46,7 @@ public sealed partial class MainWindow : Window
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
+    private readonly SyntaxHighlightingService _syntaxHighlightingService;
 
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
@@ -62,6 +63,8 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     public MainWindow()
     {
+        SimpleLogger.Log("=== MainWindow Initialization Started ===");
+
         InitializeComponent();
 
         IServiceProvider sp = App.Services;
@@ -69,12 +72,12 @@ public sealed partial class MainWindow : Window
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
+        _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
         DataContext = _vm;
-
-        SimpleLogger.Log("=== MainWindow Initialization Started ===");
 
         Opened += OnOpened;
         Closing += OnClosing;
+        ActualThemeVariantChanged += OnThemeChanged;
 
         // Focus the editor when the window is activated
         Activated += (_, _) => BringFocusToEditor();
@@ -91,6 +94,8 @@ public sealed partial class MainWindow : Window
 
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
+
+        InitializeSyntaxHighlighting();
 
         SimpleLogger.Log("=== MainWindow Initialization Completed ===");
     }
@@ -568,6 +573,8 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
+    #region Clipboard methods
+
     /// <summary>
     /// Handler for the Context Menu, to get updated Clipboard State
     /// </summary>
@@ -589,14 +596,12 @@ public sealed partial class MainWindow : Window
     private static async Task<string?> GetTextFromClipboardAsync(Window window)
     {
         IClipboard? clipboard = window.Clipboard;
-
         if (clipboard is null)
         {
             return null;
         }
-        
-        string? clipboardText = await clipboard.TryGetTextAsync();
 
+        string? clipboardText = await clipboard.TryGetTextAsync();
         return clipboardText;
     }
 
@@ -624,4 +629,61 @@ public sealed partial class MainWindow : Window
         // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
     }
+
+    #endregion Clipboard methods
+
+    #region Syntax Highlighting methods
+
+    /// <summary>
+    /// Initializes syntax highlighting for the text editor.
+    /// </summary>
+    /// <remarks>
+    /// This method initializes the syntax highlighting service and applies Mermaid syntax highlighting
+    /// to the editor. The theme is automatically selected based on the current Avalonia theme variant.
+    /// </remarks>
+    private void InitializeSyntaxHighlighting()
+    {
+        try
+        {
+            SimpleLogger.Log("Initializing syntax highlighting...");
+
+            // Initialize the service (verifies grammar resources exist)
+            _syntaxHighlightingService.Initialize();
+
+            // Apply Mermaid syntax highlighting with automatic theme detection
+            _syntaxHighlightingService.ApplyTo(Editor);
+
+            SimpleLogger.Log("Syntax highlighting initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.Log($"WARNING: Failed to initialize syntax highlighting: {ex.Message}");
+            // Non-fatal: Continue without syntax highlighting rather than crash the application
+        }
+    }
+
+    /// <summary>
+    /// Handles theme variant changes to update syntax highlighting theme.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            SimpleLogger.Log($"Theme changed to: {(isDarkTheme ? "Dark" : "Light")}");
+
+            // Update syntax highlighting theme to match
+            _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error handling theme change", ex);
+            // Non-fatal: Continue with current theme
+        }
+    }
+
+    #endregion Syntax Highlighting methods
 }

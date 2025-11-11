@@ -758,14 +758,6 @@ xychart-beta
 
 ---
 
-## Technologies Used
-- **.NET 9**: Cross-platform framework for building desktop applications
-- **Avalonia UI**: Cross-platform UI framework for .NET
-- **MermaidJS**: JavaScript library for generating diagrams from text
-- **js-yaml**: JavaScript YAML parser for configuration handling
-- **mermaid-js/layout-elk**: Plugin for advanced layout using ELK
-- **[panzoom](https://github.com/timmywil/panzoom)**: JavaScript library for panning and zooming diagrams
-
 ## Installation
 
 ### macOS
@@ -998,8 +990,8 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - ✅ Adaptive ELK layout support (completed)
 - ✅ Highlight connectors on hover (completed)
 - ✅ Performance optimizations (completed)
+- ✅ Syntax highlighting (completed)
 - Pan/Zoom support
-- Syntax highlighting (AvaloniaEdit custom definition)
 - Application update mechanism
 
 ---
