@@ -70,27 +70,26 @@
         Text="{Binding CurrentMermaidPadVersion}" />
     </StackPanel>
     <Grid ColumnDefinitions="*,4,*">
-	  <edit:TextEditor
-	    x:Name="Editor"
-		Grid.Column="0"
-		FontFamily="Consolas"
-		HorizontalScrollBarVisibility="Auto"
-		LineNumbersForeground="Lime"
-		ShowLineNumbers="True"
-		SyntaxHighlighting="Mermaid"
-		VerticalScrollBarVisibility="Auto">
-	    <edit:TextEditor.ContextMenu>
-		  <ContextMenu
-		    Opening="GetContextMenuState">
-			<MenuItem 
-			  Header="Copy" 
-		      IsEnabled="{Binding CanCopyClipboard}"/>
-			<MenuItem 
-			  Header="Paste" 
-			  IsEnabled="{Binding CanPasteClipboard}"/>
-		  </ContextMenu>
-	    </edit:TextEditor.ContextMenu>
-	  </edit:TextEditor>
+      <edit:TextEditor
+        x:Name="Editor"
+        Grid.Column="0"
+        FontFamily="Consolas"
+        HorizontalScrollBarVisibility="Auto"
+        LineNumbersForeground="Lime"
+        ShowLineNumbers="True"
+        VerticalScrollBarVisibility="Auto">
+        <edit:TextEditor.ContextMenu>
+          <ContextMenu
+            Opening="GetContextMenuState">
+            <MenuItem 
+              Header="Copy" 
+              IsEnabled="{Binding CanCopyClipboard}"/>
+            <MenuItem 
+              Header="Paste" 
+              IsEnabled="{Binding CanPasteClipboard}"/>
+          </ContextMenu>
+        </edit:TextEditor.ContextMenu>
+      </edit:TextEditor>
       <GridSplitter
         Grid.Column="1"
         Width="4"
