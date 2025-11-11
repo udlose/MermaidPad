@@ -27,11 +27,10 @@
   </Window.Styles>
 
   <DockPanel>
-    <StackPanel
+    <DockPanel
       Margin="6"
-      DockPanel.Dock="Top"
-      Orientation="Horizontal"
-      Spacing="6">
+      HorizontalSpacing="6"
+      DockPanel.Dock="Top" >
       <Button
         Width="90"
         Command="{Binding RenderCommand}"
@@ -68,7 +67,11 @@
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
         Text="{Binding CurrentMermaidPadVersion}" />
-    </StackPanel>
+      <Button
+        Content="MermaidPad"
+        Click="OnOpenAppHomePageClick"
+        HorizontalAlignment="Right" />
+    </DockPanel>
     <Grid ColumnDefinitions="*,4,*">
 	  <edit:TextEditor
 	    x:Name="Editor"
