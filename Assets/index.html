@@ -642,7 +642,6 @@
         if (globalThis.chrome && globalThis.chrome.webview && globalThis.chrome.webview.postMessage) {
           try {
             globalThis.chrome.webview.postMessage('renderingComplete');
-            console.log('Sent postMessage via chrome.webview (may not be received by AvaloniaWebView)');
           } catch (chromeError) {
             // Silently ignore - AvaloniaWebView may not support this
             console.debug('chrome.webview.postMessage failed:', chromeError.message);
@@ -653,7 +652,6 @@
         if (globalThis.webkit && globalThis.webkit.messageHandlers && globalThis.webkit.messageHandlers.renderingComplete) {
           try {
             globalThis.webkit.messageHandlers.renderingComplete.postMessage('');
-            console.log('Sent postMessage via webkit.messageHandlers (may not be received by AvaloniaWebView)');
           } catch (webkitError) {
             // Silently ignore - AvaloniaWebView may not support this
             console.debug('webkit.messageHandlers failed:', webkitError.message);
