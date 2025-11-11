@@ -24,6 +24,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
@@ -594,7 +595,7 @@ public sealed partial class MainWindow : Window
         {
             return null;
         }
-        
+
         string? clipboardText = await clipboard.TryGetTextAsync();
 
         return clipboardText;
@@ -623,5 +624,51 @@ public sealed partial class MainWindow : Window
 
         // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// Navigates the user to a web uri.
+    /// <param name="window">The window instance</param>
+    /// <param name="uri">Specified URI</param>
+    /// </summary>
+    /// <remarks>
+    ///     Returns false if launcher is null or the URI cannot be launched.
+    /// </remarks>
+    private static async Task<Boolean> NavigateToURIAsync(Window window, Uri uri)
+    {
+        ILauncher? launcher = TopLevel.GetTopLevel(window)?.Launcher;
+
+        if (launcher is null)
+        {
+            return false;
+        }
+
+        return await launcher.LaunchUriAsync(uri);
+    }
+
+    /// <summary>
+    /// Handler for the Home Page link, will navigate the user to the github readMe with the native browser.
+    /// </summary>
+    /// <param name="sender">Event sender (Button).</param>
+    /// <param name="e">Cancel Event Arguments.</param>
+    private async void OnOpenAppHomePageClick(object? sender, RoutedEventArgs e)
+    {
+        bool hasFailedToLoad = false;
+
+        // Try and open the native browser to the App home page.
+        try
+        {
+            hasFailedToLoad = await NavigateToURIAsync(this, new Uri("https://github.com/udlose/MermaidPad"));
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error launching URI.", ex);
+        }
+
+
+        if (hasFailedToLoad)
+        {
+            // display error dialog
+        }
     }
 }
