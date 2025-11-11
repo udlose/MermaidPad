@@ -351,7 +351,7 @@
     #output svg .stateGroup,
     #output svg .task,
     #output svg .pieCircle {
-      cursor: pointer;
+      cursor: inherit; /*Inherit the grab cursor from panzoom*/
     }
 
     /* Prevent text selection during hover interactions */
@@ -438,6 +438,33 @@
       pointer-events: none;
     }
 
+    /*Draggable area visual indicator: drag handle*/
+    #zoom-toolbar::before {
+      content: '⋮⋮⋮⋮⋮⋮⋮⋮⋮⋮⋮⋮';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      line-height: 8px;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: grab;
+      user-select: none;
+    }
+
+    body.light-theme #zoom-toolbar::before {
+      color: rgba(0, 0, 0, 0.3);
+    }
+
+    #zoom-toolbar:hover::before {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    body.light-theme #zoom-toolbar:hover::before {
+      color: rgba(0, 0, 0, 0.5);
+    }
+
     .zoom-button {
       display: flex;
       align-items: center;
@@ -492,6 +519,16 @@
     body.light-theme #zoom-level-display {
       color: #333;
       border-top-color: rgba(0, 0, 0, 0.15);
+    }
+
+    /* Keyboard focus indicator for accessibility */
+    .zoom-button:focus {
+      outline: 2px solid rgba(255, 255, 255, 0.6);
+      outline-offset: 2px;
+    }
+
+    body.light-theme .zoom-button:focus {
+      outline: 2px solid rgba(0, 122, 204, 0.8);
     }
   </style>
   <!-- Apply theme immediately before any scripts load -->
@@ -793,7 +830,6 @@
       };
 
       // ReSharper disable once InconsistentNaming
-      // Replace the entire renderMermaid setSafeSVG section (around line 778):
       const setSafeSVG = (htmlContent) => {
         const trimmed = htmlContent.trim();
         if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
@@ -807,11 +843,11 @@
           }
           // Initialize pan/zoom after SVG is rendered (only if not already initialized)
           if (typeof globalThis.initializePanZoom === 'function') {
-            if (!globalThis.panzoomInstance) {
+            if (globalThis.panzoomInstance) {
+              console.log('Pan/zoom already initialized - skipping re-init');
+            } else {
               console.log('First render - initializing pan/zoom');
               globalThis.initializePanZoom();
-            } else {
-              console.log('Pan/zoom already initialized - skipping re-init');
             }
           }
         } else {
@@ -1357,15 +1393,14 @@
     globalThis.panzoomInstance = null;
     globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
     globalThis.panzoomInitializedOnce = false; // Track first initialization
-    const ZOOM_IN_STEPS = [1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0];
-    const ZOOM_OUT_STEPS = [1.0, 0.9, 0.8, 0.75, 0.67, 0.5, 0.33, 0.25, 0.1];
+    const ZOOM_STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
 
-    function findNearestStepIndex(scale, steps) {
+    function findCurrentStepIndex(scale) {
       let nearestIndex = 0;
-      let minDiff = Math.abs(scale - steps[0]);
+      let minDiff = Math.abs(scale - ZOOM_STEPS[0]);
 
-      for (let i = 1; i < steps.length; i++) {
-        const diff = Math.abs(scale - steps[i]);
+      for (let i = 1; i < ZOOM_STEPS.length; i++) {
+        const diff = Math.abs(scale - ZOOM_STEPS[i]);
         if (diff < minDiff) {
           minDiff = diff;
           nearestIndex = i;
@@ -1437,6 +1472,7 @@
         maxScale: 4,
         minScale: 0.1,
         step: 0.25,
+        canvas: true,  // This makes Panzoom listen to the parent (output) instead of the element itself
         cursor: 'grab',
         animate: true,
         duration: 200,
@@ -1451,7 +1487,7 @@
         try {
           globalThis.panzoomInstance.reset({ animate: false });
 
-          if (savedState.scale !== 1.0) {
+          if (savedState.scale !== 1) {
             globalThis.panzoomInstance.zoom(savedState.scale, { animate: false });
           }
 
@@ -1474,11 +1510,11 @@
             let svgWidth, svgHeight;
             if (svg.hasAttribute('viewBox')) {
               const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-              svgWidth = parseFloat(viewBox[2]);
-              svgHeight = parseFloat(viewBox[3]);
+              svgWidth = Number.parseFloat(viewBox[2]);
+              svgHeight = Number.parseFloat(viewBox[3]);
             } else {
-              svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-              svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+              svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+              svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
             }
 
             const containerWidth = output.offsetWidth;
@@ -1519,7 +1555,7 @@
         updateZoomDisplay();
       };
 
-      // Pan limit handler with correct formula and thread-safety
+      // Pan limit handler
       let lastPanLimitTime = 0;
       const panLimitDebounceMs = 16;
 
@@ -1536,11 +1572,11 @@
         let svgWidth, svgHeight;
         if (svg.hasAttribute('viewBox')) {
           const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = parseFloat(viewBox[2]);
-          svgHeight = parseFloat(viewBox[3]);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
         } else {
-          svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
         }
 
         const scale = globalThis.panzoomInstance.getScale();
@@ -1733,12 +1769,15 @@
       if (!output) return;
 
       const currentScale = globalThis.panzoomInstance.getScale();
-      const currentIndex = findNearestStepIndex(currentScale, ZOOM_IN_STEPS);
+      const currentIndex = findCurrentStepIndex(currentScale);
 
-      const nextIndex = Math.min(currentIndex + 1, ZOOM_IN_STEPS.length - 1);
-      if (nextIndex === currentIndex) return;
+      const nextIndex = Math.min(currentIndex + 1, ZOOM_STEPS.length - 1);
+      if (nextIndex === currentIndex) {
+        console.log('Already at maximum zoom');
+        return;
+      }
 
-      const targetScale = ZOOM_IN_STEPS[nextIndex];
+      const targetScale = ZOOM_STEPS[nextIndex];
 
       const outputRect = output.getBoundingClientRect();
       const syntheticEvent = {
@@ -1757,12 +1796,15 @@
       if (!output) return;
 
       const currentScale = globalThis.panzoomInstance.getScale();
-      const currentIndex = findNearestStepIndex(currentScale, ZOOM_OUT_STEPS);
+      const currentIndex = findCurrentStepIndex(currentScale);
 
-      const nextIndex = Math.min(currentIndex + 1, ZOOM_OUT_STEPS.length - 1);
-      if (nextIndex === currentIndex) return;
+      const nextIndex = Math.max(currentIndex - 1, 0);
+      if (nextIndex === currentIndex) {
+        console.log('Already at minimum zoom');
+        return;
+      }
 
-      const targetScale = ZOOM_OUT_STEPS[nextIndex];
+      const targetScale = ZOOM_STEPS[nextIndex];
 
       const outputRect = output.getBoundingClientRect();
       const syntheticEvent = {
@@ -1774,7 +1816,6 @@
       console.log(`Zoom Out: ${Math.round(currentScale * 100)}% → ${Math.round(targetScale * 100)}%`);
     };
 
-    // Replace resetZoom function:
     globalThis.resetZoom = function () {
       if (!globalThis.panzoomInstance) return;
 
@@ -1785,11 +1826,11 @@
         let svgWidth, svgHeight;
         if (svg.hasAttribute('viewBox')) {
           const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = parseFloat(viewBox[2]);
-          svgHeight = parseFloat(viewBox[3]);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
         } else {
-          svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
         }
 
         const containerWidth = output.offsetWidth;
@@ -1798,14 +1839,13 @@
         const panX = (containerWidth - svgWidth) / 2 - outputPadding;
         const panY = (containerHeight - svgHeight) / 2 - outputPadding;
 
-        globalThis.panzoomInstance.zoom(1.0, { animate: false });
+        globalThis.panzoomInstance.zoom(1, { animate: false });
         globalThis.panzoomInstance.pan(panX, panY, { animate: false });
 
         console.log(`Reset: zoom=100%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
       }
     };
 
-    // Replace centerDiagram function:
     globalThis.centerDiagram = function () {
       if (!globalThis.panzoomInstance) return;
 
@@ -1816,11 +1856,11 @@
         let svgWidth, svgHeight;
         if (svg.hasAttribute('viewBox')) {
           const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = parseFloat(viewBox[2]);
-          svgHeight = parseFloat(viewBox[3]);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
         } else {
-          svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
         }
 
         const containerWidth = output.offsetWidth;
@@ -1848,12 +1888,12 @@
         let svgWidth, svgHeight;
         if (svg.hasAttribute('viewBox')) {
           const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = parseFloat(viewBox[2]);
-          svgHeight = parseFloat(viewBox[3]);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
         } else {
           // Fallback to attributes (avoid clientWidth/clientHeight as they may be scaled)
-          svgWidth = parseFloat(svg.getAttribute('width')) || 800;
-          svgHeight = parseFloat(svg.getAttribute('height')) || 600;
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || 800;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || 600;
         }
 
         // CRITICAL FIX: Use offsetWidth/offsetHeight instead of getBoundingClientRect()
@@ -1902,11 +1942,11 @@
           let svgWidth, svgHeight;
           if (svg.hasAttribute('viewBox')) {
             const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-            svgWidth = parseFloat(viewBox[2]);
-            svgHeight = parseFloat(viewBox[3]);
+            svgWidth = Number.parseFloat(viewBox[2]);
+            svgHeight = Number.parseFloat(viewBox[3]);
           } else {
-            svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-            svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+            svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+            svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
           }
 
           const containerWidth = output.offsetWidth;
@@ -1924,7 +1964,7 @@
         } else {
           globalThis.panzoomInstance.reset({ animate: false });
 
-          if (zoomLevel && zoomLevel !== 1.0) {
+          if (zoomLevel && zoomLevel !== 1) {
             globalThis.panzoomInstance.zoom(zoomLevel, { animate: false });
           }
 
@@ -1953,7 +1993,7 @@
         });
       }
       // Return JSON string for default state
-      return JSON.stringify({ zoom: 1.0, panX: 0, panY: 0 });
+      return JSON.stringify({ zoom: 1, panX: 0, panY: 0 });
     };
 
     globalThis.debugPanZoom = function () {
@@ -1974,11 +2014,11 @@
       let svgWidth, svgHeight;
       if (svg.hasAttribute('viewBox')) {
         const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-        svgWidth = parseFloat(viewBox[2]);
-        svgHeight = parseFloat(viewBox[3]);
+        svgWidth = Number.parseFloat(viewBox[2]);
+        svgHeight = Number.parseFloat(viewBox[3]);
       } else {
-        svgWidth = parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-        svgHeight = parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+        svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+        svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
       }
 
       const svgRect = svg.getBoundingClientRect();
