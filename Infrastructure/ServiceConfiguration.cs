@@ -20,6 +20,7 @@
 
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
+using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
 using MermaidPad.ViewModels.Dialogs;
@@ -56,6 +57,7 @@ public static class ServiceConfiguration
             return new MermaidUpdateService(settings, assetsDirectory);
         });
 
+        services.AddSingleton<SyntaxHighlightingService>();
         services.AddSingleton<MermaidRenderer>();
         services.AddSingleton<ExportService>();
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
