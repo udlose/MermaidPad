@@ -119,8 +119,8 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
         try
         {
             byte[] grammarAsBytes = Encoding.UTF8.GetBytes(grammarJson);
-            using var themeStream = new MemoryStream(grammarAsBytes);
-            using var themeReader = new StreamReader(themeStream);
+            using MemoryStream themeStream = new MemoryStream(grammarAsBytes);
+            using StreamReader themeReader = new StreamReader(themeStream);
             return GrammarReader.ReadGrammarSync(themeReader);
         }
         catch (Exception ex)
@@ -153,8 +153,8 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
             using StreamReader reader = new StreamReader(stream);
             string themeJson = reader.ReadToEnd();
 
-            using var themeStream = new MemoryStream(Encoding.UTF8.GetBytes(themeJson));
-            using var themeReader = new StreamReader(themeStream);
+            using MemoryStream themeStream = new MemoryStream(Encoding.UTF8.GetBytes(themeJson));
+            using StreamReader themeReader = new StreamReader(themeStream);
             return ThemeReader.ReadThemeSync(themeReader);
         }
         catch (Exception ex)
