@@ -32,6 +32,7 @@
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
+- [Third Party Libraries](#third-party-libraries)
 - [Support](#support)
 - [Contact](#contact)
 
@@ -1007,6 +1008,19 @@ Contributions are welcome! Please open an issue for feature requests or bug repo
 This project is licensed under the [MIT License](https://github.com/udlose/MermaidPad/blob/main/LICENSE).
 
 ---
+
+## Third Party Libraries
+
+MermaidPad uses several open-source projects, including:
+
+- [Microsoft .NET](https://dot.net) - for the cross-platform application framework
+- [Avalonia UI](https://avaloniaui.net) - for cross-platform desktop UI
+- [MermaidJS](https://github.com/mermaid-js/mermaid) – for diagram rendering
+- [js-yaml](https://github.com/nodeca/js-yaml) – for YAML parsing
+- [panzoom](https://github.com/timmywil/panzoom) – for zoom and pan interactions
+- [@mermaid-js/layout-elk](https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-elk) – for ELK layout support
+- [TextMateSharp](https://github.com/danipen/TextMateSharp) - for syntax highlighting
+- [vscode-mermaid-syntax-highlight](https://github.com/bpruitt-goddard/vscode-mermaid-syntax-highlight) – for syntax highlighting
 
 ## Support
 
