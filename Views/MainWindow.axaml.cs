@@ -75,6 +75,9 @@ public sealed partial class MainWindow : Window
         _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
         DataContext = _vm;
 
+        // Initialize syntax highlighting before wiring up OnThemeChanged
+        InitializeSyntaxHighlighting();
+
         Opened += OnOpened;
         Closing += OnClosing;
         ActualThemeVariantChanged += OnThemeChanged;
@@ -94,8 +97,6 @@ public sealed partial class MainWindow : Window
 
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
-
-        InitializeSyntaxHighlighting();
 
         SimpleLogger.Log("=== MainWindow Initialization Completed ===");
     }
@@ -645,8 +646,6 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            SimpleLogger.Log("Initializing syntax highlighting...");
-
             // Initialize the service (verifies grammar resources exist)
             _syntaxHighlightingService.Initialize();
 
@@ -673,7 +672,6 @@ public sealed partial class MainWindow : Window
         try
         {
             bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
-            SimpleLogger.Log($"Theme changed to: {(isDarkTheme ? "Dark" : "Light")}");
 
             // Update syntax highlighting theme to match
             _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
