@@ -35,6 +35,7 @@ namespace MermaidPad.Services.Highlighting;
 /// It supports automatic theme switching between light and dark modes based on the
 /// Avalonia application theme.
 /// </para>
+/// <para>This service is thread-safe and can be used from multiple threads.</para>
 /// <para>
 /// See:
 /// <list type="bullet">
@@ -45,23 +46,26 @@ namespace MermaidPad.Services.Highlighting;
 /// </remarks>
 public sealed class SyntaxHighlightingService : IDisposable
 {
+    private readonly Lock _sync = new Lock();
     private TextMate.Installation? _textMateInstallation;
     private TextEditor? _currentEditor;
-    private bool _isInitialized;
     private ThemeName _currentTheme;
-    private bool _isDisposed;
+    private volatile bool _isInitialized;
+    private volatile bool _isDisposed;
 
     /// <summary>
-    /// Initializes the syntax highlighting service.
-    /// This method should be called once during application startup to verify
-    /// that all required resources are available.
+    /// Initializes the syntax highlighting service, preparing it for use.
     /// </summary>
-    /// <exception cref="FileNotFoundException">
-    /// Thrown if the Mermaid grammar resource cannot be found.
-    /// </exception>
+    /// <remarks>This method verifies that required grammar resources are available and ensures the service is
+    /// only initialized once. If the service has already been initialized or has been disposed, the method has no
+    /// effect or throws an exception, respectively. This method is thread-safe.</remarks>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has already been disposed.</exception>
     public void Initialize()
     {
-        // This class is a singleton controlled by dependency injection, so there is no need for synchronization here
+        // This is a volatile read
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
+
+        // This is a volatile read
         if (_isInitialized)
         {
             SimpleLogger.Log("Syntax highlighting service already initialized");
@@ -70,11 +74,24 @@ public sealed class SyntaxHighlightingService : IDisposable
 
         try
         {
-            // Verify that the Mermaid grammar resource exists
+            // Verify that the grammar resource exists. Uses I/O so do it outside locks.
             VerifyGrammarResource();
 
-            _isInitialized = true;
-            SimpleLogger.Log("Syntax highlighting service initialized successfully");
+            // Finalize initialization under lock to avoid races
+            lock (_sync)
+            {
+                // Guard again for dispose/other initializers
+                ObjectDisposedException.ThrowIf(_isDisposed, this);
+
+                if (_isInitialized)
+                {
+                    SimpleLogger.Log("Syntax highlighting service already initialized (post-verify)");
+                    return;
+                }
+
+                _isInitialized = true;
+                SimpleLogger.Log("Syntax highlighting service initialized successfully");
+            }
         }
         catch (Exception ex)
         {
@@ -84,89 +101,92 @@ public sealed class SyntaxHighlightingService : IDisposable
     }
 
     /// <summary>
-    /// Applies Mermaid syntax highlighting to the specified TextEditor.
+    /// Applies Mermaid syntax highlighting to the specified text editor, optionally using the provided theme.
     /// </summary>
-    /// <param name="editor">The TextEditor control to apply syntax highlighting to.</param>
-    /// <param name="themeName">
-    /// The TextMate theme to use. If not specified, uses a theme appropriate
-    /// for the current Avalonia theme variant.
-    /// </param>
+    /// <remarks>This method replaces any existing syntax highlighting installation on the editor. If called
+    /// multiple times, previous installations are disposed before applying the new highlighting. Thread safety is
+    /// ensured during state changes. The method must be called after the service has been initialized and before it is
+    /// disposed.</remarks>
+    /// <param name="editor">The text editor to which syntax highlighting will be applied. Cannot be null.</param>
+    /// <param name="themeName">The theme to use for syntax highlighting. If null, the current Avalonia theme variant is used.</param>
     /// <exception cref="ArgumentNullException">Thrown if editor is null.</exception>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if the service has not been initialized.
-    /// </exception>
+    /// <exception cref="InvalidOperationException">Thrown if the service has not been initialized. Call Initialize before using this method.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed.</exception>
     public void ApplyTo(TextEditor editor, ThemeName? themeName = null)
     {
+        // This is a volatile read
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
         ArgumentNullException.ThrowIfNull(editor);
-
-        if (!_isInitialized)
-        {
-            throw new InvalidOperationException($"{nameof(SyntaxHighlightingService)} must be initialized before use. Call {nameof(Initialize)} first.");
-        }
 
         // Determine theme based on Avalonia's current theme if not specified
         ThemeName effectiveTheme = themeName ?? GetThemeForCurrentVariant();
 
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            if (!_isInitialized)
+            {
+                throw new InvalidOperationException($"{nameof(SyntaxHighlightingService)} must be initialized before use. Call {nameof(Initialize)} first.");
+            }
+        }
+
         try
         {
+            TextMate.Installation? previousInstallation;
+
             // Create custom registry options with Mermaid grammar
             MermaidRegistryOptions registryOptions = new MermaidRegistryOptions(effectiveTheme);
 
-            // Install TextMate on the editor
-            _textMateInstallation = editor.InstallTextMate(registryOptions);
+            // Capture and clear current installation/editor under lock, but do not dispose while holding lock.
+            lock (_sync)
+            {
+                previousInstallation = _textMateInstallation;
+                _textMateInstallation = null;
+                _currentEditor = null;
+            }
+
+            // Dispose previous installation outside the lock to avoid holding the lock during disposal work
+            previousInstallation?.Dispose();
+
+            // Confirm not disposed before proceeding
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+
+            // Install TextMate on the editor (may interact with UI; do it outside locks)
+            TextMate.Installation installation = editor.InstallTextMate(registryOptions);
 
             // Set the Mermaid grammar
-            _textMateInstallation.SetGrammar(MermaidRegistryOptions.MermaidScopeName);
+            installation.SetGrammar(MermaidRegistryOptions.MermaidScopeName);
 
-            // Store references for later theme switching
-            _currentEditor = editor;
-            _currentTheme = effectiveTheme;
+            // Store references for later theme switching under lock
+            lock (_sync)
+            {
+                if (_isDisposed)
+                {
+                    // If disposed concurrently, ensure we clean up what we just created
+                    // Any exceptions thrown while disposing the new installation are swallowed so they do not mask
+                    // the concurrent disposal path. After cleanup, we signal the caller that the service has been
+                    // disposed by throwing ObjectDisposedException.
+                    try
+                    {
+                        installation.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Swallow to avoid throwing during concurrent disposal cleanup
+                        SimpleLogger.LogError("Error disposing concurrent installation during ApplyTo cleanup", ex);
+                    }
 
-            SimpleLogger.Log($"Syntax Highlighting applied for theme: {effectiveTheme}");
+                    throw new ObjectDisposedException(nameof(SyntaxHighlightingService));
+                }
+
+                _textMateInstallation = installation;
+                _currentEditor = editor;
+                _currentTheme = effectiveTheme;
+            }
         }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Error applying syntax highlighting", ex);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Changes the syntax highlighting theme.
-    /// </summary>
-    /// <param name="themeName">The new theme to apply.</param>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown if no editor has been initialized with syntax highlighting.
-    /// </exception>
-    /// <remarks>
-    /// This method re-applies the syntax highlighting with the new theme.
-    /// The editor's text and cursor position are preserved.
-    /// </remarks>
-    private void ChangeTheme(ThemeName themeName)
-    {
-        if (_currentEditor is null)
-        {
-            throw new InvalidOperationException($"No editor has been initialized with syntax highlighting. Call {nameof(ApplyTo)} first.");
-        }
-
-        if (_currentTheme == themeName)
-        {
-            SimpleLogger.Log($"Theme is already set to {themeName}, skipping theme change");
-            return;
-        }
-
-        SimpleLogger.Log($"Changing syntax highlighting theme from {_currentTheme} to {themeName}");
-
-        try
-        {
-            // Re-apply syntax highlighting with new theme
-            // Note: TextMate.Installation doesn't support direct theme switching,
-            // so we need to reinstall with the new theme
-            ApplyTo(_currentEditor, themeName);
-        }
-        catch (Exception ex)
-        {
-            SimpleLogger.LogError("Error changing theme", ex);
             throw;
         }
     }
@@ -178,22 +198,81 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// <remarks>
     /// This method is typically called when the application theme changes.
     /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed.</exception>
     public void UpdateThemeForVariant(bool isDarkTheme)
     {
+        // This is a volatile read
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
+
         ThemeName newTheme = MermaidRegistryOptions.GetDefaultThemeName(isDarkTheme);
-        if (_currentEditor is not null && _currentTheme != newTheme)
+
+        // Capture editor and current theme under lock so we act on a stable snapshot.
+        TextEditor? editorSnapshot;
+        ThemeName currentThemeSnapshot;
+        lock (_sync)
         {
-            ChangeTheme(newTheme);
+            editorSnapshot = _currentEditor;
+            currentThemeSnapshot = _currentTheme;
+        }
+
+        // If nothing to do or editor disappeared, exit.
+        if (editorSnapshot is null || currentThemeSnapshot == newTheme)
+        {
+            return;
+        }
+
+        // Use existing ChangeTheme that re-validates state under lock and then performs the reapply safely.
+        ChangeTheme(newTheme);
+    }
+
+    /// <summary>
+    /// Changes the syntax highlighting theme.
+    /// </summary>
+    /// <param name="themeName">The new theme to apply.</param>
+    /// <remarks>
+    /// This method re-applies the syntax highlighting with the new theme.
+    /// The editor's text and cursor position are preserved.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown if no editor has been initialized with syntax highlighting.</exception>
+    private void ChangeTheme(ThemeName themeName)
+    {
+        TextEditor? editorSnapshot;
+
+        // Capture required state under lock and validate
+        lock (_sync)
+        {
+            editorSnapshot = _currentEditor ?? throw new InvalidOperationException($"No editor has been initialized with syntax highlighting. Call {nameof(ApplyTo)} first.");
+            ThemeName currentThemeSnapshot = _currentTheme;
+
+            if (currentThemeSnapshot == themeName)
+            {
+                SimpleLogger.Log($"Theme is already set to {themeName}, skipping theme change");
+                return;
+            }
+
+            SimpleLogger.Log($"Changing syntax highlighting theme from {_currentTheme} to {themeName}");
+        }
+
+        try
+        {
+            // Re-apply syntax highlighting with new theme using the captured editor.
+            // ApplyTo is thread-safe and does its own synchronization.
+            ApplyTo(editorSnapshot, themeName);
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error changing theme", ex);
+            throw;
         }
     }
 
     /// <summary>
-    /// Gets the appropriate TextMate theme based on Avalonia's current theme variant.
+    /// Determines the appropriate theme name based on the application's current theme variant.
     /// </summary>
-    /// <returns>
-    /// ThemeName.DarkPlus for dark themes, ThemeName.Light for light themes,
-    /// or ThemeName.DarkPlus as a fallback if theme variant cannot be determined.
-    /// </returns>
+    /// <remarks>If the application's theme variant is not set or is unrecognized, the method defaults to the
+    /// dark theme. This ensures consistent appearance even when theme information is unavailable.</remarks>
+    /// <returns>A value of <see cref="ThemeName"/> corresponding to the current theme variant. Returns <see
+    /// cref="ThemeName.DarkPlus"/> if the theme variant cannot be determined.</returns>
     private static ThemeName GetThemeForCurrentVariant()
     {
         // Try to get the current theme variant from the application
@@ -202,7 +281,8 @@ public sealed class SyntaxHighlightingService : IDisposable
         {
             return ThemeName.DarkPlus;
         }
-        else if (actualThemeVariant == ThemeVariant.Light)
+
+        if (actualThemeVariant == ThemeVariant.Light)
         {
             return ThemeName.Light;
         }
@@ -215,9 +295,7 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// <summary>
     /// Verifies that the Mermaid grammar resource exists in the assembly.
     /// </summary>
-    /// <exception cref="FileNotFoundException">
-    /// Thrown if the grammar resource cannot be found.
-    /// </exception>
+    /// <exception cref="FileNotFoundException">Thrown if the grammar resource cannot be found.</exception>
     private static void VerifyGrammarResource()
     {
         Assembly assembly = Assembly.GetExecutingAssembly();
@@ -232,8 +310,6 @@ public sealed class SyntaxHighlightingService : IDisposable
             throw new FileNotFoundException($"Mermaid grammar resource not found. Expected: {grammarResourceName}. " +
                 $"Available resources: {resourceList}. Ensure the grammar file is placed in Resources/Grammars/ and marked as EmbeddedResource.");
         }
-
-        SimpleLogger.Log($"Verified Mermaid grammar resource exists: {grammarResourceName}");
     }
 
     /// <summary>
@@ -244,15 +320,30 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// After calling this method, the instance is in an unusable state and should not be accessed.</remarks>
     public void Dispose()
     {
-        if (_isDisposed)
+        TextMate.Installation? toDispose;
+
+        lock (_sync)
         {
-            return;
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+
+            toDispose = _textMateInstallation;
+            _textMateInstallation = null;
+            _currentEditor = null;
         }
 
-        _textMateInstallation?.Dispose();
-        _textMateInstallation = null;
-        _currentEditor = null;
-        _isInitialized = false;
-        _isDisposed = true;
+        // Dispose outside lock to avoid deadlocks or long blocking sections
+        try
+        {
+            toDispose?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error disposing syntax highlighting installation", ex);
+        }
     }
 }
