@@ -826,7 +826,7 @@ Download the appropriate version for your processor:
 
 Download the appropriate version for your processor:
 - **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-linux-x64.zip`
-- **arm64:** Not supported (CefGlue limitation – see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
+- **arm64:** Not supported (CefGlue limitation - see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
 
 **Installation:**
 1. Download and extract the appropriate .zip file
@@ -1015,12 +1015,14 @@ MermaidPad uses several open-source projects, including:
 
 - [Microsoft .NET](https://dot.net) - for the cross-platform application framework
 - [Avalonia UI](https://avaloniaui.net) - for cross-platform desktop UI
-- [MermaidJS](https://github.com/mermaid-js/mermaid) – for diagram rendering
-- [js-yaml](https://github.com/nodeca/js-yaml) – for YAML parsing
-- [panzoom](https://github.com/timmywil/panzoom) – for zoom and pan interactions
-- [@mermaid-js/layout-elk](https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-elk) – for ELK layout support
-- [TextMateSharp](https://github.com/danipen/TextMateSharp) - for syntax highlighting
-- [vscode-mermaid-syntax-highlight](https://github.com/bpruitt-goddard/vscode-mermaid-syntax-highlight) – for syntax highlighting
+- [MermaidJS](https://github.com/mermaid-js/mermaid) - for diagram rendering
+- [js-yaml](https://github.com/nodeca/js-yaml) - for YAML parsing
+- [panzoom](https://github.com/timmywil/panzoom) - for zoom and pan interactions
+- [@mermaid-js/layout-elk](https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-elk) - for ELK layout support
+- [TextMateSharp](https://github.com/danipen/TextMateSharp) - for syntax highlighting in AvaloniaUI
+- [vscode-mermaid-syntax-highlight](https://github.com/bpruitt-goddard/vscode-mermaid-syntax-highlight) - for Mermaid diagram syntax definition (imported for highlighting support)
+
+---
 
 ## Support
 
