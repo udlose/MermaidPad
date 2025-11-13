@@ -420,12 +420,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <remarks>This method sets the web view's URL to the server address and waits for the navigation to
     /// complete using a <see cref="TaskCompletionSource{TResult}"/> to convert the event-based pattern to
-    /// async/await. If the navigation does not complete within 5 seconds, an <see cref="InvalidOperationException"/>
+    /// async/await. If the navigation does not complete within 10 seconds, an <see cref="InvalidOperationException"/>
     /// is thrown. The method must be called on the UI thread as it interacts with the web view and dispatcher.</remarks>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the navigation does not complete within 5 seconds.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized or navigation times out.</exception>
     private async Task NavigateToServerAsync()
     {
+        if (_webView is null)
+        {
+            throw new InvalidOperationException("WebView not initialized");
+        }
+
         string serverUrl = $"http://localhost:{_serverPort}/";
         SimpleLogger.Log($"Navigating to: {serverUrl}");
 
@@ -433,19 +438,33 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
         void OnNavigationCompleted(object? sender, EventArgs e)
         {
-            _webView!.NavigationCompleted -= OnNavigationCompleted; // Unsubscribe to avoid memory leaks
-            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
-            navigationCompletedTcs.TrySetResult(true);
+            try
+            {
+                SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+                navigationCompletedTcs.TrySetResult(true);
+            }
+            finally
+            {
+                // Unsubscribe in finally block to ensure cleanup even if logging fails
+                try
+                {
+                    _webView.NavigationCompleted -= OnNavigationCompleted;
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Failed to unsubscribe from NavigationCompleted", ex);
+                }
+            }
         }
 
-        _webView!.NavigationCompleted += OnNavigationCompleted;
+        _webView.NavigationCompleted += OnNavigationCompleted;
 
         try
         {
             await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
 
-            // Wait for navigation with 5 second timeout (same as original 50 * 100ms)
-            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            // Wait for navigation with 10 second timeout (more generous for slower systems)
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await navigationCompletedTcs.Task.WaitAsync(cts.Token);
 
             SimpleLogger.Log("Navigation completed successfully");
@@ -453,8 +472,32 @@ public sealed class MermaidRenderer : IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Cleanup event handler if timeout occurs
-            _webView!.NavigationCompleted -= OnNavigationCompleted;
-            throw new InvalidOperationException("Navigation failed - timeout after 5 seconds");
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Failed to cleanup NavigationCompleted handler after timeout", ex);
+            }
+
+            throw new InvalidOperationException($"Navigation to {serverUrl} timed out after 10 seconds");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Navigation failed", ex);
+
+            // Cleanup on any other error
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch
+            {
+                // Ignore cleanup errors during error handling
+            }
+
+            throw;
         }
     }
 
