@@ -42,10 +42,12 @@ namespace MermaidPad;
 /// cref="Application"/> class and overrides key lifecycle methods such as <see cref="Initialize"/> and <see
 /// cref="OnFrameworkInitializationCompleted"/> to ensure the application is properly configured before it starts
 /// running.</remarks>
-public sealed partial class App : Application
+public sealed partial class App : Application, IDisposable
 {
     public static IServiceProvider Services { get; private set; } = null!;
     private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
+
+    private bool _disposed;
 
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
@@ -105,10 +107,13 @@ public sealed partial class App : Application
         Services = ServiceConfiguration.BuildServiceProvider();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
+            // Avoid duplicate validations from both Avalonia and the CommunityToolkit.
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
             desktop.MainWindow = new MainWindow();      // Set the main window for desktop applications
+
+            // Hook up cleanup on application exit
+            desktop.ShutdownRequested += OnShutdownRequested;
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
@@ -116,6 +121,55 @@ public sealed partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Handles the application shutdown request event.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The shutdown event arguments.</param>
+    private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        Dispose();
+    }
+
+    /// <summary>
+    /// Releases all resources used by the application and unregisters global exception handlers.
+    /// </summary>
+    /// <remarks>
+    /// This method unsubscribes all global exception handlers to prevent memory leaks
+    /// and disposes the service provider to clean up all registered services.
+    /// It should be called when the application is shutting down.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        SimpleLogger.Log("Disposing App and unregistering global exception handlers...");
+
+        // Unregister all global exception handlers
+        Dispatcher.UIThread.UnhandledException -= OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
+
+        // Unregister shutdown event
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.ShutdownRequested -= OnShutdownRequested;
+        }
+
+        // Dispose the service provider to clean up all services (including MermaidUpdateService HttpClient)
+        if (Services is IDisposable disposableServices)
+        {
+            disposableServices.Dispose();
+            SimpleLogger.Log("Service provider disposed");
+        }
+
+        _disposed = true;
+        SimpleLogger.Log("App disposed successfully");
     }
 
     /// <summary>
@@ -366,7 +420,18 @@ public sealed partial class App : Application
                 Width = 100
             };
 
-            okButton.Click += (_, _) => errorWindow.Close();
+            // Store event handler for cleanup to prevent memory leak
+            EventHandler<Avalonia.Interactivity.RoutedEventArgs>? okClickHandler = null;
+            okClickHandler = (_, _) =>
+            {
+                // Unsubscribe before closing to prevent memory leak
+                if (okClickHandler is not null)
+                {
+                    okButton.Click -= okClickHandler;
+                }
+                errorWindow.Close();
+            };
+            okButton.Click += okClickHandler;
             buttonPanel.Children.Add(okButton);
 
             mainPanel.Children.Add(buttonPanel);

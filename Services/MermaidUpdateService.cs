@@ -28,7 +28,7 @@ namespace MermaidPad.Services;
 /// <summary>
 /// Provides functionality to check for, download, and install updates for the Mermaid.js library.
 /// </summary>
-public sealed class MermaidUpdateService
+public sealed class MermaidUpdateService : IDisposable
 {
     /// <summary>
     /// Gets the directory where Mermaid assets are stored.
@@ -36,8 +36,9 @@ public sealed class MermaidUpdateService
     private string AssetDir { get; }
 
     private readonly AppSettings _settings;
-    private static readonly HttpClient _http = new HttpClient();
+    private readonly HttpClient _http = new HttpClient();
     private const string MermaidMinJsFileName = "mermaid.min.js";
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidUpdateService"/> class.
@@ -302,5 +303,24 @@ public sealed class MermaidUpdateService
         SimpleLogger.Log($"Version comparison result: {rv} > {lv} = {isNewer}");
 
         return isNewer;
+    }
+
+    /// <summary>
+    /// Releases all resources used by the <see cref="MermaidUpdateService"/>.
+    /// </summary>
+    /// <remarks>
+    /// This method disposes the HttpClient to free network resources.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        SimpleLogger.Log("Disposing MermaidUpdateService...");
+        _http.Dispose();
+        _disposed = true;
+        SimpleLogger.Log("MermaidUpdateService disposed successfully");
     }
 }

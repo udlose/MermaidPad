@@ -161,6 +161,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
         }
         finally
         {
+            // Ensure cleanup always happens even if action() throws
             lock (_gate)
             {
                 if (_tokens.TryGetValue(key, out CancellationTokenSource? current) && current == cts)
