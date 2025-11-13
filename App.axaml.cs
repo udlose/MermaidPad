@@ -45,6 +45,7 @@ namespace MermaidPad;
 public sealed partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
+    private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
 
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
@@ -148,7 +149,7 @@ public sealed partial class App : Application
     /// </remarks>
     private void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        SimpleLogger.LogError("Unhandled UI thread exception", e.Exception);
+        LogExceptionWithContext("Unhandled UI thread exception", e.Exception, "UI Thread");
 
         // Show error dialog to user
         ShowErrorDialog(e.Exception, "An unexpected error occurred in the user interface.");
@@ -168,7 +169,9 @@ public sealed partial class App : Application
     {
         if (e.ExceptionObject is Exception exception)
         {
-            SimpleLogger.LogError($"Unhandled background thread exception (Terminating: {e.IsTerminating})", exception);
+            LogExceptionWithContext($"Unhandled background thread exception (Terminating: {e.IsTerminating})",
+                exception,
+                "Background Thread");
 
             // Try to show error dialog, but this may fail if we're terminating
             if (!e.IsTerminating)
@@ -198,7 +201,7 @@ public sealed partial class App : Application
     /// </remarks>
     private void OnTaskSchedulerUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        SimpleLogger.LogError("Unobserved task exception", e.Exception);
+        LogExceptionWithContext("Unobserved task exception", e.Exception, "Task Thread Pool");
 
         // Show error dialog to user
         ShowErrorDialog(e.Exception, "An unexpected error occurred during an asynchronous operation.");
@@ -254,11 +257,11 @@ public sealed partial class App : Application
     }
 
     /// <summary>
-    /// Displays an error dialog with the specified user-friendly message and technical details about the exception.
+    /// Displays an error dialog with the specified user-friendly message and comprehensive technical details about the exception.
     /// </summary>
     /// <remarks>This method must be called on the UI thread. If the main application window is unavailable,
-    /// the dialog will not be shown. The dialog includes both the user-friendly message and technical details about the
-    /// exception, and prompts the user to check the log file for more information.</remarks>
+    /// the dialog will not be shown. The dialog includes user-friendly message, exception details, stack trace,
+    /// and a button to copy full details to clipboard.</remarks>
     /// <param name="exception">The exception containing technical details to display in the error dialog.</param>
     /// <param name="userMessage">A user-friendly message to display at the top of the error dialog.</param>
     /// <returns>A task that represents the asynchronous operation of showing the error dialog.</returns>
@@ -276,52 +279,404 @@ public sealed partial class App : Application
                 return;
             }
 
-            // Build error message with technical details
-            StringBuilder errorDetails = new StringBuilder($"{userMessage}{Environment.NewLine}{Environment.NewLine}");
-            errorDetails.AppendLine($"Error Type: {exception.GetType().Name}{Environment.NewLine}");
-            errorDetails.AppendLine($"Message: {exception.Message}{Environment.NewLine}{Environment.NewLine}");
-            errorDetails.AppendLine("Please check the log file for more details.");
+            // Build comprehensive exception details
+            string fullExceptionDetails = BuildExceptionDetails(exception);
 
-                        // Create a simple error window
-                        Window errorWindow = new Window
-                        {
-                            Title = "Error",
-                            Width = 500,
-                            Height = 300,
-                            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                            CanResize = false
-                        };
+            // Build user-facing summary
+            StringBuilder errorSummary = new StringBuilder();
+            errorSummary.AppendLine(userMessage);
+            errorSummary.AppendLine();
+            errorSummary.AppendLine($"Error Type: {exception.GetType().FullName}");
+            errorSummary.AppendLine($"Message: {exception.Message}");
 
-                        StackPanel stackPanel = new StackPanel
-                        {
-                            Margin = new Thickness(20)
-                        };
+            // Add source location if available
+            string? sourceLocation = GetExceptionSourceLocation(exception);
+            if (!string.IsNullOrEmpty(sourceLocation))
+            {
+                errorSummary.AppendLine($"Location: {sourceLocation}");
+            }
 
-                        stackPanel.Children.Add(new TextBlock
-                        {
-                            Text = errorDetails.ToString(),
-                            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                            Margin = new Thickness(0, 0, 0, 20)
-                        });
+            errorSummary.AppendLine();
+            errorSummary.AppendLine("Full details have been logged. Click 'Copy Details' to copy technical information to clipboard.");
 
-                        Button okButton = new Button
-                        {
-                            Content = "OK",
-                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                            Width = 100
-                        };
+            // Create error window with enhanced layout
+            Window errorWindow = new Window
+            {
+                Title = "Application Error",
+                Width = 600,
+                Height = 400,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = true,
+                MinWidth = 400,
+                MinHeight = 300
+            };
 
-                        okButton.Click += (_, _) => errorWindow.Close();
-                        stackPanel.Children.Add(okButton);
+            StackPanel mainPanel = new StackPanel
+            {
+                Margin = new Thickness(20)
+            };
 
-                        errorWindow.Content = stackPanel;
+            // User-facing summary (scrollable)
+            ScrollViewer summaryScroller = new ScrollViewer
+            {
+                MaxHeight = 250,
+                Margin = new Thickness(0, 0, 0, 15)
+            };
 
-                        await errorWindow.ShowDialog(mainWindow);
-                    }
+            TextBlock summaryText = new TextBlock
+            {
+                Text = errorSummary.ToString(),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap
+            };
+
+            summaryScroller.Content = summaryText;
+            mainPanel.Children.Add(summaryScroller);
+
+            // Button panel
+            StackPanel buttonPanel = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                Spacing = 10
+            };
+
+            // Copy Details button
+            Button copyButton = new Button
+            {
+                Content = "Copy Details",
+                Width = 120
+            };
+
+            copyButton.Click += (_, _) =>
+            {
+                CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
+                    .SafeFireAndForget(onException: static ex =>
+                    {
+                        SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                        Debug.WriteLine($"Failed to copy to clipboard: {ex}");
+                    });
+            };
+
+            buttonPanel.Children.Add(copyButton);
+
+            // OK button
+            Button okButton = new Button
+            {
+                Content = "OK",
+                Width = 100
+            };
+
+            okButton.Click += (_, _) => errorWindow.Close();
+            buttonPanel.Children.Add(okButton);
+
+            mainPanel.Children.Add(buttonPanel);
+            errorWindow.Content = mainPanel;
+
+            await errorWindow.ShowDialog(mainWindow);
+        }
         catch (Exception ex)
         {
             SimpleLogger.LogError("Failed to display error dialog", ex);
             Debug.Fail($"Failed to display error dialog: {ex}");
         }
     }
+
+    #region Exception Detail Helpers
+
+    /// <summary>
+    /// Copies the specified exception details to the clipboard and provides visual feedback on the copy button.
+    /// </summary>
+    /// <remarks>The copy button's content is set to "Copied!" for two seconds after the details are copied,
+    /// then restored to its original text. This method is intended for use in UI scenarios where immediate user
+    /// feedback is required.</remarks>
+    /// <param name="window">The window instance whose clipboard will be used to store the exception details. Must not be null and must have
+    /// a valid clipboard service.</param>
+    /// <param name="copyButton">The button that displays copy status feedback to the user. Its content will be temporarily updated to indicate
+    /// success.</param>
+    /// <param name="exceptionDetails">The exception details text to copy to the clipboard. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous copy operation.</returns>
+    private static async Task CopyExceptionDetailsToClipboardAsync(Window? window, Button? copyButton, string? exceptionDetails)
+    {
+        // Defensive checks - swallow problems early so SafeFireAndForget's static handler is never relied on
+        if (window is null || copyButton is null || exceptionDetails is null)
+        {
+            SimpleLogger.LogError("CopyExceptionDetailsToClipboardAsync called with null argument(s).");
+            return;
+        }
+
+        // Keep original content so we can always restore it
+        object? originalContent = copyButton.Content;
+        const int displayDurationMs = 2_000;
+        try
+        {
+            if (window.Clipboard is null)
+            {
+                await SafeSetButtonContentAsync(copyButton, "Clipboard Unavailable");
+                await Task.Delay(displayDurationMs);
+                return;
+            }
+
+            try
+            {
+                // Attempt the clipboard operation first
+                await window.Clipboard.SetTextAsync(exceptionDetails);
+
+                // Only indicate success after the clipboard op completed successfully
+                await SafeSetButtonContentAsync(copyButton, "Copied!");
+            }
+            catch (Exception ex)
+            {
+                // Handle clipboard-specific failures here so the button is never left in an inconsistent state.
+                SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                Debug.WriteLine($"Failed to copy to clipboard: {ex}");
+
+                // Show a transient failure state to the user before restoring original content
+                await SafeSetButtonContentAsync(copyButton, "Copy Failed");
+            }
+
+            // Keep transient state visible for a short, fixed period
+            await Task.Delay(displayDurationMs);
+        }
+        catch (Exception ex)
+        {
+            // Catch any unexpected error inside this helper to avoid bubbling to SafeFireAndForget's static handler
+            SimpleLogger.LogError("Unexpected error in CopyExceptionDetailsToClipboardAsync", ex);
+            Debug.WriteLine($"Unexpected error in CopyExceptionDetailsToClipboardAsync: {ex}");
+        }
+        finally
+        {
+            // Ensure original content is restored regardless of what happened above
+            await SafeSetButtonContentAsync(copyButton, originalContent ?? "Copy Details");
+        }
+
+        // Helper to update button content on the UI thread without throwing
+        static async Task SafeSetButtonContentAsync(Button btn, object? content)
+        {
+            try
+            {
+                if (Dispatcher.UIThread.CheckAccess())
+                {
+                    btn.Content = content;
+                    return;
+                }
+                await Dispatcher.UIThread.InvokeAsync(() => btn.Content = content);
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Failed to update button content on UI thread", ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Logs detailed information about an exception, including contextual thread data and a custom message, to the
+    /// error log.
+    /// </summary>
+    /// <remarks>The log entry includes the exception details, timestamp, thread information, and the provided
+    /// context message. This method is intended for diagnostic purposes and should be used to capture comprehensive
+    /// error information in multithreaded environments.</remarks>
+    /// <param name="message">A descriptive message providing context for the exception being logged.</param>
+    /// <param name="exception">The exception instance containing error details to be logged. Cannot be null.</param>
+    /// <param name="threadContext">A string representing the logical context or name of the thread where the exception occurred - e.g. "UI Thread", "Background Thread", "ThreadPool Thread".</param>
+    private static void LogExceptionWithContext(string message, Exception exception, string threadContext)
+    {
+        StringBuilder logEntry = new StringBuilder();
+        logEntry.AppendLine("---------------------------------------------------------------");
+        logEntry.AppendLine($"EXCEPTION: {message}");
+        logEntry.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+        logEntry.AppendLine($"Thread Context: {threadContext}");
+        logEntry.AppendLine($"Thread ID: {Environment.CurrentManagedThreadId}");
+        logEntry.AppendLine($"Is ThreadPool Thread: {Thread.CurrentThread.IsThreadPoolThread}");
+        logEntry.AppendLine($"Is Background Thread: {Thread.CurrentThread.IsBackground}");
+
+        string? threadName = Thread.CurrentThread.Name;
+        if (!string.IsNullOrEmpty(threadName))
+        {
+            logEntry.AppendLine($"Thread Name: {threadName}");
+        }
+
+        logEntry.AppendLine("---------------------------------------------------------------");
+        logEntry.AppendLine(BuildExceptionDetails(exception));
+        logEntry.AppendLine("---------------------------------------------------------------");
+
+        SimpleLogger.Log(logEntry.ToString());
+    }
+
+    /// <summary>
+    /// Builds a detailed, human-readable string representation of the specified exception, including its type, message,
+    /// and any inner exceptions.
+    /// </summary>
+    /// <remarks>This method is useful for logging or displaying exception details in diagnostic scenarios.
+    /// The output includes stack traces for the top-level exception and for each inner exception in the case of <see
+    /// cref="AggregateException"/>. For other exception types, the entire inner exception chain is traversed and
+    /// formatted.</remarks>
+    /// <param name="exception">The exception to format. If the exception is an <see cref="AggregateException"/>, all inner exceptions are
+    /// included; otherwise, the full inner exception chain is displayed.</param>
+    /// <returns>A string containing detailed information about the exception and its inner exceptions, including type, message,
+    /// and stack trace where applicable.</returns>
+    private static string BuildExceptionDetails(Exception exception)
+    {
+        StringBuilder details = new StringBuilder();
+
+        // Handle AggregateException specially to show all inner exceptions
+        if (exception is AggregateException aggregateException)
+        {
+            details.AppendLine($"Exception Type: {exception.GetType().FullName}");
+            details.AppendLine($"Message: {exception.Message}");
+            details.AppendLine();
+            details.AppendLine($"Contains {aggregateException.InnerExceptions.Count} inner exception(s):");
+            details.AppendLine();
+
+            for (int i = 0; i < aggregateException.InnerExceptions.Count; i++)
+            {
+                details.AppendLine($"------ Inner Exception #{i + 1} ------");
+                details.AppendLine(FormatSingleException(aggregateException.InnerExceptions[i], includeStackTrace: true));
+                details.AppendLine();
+            }
+        }
+        else
+        {
+            // Format exception chain
+            int exceptionDepth = 0;
+            Exception? currentException = exception;
+
+            while (currentException is not null)
+            {
+                if (exceptionDepth > 0)
+                {
+                    details.AppendLine();
+                    details.AppendLine($"------ Inner Exception (Depth {exceptionDepth}) ------");
+                }
+
+                details.AppendLine(FormatSingleException(currentException, includeStackTrace: exceptionDepth == 0));
+
+                currentException = currentException.InnerException;
+                exceptionDepth++;
+            }
+
+            // If we had inner exceptions, show the full chain summary
+            if (exceptionDepth > 1)
+            {
+                details.AppendLine();
+                details.AppendLine($"Exception Chain Depth: {exceptionDepth}");
+            }
+        }
+
+        return details.ToString();
+    }
+
+    /// <summary>
+    /// Formats detailed information about a single exception into a readable string, optionally including the stack
+    /// trace.
+    /// </summary>
+    /// <remarks>The formatted output includes key exception properties and any custom data. This method does
+    /// not format inner exceptions; only the provided exception is included.</remarks>
+    /// <param name="exception">The exception to format. Cannot be null.</param>
+    /// <param name="includeStackTrace">Specifies whether to include the stack trace in the formatted output. Set to <see langword="true"/> to include
+    /// the stack trace; otherwise, <see langword="false"/>.</param>
+    /// <returns>A string containing formatted details about the specified exception, including type, message, HResult, source
+    /// location, source assembly, target site, custom data, and optionally the stack trace.</returns>
+    private static string FormatSingleException(Exception exception, bool includeStackTrace)
+    {
+        StringBuilder details = new StringBuilder();
+
+        details.AppendLine($"Exception Type: {exception.GetType().FullName}");
+        details.AppendLine($"Message: {exception.Message}");
+
+        // Add HResult if available
+        if (exception.HResult != 0)
+        {
+            details.AppendLine($"HResult: 0x{exception.HResult:X8} ({exception.HResult})");
+        }
+
+        // Add source location if available
+        string? sourceLocation = GetExceptionSourceLocation(exception);
+        if (!string.IsNullOrEmpty(sourceLocation))
+        {
+            details.AppendLine($"Source Location: {sourceLocation}");
+        }
+
+        // Add source assembly
+        if (!string.IsNullOrEmpty(exception.Source))
+        {
+            details.AppendLine($"Source: {exception.Source}");
+        }
+
+        // Add target site (method that threw)
+        if (exception.TargetSite is not null)
+        {
+            details.AppendLine($"Target Site: {exception.TargetSite.DeclaringType?.FullName}.{exception.TargetSite.Name}");
+        }
+
+        // Add custom data if present
+        if (exception.Data.Count > 0)
+        {
+            details.AppendLine("Data:");
+            foreach (System.Collections.DictionaryEntry entry in exception.Data)
+            {
+                details.AppendLine($"  {entry.Key}: {entry.Value}");
+            }
+        }
+
+        // Add stack trace if requested
+        if (includeStackTrace && !string.IsNullOrEmpty(exception.StackTrace))
+        {
+            details.AppendLine();
+            details.AppendLine("Stack Trace:");
+            details.AppendLine(exception.StackTrace);
+        }
+
+        return details.ToString();
+    }
+
+    /// <summary>
+    /// Extracts the source file name and line number from the stack trace of the specified exception, if available.
+    /// </summary>
+    /// <remarks>This method parses the stack trace of the provided exception to locate source file and line
+    /// number information. If the stack trace does not contain file or line details, the method returns null. The
+    /// returned value is intended for diagnostic or logging purposes.</remarks>
+    /// <param name="exception">The exception from which to retrieve the source location information. Must not be null.</param>
+    /// <returns>A string containing the file name and line number in the format "FileName:line LineNumber" if available;
+    /// otherwise, null.</returns>
+    private static string? GetExceptionSourceLocation(Exception exception)
+    {
+        if (string.IsNullOrEmpty(exception.StackTrace))
+        {
+            return null;
+        }
+
+        // Try to extract file and line number from stack trace
+        // Format is typically: "at Namespace.Class.Method() in C:\path\to\File.cs:line 123"
+        string[] lines = exception.StackTrace.Split(_newlineCharacters, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (string line in lines)
+        {
+            // Look for " in " followed by file path
+            int inIndex = line.IndexOf(" in ", StringComparison.Ordinal);
+            if (inIndex > 0)
+            {
+                string pathPart = line[(inIndex + 4)..].Trim();
+
+                // Extract just the filename and line number
+                int lineIndex = pathPart.LastIndexOf(":line ", StringComparison.Ordinal);
+                if (lineIndex > 0)
+                {
+                    string filePath = pathPart[..lineIndex];
+                    string fileName = Path.GetFileName(filePath);
+                    string lineNumber = pathPart[(lineIndex + 6)..];
+
+                    return $"{fileName}:line {lineNumber}";
+                }
+                else
+                {
+                    // Just return the filename if no line number
+                    return Path.GetFileName(pathPart);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    #endregion
 }
