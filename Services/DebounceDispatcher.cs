@@ -109,7 +109,8 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
     /// Cancels the operation associated with the specified key.
     /// </summary>
     /// <remarks>If the specified key is found, the associated cancellation token source is canceled.  If the
-    /// key does not exist, no action is taken.</remarks>
+    /// key does not exist, no action is taken. The CTS is not disposed here - the RunAsync task will dispose it
+    /// in its finally block to avoid double-disposal.</remarks>
     /// <param name="key">The unique identifier for the operation to cancel. Cannot be null, empty, or consist only of whitespace.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="key"/> is null, empty, or consists only of whitespace.</exception>
     public void Cancel(string key)
@@ -121,7 +122,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             if (_tokens.Remove(key, out CancellationTokenSource? cts))
             {
                 cts.Cancel();
-                cts.Dispose();
+                // Don't dispose - let RunAsync dispose it to avoid double-disposal
             }
         }
     }
