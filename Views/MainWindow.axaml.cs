@@ -32,6 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Windows.Input;
 
 namespace MermaidPad.Views;
 
@@ -48,10 +49,25 @@ public sealed partial class MainWindow : Window
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly SyntaxHighlightingService _syntaxHighlightingService;
 
+    private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
 
     private const int WebViewReadyTimeoutSeconds = 30;
+
+    /// <summary>
+    /// Command to open a recent file.
+    /// </summary>
+    /// <remarks>
+    /// This pass-through property exposes the ViewModel command on the Window type so compiled XAML
+    /// bindings inside the Recent Files DataTemplate can resolve it via an ancestor binding.
+    /// In that template, each item's DataContext is a string (the file path), so a path like
+    /// "DataContext.OpenRecentFileCommand" is validated against 'object' by the XAML compiler and fails.
+    /// By surfacing the command on <see cref="MainWindow"/>, the template can bind with:
+    ///   Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
+    /// avoiding disabling compiled bindings or creating per-item view-models.
+    /// </remarks>
+    public ICommand OpenRecentFileCommand => _vm.OpenRecentFileCommand;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -376,8 +392,16 @@ public sealed partial class MainWindow : Window
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task OnOpenedCoreAsync()
     {
-        await OnOpenedAsync();
-        BringFocusToEditor();
+        _suppressEditorStateSync = true;
+        try
+        {
+            await OnOpenedAsync();
+            BringFocusToEditor();
+        }
+        finally
+        {
+            _suppressEditorStateSync = false;
+        }
     }
 
     /// <summary>
@@ -442,13 +466,38 @@ public sealed partial class MainWindow : Window
     /// Handles the window close event and initiates the cleanup sequence.
     /// </summary>
     /// <param name="sender">Event sender (window).</param>
-    /// <param name="e">Cancel event args allowing the close to be canceled (not used here).</param>
+    /// <param name="e">Cancel event args allowing the close to be canceled.</param>
     /// <remarks>
-    /// This method delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
+    /// This method first checks for unsaved changes and prompts the user if needed.
+    /// If the user cancels, the window close is prevented.
+    /// Otherwise, it delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
     /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
     /// </remarks>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        // If already approved, proceed with cleanup
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+            OnClosingAsync()
+                .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+            return;
+        }
+
+        // Check for unsaved changes
+        if (_vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        {
+            e.Cancel = true;
+            PromptAndCloseAsync()
+                .SafeFireAndForget(onException: ex =>
+                {
+                    SimpleLogger.LogError("Failed during close prompt", ex);
+                    _isClosingApproved = false; // Reset on error
+                });
+            return;
+        }
+
+        // No unsaved changes, proceed with cleanup
         OnClosingAsync()
             .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
     }
@@ -478,6 +527,35 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Prompts the user to save changes if there are unsaved modifications, and closes the window if the user confirms
+    /// or no changes need to be saved.
+    /// </summary>
+    /// <remarks>If the window is closed, any unsaved changes are either saved or discarded based on the
+    /// user's response to the prompt. The method ensures that the close operation does not trigger the save prompt
+    /// again. This method should be called when attempting to close the window to prevent accidental loss of unsaved
+    /// data.</remarks>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the prompt and close sequence has
+    /// finished.</returns>
+    private async Task PromptAndCloseAsync()
+    {
+        try
+        {
+            bool canClose = await _vm.PromptSaveIfDirtyAsync(StorageProvider);
+            if (canClose)
+            {
+                _isClosingApproved = true;
+                Close(); // Triggers OnClosing, which resets the flag
+            }
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error during close prompt", ex);
+            _isClosingApproved = false; // Reset on exception
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Initializes the WebView and performs the initial render of the current diagram text.
     /// </summary>
     /// <returns>A task that completes when initialization and initial render have finished.</returns>
@@ -491,6 +569,10 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private async Task InitializeWebViewAsync()
     {
+
+
+
+
         Stopwatch stopwatch = Stopwatch.StartNew();
         SimpleLogger.Log("=== WebView Initialization Started ===");
 
@@ -563,15 +645,17 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Handler for the close button click. Closes the window.
+    /// Handles the close button click event by prompting the user to save changes if necessary and closing the window.
     /// </summary>
-    /// <param name="sender">Event sender (button).</param>
-    /// <param name="e">Routed event arguments.</param>
+    /// <remarks>If the data context is a MainViewModel, the method prompts the user to save unsaved changes
+    /// before closing. Otherwise, the window closes immediately.</remarks>
+    /// <param name="sender">The source of the event, typically the close button that was clicked.</param>
+    /// <param name="e">The event data associated with the close button click.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
         SimpleLogger.Log("Close button clicked");
-        Close();
+        Close(); // This will trigger OnClosing which handles the save prompt
     }
 
     #region Clipboard methods
@@ -684,4 +768,89 @@ public sealed partial class MainWindow : Window
     }
 
     #endregion Syntax Highlighting methods
+
+    #region File Open/Save handlers
+
+    /// <summary>
+    /// Handles the Open command click event by initiating the file open process using the current view model.
+    /// </summary>
+    /// <remarks>This method is intended to be used as an event handler for UI elements that trigger file
+    /// opening. The operation is performed asynchronously and requires the data context to be a valid MainViewModel
+    /// instance.</remarks>
+    /// <param name="sender">The source of the event, typically the control that was clicked.</param>
+    /// <param name="e">The event data associated with the click event.</param>
+    private void OnOpenClick(object? sender, RoutedEventArgs e)
+    {
+        OpenFileAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to open file from menu", ex));
+    }
+
+    /// <summary>
+    /// Asynchronously opens a file using the application's storage provider on the UI thread.
+    /// </summary>
+    /// <remarks>This method ensures that file opening operations are performed on the UI thread, which is
+    /// required for UI-bound actions. Await the returned task to ensure the file is fully opened before proceeding with
+    /// dependent operations.</remarks>
+    /// <returns>A task that represents the asynchronous operation of opening the file.</returns>
+    private Task OpenFileAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.OpenFileAsync(StorageProvider));
+    }
+
+    /// <summary>
+    /// Handles the save button click event by initiating an asynchronous file save operation using the current view
+    /// model.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the button that was clicked. Can be null.</param>
+    /// <param name="e">The event data associated with the click event.</param>
+    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    {
+        SaveFileAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to save file from menu", ex));
+    }
+
+    /// <summary>
+    /// Saves the current content to the current file or shows Save As dialog asynchronously.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private Task SaveFileAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.SaveFileAsync(StorageProvider));
+    }
+
+    /// <summary>
+    /// Handles the Save As button click event to initiate saving the current file with a new name or location.
+    /// </summary>
+    /// <remarks>This method delegates the save operation to the view model if the data context is set. The
+    /// operation is asynchronous and may prompt the user to select a file location.</remarks>
+    /// <param name="sender">The source of the event, typically the Save As button.</param>
+    /// <param name="e">The event data associated with the button click.</param>
+    private void OnSaveAsClick(object? sender, RoutedEventArgs e)
+    {
+        SaveFileAsAsync()
+            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to save file as from menu", ex));
+    }
+
+    /// <summary>
+    /// Shows a Save As dialog and saves the current content asynchronously.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private Task SaveFileAsAsync()
+    {
+        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.SaveFileAsAsync(StorageProvider));
+    }
+
+    /// <summary>
+    /// Handles the click event for clearing the list of recent files in the user interface.
+    /// </summary>
+    /// <remarks>This method invokes the command to clear recent files on the associated view model if the
+    /// data context is set. Intended to be used as an event handler for UI elements such as buttons.</remarks>
+    /// <param name="sender">The source of the event, typically the control that was clicked.</param>
+    /// <param name="e">An object that contains the event data.</param>
+    private void OnClearRecentFilesClick(object? sender, RoutedEventArgs e)
+    {
+        _vm.ClearRecentFilesCommand.Execute(null);
+    }
+
+    #endregion File Open/Save handlers
 }

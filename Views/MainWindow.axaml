@@ -4,9 +4,10 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:views="clr-namespace:MermaidPad.Views"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
-  Title="MermaidPad - The Cross-Platform Mermaid Chart Editor"
+  Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
   x:DataType="vm:MainViewModel"
@@ -27,6 +28,46 @@
   </Window.Styles>
 
   <DockPanel>
+    <!-- Menu Bar -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="_File">
+        <MenuItem
+          Click="OnOpenClick"
+          Header="_Open..."
+          InputGesture="Ctrl+O" />
+        <MenuItem
+          Click="OnSaveClick"
+          Header="_Save"
+          InputGesture="Ctrl+S"
+          IsEnabled="{Binding CanSave}" />
+        <MenuItem
+          Click="OnSaveAsClick"
+          Header="Save _As..."
+          InputGesture="Ctrl+Shift+S"
+          IsEnabled="{Binding HasText}" />
+        <Separator />
+        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
+          <MenuItem.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <MenuItem Header="{Binding}"
+                        Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
+                        CommandParameter="{Binding}" />
+            </DataTemplate>
+          </MenuItem.ItemTemplate>
+        </MenuItem>
+        <MenuItem
+          Click="OnClearRecentFilesClick"
+          Header="Clear Recent Files"
+          IsEnabled="{Binding HasRecentFiles}" />
+        <Separator />
+        <MenuItem
+          Click="OnCloseClick"
+          Header="E_xit"
+          InputGesture="Alt+F4" />
+      </MenuItem>
+    </Menu>
+
+    <!-- Toolbar -->
     <StackPanel
       Margin="6"
       DockPanel.Dock="Top"
@@ -45,9 +86,6 @@
         Command="{Binding ExportCommand}"
         Content="Export"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
-      <Button
-        Click="OnCloseClick"
-        Content="Close" />
       <CheckBox
         Margin="12,0,0,0"
         Content="Live Preview:"
@@ -68,33 +106,75 @@
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
         Text="{Binding CurrentMermaidPadVersion}" />
+      <TextBlock
+        Margin="12,0,0,0"
+        VerticalAlignment="Center"
+        Foreground="Gray"
+        Text="{Binding StatusText}" />
     </StackPanel>
-    <Grid ColumnDefinitions="*,4,*">
-      <edit:TextEditor
-        x:Name="Editor"
+
+    <!-- Main Content (your existing GridSplitter, Editor, WebView) -->
+    <Grid DockPanel.Dock="Top">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="2*" />
+      </Grid.ColumnDefinitions>
+
+      <!-- Text Editor Panel -->
+      <Border
         Grid.Column="0"
-        FontFamily="Consolas"
-        HorizontalScrollBarVisibility="Auto"
-        LineNumbersForeground="Lime"
-        ShowLineNumbers="True"
-        VerticalScrollBarVisibility="Auto">
-        <edit:TextEditor.ContextMenu>
-          <ContextMenu
-            Opening="GetContextMenuState">
+        Margin="6,0,0,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <edit:TextEditor
+          x:Name="Editor"
+          FontFamily="Consolas"
+          HorizontalScrollBarVisibility="Auto"
+          LineNumbersForeground="Lime"
+          ShowLineNumbers="True"
+          VerticalScrollBarVisibility="Auto">
+          <edit:TextEditor.ContextMenu>
+            <ContextMenu Opening="GetContextMenuState">
             <MenuItem 
               Header="Copy" 
               IsEnabled="{Binding CanCopyClipboard}"/>
             <MenuItem 
               Header="Paste" 
               IsEnabled="{Binding CanPasteClipboard}"/>
-          </ContextMenu>
-        </edit:TextEditor.ContextMenu>
-      </edit:TextEditor>
+            </ContextMenu>
+          </edit:TextEditor.ContextMenu>
+        </edit:TextEditor>
+      </Border>
+
+      <!-- GridSplitter -->
       <GridSplitter
         Grid.Column="1"
-        Width="4"
-        Background="Gray" />
-      <wv:WebView x:Name="Preview" Grid.Column="2" />
+        Width="6"
+        Background="Transparent"
+        ResizeDirection="Columns" />
+
+      <!-- WebView Panel -->
+      <Border
+        Grid.Column="2"
+        Margin="0,0,6,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <Grid>
+          <wv:WebView Name="Preview" />
+          <TextBlock
+            Margin="10"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            FontSize="11"
+            Foreground="Red"
+            IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Text="{Binding LastError}"
+            TextWrapping="Wrap" />
+        </Grid>
+      </Border>
     </Grid>
   </DockPanel>
 </Window>
