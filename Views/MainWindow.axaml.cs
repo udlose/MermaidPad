@@ -569,10 +569,6 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private async Task InitializeWebViewAsync()
     {
-
-
-
-
         Stopwatch stopwatch = Stopwatch.StartNew();
         SimpleLogger.Log("=== WebView Initialization Started ===");
 
