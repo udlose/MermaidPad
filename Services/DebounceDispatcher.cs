@@ -100,7 +100,8 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
         if (ctsOld != null)
         {
             ctsOld.Cancel();
-            ctsOld.Dispose();
+            // Don't dispose here - the old RunAsync task will dispose it in its finally block
+            // to avoid double-disposal race condition
         }
     }
 
