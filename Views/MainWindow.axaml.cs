@@ -573,12 +573,13 @@ public sealed partial class MainWindow : Window
         SimpleLogger.Log("=== WebView Initialization Started ===");
 
         // Temporarily disable live preview during WebView initialization
-        bool originalLivePreview = _vm.LivePreviewEnabled;
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        bool originalLivePreview = await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            bool current = _vm.LivePreviewEnabled;
             _vm.LivePreviewEnabled = false;
-            SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
-        });
+            SimpleLogger.Log($"Temporarily disabled live preview (was: {current})");
+            return current;
+        }, DispatcherPriority.Normal);
 
         bool success = false;
         try
@@ -647,7 +648,7 @@ public sealed partial class MainWindow : Window
     /// before closing. Otherwise, the window closes immediately.</remarks>
     /// <param name="sender">The source of the event, typically the close button that was clicked.</param>
     /// <param name="e">The event data associated with the close button click.</param>
-    [SuppressMessage("ReSharper", "UnusedParameter.Local")]
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnCloseClick(object? sender, RoutedEventArgs e)
     {
         SimpleLogger.Log("Close button clicked");
@@ -657,10 +658,14 @@ public sealed partial class MainWindow : Window
     #region Clipboard methods
 
     /// <summary>
-    /// Handler for the Context Menu, to get updated Clipboard State
+    /// Determines the enabled state of context menu clipboard commands based on the current editor selection and
+    /// clipboard availability.
     /// </summary>
-    /// <param name="sender">Event sender (Context Menu).</param>
-    /// <param name="e">Cancel Event Arguments.</param>
+    /// <remarks>This method is intended to be used as an event handler for context menu opening events. It
+    /// updates the clipboard-related command states to reflect whether copy and paste actions are currently
+    /// available.</remarks>
+    /// <param name="sender">The source of the event, typically the control that triggered the context menu opening.</param>
+    /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
     private void GetContextMenuState(object? sender, CancelEventArgs e)
     {
         // Get Clipboard state
@@ -671,24 +676,44 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Task that returns the text data format from the Clipboard.
+    /// Asynchronously retrieves the current text content from the clipboard associated with the specified window.
     /// </summary>
-    /// <param name="window">The window instance</param>
+    /// <remarks>If the clipboard is unavailable or does not contain text, the method returns null. The
+    /// operation is performed on the appropriate UI thread as required by the window's clipboard
+    /// implementation.</remarks>
+    /// <param name="window">The window whose clipboard is accessed to retrieve text. Must not be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the clipboard text if available;
+    /// otherwise, null.</returns>
     private static async Task<string?> GetTextFromClipboardAsync(Window window)
     {
-        IClipboard? clipboard = window.Clipboard;
+        // Access Window.Clipboard on the UI thread
+        IClipboard? clipboard = Dispatcher.UIThread.CheckAccess()
+            ? window.Clipboard
+            : await Dispatcher.UIThread.InvokeAsync(() => window.Clipboard, DispatcherPriority.Background);
+
         if (clipboard is null)
         {
             return null;
         }
 
-        string? clipboardText = await clipboard.TryGetTextAsync();
+        // Perform the read without capturing the UI context (no UI touched afterward)
+        string? clipboardText = await clipboard.TryGetTextAsync()
+            .ConfigureAwait(false);
         return clipboardText;
     }
 
     /// <summary>
-    /// Reads clipboard text asynchronously and updates the ViewModel's CanPasteClipboard on the UI thread.
+    /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
     /// </summary>
+    /// <remarks>This method reads the clipboard text off the UI thread and updates the CanPasteClipboard
+    /// property on the ViewModel. If clipboard access fails or the clipboard contains only whitespace,
+    /// CanPasteClipboard is set to false. The update is marshaled back to the UI thread to ensure thread
+    /// safety.</remarks>
+    /// <returns>
+    /// A <see cref="Task"/> that represents the asynchronous operation of updating the ViewModel's
+    /// <see cref="MainViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
+    /// The task completes when the property has been updated.
+    /// </returns>
     private async Task UpdateCanPasteClipboardAsync()
     {
         string? clipboardText = null;
