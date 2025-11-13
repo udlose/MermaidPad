@@ -20,6 +20,7 @@
 
 using Avalonia.Threading;
 using AvaloniaWebView;
+using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -56,15 +57,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
+    private bool _isWebViewReady;
 
     // Fields for centralized export-status callbacks / polling:
-    private readonly List<Action<string>> _exportProgressCallbacks = new List<Action<string>>();
+    private readonly List<Action<string>> _exportProgressCallbacks = [];
     private CancellationTokenSource? _exportPollingCts;
     private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
-
-    public bool IsWebViewReady { get; private set; }
 
     /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
@@ -111,7 +111,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             throw new InvalidOperationException("WebView not initialized");
         }
 
-        return IsWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
+        return _isWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
     }
 
     /// <summary>
@@ -139,9 +139,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 string trimmedReturnValue = rawReturnValue.Trim().Trim('"');
                 if (string.Equals(trimmedReturnValue, "true", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!IsWebViewReady)
+                    if (!_isWebViewReady)
                     {
-                        IsWebViewReady = true;
+                        _isWebViewReady = true;
                     }
                     return;
                 }
@@ -419,44 +419,86 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Navigates the embedded web view to the server URL asynchronously.
     /// </summary>
     /// <remarks>This method sets the web view's URL to the server address and waits for the navigation to
-    /// complete. If the navigation does not complete within the specified timeout,
-    /// a <see cref="InvalidOperationException"/> is thrown. The method must be called on
-    /// the UI thread as it interacts with the web view and dispatcher.</remarks>
+    /// complete using a <see cref="TaskCompletionSource{TResult}"/> to convert the event-based pattern to
+    /// async/await. If the navigation does not complete within 10 seconds, an <see cref="InvalidOperationException"/>
+    /// is thrown. The method must be called on the UI thread as it interacts with the web view and dispatcher.</remarks>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the navigation does not complete within the allowed time.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized or navigation times out.</exception>
     private async Task NavigateToServerAsync()
     {
+        if (_webView is null)
+        {
+            throw new InvalidOperationException("WebView not initialized");
+        }
+
         string serverUrl = $"http://localhost:{_serverPort}/";
         SimpleLogger.Log($"Navigating to: {serverUrl}");
 
-        bool navigationCompleted = false;
+        TaskCompletionSource<bool> navigationCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _webView!.NavigationCompleted += OnNavigationCompleted;
+        _webView.NavigationCompleted += OnNavigationCompleted;
 
-        await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
-
-        // Wait for navigation
-        for (int i = 0; i < 50 && !navigationCompleted; i++)
+        try
         {
-            await Task.Delay(100);  // NO ConfigureAwait - caller needs UI context
-        }
+            await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
 
-        if (navigationCompleted)
-        {
+            // Wait for navigation with 10 second timeout (more generous for slower systems)
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await navigationCompletedTcs.Task.WaitAsync(cts.Token);
+
             SimpleLogger.Log("Navigation completed successfully");
         }
-        else
+        catch (OperationCanceledException)
         {
-            throw new InvalidOperationException("Navigation failed");
+            // Cleanup event handler if timeout occurs
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Failed to cleanup NavigationCompleted handler after timeout", ex);
+            }
+
+            throw new InvalidOperationException($"Navigation to {serverUrl} timed out after 10 seconds");
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Navigation failed", ex);
+
+            // Cleanup on any other error
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch
+            {
+                // Ignore cleanup errors during error handling
+            }
+
+            throw;
         }
 
-        return;
-
-        void OnNavigationCompleted(object? sender, EventArgs e)
+        [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+        void OnNavigationCompleted(object? sender, WebViewCore.Events.WebViewUrlLoadedEventArg args)
         {
-            navigationCompleted = true;
-            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
-            _webView!.NavigationCompleted -= OnNavigationCompleted; // Unsubscribe to avoid memory leaks
+            try
+            {
+                SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+                navigationCompletedTcs.TrySetResult(true);
+            }
+            finally
+            {
+                // Unsubscribe in finally block to ensure cleanup even if logging fails
+                try
+                {
+                    _webView.NavigationCompleted -= OnNavigationCompleted;
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Failed to unsubscribe from NavigationCompleted", ex);
+                }
+            }
         }
     }
 
@@ -516,7 +558,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             try
             {
                 // Copy locals to explicit locals to make intent clear and avoid captures
-                WebView webView = _webView!;
+                WebView webView = _webView;
 
                 // Explicit call (lambda still captures webView local, but the static local function prevents
                 // implicit capture of surrounding variables inside the function body).
@@ -552,7 +594,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
             async Task RenderMermaidAsync()
             {
                 string? result = await _webView.ExecuteScriptAsync(script);
-                SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+
+                // Don't pollute the log. A Render happens every time an un-debounced key
+                // in the TextEditor causes the WebView to need to render itself
+                Debug.WriteLine($"Render result: {result ?? "null"}");
             }
 
             await Dispatcher.UIThread.InvokeAsync(async () => await RenderMermaidAsync());
@@ -715,11 +760,32 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Starts a polling task that periodically queries the web page for the export status and notifies registered
     /// callbacks of any changes.
     /// </summary>
-    /// <remarks>This method runs on the UI thread and uses <see cref="ExecuteScriptAsync"/> to query the
-    /// JavaScript variable <c>globalThis.__pngExportStatus__</c> on the page. It forwards updates to registered
-    /// callbacks only when the status changes, minimizing unnecessary processing. The polling interval is 200
-    /// milliseconds by default. The task continues until the provided <see cref="CancellationToken"/> is
-    /// canceled.</remarks>
+    /// <remarks>
+    /// <para>
+    /// This method uses polling rather than event-based callbacks because of WebView bridge limitations.
+    /// The JavaScript export function in the browser sets global variables (<c>globalThis.__pngExportStatus__</c>)
+    /// that can only be read via <see cref="ExecuteScriptAsync"/>. There is no JavaScript-to-C# callback mechanism
+    /// available in AvaloniaWebView that would allow the browser to push notifications directly to C#.
+    /// </para>
+    /// <para>
+    /// The polling pattern used here is appropriate for cross-boundary communication (JavaScript from/to C#) where:
+    ///     <list type="bullet">
+    ///         <item><description>The external system (JavaScript) only supports query-based access</description></item>
+    ///         <item><description>No event/callback mechanism exists for the external system to notify C#</description></item>
+    ///         <item><description>The overhead of polling (200ms intervals) is acceptable for user-facing export operations</description></item>
+    ///     </list>
+    /// </para>
+    /// <para>
+    /// Higher-level code converts this callback pattern to <see cref="Task"/>-based async using <see cref="TaskCompletionSource{TResult}"/>
+    /// (see <see cref="ExportService.WaitForExportCompletionAsync"/>), providing the best of both patterns:
+    /// polling where necessary at the boundary, and clean async/await for consumers.
+    /// </para>
+    /// <para>
+    /// This method forwards updates to registered callbacks only when the status changes, minimizing unnecessary
+    /// processing. The polling interval is 200 milliseconds by default. All access to shared state (<c>_lastExportStatus</c>)
+    /// is synchronized via <c>_exportCallbackLock</c> to prevent race conditions.
+    /// </para>
+    /// </remarks>
     /// <param name="token">A <see cref="CancellationToken"/> used to cancel the polling task. The task will stop gracefully when
     /// cancellation is requested.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation of the polling task.</returns>
@@ -745,29 +811,20 @@ public sealed class MermaidRenderer : IAsyncDisposable
                             statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
                         }
 
-                        // Forward only when it changes to reduce churn
-                        if (statusJson != _lastExportStatus)
+                        // Check for changes and get callbacks atomically under lock
+                        Action<string>[]? callbacksToInvoke = null;
+                        lock (_exportCallbackLock)
                         {
-                            _lastExportStatus = statusJson;
-
-                            Action<string>[] callbacks;
-                            lock (_exportCallbackLock)
+                            // Forward only when it changes to reduce churn
+                            if (statusJson != _lastExportStatus)
                             {
-                                callbacks = _exportProgressCallbacks.ToArray();
-                            }
-
-                            foreach (Action<string> callback in callbacks)
-                            {
-                                try
-                                {
-                                    callback(statusJson);
-                                }
-                                catch (Exception ex)
-                                {
-                                    SimpleLogger.LogError("Export progress callback threw", ex);
-                                }
+                                _lastExportStatus = statusJson;
+                                callbacksToInvoke = _exportProgressCallbacks.ToArray();
                             }
                         }
+
+                        // Invoke callbacks outside lock to prevent deadlock
+                        InvokeExportProgressCallbacks(callbacksToInvoke, statusJson);
                     }
                 }
                 catch (Exception ex)
@@ -789,6 +846,31 @@ public sealed class MermaidRenderer : IAsyncDisposable
         finally
         {
             SimpleLogger.Log("Export status polling stopped");
+        }
+    }
+
+    /// <summary>
+    /// Invokes each export progress callback in the specified array, passing the provided status information as a JSON string.
+    /// </summary>
+    /// <remarks>Exceptions thrown by individual callbacks are caught and logged; invocation continues for remaining callbacks.</remarks>
+    /// <param name="callbacksToInvoke">An array of callback delegates to be invoked with the export progress status. If null or empty, no callbacks are
+    /// invoked.</param>
+    /// <param name="statusJson">A JSON-formatted string containing the current export progress status to be supplied to each callback.</param>
+    private static void InvokeExportProgressCallbacks(Action<string>[]? callbacksToInvoke, string statusJson)
+    {
+        if (callbacksToInvoke?.Length > 0)
+        {
+            foreach (Action<string> callback in callbacksToInvoke)
+            {
+                try
+                {
+                    callback(statusJson);
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Export progress callback threw", ex);
+                }
+            }
         }
     }
 
