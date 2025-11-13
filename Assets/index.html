@@ -578,7 +578,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       // Theme is already applied, but listen for changes
       if (globalThis.matchMedia) {
-        globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        const themeChangeHandler = (e) => {
           globalThis.currentTheme = e.matches ? 'dark' : 'default';
           globalThis.applyTheme(globalThis.currentTheme);
 
@@ -591,7 +591,14 @@
             });
             globalThis.renderMermaid(globalThis.lastMermaidSource);
           }
-        });
+        };
+
+        const mediaQuery = globalThis.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', themeChangeHandler);
+
+        // Store references for cleanup if needed
+        globalThis.themeMediaQuery = mediaQuery;
+        globalThis.themeChangeHandler = themeChangeHandler;
       }
     });
   </script>
@@ -619,11 +626,19 @@
       const loadingContainer = document.getElementById('loading-container');
       const output = document.getElementById('output');
 
+      // Cancel any pending hide operation
+      if (globalThis.loadingHideTimeout) {
+        clearTimeout(globalThis.loadingHideTimeout);
+      }
+
       if (loadingContainer) {
         loadingContainer.classList.add('hidden');
         // Remove from DOM after transition completes (duration from CSS variable)
-        setTimeout(() => {
-          loadingContainer.style.display = 'none';
+        globalThis.loadingHideTimeout = setTimeout(() => {
+          if (loadingContainer.parentNode) { // Check still in DOM
+            loadingContainer.style.display = 'none';
+          }
+          globalThis.loadingHideTimeout = null;
         }, getTransitionDuration());
       }
 
@@ -704,7 +719,14 @@
           // Enhance hover interactivity after SVG is rendered
           if (typeof globalThis.enhanceHoverability === 'function') {
             const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
-            setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
+            // Cancel any pending hover enhancement
+            if (globalThis.hoverEnhanceTimeout) {
+              clearTimeout(globalThis.hoverEnhanceTimeout);
+            }
+            globalThis.hoverEnhanceTimeout = setTimeout(() => {
+              globalThis.enhanceHoverability();
+              globalThis.hoverEnhanceTimeout = null;
+            }, hoverActivationDelay);
           }
         } else {
           showError('Invalid diagram content received');
@@ -729,7 +751,15 @@
 
         if (globalThis.renderRetryCount < 10) {
           globalThis.renderRetryCount++;
-          setTimeout(() => globalThis.renderMermaid(source, options), 200);
+          // Cancel any existing retry timeout
+          if (globalThis.renderRetryTimeout) {
+            clearTimeout(globalThis.renderRetryTimeout);
+          }
+          // Store timeout ID to enable cancellation
+          globalThis.renderRetryTimeout = setTimeout(() => {
+            globalThis.renderRetryTimeout = null;
+            globalThis.renderMermaid(source, options);
+          }, 200);
           return { success: false, error: 'Mermaid is initializing; retry scheduled' };
         } else {
           try {
@@ -807,6 +837,40 @@
       if (output) {
         output.innerHTML = '';
       }
+    };
+
+    // ==========================================
+    // CLEANUP FUNCTION
+    // Cancels all pending timeouts and removes event listeners
+    // Call this before page unload or when resetting the application
+    // ==========================================
+    globalThis.cleanup = () => {
+      // Cancel all pending timeouts
+      if (globalThis.renderRetryTimeout) {
+        clearTimeout(globalThis.renderRetryTimeout);
+        globalThis.renderRetryTimeout = null;
+      }
+      if (globalThis.loadingHideTimeout) {
+        clearTimeout(globalThis.loadingHideTimeout);
+        globalThis.loadingHideTimeout = null;
+      }
+      if (globalThis.hoverEnhanceTimeout) {
+        clearTimeout(globalThis.hoverEnhanceTimeout);
+        globalThis.hoverEnhanceTimeout = null;
+      }
+
+      // Remove theme change listener
+      if (globalThis.themeMediaQuery && globalThis.themeChangeHandler) {
+        globalThis.themeMediaQuery.removeEventListener('change', globalThis.themeChangeHandler);
+        globalThis.themeMediaQuery = null;
+        globalThis.themeChangeHandler = null;
+      }
+
+      // Clear pending render
+      globalThis.pendingMermaidRender = null;
+      globalThis.renderRetryCount = 0;
+
+      console.log('Cleanup complete: all timeouts cancelled and listeners removed');
     };
 
     // ==========================================
@@ -903,87 +967,90 @@
         container.innerHTML = renderResult.svg;
         document.body.appendChild(container);
 
-        const svgElement = container.querySelector('svg');
-        if (!svgElement) {
-          container.remove();
-          throw new Error('Could not find SVG element in rendered output');
+        let svgString;
+        let width, height, scaledWidth, scaledHeight;
+        let canvas, ctx;
+
+        try {
+          const svgElement = container.querySelector('svg');
+          if (!svgElement) {
+            throw new Error('Could not find SVG element in rendered output');
+          }
+
+          // Get dimensions from viewBox or bounding box
+          const viewBox = svgElement.getAttribute('viewBox');
+
+          if (viewBox) {
+            const parts = viewBox.split(' ');
+            width = Number.parseFloat(parts[2]);
+            height = Number.parseFloat(parts[3]);
+          } else {
+            const bbox = svgElement.getBoundingClientRect();
+            width = bbox.width || 800;
+            height = bbox.height || 600;
+          }
+
+          scaledWidth = Math.round(width * effectiveScale);
+          scaledHeight = Math.round(height * effectiveScale);
+          const totalPixels = scaledWidth * scaledHeight;
+          const estimatedMemoryMB = (totalPixels * 4) / (1024 * 1024); // 4 bytes per pixel
+
+          console.log(`SVG dimensions: ${width}x${height}, scaled: ${scaledWidth}x${scaledHeight}`);
+          console.log(`Total pixels: ${totalPixels.toLocaleString()}, estimated memory: ${estimatedMemoryMB.toFixed(0)} MB`);
+
+          // Validate canvas size limits
+          const maxDimension = 32767; // Browser spec limit per dimension
+          const maxPixels = 16384 * 16384; // 16384 x 16384 = 256M pixels (practical limit)
+          const maxMemoryMB = 1024; // 1 GB practical memory limit
+
+          if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
+            throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
+          }
+
+          if (totalPixels > maxPixels) {
+            const oneMillion = 1000000;
+            throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
+          }
+
+          if (estimatedMemoryMB > maxMemoryMB) {
+            throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
+          }
+
+          // Update progress: Converting to bitmap
+          setExportStatus({
+            step: 'converting',
+            percent: 60,
+            message: 'Converting to bitmap...'
+          });
+
+          // Create canvas with scaled dimensions
+          canvas = document.createElement('canvas');
+          canvas.width = scaledWidth;
+          canvas.height = scaledHeight;
+
+          ctx = canvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('Failed to get canvas 2D context');
+          }
+
+          // Scale context for high-DPI rendering
+          ctx.scale(effectiveScale, effectiveScale);
+
+          // Draw background if not transparent
+          if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
+            ctx.fillStyle = backgroundColor;
+            ctx.fillRect(0, 0, width, height);
+          }
+
+          // Serialize SVG to string
+          svgString = new XMLSerializer().serializeToString(svgElement);
+
+        } finally {
+          // Ensure container cleanup even if error occurs
+          if (container.parentNode) {
+            container.remove();
+          }
         }
-
-        // Get dimensions from viewBox or bounding box
-        const viewBox = svgElement.getAttribute('viewBox');
-        let width, height;
-
-        if (viewBox) {
-          const parts = viewBox.split(' ');
-          width = Number.parseFloat(parts[2]);
-          height = Number.parseFloat(parts[3]);
-        } else {
-          const bbox = svgElement.getBoundingClientRect();
-          width = bbox.width || 800;
-          height = bbox.height || 600;
-        }
-
-        const scaledWidth = Math.round(width * effectiveScale);
-        const scaledHeight = Math.round(height * effectiveScale);
-        const totalPixels = scaledWidth * scaledHeight;
-        const estimatedMemoryMB = (totalPixels * 4) / (1024 * 1024); // 4 bytes per pixel
-
-        console.log(`SVG dimensions: ${width}x${height}, scaled: ${scaledWidth}x${scaledHeight}`);
-        console.log(`Total pixels: ${totalPixels.toLocaleString()}, estimated memory: ${estimatedMemoryMB.toFixed(0)} MB`);
-
-        // Validate canvas size limits
-        const maxDimension = 32767; // Browser spec limit per dimension
-        const maxPixels = 16384 * 16384; // 16384 x 16384 = 256M pixels (practical limit)
-        const maxMemoryMB = 1024; // 1 GB practical memory limit
-
-        if (scaledWidth > maxDimension || scaledHeight > maxDimension) {
-          container.remove();
-          throw new Error(`Canvas dimension exceeds browser limit of ${maxDimension} pixels. Current: ${scaledWidth}x${scaledHeight}. Try reducing scale or DPI.`);
-        }
-
-        if (totalPixels > maxPixels) {
-          container.remove();
-          const oneMillion = 1000000;
-          throw new Error(`Canvas size too large (${(totalPixels / oneMillion).toFixed(1)}M pixels). Maximum recommended: ${(maxPixels / oneMillion).toFixed(0)}M pixels. Try reducing scale or DPI.`);
-        }
-
-        if (estimatedMemoryMB > maxMemoryMB) {
-          container.remove();
-          throw new Error(`Estimated memory usage (${estimatedMemoryMB.toFixed(0)} MB) exceeds safe limit of ${maxMemoryMB} MB. Try reducing scale or DPI.`);
-        }
-
-        // Update progress: Converting to bitmap
-        setExportStatus({
-          step: 'converting',
-          percent: 60,
-          message: 'Converting to bitmap...'
-        });
-
-        // Create canvas with scaled dimensions
-        const canvas = document.createElement('canvas');
-        canvas.width = scaledWidth;
-        canvas.height = scaledHeight;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          container.remove();
-          throw new Error('Failed to get canvas 2D context');
-        }
-
-        // Scale context for high-DPI rendering
-        ctx.scale(effectiveScale, effectiveScale);
-
-        // Draw background if not transparent
-        if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
-          ctx.fillStyle = backgroundColor;
-          ctx.fillRect(0, 0, width, height);
-        }
-
-        // Serialize SVG to string
-        const svgString = new XMLSerializer().serializeToString(svgElement);
-
-        // Clean up DOM
-        container.remove();
 
         // Convert SVG to data URI (avoids canvas tainting issues with blob URLs)
         // Encode the SVG string properly for data URI
@@ -998,16 +1065,20 @@
 
         // Create promise for image loading
         const imageLoadPromise = new Promise((resolve, reject) => {
+          let timeoutId = null;
+
           img.onload = () => {
+            if (timeoutId) clearTimeout(timeoutId);
             resolve();
           };
 
           img.onerror = (error) => {
+            if (timeoutId) clearTimeout(timeoutId);
             reject(new Error(`Failed to load SVG as image: ${error}`));
           };
 
           // Set timeout for image loading (30 seconds)
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(new Error('Image loading timeout'));
           }, 30000);
         });
@@ -1024,6 +1095,11 @@
 
         // Draw image to canvas
         ctx.drawImage(img, 0, 0, width, height);
+
+        // Clean up image to free memory
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
 
         // Update progress: Encoding
         setExportStatus({
@@ -1048,6 +1124,15 @@
         if (!base64Data || base64Data.length === 0) {
           throw new Error('PNG encoding produced empty data. Try reducing scale or DPI.');
         }
+
+        // Save canvas dimensions before cleanup
+        const exportedWidth = canvas.width;
+        const exportedHeight = canvas.height;
+
+        // Clean up canvas to free memory
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.width = 0;
+        canvas.height = 0;
 
         // Update progress: Complete
         setExportStatus({
@@ -1080,7 +1165,7 @@
         return {
           success: true,
           dataLength: base64Data.length,
-          dimensions: { width: canvas.width, height: canvas.height }
+          dimensions: { width: exportedWidth, height: exportedHeight }
         };
 
       } catch (error) {
