@@ -131,6 +131,7 @@
 	  <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
 	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
+	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -151,7 +152,7 @@
 		<None Include="Info.plist" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
-	<!--<ItemGroup>
+	<ItemGroup>
 	  <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
 	    <SubType>Designer</SubType>
 	  </AvaloniaXaml>
@@ -161,7 +162,10 @@
 	  <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
 	    <SubType>Designer</SubType>
 	  </AvaloniaXaml>
-	</ItemGroup>-->
+		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+	</ItemGroup>
 
 	<!-- Import custom targets for asset hash generation -->
 	<Import Project="MermaidPad.csproj.targets" />

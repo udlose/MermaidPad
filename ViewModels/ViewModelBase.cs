@@ -18,7 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace MermaidPad.ViewModels;
-public abstract class ViewModelBase : ObservableObject;
+
+/// <summary>
+/// Provides a base class for view models that supports property change notification and common functionality for
+/// Avalonia applications.
+/// </summary>
+/// <remarks>Inherit from this class to implement view models that require observable properties and integration
+/// with Avalonia's application and window lifetime management. This class is intended for use in MVVM architectures
+/// within Avalonia desktop applications.</remarks>
+public abstract class ViewModelBase : ObservableObject
+{
+    /// <summary>
+    /// Retrieves the main window of the current desktop-style Avalonia application, if available.
+    /// </summary>
+    /// <remarks>This method returns <see langword="null"/> if the application is not using a classic
+    /// desktop-style lifetime or if no main window is set. It is typically used to obtain a window to act as an owner
+    /// for dialogs or other UI elements.</remarks>
+    /// <returns>The main <see cref="Window"/> instance if the application is running with a desktop-style lifetime; otherwise,
+    /// <see langword="null"/>.</returns>
+    protected static Window? GetParentWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+        return null;
+    }
+}

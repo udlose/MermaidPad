@@ -42,7 +42,6 @@ public static class ServiceConfiguration
     public static ServiceProvider BuildServiceProvider()
     {
         ServiceCollection services = new ServiceCollection();
-
         SimpleLogger.Log("=== MermaidPad Service Configuration Started ===");
 
         // Extract assets ONCE to user-writable directory (same pattern as settings)
@@ -63,6 +62,7 @@ public static class ServiceConfiguration
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
         services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
         services.AddSingleton<IDialogFactory, DialogFactory>();
+        services.AddSingleton<IFileService, FileService>();
 
         // Main ViewModel: transient (one per window)
         services.AddTransient<MainViewModel>();
@@ -71,12 +71,15 @@ public static class ServiceConfiguration
         services.AddTransient<ExportDialogViewModel>();
         services.AddTransient<ProgressDialogViewModel>();
         services.AddTransient<MessageDialogViewModel>();
+        services.AddTransient<ConfirmationDialogViewModel>();
 
         // Note: Dialog Views (Windows) are not registered in DI
         // They are created directly with 'new' since they need special initialization
         // Only their ViewModels are created through DI
 
+        SimpleLogger.Log("Building Service Provider");
+        ServiceProvider serviceProvider = services.BuildServiceProvider();
         SimpleLogger.Log("=== MermaidPad Service Configuration Completed ===");
-        return services.BuildServiceProvider();
+        return serviceProvider;
     }
 }
