@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -523,23 +522,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 return false; // Default to not overwriting on error
             }
         });
-    }
-
-    /// <summary>
-    /// Retrieves the main window of the current Avalonia desktop application, if available.
-    /// </summary>
-    /// <remarks>This method returns <see langword="null"/> if the application is not running or does not use
-    /// a classic desktop lifetime. Use this method to access the main window in scenarios where the application
-    /// lifetime is known to be desktop-based.</remarks>
-    /// <returns>The main <see cref="Window"/> instance if the application is running with a classic desktop lifetime; otherwise,
-    /// <see langword="null"/>.</returns>
-    private static Window? GetParentWindow()
-    {
-        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            return desktop.MainWindow;
-        }
-        return null;
     }
 
     /// <summary>

@@ -20,14 +20,80 @@
 
 namespace MermaidPad.Models;
 
+/// <summary>
+/// Represents persisted application settings for MermaidPad.
+/// </summary>
+/// <remarks>
+/// Instances of this type are intended to be serialized and deserialized to persist
+/// user preferences and editor state between application sessions.
+/// </remarks>
 public sealed class AppSettings
 {
+    /// <summary>
+    /// The raw text of the last edited Mermaid diagram.
+    /// </summary>
+    /// <value>
+    /// May be <see langword="null"/> when no diagram has been saved or the setting has not been initialized.
+    /// </value>
     public string? LastDiagramText { get; set; }
+
+    /// <summary>
+    /// The version of Mermaid bundled with the application.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to "11.12.0". Update this value when the embedded Mermaid runtime is changed.
+    /// </remarks>
     public string BundledMermaidVersion { get; set; } = "11.12.0";
+
+    /// <summary>
+    /// The latest Mermaid version that was checked for updates.
+    /// </summary>
+    /// <value>
+    /// May be <see langword="null"/> if an update check has never been performed.
+    /// </value>
     public string? LatestCheckedMermaidVersion { get; set; }
+
+    /// <summary>
+    /// Indicates whether Mermaid auto-updates are enabled.
+    /// </summary>
     public bool AutoUpdateMermaid { get; set; }
+
+    /// <summary>
+    /// Indicates whether live preview of diagrams is enabled in the editor.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <c>true</c>.
+    /// </remarks>
     public bool LivePreviewEnabled { get; set; } = true;
+
+    /// <summary>
+    /// The zero-based start index of the editor selection.
+    /// </summary>
     public int EditorSelectionStart { get; set; }
+
+    /// <summary>
+    /// The length (in characters) of the editor selection.
+    /// </summary>
     public int EditorSelectionLength { get; set; }
+
+    /// <summary>
+    /// The caret offset within the editor document.
+    /// </summary>
     public int EditorCaretOffset { get; set; }
+
+    /// <summary>
+    /// The file path of the currently open diagram file.
+    /// </summary>
+    /// <value>
+    /// May be <see langword="null"/> when no file is open.
+    /// </value>
+    public string? CurrentFilePath { get; set; }
+
+    /// <summary>
+    /// A list of recently opened diagram file paths.
+    /// </summary>
+    /// <remarks>
+    /// Initialized to an empty list by default.
+    /// </remarks>
+    public List<string> RecentFiles { get; set; } = [];
 }
