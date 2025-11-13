@@ -951,16 +951,36 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     const int maxWaitSeconds = 5;
                     await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
                         .ConfigureAwait(false);
+
+                    // Task completed successfully, safe to dispose
+                    _serverTask.Dispose();
+                }
+                catch (TimeoutException)
+                {
+                    // Task didn't complete in time - DO NOT dispose to avoid unobserved exception
+                    // The task will eventually complete and be collected by GC, but its exceptions
+                    // are already observed by the try-catch in StartHttpServer's Task.Run
+                    SimpleLogger.LogError("Server task did not complete within timeout - allowing background completion");
                 }
                 catch (Exception ex)
                 {
+                    // Task threw an exception, but we observed it by awaiting
                     SimpleLogger.LogError("Error waiting for server task", ex);
+
+                    // Safe to dispose since we observed the exception
+                    try
+                    {
+                        _serverTask.Dispose();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        SimpleLogger.LogError("Error disposing server task", disposeEx);
+                    }
                 }
             }
 
             _serverCancellation?.Dispose();
             _serverReadySemaphore.Dispose();
-            _serverTask?.Dispose();
 
             SimpleLogger.Log("MermaidRenderer disposed");
         }
