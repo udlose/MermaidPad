@@ -580,9 +580,12 @@ public sealed partial class MainViewModel : ViewModelBase
         await _updateService.CheckAndUpdateAsync()
             .ConfigureAwait(false);
 
-        // But property updates should happen on UI thread
-        BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
-        LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+        // Marshal property updates back to UI thread since ObservableProperty triggers INotifyPropertyChanged
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
+            LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+        });
     }
 
     /// <summary>

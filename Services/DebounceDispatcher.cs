@@ -95,7 +95,13 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             _tokens[key] = cts;
             _ = RunAsync(key, delay, cts, action);
         }
-        ctsOld?.Cancel();
+
+        // Cancel and dispose old CTS outside lock to prevent resource leak
+        if (ctsOld != null)
+        {
+            ctsOld.Cancel();
+            ctsOld.Dispose();
+        }
     }
 
     /// <summary>
@@ -150,6 +156,9 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
                     _tokens.Remove(key);
                 }
             }
+
+            // Dispose CTS to release unmanaged resources (wait handles)
+            cts.Dispose();
         }
     }
 }
