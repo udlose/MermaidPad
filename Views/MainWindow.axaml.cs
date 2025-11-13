@@ -55,6 +55,13 @@ public sealed partial class MainWindow : Window
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
+    // Event handlers stored for proper cleanup
+    private EventHandler? _activatedHandler;
+    private EventHandler? _editorTextChangedHandler;
+    private EventHandler? _editorSelectionChangedHandler;
+    private EventHandler? _editorCaretPositionChangedHandler;
+    private EventHandler<EventArgs>? _themeChangedHandler;
+
     /// <summary>
     /// Command to open a recent file.
     /// </summary>
@@ -96,10 +103,14 @@ public sealed partial class MainWindow : Window
 
         Opened += OnOpened;
         Closing += OnClosing;
-        ActualThemeVariantChanged += OnThemeChanged;
+
+        // Store theme change handler for proper cleanup
+        _themeChangedHandler = OnThemeChanged;
+        ActualThemeVariantChanged += _themeChangedHandler;
 
         // Focus the editor when the window is activated
-        Activated += (_, _) => BringFocusToEditor();
+        _activatedHandler = (_, _) => BringFocusToEditor();
+        Activated += _activatedHandler;
 
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
@@ -164,7 +175,7 @@ public sealed partial class MainWindow : Window
     private void SetupEditorViewModelSync()
     {
         // Editor -> ViewModel synchronization (text)
-        Editor.TextChanged += (_, _) =>
+        _editorTextChangedHandler = (_, _) =>
         {
             if (_suppressEditorTextChanged)
             {
@@ -189,9 +200,10 @@ public sealed partial class MainWindow : Window
             },
             DispatcherPriority.Background);
         };
+        Editor.TextChanged += _editorTextChangedHandler;
 
         // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
-        Editor.TextArea.SelectionChanged += (_, _) =>
+        _editorSelectionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -200,8 +212,9 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.SelectionChanged += _editorSelectionChangedHandler;
 
-        Editor.TextArea.Caret.PositionChanged += (_, _) =>
+        _editorCaretPositionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -210,6 +223,7 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
 
         // ViewModel -> Editor synchronization
         _vm.PropertyChanged += OnViewModelPropertyChanged;
@@ -472,6 +486,7 @@ public sealed partial class MainWindow : Window
     /// If the user cancels, the window close is prevented.
     /// Otherwise, it delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
     /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
+    /// IMPORTANT: Unsubscribes all event handlers BEFORE disposing resources to prevent memory leaks.
     /// </remarks>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
@@ -479,6 +494,10 @@ public sealed partial class MainWindow : Window
         if (_isClosingApproved)
         {
             _isClosingApproved = false;
+
+            // Unsubscribe all event handlers to prevent memory leaks
+            UnsubscribeAllEventHandlers();
+
             OnClosingAsync()
                 .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
             return;
@@ -498,8 +517,61 @@ public sealed partial class MainWindow : Window
         }
 
         // No unsaved changes, proceed with cleanup
+        // Unsubscribe all event handlers to prevent memory leaks
+        UnsubscribeAllEventHandlers();
+
         OnClosingAsync()
             .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+    }
+
+    /// <summary>
+    /// Unsubscribes all event handlers to prevent memory leaks.
+    /// </summary>
+    /// <remarks>
+    /// This method is called during window closing to ensure that all event subscriptions
+    /// are properly removed, preventing the MainWindow from being retained in memory
+    /// due to event handler references. This is critical for proper garbage collection.
+    /// </remarks>
+    private void UnsubscribeAllEventHandlers()
+    {
+        SimpleLogger.Log("Unsubscribing all event handlers...");
+
+        // Unsubscribe window-level events
+        if (_activatedHandler is not null)
+        {
+            Activated -= _activatedHandler;
+            _activatedHandler = null;
+        }
+
+        if (_themeChangedHandler is not null)
+        {
+            ActualThemeVariantChanged -= _themeChangedHandler;
+            _themeChangedHandler = null;
+        }
+
+        // Unsubscribe editor events
+        if (_editorTextChangedHandler is not null)
+        {
+            Editor.TextChanged -= _editorTextChangedHandler;
+            _editorTextChangedHandler = null;
+        }
+
+        if (_editorSelectionChangedHandler is not null)
+        {
+            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
+            _editorSelectionChangedHandler = null;
+        }
+
+        if (_editorCaretPositionChangedHandler is not null)
+        {
+            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
+            _editorCaretPositionChangedHandler = null;
+        }
+
+        // Unsubscribe ViewModel PropertyChanged event
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+
+        SimpleLogger.Log("All event handlers unsubscribed successfully");
     }
 
     /// <summary>

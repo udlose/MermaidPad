@@ -405,7 +405,18 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     Width = 100
                 };
 
-                okButton.Click += (_, _) => errorWindow.Close();
+                // Store event handler for cleanup
+                EventHandler<RoutedEventArgs>? okClickHandler = null;
+                okClickHandler = (_, _) =>
+                {
+                    // Unsubscribe before closing to prevent memory leak
+                    if (okClickHandler is not null)
+                    {
+                        okButton.Click -= okClickHandler;
+                    }
+                    errorWindow.Close();
+                };
+                okButton.Click += okClickHandler;
                 stackPanel.Children.Add(okButton);
 
                 errorWindow.Content = stackPanel;
@@ -483,22 +494,48 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     Content = "Yes, Overwrite",
                     Width = 120
                 };
-                yesButton.Click += (_, _) =>
-                {
-                    result = true;
-                    confirmWindow.Close();
-                };
 
                 Button noButton = new Button
                 {
                     Content = "No, Cancel",
                     Width = 120
                 };
-                noButton.Click += (_, _) =>
+
+                // Store event handlers for cleanup
+                EventHandler<RoutedEventArgs>? yesClickHandler = null;
+                yesClickHandler = (_, _) =>
                 {
-                    result = false;
+                    result = true;
+                    // Unsubscribe before closing to prevent memory leak
+                    if (yesClickHandler is not null)
+                    {
+                        yesButton.Click -= yesClickHandler;
+                    }
+                    if (noClickHandler is not null)
+                    {
+                        noButton.Click -= noClickHandler;
+                    }
                     confirmWindow.Close();
                 };
+
+                EventHandler<RoutedEventArgs>? noClickHandler = null;
+                noClickHandler = (_, _) =>
+                {
+                    result = false;
+                    // Unsubscribe before closing to prevent memory leak
+                    if (yesClickHandler is not null)
+                    {
+                        yesButton.Click -= yesClickHandler;
+                    }
+                    if (noClickHandler is not null)
+                    {
+                        noButton.Click -= noClickHandler;
+                    }
+                    confirmWindow.Close();
+                };
+
+                yesButton.Click += yesClickHandler;
+                noButton.Click += noClickHandler;
 
                 buttonPanel.Children.Add(yesButton);
                 buttonPanel.Children.Add(noButton);
