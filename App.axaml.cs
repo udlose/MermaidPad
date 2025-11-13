@@ -347,19 +347,14 @@ public sealed partial class App : Application
                 Width = 120
             };
 
-            copyButton.Click += async (_, _) =>
+            copyButton.Click += (_, _) =>
             {
-                try
-                {
-                    await mainWindow.Clipboard!.SetTextAsync(fullExceptionDetails);
-                    copyButton.Content = "Copied!";
-                    await Task.Delay(2000);
-                    copyButton.Content = "Copy Details";
-                }
-                catch (Exception clipboardEx)
-                {
-                    Debug.WriteLine($"Failed to copy to clipboard: {clipboardEx}");
-                }
+                CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
+                    .SafeFireAndForget(onException: ex =>
+                    {
+                        SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                        Debug.WriteLine($"Failed to copy to clipboard: {ex}");
+                    });
             };
 
             buttonPanel.Children.Add(copyButton);
@@ -387,6 +382,21 @@ public sealed partial class App : Application
     }
 
     #region Exception Detail Helpers
+
+    /// <summary>
+    /// Copies exception details to the clipboard and provides visual feedback.
+    /// </summary>
+    /// <param name="window">The main window (for clipboard access).</param>
+    /// <param name="copyButton">The copy button to update with feedback.</param>
+    /// <param name="exceptionDetails">The exception details to copy.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private static async Task CopyExceptionDetailsToClipboardAsync(Window window, Button copyButton, string exceptionDetails)
+    {
+        await window.Clipboard!.SetTextAsync(exceptionDetails);
+        copyButton.Content = "Copied!";
+        await Task.Delay(2000);
+        copyButton.Content = "Copy Details";
+    }
 
     /// <summary>
     /// Logs exception with comprehensive context including thread information and full exception chain.
