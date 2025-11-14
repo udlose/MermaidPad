@@ -57,10 +57,12 @@ public sealed partial class MainWindow : Window
 
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
+    private EventHandler? _openedHandler;
+    private EventHandler<CancelEventArgs>? _closingHandler;
     private EventHandler? _editorTextChangedHandler;
     private EventHandler? _editorSelectionChangedHandler;
     private EventHandler? _editorCaretPositionChangedHandler;
-    private EventHandler<EventArgs>? _themeChangedHandler;
+    private EventHandler? _themeChangedHandler;
 
     /// <summary>
     /// Command to open a recent file.
@@ -101,14 +103,16 @@ public sealed partial class MainWindow : Window
         // Initialize syntax highlighting before wiring up OnThemeChanged
         InitializeSyntaxHighlighting();
 
-        Opened += OnOpened;
-        Closing += OnClosing;
+        // Store event handlers for proper cleanup
+        _openedHandler = OnOpened;
+        Opened += _openedHandler;
 
-        // Store theme change handler for proper cleanup
+        _closingHandler = OnClosing;
+        Closing += _closingHandler;
+
         _themeChangedHandler = OnThemeChanged;
         ActualThemeVariantChanged += _themeChangedHandler;
 
-        // Focus the editor when the window is activated
         _activatedHandler = (_, _) => BringFocusToEditor();
         Activated += _activatedHandler;
 
@@ -490,21 +494,8 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        // If already approved, proceed with cleanup
-        if (_isClosingApproved)
-        {
-            _isClosingApproved = false;
-
-            // Unsubscribe all event handlers to prevent memory leaks
-            UnsubscribeAllEventHandlers();
-
-            OnClosingAsync()
-                .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
-            return;
-        }
-
-        // Check for unsaved changes
-        if (_vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        // Check for unsaved changes (only if not already approved)
+        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
         {
             e.Cancel = true;
             PromptAndCloseAsync()
@@ -516,10 +507,16 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        // No unsaved changes, proceed with cleanup
+        // Reset approval flag if it was set
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+        }
+
         // Unsubscribe all event handlers to prevent memory leaks
         UnsubscribeAllEventHandlers();
 
+        // Perform async cleanup
         OnClosingAsync()
             .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
     }
@@ -537,6 +534,18 @@ public sealed partial class MainWindow : Window
         SimpleLogger.Log("Unsubscribing all event handlers...");
 
         // Unsubscribe window-level events
+        if (_openedHandler is not null)
+        {
+            Opened -= _openedHandler;
+            _openedHandler = null;
+        }
+
+        if (_closingHandler is not null)
+        {
+            Closing -= _closingHandler;
+            _closingHandler = null;
+        }
+
         if (_activatedHandler is not null)
         {
             Activated -= _activatedHandler;
