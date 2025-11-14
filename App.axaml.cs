@@ -401,7 +401,9 @@ public sealed partial class App : Application, IDisposable
                 Width = 120
             };
 
-            copyButton.Click += (_, _) =>
+            // Store event handler for cleanup to prevent memory leak
+            EventHandler<Avalonia.Interactivity.RoutedEventArgs>? copyClickHandler = null;
+            copyClickHandler = (_, _) =>
             {
                 CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
                     .SafeFireAndForget(onException: static ex =>
@@ -410,6 +412,7 @@ public sealed partial class App : Application, IDisposable
                         Debug.WriteLine($"Failed to copy to clipboard: {ex}");
                     });
             };
+            copyButton.Click += copyClickHandler;
 
             buttonPanel.Children.Add(copyButton);
 
@@ -424,7 +427,11 @@ public sealed partial class App : Application, IDisposable
             EventHandler<Avalonia.Interactivity.RoutedEventArgs>? okClickHandler = null;
             okClickHandler = (_, _) =>
             {
-                // Unsubscribe before closing to prevent memory leak
+                // Unsubscribe both handlers before closing to prevent memory leak
+                if (copyClickHandler is not null)
+                {
+                    copyButton.Click -= copyClickHandler;
+                }
                 if (okClickHandler is not null)
                 {
                     okButton.Click -= okClickHandler;
