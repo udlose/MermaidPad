@@ -18,7 +18,7 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       # required for all workflows
       security-events: write
@@ -37,7 +37,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: csharp
-          build-mode: autobuild
+          build-mode: manual
         - language: javascript-typescript
           build-mode: none
         - language: javascript-typescript
@@ -60,6 +60,18 @@ jobs:
     # - name: Setup runtime (example)
     #   uses: actions/setup-example@v1
 
+    - name: Setup .NET (for C#)
+      if: matrix.language == 'csharp'
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Show dotnet info (for debugging)
+      if: matrix.language == 'csharp'
+      shell: pwsh
+      run: |
+        dotnet --info
+
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
@@ -79,16 +91,52 @@ jobs:
     # to build your code.
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    - name: Run manual build steps
+    - name: Run manual build steps (Windows / PowerShell)
       if: matrix.build-mode == 'manual'
-      shell: bash
+      shell: pwsh
       run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
+
+        Write-Host "If you are using a 'manual' build mode for one or more of the"
+        Write-Host "languages you are analyzing, replace this with the commands to build"
+        Write-Host "your code. The script below will attempt to locate a solution or"
+        Write-Host "project (prefers a root .sln, then MermaidPad.csproj, then any .csproj) and run restore/build."
+
+        Write-Host "Locating solution or project to build..."
+        $buildTarget = $null
+
+        # Prefer a solution at repository root
+        $sln = Get-ChildItem -Path $PWD -Filter '*.sln' -File -Depth 0 -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $sln) {
+          $buildTarget = $sln.FullName
+          Write-Host "Found solution: $buildTarget"
+        } else {
+          # Prefer the known project file
+          $proj = Get-ChildItem -Path $PWD -Filter 'MermaidPad.csproj' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($null -ne $proj) {
+            $buildTarget = $proj.FullName
+            Write-Host "Found project: $buildTarget"
+          } else {
+            # Fallback to any .csproj in the repo
+            $anyProj = Get-ChildItem -Path $PWD -Recurse -Depth 2 -Filter '*.csproj' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -ne $anyProj) {
+              $buildTarget = $anyProj.FullName
+              Write-Host "Using discovered project: $buildTarget"
+            } else {
+              Write-Error "No .sln or .csproj found. Set the path explicitly or ensure project files are checked out."
+              exit 1
+            }
+          }
+        }
+
+        Write-Host "Restoring packages..."
+        dotnet restore "$buildTarget"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        Write-Host "Building (Release)..."
+        dotnet build "$buildTarget" --configuration Release --no-restore
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
