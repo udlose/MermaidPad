@@ -532,7 +532,7 @@ quadrantChart
 
 ```
 radar-beta
-  title Skill Radar — Dave
+  title Skill Radar - Dave
   axis csharp["C#"], dotnet[".NET Runtime"], aspnet["ASP.NET Core"], efcore["EF Core"], wpf["WPF"], cve["CVE Analysis"], perf["Performance"], maui[".NET MAUI"]
   curve current["Current Strengths"]{10,9,7,6,6,7,8,5}
   curve target["Growth Goals 2025"]{9,10,9,8,7,9,9,7}
@@ -879,7 +879,7 @@ This section documents how builds and releases are produced (CI) and how you can
 Source of truth:
 - Project-level build settings: `Directory.Build.props` (net9.0, RIDs, publish configuration)
 - Asset integrity: `MermaidPad.csproj.targets` generates `Generated/AssetHashes.cs` at build time
-- CI/workflow: `.github/workflows/build-and-release.yml` — uses a matrix to publish and upload artifacts, then creates releases
+- CI/workflow: `.github/workflows/build-and-release.yml` - uses a matrix to publish and upload artifacts, then creates releases
 
 Key settings
 - Target framework: net9.0 (see `Directory.Build.props`)
@@ -916,9 +916,9 @@ Local reproducible publish
      ```
 
 Asset integrity
-- `MermaidPad.csproj.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets — ensure your publish includes the `Assets/` content unchanged.
+- `MermaidPad.csproj.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets - ensure your publish includes the `Assets/` content unchanged.
 
-Testing published artifacts (do this — do not assume local debug == published)
+Testing published artifacts (do this - do not assume local debug == published)
 - Download the artifact produced by CI (Release assets or artifact zip produced by `build-and-release.yml`) or use the zip you created locally.
 - macOS:
   - For universal DMG: mount the `.dmg`, drag the `.app` to `/Applications`, then run via Finder.
@@ -936,12 +936,12 @@ Testing published artifacts (do this — do not assume local debug == published)
 Why test published artifacts?
 - CI publish packs the app with the runtime/config and file layout the user receives (assets, native libs, packaging differences).
 - Local debug builds or F5 runs may differ (different working directory, dev files available, different asset bundling).
-- The project adds asset-hash verification — mismatch in bundled assets will surface only in published artifacts.
+- The project adds asset-hash verification - mismatch in bundled assets will surface only in published artifacts.
 
 Release flow (how CI creates a release)
 - Tag `vX.Y.Z` and push, or run the workflow manually via `workflow_dispatch` with `version` input.
 - The workflow runs a build matrix, produces per-RID zips, bundles macOS .app and a universal DMG, then creates a GitHub Release attaching artifacts.
-- Note: The workflow contains a guard that restricts manual runs to the repository owner (`udlose`) — see `restrict-user` job in `.github/workflows/build-and-release.yml`.
+- Note: The workflow contains a guard that restricts manual runs to the repository owner (`udlose`) - see `restrict-user` job in `.github/workflows/build-and-release.yml`.
 
 Tips for maintainers
 - Keep the `Assets/` files in sync with expected hashes or update assets and bump version so `Generated/AssetHashes.cs` is regenerated.
@@ -977,7 +977,7 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - **“ESLint couldn't find an eslint.config…”**  
   Ensure `eslint.config.mjs` exists **at repo root** (ESLint v9 uses flat config by default).
 - **“Cannot use import statement outside a module” when loading config**  
-  Use `eslint.config.mjs` (ESM). Alternatively, set `"type": "module"` in `package.json`—but that affects all `.js` files in the package.
+  Use `eslint.config.mjs` (ESM). Alternatively, set `"type": "module"` in `package.json`-but that affects all `.js` files in the package.
 - **ESLint is linting build output/WebView2 files**  
   Verify the **global** `ignores` block above and run ESLint with the explicit `Assets/**/*` glob as shown.
 - **“'import' and 'export' may appear only with 'sourceType: module'” in HTML**  
