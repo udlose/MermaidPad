@@ -958,19 +958,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Wait for server task to complete (with timeout)
             if (_serverTask is not null)
             {
-                // First, signal cancellation to ask the server to stop
-                try
-                {
-                    if (_serverCancellation is not null)
-                    {
-                        await _serverCancellation.CancelAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.LogError("Error canceling server", ex);
-                }
-
                 try
                 {
                     const int maxWaitSeconds = 5;
