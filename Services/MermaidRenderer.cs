@@ -669,7 +669,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                // Re-check on the UI thread to be defensive — use the captured reference if available,
+                // Re-check on the UI thread to be defensive - use the captured reference if available,
                 // otherwise read the field on the UI thread.
                 webView ??= _webView;
                 if (webView is null)
