@@ -50,7 +50,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
-    internal IStorageProvider? StorageProvider { get; private set; }
 
     // Cached SVG dimensions
     private float _actualSvgWidth;
@@ -163,16 +162,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Sets the storage provider to be used for subsequent storage operations.
-    /// </summary>
-    /// <param name="storageProvider">The storage provider to use for data storage operations. Specify <see langword="null"/> to remove the current
-    /// storage provider.</param>
-    public void SetStorageProvider(IStorageProvider? storageProvider)
-    {
-        StorageProvider = storageProvider;
-    }
-
-    /// <summary>
     /// Creates and returns an ExportOptions object that reflects the current export settings.
     /// </summary>
     /// <remarks>The returned ExportOptions object includes only the options relevant to the selected export
@@ -281,17 +270,17 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     partial void OnUseWhiteBackgroundChanged(bool value) => UpdateEstimates();
 
     /// <summary>
-    /// Opens a folder picker dialog to allow the user to select a directory.
+    /// Command to open a folder picker dialog to allow the user to select an export directory.
     /// </summary>
-    /// <remarks>This method uses the configured <see cref="StorageProvider"/> to display a folder picker
-    /// dialog.  If the user selects a folder, the <see cref="Directory"/> property is updated with the path of the
-    /// selected folder. If no folder is selected or the <see cref="StorageProvider"/> is <see langword="null"/>, the
-    /// method does nothing.</remarks>
+    /// <remarks>This command uses the provided storage provider to display a folder picker dialog.
+    /// If the user selects a folder, the <see cref="Directory"/> property is updated with the path of the
+    /// selected folder. If no folder is selected or the storage provider is null, the command does nothing.</remarks>
+    /// <param name="storageProvider">The storage provider to use for the folder picker. If null, the command returns immediately.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     [RelayCommand]
-    private async Task BrowseForDirectoryAsync()
+    private async Task BrowseForDirectory(IStorageProvider? storageProvider)
     {
-        if (StorageProvider is null)
+        if (storageProvider is null)
         {
             return;
         }
@@ -302,7 +291,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             AllowMultiple = false
         };
 
-        IReadOnlyList<IStorageFolder> result = await StorageProvider.OpenFolderPickerAsync(options);
+        IReadOnlyList<IStorageFolder> result = await storageProvider.OpenFolderPickerAsync(options);
         if (result.Count > 0)
         {
             Directory = result[0].Path.LocalPath;

@@ -47,15 +47,4 @@ public sealed partial class ProgressDialog : Window
         CanResize = false;
         Topmost = true;
     }
-
-    protected override void OnOpened(EventArgs e)
-    {
-        base.OnOpened(e);
-
-        // Center the dialog on the parent window
-        if (Owner is not null)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
-    }
 }

@@ -87,17 +87,6 @@ public sealed partial class MessageDialog : Window
         CanResize = false;
     }
 
-    protected override void OnOpened(EventArgs e)
-    {
-        base.OnOpened(e);
-
-        // Center the dialog on the parent window
-        if (Owner is not null)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
-    }
-
     private void OnOkClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         Close(true);

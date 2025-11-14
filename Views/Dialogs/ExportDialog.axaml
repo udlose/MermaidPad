@@ -103,6 +103,7 @@
               <Button
                 Width="70"
                 Command="{Binding BrowseForDirectoryCommand}"
+                CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
                 Content="Browse..." />
             </StackPanel>
           </StackPanel>
