@@ -45,7 +45,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
 
     private WebView? _webView;
-    private int _renderAttemptCount;
     private HttpListener? _httpListener;
     private byte[]? _htmlContent;
     private byte[]? _mermaidJs;
@@ -327,6 +326,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         try
         {
+            const string javascriptContentType = "application/javascript; charset=utf-8";
             string requestPath = context.Request.Url?.LocalPath ?? "/";
             SimpleLogger.Log($"Processing request: {requestPath}");
 
@@ -337,7 +337,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
             {
                 responseBytes = _mermaidJs;
-                contentType = "application/javascript; charset=utf-8";
+                contentType = javascriptContentType;
             }
             else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
             {
@@ -351,24 +351,24 @@ public sealed class MermaidRenderer : IAsyncDisposable
             else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
             {
                 responseBytes = _jsYamlJs;
-                contentType = "application/javascript; charset=utf-8";
+                contentType = javascriptContentType;
             }
             else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
             {
                 responseBytes = _mermaidLayoutElkJs;
-                contentType = "application/javascript; charset=utf-8";
+                contentType = javascriptContentType;
             }
             else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
                      _mermaidLayoutElkChunkSP2CHFBEJs is not null)
             {
                 responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
-                contentType = "application/javascript; charset=utf-8";
+                contentType = javascriptContentType;
             }
             else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
                      _mermaidLayoutElkRenderAVRWSH4DJs is not null)
             {
                 responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
-                contentType = "application/javascript; charset=utf-8";
+                contentType = javascriptContentType;
             }
             else
             {
@@ -539,14 +539,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// method logs an error and exits without performing any action.  This method must be called on the UI thread, as
     /// it interacts with the WebView control. Exceptions during rendering or clearing are logged but do not propagate
     /// to the caller.</remarks>
-    /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty, or consists only of whitespace, the output in
-    /// the WebView will be cleared instead.</param>
+    /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty,
+    /// or consists only of whitespace, the output in the WebView will be cleared instead.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
-        _renderAttemptCount++;
-        SimpleLogger.Log($"Render attempt #{_renderAttemptCount}");
-
         if (_webView is null)
         {
             SimpleLogger.LogError("WebView not initialized");
@@ -732,26 +729,30 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return;
         }
 
+        CancellationTokenSource? ctsToDispose = null;
         lock (_exportCallbackLock)
         {
             _exportProgressCallbacks.Remove(callback);
 
             if (_exportProgressCallbacks.Count == 0)
             {
-                try
-                {
-                    _exportPollingCts?.Cancel();
-                    _exportPollingCts?.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.LogError("Failed to stop export status polling", ex);
-                }
-                finally
-                {
-                    _exportPollingCts = null;
-                    _lastExportStatus = null;
-                }
+                ctsToDispose = _exportPollingCts;
+                _exportPollingCts = null;
+                _lastExportStatus = null;
+            }
+        }
+
+        // Dispose outside lock to prevent deadlocks
+        if (ctsToDispose is not null)
+        {
+            try
+            {
+                ctsToDispose.Cancel();
+                ctsToDispose.Dispose();
+            }
+            catch (Exception ex)
+            {
+                SimpleLogger.LogError("Failed to stop export status polling", ex);
             }
         }
     }
@@ -957,21 +958,90 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Wait for server task to complete (with timeout)
             if (_serverTask is not null)
             {
+                // First, signal cancellation to ask the server to stop
+                try
+                {
+                    if (_serverCancellation is not null)
+                    {
+                        await _serverCancellation.CancelAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SimpleLogger.LogError("Error canceling server", ex);
+                }
+
                 try
                 {
                     const int maxWaitSeconds = 5;
                     await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
                         .ConfigureAwait(false);
+
+                    // Task completed successfully
+                    _serverTask.Dispose();
+                    _serverTask = null;
+                }
+                catch (TimeoutException)
+                {
+                    // Task didn't stop within timeout - abandon our reference but clean up when it completes
+                    SimpleLogger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
+
+                    // Attach continuation to dispose when task eventually completes
+                    Task? taskToAbandon = _serverTask;
+                    _serverTask = null;  // Abandon our reference first
+
+                    _ = taskToAbandon?.ContinueWith(
+                        static t =>
+                        {
+                            try
+                            {
+                                // Handle different completion states
+                                if (t.IsFaulted)
+                                {
+                                    // Exception already observed and logged by StartHttpServer's try-catch
+                                    SimpleLogger.Log($"Abandoned server task faulted (exception already logged in {nameof(StartHttpServer)})");
+                                }
+                                else if (t.IsCanceled)
+                                {
+                                    SimpleLogger.Log("Abandoned server task was canceled");
+                                }
+                                else
+                                {
+                                    SimpleLogger.Log("Abandoned server task completed successfully");
+                                }
+
+                                // Dispose in all cases
+                                t.Dispose();
+                                SimpleLogger.Log("Abandoned server task completed and disposed");
+                            }
+                            catch (Exception ex)
+                            {
+                                // This catch ensures the continuation itself doesn't have unobserved exceptions
+                                SimpleLogger.LogError("Error in abandoned server task continuation", ex);
+                            }
+                        },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
                 }
                 catch (Exception ex)
                 {
+                    // Task threw exception, but we observed it
                     SimpleLogger.LogError("Error waiting for server task", ex);
+                    try
+                    {
+                        _serverTask?.Dispose();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        SimpleLogger.LogError("Error disposing server task", disposeEx);
+                    }
+                    _serverTask = null;
                 }
             }
 
             _serverCancellation?.Dispose();
             _serverReadySemaphore.Dispose();
-            _serverTask?.Dispose();
 
             SimpleLogger.Log("MermaidRenderer disposed");
         }
