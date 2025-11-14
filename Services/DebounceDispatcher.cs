@@ -22,6 +22,8 @@ using Avalonia.Threading;
 
 namespace MermaidPad.Services;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>
 /// Provides methods for debouncing actions, ensuring that actions are only executed after a specified delay
 /// and canceling previous pending actions with the same key.
@@ -95,16 +97,20 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             _tokens[key] = cts;
             _ = RunAsync(key, delay, cts, action);
         }
+
         ctsOld?.Cancel();
+        //Don't dispose here - the RunAsync task will dispose it in its finally block to avoid double-disposal race condition
     }
 
     /// <summary>
     /// Cancels the operation associated with the specified key.
     /// </summary>
     /// <remarks>If the specified key is found, the associated cancellation token source is canceled.  If the
-    /// key does not exist, no action is taken.</remarks>
+    /// key does not exist, no action is taken. The CTS is not disposed here - the <see cref="RunAsync"/> task will dispose it
+    /// in its finally block to avoid double-disposal.</remarks>
     /// <param name="key">The unique identifier for the operation to cancel. Cannot be null, empty, or consist only of whitespace.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="key"/> is null, empty, or consists only of whitespace.</exception>
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The CTS is disposed in the RunAsync method to avoid double-disposal.")]
     public void Cancel(string key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -114,7 +120,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             if (_tokens.Remove(key, out CancellationTokenSource? cts))
             {
                 cts.Cancel();
-                cts.Dispose();
+                // Don't dispose - let RunAsync dispose it to avoid double-disposal
             }
         }
     }
@@ -137,10 +143,22 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
             await Task.Delay(delay, cts.Token);
             if (!cts.IsCancellationRequested)
             {
-                action();
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    // Log exceptions from user actions to prevent them from escaping
+                    // and potentially preventing cleanup in the finally block
+                    SimpleLogger.LogError($"Exception in debounced action for key '{key}'", ex);
+                }
             }
         }
-        catch (TaskCanceledException) { /* ignore */ }
+        catch (TaskCanceledException)
+        {
+            // ignore
+        }
         finally
         {
             lock (_gate)
@@ -150,6 +168,9 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
                     _tokens.Remove(key);
                 }
             }
+
+            // Cleanup - caller is a fire & forget so we need to dispose of the CTS here
+            cts.Dispose();
         }
     }
 }
