@@ -521,17 +521,16 @@ public sealed partial class MainWindow : Window
     {
         SimpleLogger.Log("Unsubscribing all event handlers...");
 
+        // Note: Closing handler is NOT unsubscribed here because:
+        // 1. This method is called FROM within OnClosing, so unsubscribing while executing is unnecessary
+        // 2. Closing is the last event before Window disposal, which will clean it up automatically
+        // 3. Unsubscribing from within the handler itself, while safe, is considered poor practice
+
         // Unsubscribe window-level events
         if (_openedHandler is not null)
         {
             Opened -= _openedHandler;
             _openedHandler = null;
-        }
-
-        if (_closingHandler is not null)
-        {
-            Closing -= _closingHandler;
-            _closingHandler = null;
         }
 
         if (_activatedHandler is not null)
@@ -546,7 +545,7 @@ public sealed partial class MainWindow : Window
             _themeChangedHandler = null;
         }
 
-        // Unsubscribe editor events
+        // Unsubscribe editor events (critical - Editor outlives Window)
         if (_editorTextChangedHandler is not null)
         {
             Editor.TextChanged -= _editorTextChangedHandler;
@@ -565,7 +564,7 @@ public sealed partial class MainWindow : Window
             _editorCaretPositionChangedHandler = null;
         }
 
-        // Unsubscribe ViewModel PropertyChanged event
+        // Unsubscribe ViewModel PropertyChanged event (critical - ViewModel outlives Window)
         if (_viewModelPropertyChangedHandler is not null)
         {
             _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
