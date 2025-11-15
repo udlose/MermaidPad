@@ -27,18 +27,6 @@ namespace MermaidPad.Views.Dialogs;
 /// </summary>
 public sealed partial class ProgressDialog : Window
 {
-    //public ProgressDialog()
-    //{
-    //    InitializeComponent();
-
-    //    // Make dialog non-resizable and always on top
-    //    CanResize = false;
-    //    Topmost = true;
-
-    //    // Center the dialog on the parent window
-    //    WindowStartupLocation = WindowStartupLocation.CenterOwner;
-    //    Debug.Assert(Owner is not null);
-    //}
     public ProgressDialog()
     {
         InitializeComponent();
@@ -46,16 +34,5 @@ public sealed partial class ProgressDialog : Window
         // Make dialog non-resizable and always on top
         CanResize = false;
         Topmost = true;
-    }
-
-    protected override void OnOpened(EventArgs e)
-    {
-        base.OnOpened(e);
-
-        // Center the dialog on the parent window
-        if (Owner is not null)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
     }
 }
