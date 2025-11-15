@@ -500,13 +500,18 @@ public sealed partial class MainWindow : Window
             _isClosingApproved = false;
         }
 
+        // Check if close was cancelled by another handler or the system
+        if (e.Cancel)
+        {
+            return; // Don't cleanup - window is not actually closing
+        }
+
         // Only unsubscribe when we're actually closing (e.Cancel is still false)
         // This ensures handlers remain active if close is cancelled and attempted again
         UnsubscribeAllEventHandlers();
 
-        // Perform async cleanup
-        OnClosingAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+        // Save state
+        _vm.Persist();
     }
 
     /// <summary>
