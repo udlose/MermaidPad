@@ -33,18 +33,18 @@
       <MenuItem Header="_File">
         <MenuItem
           Command="{Binding OpenFileCommand}"
-          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Open..."
           InputGesture="Ctrl+O" />
         <MenuItem
           Command="{Binding SaveFileCommand}"
-          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Save"
           InputGesture="Ctrl+S"
           IsEnabled="{Binding CanSave}" />
         <MenuItem
           Command="{Binding SaveFileAsCommand}"
-          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="Save _As..."
           InputGesture="Ctrl+Shift+S"
           IsEnabled="{Binding HasText}" />
@@ -53,7 +53,7 @@
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
               <MenuItem Header="{Binding}"
-                        Command="{Binding DataContext.OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Command="{Binding DataContext.OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=TopLevel}}"
                         CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
@@ -65,7 +65,7 @@
         <Separator />
         <MenuItem
           Command="{Binding CloseWindowCommand}"
-          CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+          CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="E_xit"
           InputGesture="Alt+F4" />
       </MenuItem>
