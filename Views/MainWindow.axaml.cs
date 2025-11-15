@@ -576,12 +576,11 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs cleanup operations when the window is closing, including persisting state and disposing of resources
-    /// asynchronously.
+    /// Performs cleanup operations when the window is closing, including persisting state.
     /// </summary>
-    /// <remarks>This method ensures that the application state is saved and any resources, such as the renderer, are
-    /// properly disposed of before the window is closed. It logs the progress of the cleanup process for diagnostic
-    /// purposes.</remarks>
+    /// <remarks>This method ensures that the application state is saved before the window is closed.
+    /// Note: MermaidRenderer is a singleton service owned by the DI container and will be disposed
+    /// by App.Dispose() when the application shuts down, not when individual windows close.</remarks>
     /// <returns>A <see cref="Task"/> that represents the asynchronous cleanup operation.</returns>
     private async Task OnClosingAsync()
     {
@@ -590,13 +589,13 @@ public sealed partial class MainWindow : Window
         // Save state
         _vm.Persist();
 
-        if (_renderer is IAsyncDisposable disposableRenderer)
-        {
-            await disposableRenderer.DisposeAsync();
-            SimpleLogger.Log("MermaidRenderer disposed");
-        }
+        // Note: MermaidRenderer is NOT disposed here because it's a singleton service
+        // owned by the DI container. It will be disposed when App.Dispose() disposes
+        // the ServiceProvider at application shutdown. Individual windows should not
+        // dispose singleton services.
 
         SimpleLogger.Log("Window cleanup completed successfully");
+        await Task.CompletedTask; // Keep method async for future async cleanup needs
     }
 
     /// <summary>
