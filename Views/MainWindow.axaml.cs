@@ -32,7 +32,6 @@ using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Windows.Input;
 
 namespace MermaidPad.Views;
 
@@ -63,20 +62,6 @@ public sealed partial class MainWindow : Window
     private EventHandler? _editorSelectionChangedHandler;
     private EventHandler? _editorCaretPositionChangedHandler;
     private EventHandler? _themeChangedHandler;
-
-    /// <summary>
-    /// Command to open a recent file.
-    /// </summary>
-    /// <remarks>
-    /// This pass-through property exposes the ViewModel command on the Window type so compiled XAML
-    /// bindings inside the Recent Files DataTemplate can resolve it via an ancestor binding.
-    /// In that template, each item's DataContext is a string (the file path), so a path like
-    /// "DataContext.OpenRecentFileCommand" is validated against 'object' by the XAML compiler and fails.
-    /// By surfacing the command on <see cref="MainWindow"/>, the template can bind with:
-    ///   Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
-    /// avoiding disabling compiled bindings or creating per-item view-models.
-    /// </remarks>
-    public ICommand OpenRecentFileCommand => _vm.OpenRecentFileCommand;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.

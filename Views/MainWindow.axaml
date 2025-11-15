@@ -53,7 +53,7 @@
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
               <MenuItem Header="{Binding}"
-                        Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
+                        Command="{Binding DataContext.OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
