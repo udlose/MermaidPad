@@ -518,18 +518,13 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Unsubscribes all event handlers to prevent memory leaks.
+    /// Unsubscribes all event handlers that were previously attached to window and editor events.
     /// </summary>
-    /// <remarks>
-    /// This method is called during window closing to ensure that all event subscriptions
-    /// are properly removed, preventing the MainWindow from being retained in memory
-    /// due to event handler references. This is critical for proper garbage collection.
-    /// </remarks>
+    /// <remarks>Call this method to detach all event handlers managed by the instance, typically during
+    /// cleanup or disposal. After calling this method, the instance will no longer respond to the associated events
+    /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
     private void UnsubscribeAllEventHandlers()
     {
-        SimpleLogger.Log("Unsubscribing all event handlers...");
-
-        // Unsubscribe window-level events
         if (_openedHandler is not null)
         {
             Opened -= _openedHandler;
@@ -554,7 +549,6 @@ public sealed partial class MainWindow : Window
             _themeChangedHandler = null;
         }
 
-        // Unsubscribe editor events
         if (_editorTextChangedHandler is not null)
         {
             Editor.TextChanged -= _editorTextChangedHandler;
@@ -573,7 +567,6 @@ public sealed partial class MainWindow : Window
             _editorCaretPositionChangedHandler = null;
         }
 
-        // Unsubscribe ViewModel PropertyChanged event
         if (_viewModelPropertyChangedHandler is not null)
         {
             _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
