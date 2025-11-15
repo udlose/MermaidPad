@@ -46,12 +46,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private WebView? _webView;
     private int _renderAttemptCount;
     private HttpListener? _httpListener;
-    private byte[]? _htmlContent;
-    private byte[]? _mermaidJs;
-    private byte[]? _jsYamlJs;
-    private byte[]? _mermaidLayoutElkJs;
-    private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
-    private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
+    private readonly Dictionary<string, (string filePath, string contentType)> _assetRoutes = new(StringComparer.OrdinalIgnoreCase);
     private int _serverPort;
     private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
     private CancellationTokenSource? _serverCancellation;
@@ -118,15 +113,15 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Ensures that the first render of the WebView2 control is complete within the specified timeout period.
     /// </summary>
     /// <remarks>This method repeatedly checks the rendering status of the WebView2 control by executing a
-    /// script in the WebView2 environment. If the rendering is not completed within the specified timeout, a <see
-    /// cref="TimeoutException"/> is thrown.</remarks>
+    /// script in the WebView2 environment using exponential backoff for polling intervals (50ms → 100ms → 200ms → 400ms).
+    /// If the rendering is not completed within the specified timeout, a <see cref="TimeoutException"/> is thrown.</remarks>
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
     private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        const int renderReadyPollingIntervalMs = 100;
+        int attemptCount = 0;
 
         while (stopwatch.Elapsed < timeout)
         {
@@ -147,7 +142,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
 
-            await Task.Delay(renderReadyPollingIntervalMs);
+            // Exponential backoff: 50ms → 100ms → 200ms → 400ms (max)
+            int delayMs = Math.Min(50 * (int)Math.Pow(2, attemptCount), 400);
+            await Task.Delay(delayMs);
+            attemptCount++;
         }
 
         throw new TimeoutException($"First render not signaled within {timeout.TotalSeconds:0.##} seconds.");
@@ -185,42 +183,44 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Asynchronously loads and prepares content from disk, including HTML, JavaScript, and other assets, for use in
-    /// the application.
+    /// Asynchronously prepares asset routing by building a map of request paths to file paths and content types.
+    /// Validates that all required assets exist without loading them into memory.
     /// </summary>
-    /// <remarks>This method retrieves multiple assets in parallel to optimize performance. The loaded content
-    /// is stored in memory for subsequent use. The method logs the size of each asset and the total time taken to
-    /// complete the operation.</remarks>
+    /// <remarks>This method validates asset availability in parallel. Assets are streamed from disk on-demand
+    /// during HTTP requests, reducing memory footprint and relying on OS file caching for performance.</remarks>
     /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task PrepareContentFromDiskAsync()
     {
         Stopwatch sw = Stopwatch.StartNew();
 
-        // Get assets in parallel
-        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
-        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
-        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
-        Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
-        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
-        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
+        string assetsDirectory = AssetHelper.GetAssetsDirectory();
 
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
-            .ConfigureAwait(false);
+        // Build asset routing map
+        _assetRoutes["/"] = (Path.Combine(assetsDirectory, AssetHelper.IndexHtmlFilePath), "text/html; charset=utf-8");
+        _assetRoutes[IndexRequestPath] = (Path.Combine(assetsDirectory, AssetHelper.IndexHtmlFilePath), "text/html; charset=utf-8");
+        _assetRoutes[MermaidRequestPath] = (Path.Combine(assetsDirectory, AssetHelper.MermaidMinJsFilePath), "application/javascript; charset=utf-8");
+        _assetRoutes[JsYamlRequestPath] = (Path.Combine(assetsDirectory, AssetHelper.JsYamlFilePath), "application/javascript; charset=utf-8");
+        _assetRoutes[MermaidLayoutElkRequestPath] = (Path.Combine(assetsDirectory, AssetHelper.MermaidLayoutElkPath), "application/javascript; charset=utf-8");
+        _assetRoutes[MermaidLayoutElkChunkSP2CHFBERequestPath] = (Path.Combine(assetsDirectory, AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath), "application/javascript; charset=utf-8");
+        _assetRoutes[MermaidLayoutElkRenderAVRWSH4DRequestPath] = (Path.Combine(assetsDirectory, AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath), "application/javascript; charset=utf-8");
 
-        _htmlContent = await indexHtmlTask.ConfigureAwait(false);
-        _mermaidJs = await jsTask.ConfigureAwait(false);
-        _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
-        _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
-        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
-        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
+        // Validate all assets exist in parallel (fast check without loading content)
+        var validationTasks = _assetRoutes.Values.Select(async route =>
+        {
+            await Task.Run(() =>
+            {
+                if (!File.Exists(route.filePath))
+                {
+                    throw new FileNotFoundException($"Asset not found: {route.filePath}");
+                }
+                var fileInfo = new FileInfo(route.filePath);
+                SimpleLogger.Log($"Validated asset: {Path.GetFileName(route.filePath)} ({fileInfo.Length:N0} bytes)");
+            }).ConfigureAwait(false);
+        });
+
+        await Task.WhenAll(validationTasks).ConfigureAwait(false);
 
         sw.Stop();
-        SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
-        SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
-        SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
         SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
@@ -319,7 +319,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes a single HTTP request and serves the requested asset.
+    /// Processes a single HTTP request and serves the requested asset by streaming from disk.
     /// </summary>
     /// <param name="context">The HTTP request context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
@@ -330,62 +330,32 @@ public sealed class MermaidRenderer : IAsyncDisposable
             string requestPath = context.Request.Url?.LocalPath ?? "/";
             SimpleLogger.Log($"Processing request: {requestPath}");
 
-            byte[]? responseBytes = null;
-            string? contentType = null;
+            // Fast O(1) dictionary lookup for asset routing
+            if (_assetRoutes.TryGetValue(requestPath, out var route))
+            {
+                // Stream asset from disk (OS will cache frequently accessed files)
+                await using FileStream fileStream = new FileStream(
+                    route.filePath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 81920,  // 80KB buffer
+                    useAsync: true);
 
-            // Separate file handling is needed to avoid JavaScript injection issues
-            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
-            {
-                responseBytes = _mermaidJs;
-                contentType = "application/javascript; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.StatusCode = 404;
-            }
-            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
-            {
-                responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
-                contentType = "text/html; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
-            {
-                responseBytes = _jsYamlJs;
-                contentType = "application/javascript; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
-            {
-                responseBytes = _mermaidLayoutElkJs;
-                contentType = "application/javascript; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkChunkSP2CHFBEJs is not null)
-            {
-                responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
-                contentType = "application/javascript; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkRenderAVRWSH4DJs is not null)
-            {
-                responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
-                contentType = "application/javascript; charset=utf-8";
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = route.contentType;
+                context.Response.ContentLength64 = fileStream.Length;
+
+                // Stream to response
+                await fileStream.CopyToAsync(context.Response.OutputStream)
+                    .ConfigureAwait(false);
+
+                SimpleLogger.Log($"Served {requestPath}: {fileStream.Length:N0} bytes");
             }
             else
             {
                 context.Response.StatusCode = 404;
                 SimpleLogger.Log($"404 for: {requestPath}");
-            }
-
-            if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
-            {
-                // set the response code before writing to the output stream
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = contentType;
-                context.Response.ContentLength64 = responseBytes.Length;
-                await context.Response.OutputStream.WriteAsync(responseBytes)
-                    .ConfigureAwait(false);
-
-                SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
             }
         }
         catch (Exception ex)
@@ -461,32 +431,39 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Finds and returns the first available port within the range 8083 to 8199.
+    /// Gets an available port by letting the OS assign one automatically.
     /// </summary>
-    /// <remarks>This method attempts to bind to each port in the specified range, starting from 8083, to
-    /// determine if it is available for use. If a port is in use, the method proceeds to the next port. If no available
-    /// ports are found within the range, an <see cref="InvalidOperationException"/> is thrown.</remarks>
-    /// <returns>The first available port number within the range 8083 to 8199.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if no available ports are found in the range 8083-8199.</exception>
+    /// <remarks>This method uses port 0 to let the operating system assign an available port,
+    /// which is faster and more reliable than sequential scanning. The assigned port is extracted
+    /// from the listener's prefix after starting.</remarks>
+    /// <returns>An available port number assigned by the OS.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if unable to get an OS-assigned port.</exception>
     private static int GetAvailablePort()
     {
-        for (int port = 8083; port < 8200; port++)
+        try
         {
-            try
-            {
-                using HttpListener listener = new HttpListener();
-                listener.Prefixes.Add($"http://localhost:{port}/");
-                listener.Start();
-                listener.Stop();
-                return port;
-            }
-            catch
-            {
-                // Port in use, try next
-                SimpleLogger.Log($"Port {port} is in use, trying next: {port + 1}");
-            }
+            // Use port 0 to let the OS assign an available port
+            using HttpListener listener = new HttpListener();
+            listener.Prefixes.Add("http://localhost:0/");
+            listener.Start();
+
+            // Extract the assigned port from the listener
+            // The OS assigns a port, and we can get it from the listener
+            string prefix = listener.Prefixes.First();
+            listener.Stop();
+
+            // Parse port from "http://localhost:{port}/"
+            Uri uri = new Uri(prefix);
+            int assignedPort = uri.Port;
+
+            SimpleLogger.Log($"OS assigned port: {assignedPort}");
+            return assignedPort;
         }
-        throw new InvalidOperationException("No available ports found in range 8083-8199");
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Failed to get OS-assigned port", ex);
+            throw new InvalidOperationException("Failed to get OS-assigned port", ex);
+        }
     }
 
     /// <summary>
@@ -624,7 +601,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                // Re-check on the UI thread to be defensive � use the captured reference if available,
+                // Re-check on the UI thread to be defensive � use the captured reference if available,
                 // otherwise read the field on the UI thread.
                 webView ??= _webView;
                 if (webView is null)

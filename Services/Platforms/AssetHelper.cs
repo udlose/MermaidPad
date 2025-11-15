@@ -393,11 +393,12 @@ public static class AssetHelper
     }
 
     /// <summary>
-    /// Extracts embedded assets to the specified directory on disk.
+    /// Extracts embedded assets to the specified directory on disk in parallel.
     /// </summary>
-    /// <remarks>This method extracts a predefined set of embedded assets to the specified directory.
-    /// It ensures that the directory exists before extraction and writes a version marker to the directory for future
-    /// cache validation. The method logs the progress and timing  of the extraction process.</remarks>
+    /// <remarks>This method extracts a predefined set of embedded assets to the specified directory using
+    /// parallel processing to improve extraction speed. It ensures that the directory exists before extraction
+    /// and writes a version marker to the directory for future cache validation. The method logs the progress
+    /// and timing of the extraction process.</remarks>
     /// <param name="targetDirectory">The path to the directory where the embedded assets will be extracted. The directory will be created if it does
     /// not already exist.</param>
     private static void ExtractEmbeddedAssetsToDisk(string targetDirectory)
@@ -406,20 +407,20 @@ public static class AssetHelper
         SimpleLogger.Log($"Extracting embedded assets to: {targetDirectory}");
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        SimpleLogger.Log("Asset extraction: Beginning extraction to disk");
+        SimpleLogger.Log("Asset extraction: Beginning parallel extraction to disk");
 
-        // Extract all required assets
-        foreach (string asset in _allowedAssets)
+        // Extract all required assets in parallel for faster first-run performance
+        Parallel.ForEach(_allowedAssets, asset =>
         {
             string normalizedAssetName = asset.Replace(Path.DirectorySeparatorChar, '.');
             ExtractResourceToDisk($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset));
-        }
+        });
 
         // Write version marker for future cache validation
         WriteVersionMarker(targetDirectory);
 
         stopwatch.Stop();
-        SimpleLogger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
+        SimpleLogger.LogTiming("Completed parallel asset extraction to disk", stopwatch.Elapsed, success: true);
         SimpleLogger.Log("Asset extraction: Completed");
     }
 
@@ -552,7 +553,7 @@ public static class AssetHelper
     /// <returns>The full path to the assets directory.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the Application Data folder cannot be determined.</exception>
     /// <exception cref="SecurityException">Thrown if the assets directory is not located within the Application Data folder.</exception>
-    private static string GetAssetsDirectory()
+    internal static string GetAssetsDirectory()
     {
         const Environment.SpecialFolder appDataSpecialFolder = Environment.SpecialFolder.ApplicationData;
         string appData = Environment.GetFolderPath(appDataSpecialFolder);
