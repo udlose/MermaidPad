@@ -62,6 +62,7 @@ public sealed partial class MainWindow : Window
     private EventHandler? _editorSelectionChangedHandler;
     private EventHandler? _editorCaretPositionChangedHandler;
     private EventHandler? _themeChangedHandler;
+    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -215,7 +216,8 @@ public sealed partial class MainWindow : Window
         Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
 
         // ViewModel -> Editor synchronization
-        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
+        _vm.PropertyChanged += _viewModelPropertyChangedHandler;
     }
 
     /// <summary>
@@ -564,7 +566,11 @@ public sealed partial class MainWindow : Window
         }
 
         // Unsubscribe ViewModel PropertyChanged event
-        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_viewModelPropertyChangedHandler is not null)
+        {
+            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _viewModelPropertyChangedHandler = null;
+        }
 
         SimpleLogger.Log("All event handlers unsubscribed successfully");
     }
