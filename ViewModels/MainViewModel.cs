@@ -225,7 +225,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task OpenFile(IStorageProvider? storageProvider)
     {
-        if (storageProvider is null) return;
+        ArgumentNullException.ThrowIfNull(storageProvider);
         await OpenFileCoreAsync(storageProvider);
     }
 
@@ -295,7 +295,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveFile(IStorageProvider? storageProvider)
     {
-        if (storageProvider is null) return;
+        ArgumentNullException.ThrowIfNull(storageProvider);
         await SaveFileCoreAsync(storageProvider);
     }
 
@@ -337,7 +337,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveFileAs(IStorageProvider? storageProvider)
     {
-        if (storageProvider is null) return;
+        ArgumentNullException.ThrowIfNull(storageProvider);
         await SaveFileAsCoreAsync(storageProvider);
     }
 
@@ -382,7 +382,8 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void CloseWindow(Window? window)
     {
-        window?.Close();
+        ArgumentNullException.ThrowIfNull(window);
+        window.Close();
     }
 
     /// <summary>

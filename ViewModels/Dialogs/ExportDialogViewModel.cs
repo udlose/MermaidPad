@@ -280,10 +280,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     [RelayCommand]
     private async Task BrowseForDirectory(IStorageProvider? storageProvider)
     {
-        if (storageProvider is null)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(storageProvider);
 
         FolderPickerOpenOptions options = new FolderPickerOpenOptions
         {
