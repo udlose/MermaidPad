@@ -476,17 +476,15 @@ public sealed partial class MainWindow : Window
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// Handles the window close event and initiates the cleanup sequence.
+    /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
+    /// before the window closes.
     /// </summary>
-    /// <param name="sender">Event sender (window).</param>
-    /// <param name="e">Cancel event args allowing the close to be canceled.</param>
-    /// <remarks>
-    /// This method first checks for unsaved changes and prompts the user if needed.
-    /// If the user cancels, the window close is prevented.
-    /// Otherwise, it delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
-    /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
-    /// IMPORTANT: Unsubscribes all event handlers BEFORE disposing resources to prevent memory leaks.
-    /// </remarks>
+    /// <remarks>If there are unsaved changes, the method prompts the user before allowing the window to
+    /// close. Cleanup and state persistence are only performed if the close operation is not cancelled by this or other
+    /// event handlers.</remarks>
+    /// <param name="sender">The source of the event, typically the window that is being closed.</param>
+    /// <param name="e">A <see cref="CancelEventArgs"/> that contains the event data, including a flag
+    /// to cancel the closing operation.</param>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         // Check for unsaved changes (only if not already approved)
@@ -499,7 +497,7 @@ public sealed partial class MainWindow : Window
                     SimpleLogger.LogError("Failed during close prompt", ex);
                     _isClosingApproved = false; // Reset on error
                 });
-            return; // Don't unsubscribe - close was cancelled, handlers remain for next attempt
+            return; // Don't clean up - close was cancelled
         }
 
         // Reset approval flag if it was set
@@ -508,13 +506,31 @@ public sealed partial class MainWindow : Window
             _isClosingApproved = false;
         }
 
-        // Only unsubscribe when we're actually closing (e.Cancel is still false)
-        // This ensures handlers remain active if close is cancelled and attempted again
-        UnsubscribeAllEventHandlers();
+        // Check if close was cancelled by another handler or the system
+        if (e.Cancel)
+        {
+            return; // Don't clean up - window is not actually closing
+        }
 
-        // Perform async cleanup
-        OnClosingAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+        try
+        {
+            // Only unsubscribe when we're actually closing (e.Cancel is still false)
+            UnsubscribeAllEventHandlers();
+
+            // Save state
+            _vm.Persist();
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Error during window closing cleanup", ex);
+
+            // I don't want silent failures here - rethrow to let higher-level handlers know
+            throw;
+        }
+
+        // TODO - Perform async cleanup if needed in the future
+        //OnClosingAsync()
+        //    .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
     }
 
     /// <summary>
@@ -576,29 +592,14 @@ public sealed partial class MainWindow : Window
         SimpleLogger.Log("All event handlers unsubscribed successfully");
     }
 
-    /// <summary>
-    /// Performs cleanup operations when the window is closing, including persisting state and disposing of resources
-    /// asynchronously.
-    /// </summary>
-    /// <remarks>This method ensures that the application state is saved and any resources, such as the renderer, are
-    /// properly disposed of before the window is closed. It logs the progress of the cleanup process for diagnostic
-    /// purposes.</remarks>
-    /// <returns>A <see cref="Task"/> that represents the asynchronous cleanup operation.</returns>
-    private async Task OnClosingAsync()
-    {
-        SimpleLogger.Log("Window closing, cleaning up...");
+    //TODO - re-enable this if I need async cleanup in the future
+    //private async Task OnClosingAsync()
+    //{
+    //    SimpleLogger.Log("Window closing, cleaning up...");
 
-        // Save state
-        _vm.Persist();
-
-        if (_renderer is IAsyncDisposable disposableRenderer)
-        {
-            await disposableRenderer.DisposeAsync();
-            SimpleLogger.Log("MermaidRenderer disposed");
-        }
-
-        SimpleLogger.Log("Window cleanup completed successfully");
-    }
+    //    SimpleLogger.Log("Window cleanup completed successfully");
+    //    await Task.CompletedTask; // Keep method async for future async cleanup needs
+    //}
 
     /// <summary>
     /// Prompts the user to save changes if there are unsaved modifications, and closes the window if the user confirms
