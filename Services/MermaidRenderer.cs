@@ -44,8 +44,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
     private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
 
+    private int _isDisposeStarted; // 0 = not started, 1 = disposing/disposed
     private WebView? _webView;
-    private HttpListener? _httpListener;
     private byte[]? _htmlContent;
     private byte[]? _mermaidJs;
     private byte[]? _jsYamlJs;
@@ -53,14 +53,20 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
     private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
     private int _serverPort;
-    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
-    private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
     private bool _isWebViewReady;
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
+    private HttpListener? _httpListener;
+
+    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
+
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
+    private CancellationTokenSource? _serverCancellation;
 
     // Fields for centralized export-status callbacks / polling:
-    private readonly List<Action<string>> _exportProgressCallbacks = [];
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private CancellationTokenSource? _exportPollingCts;
+    private readonly List<Action<string>> _exportProgressCallbacks = [];
     private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
@@ -72,11 +78,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <returns>A task representing the asynchronous operation.</returns>
     public Task InitializeAsync(WebView webView)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(webView);
 
         SimpleLogger.Log("=== MermaidRenderer Initialization ===");
         _webView = webView;
-
         return InitializeCoreAsync();
     }
 
@@ -104,6 +110,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
     public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
+        ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         if (_webView is null)
         {
@@ -544,6 +551,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
+        ThrowIfDisposed();
         if (_webView is null)
         {
             SimpleLogger.LogError("WebView not initialized");
@@ -640,6 +648,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
     public Task<string?> ExecuteScriptAsync(string script)
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrEmpty(script);
         if (_webView is null)
         {
@@ -698,6 +707,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="callback"/> is <see langword="null"/>.</exception>
     public void RegisterExportProgressCallback(Action<string> callback)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(callback);
 
         lock (_exportCallbackLock)
@@ -724,6 +734,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// registered, the method has no effect.</param>
     public void UnregisterExportProgressCallback(Action<string>? callback)
     {
+        ThrowIfDisposed();
         if (callback is null)
         {
             return;
@@ -876,6 +887,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Throws an exception if the current instance has been disposed.
+    /// </summary>
+    /// <remarks>Call this method at the beginning of public members to ensure that operations are not
+    /// performed on a disposed object. This helps prevent undefined behavior and enforces correct object lifecycle
+    /// management.</remarks>
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(
+        Interlocked.CompareExchange(ref _isDisposeStarted, 0, 0) != 0, this);
+
+
+    /// <summary>
     /// Asynchronously releases the resources used by the current instance.
     /// </summary>
     /// <remarks>This method performs a clean shutdown of internal components, including canceling ongoing
@@ -884,33 +905,47 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// properly to prevent resource leaks. Exceptions encountered during
     /// disposal are logged but do not propagate.</remarks>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous disposal operation.</returns>
+    [SuppressMessage("ReSharper", "MethodSupportsCancellation")]
     public async ValueTask DisposeAsync()
     {
+        // One-shot, thread-safe gate
+        if (Interlocked.Exchange(ref _isDisposeStarted, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
+            // Capture and null references to avoid races with re-entrancy
+            CancellationTokenSource? serverCts = Interlocked.Exchange(ref _serverCancellation, null);
+            HttpListener? httpListener = Interlocked.Exchange(ref _httpListener, null);
+            CancellationTokenSource? pollingCts = Interlocked.Exchange(ref _exportPollingCts, null);
+            Task? pollingTask = Interlocked.Exchange(ref _exportPollingTask, null);
+            Task? serverTask = Interlocked.Exchange(ref _serverTask, null);
+
             // Cancel server ops
-            if (_serverCancellation is not null)
+            if (serverCts is not null)
             {
-                await _serverCancellation.CancelAsync()
+                await serverCts.CancelAsync()
                     .ConfigureAwait(false);
             }
 
             // Stop and close HTTP listener
-            if (_httpListener?.IsListening == true)
+            if (httpListener?.IsListening == true)
             {
-                _httpListener.Stop();
+                httpListener.Stop();
             }
-            _httpListener?.Close();
+            httpListener?.Close();
 
             // Stop and cleanup export polling if running
             try
             {
                 // Cancel polling
-                if (_exportPollingCts is not null)
+                if (pollingCts is not null)
                 {
                     try
                     {
-                        await _exportPollingCts.CancelAsync()
+                        await pollingCts.CancelAsync()
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
@@ -920,16 +955,15 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
 
                 // Await polling task for a short timeout to ensure clean shutdown
-                if (_exportPollingTask is not null)
+                if (pollingTask is not null)
                 {
                     try
                     {
-                        await _exportPollingTask.WaitAsync(TimeSpan.FromSeconds(2))
+                        await pollingTask.WaitAsync(TimeSpan.FromSeconds(2))
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        // Log but do not rethrow during dispose
                         SimpleLogger.LogError("Export polling did not stop cleanly", ex);
                     }
                 }
@@ -945,39 +979,28 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
                 try
                 {
-                    _exportPollingCts?.Dispose();
+                    pollingCts?.Dispose();
                 }
                 catch (Exception ex)
                 {
                     SimpleLogger.LogError("Failed to dispose export polling CTS", ex);
                 }
-                _exportPollingCts = null;
-                _exportPollingTask = null;
             }
 
             // Wait for server task to complete (with timeout)
-            if (_serverTask is not null)
+            if (serverTask is not null)
             {
                 try
                 {
                     const int maxWaitSeconds = 5;
-                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
+                    await serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
                         .ConfigureAwait(false);
-
-                    // Task completed successfully
-                    _serverTask.Dispose();
-                    _serverTask = null;
+                    serverTask.Dispose();
                 }
                 catch (TimeoutException)
                 {
-                    // Task didn't stop within timeout - abandon our reference but clean up when it completes
                     SimpleLogger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
-
-                    // Attach continuation to dispose when task eventually completes
-                    Task? taskToAbandon = _serverTask;
-                    _serverTask = null;  // Abandon our reference first
-
-                    _ = taskToAbandon?.ContinueWith(
+                    _ = serverTask.ContinueWith(
                         static t =>
                         {
                             try
@@ -1017,17 +1040,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     SimpleLogger.LogError("Error waiting for server task", ex);
                     try
                     {
-                        _serverTask?.Dispose();
+                        serverTask.Dispose();
                     }
                     catch (Exception disposeEx)
                     {
                         SimpleLogger.LogError("Error disposing server task", disposeEx);
                     }
-                    _serverTask = null;
                 }
             }
 
-            _serverCancellation?.Dispose();
+            serverCts?.Dispose();
             _serverReadySemaphore.Dispose();
 
             SimpleLogger.Log("MermaidRenderer disposed");
