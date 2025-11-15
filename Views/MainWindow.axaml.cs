@@ -489,7 +489,7 @@ public sealed partial class MainWindow : Window
                     SimpleLogger.LogError("Failed during close prompt", ex);
                     _isClosingApproved = false; // Reset on error
                 });
-            return;
+            return; // Don't unsubscribe - close was cancelled, handlers remain for next attempt
         }
 
         // Reset approval flag if it was set
@@ -498,7 +498,8 @@ public sealed partial class MainWindow : Window
             _isClosingApproved = false;
         }
 
-        // Unsubscribe all event handlers to prevent memory leaks
+        // Only unsubscribe when we're actually closing (e.Cancel is still false)
+        // This ensures handlers remain active if close is cancelled and attempted again
         UnsubscribeAllEventHandlers();
 
         // Perform async cleanup
