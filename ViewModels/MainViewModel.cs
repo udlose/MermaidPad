@@ -283,11 +283,9 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Command to save the current diagram file using the specified storage provider.
+    /// Saves the current file asynchronously using the specified storage provider.
     /// </summary>
-    /// <remarks>If the file is saved successfully, the current file path is updated and the dirty state is
-    /// cleared. If an error occurs during saving, an error message is displayed and the failure is logged.</remarks>
-    /// <param name="storageProvider">The storage provider used to persist the file. If null, the command returns immediately.</param>
+    /// <param name="storageProvider">The storage provider used to select the destination and perform the file save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
