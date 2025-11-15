@@ -491,12 +491,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             try
             {
-                SimpleLogger.LogWebView("navigation completed", "HTTP mode");
                 navigationCompletedTcs.TrySetResult(true);
+                SimpleLogger.LogWebView("navigation completed", "HTTP mode");
             }
             finally
             {
-                // Unsubscribe in finally block to ensure cleanup even if logging fails
                 try
                 {
                     _webView.NavigationCompleted -= OnNavigationCompleted;
