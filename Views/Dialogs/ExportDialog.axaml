@@ -9,7 +9,7 @@
   Width="500"
   Height="600"
   d:DesignHeight="600"
-  d:DesignWidth="500"
+  d:DesignWidth="550"
   x:DataType="vm:ExportDialogViewModel"
   CanResize="False"
   ShowInTaskbar="False"
@@ -103,6 +103,7 @@
               <Button
                 Width="70"
                 Command="{Binding BrowseForDirectoryCommand}"
+                CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
                 Content="Browse..." />
             </StackPanel>
           </StackPanel>

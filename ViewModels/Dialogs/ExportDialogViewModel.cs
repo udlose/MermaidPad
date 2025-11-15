@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -50,7 +51,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
-    internal IStorageProvider? StorageProvider { get; private set; }
 
     // Cached SVG dimensions
     private float _actualSvgWidth;
@@ -163,16 +163,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Sets the storage provider to be used for subsequent storage operations.
-    /// </summary>
-    /// <param name="storageProvider">The storage provider to use for data storage operations. Specify <see langword="null"/> to remove the current
-    /// storage provider.</param>
-    public void SetStorageProvider(IStorageProvider? storageProvider)
-    {
-        StorageProvider = storageProvider;
-    }
-
-    /// <summary>
     /// Creates and returns an ExportOptions object that reflects the current export settings.
     /// </summary>
     /// <remarks>The returned ExportOptions object includes only the options relevant to the selected export
@@ -281,28 +271,39 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     partial void OnUseWhiteBackgroundChanged(bool value) => UpdateEstimates();
 
     /// <summary>
-    /// Opens a folder picker dialog to allow the user to select a directory.
+    /// Prompts the user to select a directory using the provided storage provider and updates the directory path if a
+    /// selection is made.
     /// </summary>
-    /// <remarks>This method uses the configured <see cref="StorageProvider"/> to display a folder picker
-    /// dialog.  If the user selects a folder, the <see cref="Directory"/> property is updated with the path of the
-    /// selected folder. If no folder is selected or the <see cref="StorageProvider"/> is <see langword="null"/>, the
-    /// method does nothing.</remarks>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>If the user selects a directory, the directory path is updated to the selected folder's local
+    /// path. If no selection is made, the directory path remains unchanged.</remarks>
+    /// <param name="storageProvider">The storage provider used to display the folder picker dialog. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the directory selection process
+    /// finishes.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
-    private async Task BrowseForDirectoryAsync()
+    private Task BrowseForDirectoryAsync(IStorageProvider storageProvider)
     {
-        if (StorageProvider is null)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(storageProvider);
 
+        return BrowseForDirectoryCoreAsync(storageProvider);
+    }
+
+    /// <summary>
+    /// Displays a folder picker dialog using the specified storage provider and updates the directory path if a folder
+    /// is selected.
+    /// </summary>
+    /// <param name="storageProvider">The storage provider used to present the folder picker dialog. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation of displaying the folder picker and updating the directory
+    /// path.</returns>
+    private async Task BrowseForDirectoryCoreAsync(IStorageProvider storageProvider)
+    {
         FolderPickerOpenOptions options = new FolderPickerOpenOptions
         {
             Title = "Select Export Directory",
             AllowMultiple = false
         };
 
-        IReadOnlyList<IStorageFolder> result = await StorageProvider.OpenFolderPickerAsync(options);
+        IReadOnlyList<IStorageFolder> result = await storageProvider.OpenFolderPickerAsync(options);
         if (result.Count > 0)
         {
             Directory = result[0].Path.LocalPath;
@@ -405,7 +406,8 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     Width = 100
                 };
 
-                okButton.Click += (_, _) => errorWindow.Close();
+                // Store event handler for cleanup
+                okButton.Click += OkClickHandler;
                 stackPanel.Children.Add(okButton);
 
                 errorWindow.Content = stackPanel;
@@ -415,6 +417,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 if (parentWindow is not null)
                 {
                     await errorWindow.ShowDialog(parentWindow);
+                }
+
+                void OkClickHandler(object? sender, RoutedEventArgs routedEventArgs)
+                {
+                    // Unsubscribe before closing to prevent memory leak
+                    okButton.Click -= OkClickHandler;
+
+                    errorWindow.Close();
                 }
             }
             catch (Exception ex)
@@ -483,22 +493,16 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     Content = "Yes, Overwrite",
                     Width = 120
                 };
-                yesButton.Click += (_, _) =>
-                {
-                    result = true;
-                    confirmWindow.Close();
-                };
 
                 Button noButton = new Button
                 {
                     Content = "No, Cancel",
                     Width = 120
                 };
-                noButton.Click += (_, _) =>
-                {
-                    result = false;
-                    confirmWindow.Close();
-                };
+
+                // Store event handlers for cleanup
+                yesButton.Click += YesClickHandler;
+                noButton.Click += NoClickHandler;
 
                 buttonPanel.Children.Add(yesButton);
                 buttonPanel.Children.Add(noButton);
@@ -514,6 +518,26 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 }
 
                 return result;
+
+                void YesClickHandler(object? sender, RoutedEventArgs routedEventArgs)
+                {
+                    result = true;
+
+                    yesButton.Click -= YesClickHandler;
+                    noButton.Click -= NoClickHandler;
+
+                    confirmWindow.Close();
+                }
+
+                void NoClickHandler(object? sender, RoutedEventArgs routedEventArgs)
+                {
+                    result = false;
+
+                    yesButton.Click -= YesClickHandler;
+                    noButton.Click -= NoClickHandler;
+
+                    confirmWindow.Close();
+                }
             }
             catch (Exception ex)
             {
@@ -634,18 +658,16 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 _ => 0.15f       // Minimum quality
             };
         }
-        else
+
+        // Opaque PNGs compress better
+        return quality switch
         {
-            // Opaque PNGs compress better
-            return quality switch
-            {
-                >= 95 => 0.25f,  // High quality
-                >= 85 => 0.20f,  // Good quality
-                >= 70 => 0.15f,  // Medium quality
-                >= 50 => 0.12f,  // Lower quality
-                _ => 0.10f       // Minimum quality
-            };
-        }
+            >= 95 => 0.25f,  // High quality
+            >= 85 => 0.20f,  // Good quality
+            >= 70 => 0.15f,  // Medium quality
+            >= 50 => 0.12f,  // Lower quality
+            _ => 0.10f       // Minimum quality
+        };
     }
 
     /// <summary>
@@ -683,6 +705,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     private static string GetValidDocumentsPath()
     {
         string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
         // If MyDocuments is empty or doesn't exist, fallback to the user's home directory.
         if (string.IsNullOrWhiteSpace(myDocuments) || !System.IO.Directory.Exists(myDocuments))
         {
