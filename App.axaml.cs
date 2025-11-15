@@ -23,6 +23,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using MermaidPad.Infrastructure;
@@ -42,10 +43,12 @@ namespace MermaidPad;
 /// cref="Application"/> class and overrides key lifecycle methods such as <see cref="Initialize"/> and <see
 /// cref="OnFrameworkInitializationCompleted"/> to ensure the application is properly configured before it starts
 /// running.</remarks>
-public sealed partial class App : Application
+public sealed partial class App : Application, IDisposable
 {
     public static IServiceProvider Services { get; private set; } = null!;
     private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
+
+    private int _disposeFlag;
 
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
@@ -105,10 +108,13 @@ public sealed partial class App : Application
         Services = ServiceConfiguration.BuildServiceProvider();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Avoid duplicate validations from both Avalonia and the CommunityToolkit. 
+            // Avoid duplicate validations from both Avalonia and the CommunityToolkit.
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
             desktop.MainWindow = new MainWindow();      // Set the main window for desktop applications
+
+            // Hook up cleanup on application exit
+            desktop.ShutdownRequested += OnShutdownRequested;
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
@@ -116,6 +122,21 @@ public sealed partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Handles a shutdown request by disposing resources if the shutdown is not cancelled.
+    /// </summary>
+    /// <param name="sender">The source of the shutdown request event.</param>
+    /// <param name="e">An event argument containing information about the shutdown request, including whether the shutdown should be
+    /// cancelled.</param>
+    private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+    {
+        // Only dispose if shutdown is not cancelled
+        if (!e.Cancel)
+        {
+            Dispose();
+        }
     }
 
     /// <summary>
@@ -265,6 +286,7 @@ public sealed partial class App : Application
     /// <param name="exception">The exception containing technical details to display in the error dialog.</param>
     /// <param name="userMessage">A user-friendly message to display at the top of the error dialog.</param>
     /// <returns>A task that represents the asynchronous operation of showing the error dialog.</returns>
+    [SuppressMessage("Style", "IDE0061:Use expression body for local function", Justification = "Code reads better this way in this case.")]
     private async Task ShowErrorDialogCoreAsync(Exception exception, string userMessage)
     {
         try
@@ -347,16 +369,8 @@ public sealed partial class App : Application
                 Width = 120
             };
 
-            copyButton.Click += (_, _) =>
-            {
-                CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
-                    .SafeFireAndForget(onException: static ex =>
-                    {
-                        SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
-                        Debug.WriteLine($"Failed to copy to clipboard: {ex}");
-                    });
-            };
-
+            // Store event handlers for cleanup to prevent memory leaks
+            copyButton.Click += CopyClickHandler;
             buttonPanel.Children.Add(copyButton);
 
             // OK button
@@ -366,13 +380,36 @@ public sealed partial class App : Application
                 Width = 100
             };
 
-            okButton.Click += (_, _) => errorWindow.Close();
+            okButton.Click += OkClickHandler;
             buttonPanel.Children.Add(okButton);
 
+            errorWindow.Closed += ErrorWindowClosedHandler;
             mainPanel.Children.Add(buttonPanel);
             errorWindow.Content = mainPanel;
 
             await errorWindow.ShowDialog(mainWindow);
+
+            void CopyClickHandler(object? o, RoutedEventArgs routedEventArgs)
+            {
+                CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
+                    .SafeFireAndForget(onException: static ex =>
+                    {
+                        SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                        Debug.WriteLine($"Failed to copy to clipboard: {ex}");
+                    });
+            }
+
+            void OkClickHandler(object? o, RoutedEventArgs routedEventArgs)
+            {
+                errorWindow.Close();
+            }
+
+            void ErrorWindowClosedHandler(object? sender, EventArgs e)
+            {
+                copyButton.Click -= CopyClickHandler;
+                okButton.Click -= OkClickHandler;
+                errorWindow.Closed -= ErrorWindowClosedHandler;
+            }
         }
         catch (Exception ex)
         {
@@ -400,7 +437,7 @@ public sealed partial class App : Application
         // Defensive checks - swallow problems early so SafeFireAndForget's static handler is never relied on
         if (window is null || copyButton is null || exceptionDetails is null)
         {
-            SimpleLogger.LogError("CopyExceptionDetailsToClipboardAsync called with null argument(s).");
+            SimpleLogger.LogError($"{nameof(CopyExceptionDetailsToClipboardAsync)} called with null argument(s).");
             return;
         }
 
@@ -679,4 +716,75 @@ public sealed partial class App : Application
     }
 
     #endregion
+
+    #region IDisposable
+
+    /// <summary>
+    /// Releases all resources used by the current instance of the class.
+    /// </summary>
+    /// <remarks>Call this method when you are finished using the object to free unmanaged resources and
+    /// perform other cleanup operations. After calling <see cref="Dispose"/>, the object should not be used.</remarks>
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+    }
+
+    /// <summary>
+    /// Releases the resources used by the application, optionally disposing managed resources and unregistering global
+    /// exception handlers.
+    /// </summary>
+    /// <remarks>This method should be called when the application is being disposed to ensure that all
+    /// managed services and global exception handlers are properly released. If disposing is false, only unmanaged
+    /// resources are released; however, this implementation does not hold unmanaged resources.</remarks>
+    /// <param name="disposing">true to dispose managed resources and unregister event handlers; false to release only unmanaged resources.</param>
+    [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "Disposal must be synchronous in this context.")]
+    private void Dispose(bool disposing)
+    {
+        if (Interlocked.Exchange(ref _disposeFlag, 1) != 0)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            try
+            {
+                // Unregister managed handlers
+                Dispatcher.UIThread.UnhandledException -= OnDispatcherUnhandledException;
+                AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
+                TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
+
+                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    desktop.ShutdownRequested -= OnShutdownRequested;
+                }
+
+                // Dispose managed services since we built and managed the ServiceProvider ourselves (async-aware)
+                if (Services is IAsyncDisposable asyncDisposableServices)
+                {
+                    asyncDisposableServices.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    SimpleLogger.Log("Service provider successfully disposed asynchronously");
+                }
+                else if (Services is IDisposable disposableServices)
+                {
+                    disposableServices.Dispose();
+                    SimpleLogger.Log("Service provider successfully disposed synchronously");
+                }
+
+                SimpleLogger.Log("App disposed successfully");
+            }
+            catch (Exception e)
+            {
+                SimpleLogger.LogError("Exception during Dispose", e);
+                // Don't rethrow - we're in shutdown - best effort cleanup
+            }
+        }
+        else
+        {
+            // Finalizer path (just for correctness though we don't have unmanaged resources)
+            // No unmanaged resources to free here.
+        }
+    }
+
+    #endregion IDisposable
 }
