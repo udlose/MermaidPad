@@ -36,7 +36,7 @@ public sealed class MermaidUpdateService
     private string AssetDir { get; }
 
     private readonly AppSettings _settings;
-    private static readonly HttpClient _http = new HttpClient();
+    private readonly HttpClient _httpClient;
     private const string MermaidMinJsFileName = "mermaid.min.js";
 
     /// <summary>
@@ -44,10 +44,12 @@ public sealed class MermaidUpdateService
     /// </summary>
     /// <param name="settings">Application settings containing Mermaid configuration.</param>
     /// <param name="assetDir">Directory path for storing Mermaid assets.</param>
-    public MermaidUpdateService(AppSettings settings, string assetDir)
+    /// <param name="httpClientFactory">Factory to create HttpClient instances.</param>
+    public MermaidUpdateService(AppSettings settings, string assetDir, IHttpClientFactory httpClientFactory)
     {
         _settings = settings;
         AssetDir = assetDir;
+        _httpClient = httpClientFactory.CreateClient();
 
         SimpleLogger.Log($"MermaidUpdateService initialized with AssetDir: {AssetDir}");
         SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
@@ -125,7 +127,7 @@ public sealed class MermaidUpdateService
             string tmpPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             SimpleLogger.Log($"Using temporary file: {tmpPath}");
 
-            string jsContent = await _http.GetStringAsync(url);
+            string jsContent = await _httpClient.GetStringAsync(url);
             downloadStopwatch.Stop();
 
             SimpleLogger.Log($"Download completed: {jsContent.Length:N0} characters in {downloadStopwatch.ElapsedMilliseconds}ms");
@@ -241,7 +243,7 @@ public sealed class MermaidUpdateService
             SimpleLogger.Log("Fetching package.json from unpkg.com...");
 
             // unpkg exposes package.json
-            string pkgJson = await _http.GetStringAsync($"{mermaidUrlPrefix}/package.json");
+            string pkgJson = await _httpClient.GetStringAsync($"{mermaidUrlPrefix}/package.json");
             stopwatch.Stop();
 
             SimpleLogger.Log($"Package.json fetched in {stopwatch.ElapsedMilliseconds}ms: {pkgJson.Length} characters");

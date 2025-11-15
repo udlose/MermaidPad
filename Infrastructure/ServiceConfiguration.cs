@@ -47,13 +47,17 @@ public static class ServiceConfiguration
         // Extract assets ONCE to user-writable directory (same pattern as settings)
         string assetsDirectory = AssetHelper.ExtractAssets();
 
+        // Add HTTP Client Factory
+        services.AddHttpClient();
+
         // Core singletons
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();
         services.AddSingleton(sp =>
         {
+            IHttpClientFactory httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
             Models.AppSettings settings = sp.GetRequiredService<SettingsService>().Settings;
-            return new MermaidUpdateService(settings, assetsDirectory);
+            return new MermaidUpdateService(settings, assetsDirectory, httpClientFactory);
         });
 
         services.AddSingleton<SyntaxHighlightingService>();
