@@ -19,10 +19,9 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Services;
-
-using System.Diagnostics.CodeAnalysis;
 
 /// <summary>
 /// Provides methods for debouncing actions, ensuring that actions are only executed after a specified delay

@@ -50,25 +50,6 @@ public sealed partial class ConfirmationDialog : Window
     }
 
     /// <summary>
-    /// Raises the <see cref="Window.Opened"/> event.
-    /// </summary>
-    /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-    /// <remarks>
-    /// When the dialog is opened and an <see cref="Window.Owner"/> is set, the dialog's
-    /// <see cref="WindowStartupLocation"/> is switched to <see cref="WindowStartupLocation.CenterOwner"/>
-    /// so the dialog appears centered over its owner window.
-    /// </remarks>
-    protected override void OnOpened(EventArgs e)
-    {
-        base.OnOpened(e);
-
-        if (Owner is not null)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
-    }
-
-    /// <summary>
     /// Handles the click event for the Yes button and closes the dialog with a <see cref="ConfirmationResult.Yes"/>.
     /// </summary>
     /// <param name="sender">The source of the event. May be <c>null</c> when invoked programmatically.</param>
