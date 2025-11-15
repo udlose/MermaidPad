@@ -724,9 +724,11 @@ public sealed partial class App : Application, IDisposable
     /// </summary>
     /// <remarks>Call this method when you are finished using the object to free unmanaged resources and
     /// perform other cleanup operations. After calling <see cref="Dispose"/>, the object should not be used.</remarks>
+    [SuppressMessage("ReSharper", "GCSuppressFinalizeForTypeWithoutDestructor", Justification = "No unmanaged resources to finalize.")]
     public void Dispose()
     {
         Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
