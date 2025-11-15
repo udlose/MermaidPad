@@ -27,6 +27,7 @@ namespace MermaidPad.Views.Dialogs;
 public sealed partial class ExportDialog : Window
 {
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
+    private ExportDialogViewModel? _currentViewModel;
 
     public ExportDialog()
     {
@@ -38,15 +39,15 @@ public sealed partial class ExportDialog : Window
         base.OnDataContextChanged(e);
 
         // Unsubscribe from previous ViewModel if any
-        if (_viewModelPropertyChangedHandler is not null && DataContext is ExportDialogViewModel oldViewModel)
+        if (_viewModelPropertyChangedHandler is not null && _currentViewModel is not null)
         {
-            oldViewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _currentViewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
             _viewModelPropertyChangedHandler = null;
         }
 
-        // Wire up dialog result handling for new ViewModel
         if (DataContext is ExportDialogViewModel viewModel)
         {
+            _currentViewModel = viewModel;
             _viewModelPropertyChangedHandler = (_, args) =>
             {
                 if (args.PropertyName == nameof(ExportDialogViewModel.DialogResult) && viewModel.DialogResult.HasValue)
@@ -64,17 +65,21 @@ public sealed partial class ExportDialog : Window
             };
             viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
         }
+        else
+        {
+            _currentViewModel = null;
+        }
     }
 
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
 
-        // Clean up event subscription to prevent memory leak
-        if (_viewModelPropertyChangedHandler is not null && DataContext is ExportDialogViewModel viewModel)
+        if (_viewModelPropertyChangedHandler is not null && _currentViewModel is not null)
         {
-            viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _currentViewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
             _viewModelPropertyChangedHandler = null;
+            _currentViewModel = null;
         }
     }
 }

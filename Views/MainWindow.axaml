@@ -51,9 +51,9 @@
         <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-          <MenuItem Header="{Binding}"
-                    Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
-                    CommandParameter="{Binding}" />
+              <MenuItem Header="{Binding}"
+                        Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
+                        CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
         </MenuItem>
