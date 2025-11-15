@@ -32,7 +32,6 @@ using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Windows.Input;
 
 namespace MermaidPad.Views;
 
@@ -55,19 +54,15 @@ public sealed partial class MainWindow : Window
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
-    /// <summary>
-    /// Command to open a recent file.
-    /// </summary>
-    /// <remarks>
-    /// This pass-through property exposes the ViewModel command on the Window type so compiled XAML
-    /// bindings inside the Recent Files DataTemplate can resolve it via an ancestor binding.
-    /// In that template, each item's DataContext is a string (the file path), so a path like
-    /// "DataContext.OpenRecentFileCommand" is validated against 'object' by the XAML compiler and fails.
-    /// By surfacing the command on <see cref="MainWindow"/>, the template can bind with:
-    ///   Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
-    /// avoiding disabling compiled bindings or creating per-item view-models.
-    /// </remarks>
-    public ICommand OpenRecentFileCommand => _vm.OpenRecentFileCommand;
+    // Event handlers stored for proper cleanup
+    private EventHandler? _activatedHandler;
+    private EventHandler? _openedHandler;
+    private EventHandler<WindowClosingEventArgs>? _closingHandler;
+    private EventHandler? _editorTextChangedHandler;
+    private EventHandler? _editorSelectionChangedHandler;
+    private EventHandler? _editorCaretPositionChangedHandler;
+    private EventHandler? _themeChangedHandler;
+    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -94,12 +89,18 @@ public sealed partial class MainWindow : Window
         // Initialize syntax highlighting before wiring up OnThemeChanged
         InitializeSyntaxHighlighting();
 
-        Opened += OnOpened;
-        Closing += OnClosing;
-        ActualThemeVariantChanged += OnThemeChanged;
+        // Store event handlers for proper cleanup
+        _openedHandler = OnOpened;
+        Opened += _openedHandler;
 
-        // Focus the editor when the window is activated
-        Activated += (_, _) => BringFocusToEditor();
+        _closingHandler = OnClosing;
+        Closing += _closingHandler;
+
+        _themeChangedHandler = OnThemeChanged;
+        ActualThemeVariantChanged += _themeChangedHandler;
+
+        _activatedHandler = (_, _) => BringFocusToEditor();
+        Activated += _activatedHandler;
 
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
@@ -164,7 +165,7 @@ public sealed partial class MainWindow : Window
     private void SetupEditorViewModelSync()
     {
         // Editor -> ViewModel synchronization (text)
-        Editor.TextChanged += (_, _) =>
+        _editorTextChangedHandler = (_, _) =>
         {
             if (_suppressEditorTextChanged)
             {
@@ -189,9 +190,10 @@ public sealed partial class MainWindow : Window
             },
             DispatcherPriority.Background);
         };
+        Editor.TextChanged += _editorTextChangedHandler;
 
         // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
-        Editor.TextArea.SelectionChanged += (_, _) =>
+        _editorSelectionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -200,8 +202,9 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.SelectionChanged += _editorSelectionChangedHandler;
 
-        Editor.TextArea.Caret.PositionChanged += (_, _) =>
+        _editorCaretPositionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -210,9 +213,11 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
 
         // ViewModel -> Editor synchronization
-        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
+        _vm.PropertyChanged += _viewModelPropertyChangedHandler;
     }
 
     /// <summary>
@@ -463,6 +468,14 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Handles the Click event for the Exit menu item and closes the current window.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the Exit menu item.</param>
+    /// <param name="e">The event data associated with the Click event.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+    private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
     /// Handles the window close event and initiates the cleanup sequence.
     /// </summary>
     /// <param name="sender">Event sender (window).</param>
@@ -472,20 +485,12 @@ public sealed partial class MainWindow : Window
     /// If the user cancels, the window close is prevented.
     /// Otherwise, it delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
     /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
+    /// IMPORTANT: Unsubscribes all event handlers BEFORE disposing resources to prevent memory leaks.
     /// </remarks>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        // If already approved, proceed with cleanup
-        if (_isClosingApproved)
-        {
-            _isClosingApproved = false;
-            OnClosingAsync()
-                .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
-            return;
-        }
-
-        // Check for unsaved changes
-        if (_vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        // Check for unsaved changes (only if not already approved)
+        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
         {
             e.Cancel = true;
             PromptAndCloseAsync()
@@ -494,12 +499,88 @@ public sealed partial class MainWindow : Window
                     SimpleLogger.LogError("Failed during close prompt", ex);
                     _isClosingApproved = false; // Reset on error
                 });
-            return;
+            return; // Don't unsubscribe - close was cancelled, handlers remain for next attempt
         }
 
-        // No unsaved changes, proceed with cleanup
+        // Reset approval flag if it was set
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+        }
+
+        // Only unsubscribe when we're actually closing (e.Cancel is still false)
+        // This ensures handlers remain active if close is cancelled and attempted again
+        UnsubscribeAllEventHandlers();
+
+        // Perform async cleanup
         OnClosingAsync()
             .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+    }
+
+    /// <summary>
+    /// Unsubscribes all event handlers to prevent memory leaks.
+    /// </summary>
+    /// <remarks>
+    /// This method is called during window closing to ensure that all event subscriptions
+    /// are properly removed, preventing the MainWindow from being retained in memory
+    /// due to event handler references. This is critical for proper garbage collection.
+    /// </remarks>
+    private void UnsubscribeAllEventHandlers()
+    {
+        SimpleLogger.Log("Unsubscribing all event handlers...");
+
+        // Unsubscribe window-level events
+        if (_openedHandler is not null)
+        {
+            Opened -= _openedHandler;
+            _openedHandler = null;
+        }
+
+        if (_closingHandler is not null)
+        {
+            Closing -= _closingHandler;
+            _closingHandler = null;
+        }
+
+        if (_activatedHandler is not null)
+        {
+            Activated -= _activatedHandler;
+            _activatedHandler = null;
+        }
+
+        if (_themeChangedHandler is not null)
+        {
+            ActualThemeVariantChanged -= _themeChangedHandler;
+            _themeChangedHandler = null;
+        }
+
+        // Unsubscribe editor events
+        if (_editorTextChangedHandler is not null)
+        {
+            Editor.TextChanged -= _editorTextChangedHandler;
+            _editorTextChangedHandler = null;
+        }
+
+        if (_editorSelectionChangedHandler is not null)
+        {
+            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
+            _editorSelectionChangedHandler = null;
+        }
+
+        if (_editorCaretPositionChangedHandler is not null)
+        {
+            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
+            _editorCaretPositionChangedHandler = null;
+        }
+
+        // Unsubscribe ViewModel PropertyChanged event
+        if (_viewModelPropertyChangedHandler is not null)
+        {
+            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _viewModelPropertyChangedHandler = null;
+        }
+
+        SimpleLogger.Log("All event handlers unsubscribed successfully");
     }
 
     /// <summary>
@@ -641,20 +722,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Handles the close button click event by prompting the user to save changes if necessary and closing the window.
-    /// </summary>
-    /// <remarks>If the data context is a MainViewModel, the method prompts the user to save unsaved changes
-    /// before closing. Otherwise, the window closes immediately.</remarks>
-    /// <param name="sender">The source of the event, typically the close button that was clicked.</param>
-    /// <param name="e">The event data associated with the close button click.</param>
-    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
-    private void OnCloseClick(object? sender, RoutedEventArgs e)
-    {
-        SimpleLogger.Log("Close button clicked");
-        Close(); // This will trigger OnClosing which handles the save prompt
-    }
-
     #region Clipboard methods
 
     /// <summary>
@@ -789,89 +856,4 @@ public sealed partial class MainWindow : Window
     }
 
     #endregion Syntax Highlighting methods
-
-    #region File Open/Save handlers
-
-    /// <summary>
-    /// Handles the Open command click event by initiating the file open process using the current view model.
-    /// </summary>
-    /// <remarks>This method is intended to be used as an event handler for UI elements that trigger file
-    /// opening. The operation is performed asynchronously and requires the data context to be a valid MainViewModel
-    /// instance.</remarks>
-    /// <param name="sender">The source of the event, typically the control that was clicked.</param>
-    /// <param name="e">The event data associated with the click event.</param>
-    private void OnOpenClick(object? sender, RoutedEventArgs e)
-    {
-        OpenFileAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to open file from menu", ex));
-    }
-
-    /// <summary>
-    /// Asynchronously opens a file using the application's storage provider on the UI thread.
-    /// </summary>
-    /// <remarks>This method ensures that file opening operations are performed on the UI thread, which is
-    /// required for UI-bound actions. Await the returned task to ensure the file is fully opened before proceeding with
-    /// dependent operations.</remarks>
-    /// <returns>A task that represents the asynchronous operation of opening the file.</returns>
-    private Task OpenFileAsync()
-    {
-        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.OpenFileAsync(StorageProvider));
-    }
-
-    /// <summary>
-    /// Handles the save button click event by initiating an asynchronous file save operation using the current view
-    /// model.
-    /// </summary>
-    /// <param name="sender">The source of the event, typically the button that was clicked. Can be null.</param>
-    /// <param name="e">The event data associated with the click event.</param>
-    private void OnSaveClick(object? sender, RoutedEventArgs e)
-    {
-        SaveFileAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to save file from menu", ex));
-    }
-
-    /// <summary>
-    /// Saves the current content to the current file or shows Save As dialog asynchronously.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private Task SaveFileAsync()
-    {
-        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.SaveFileAsync(StorageProvider));
-    }
-
-    /// <summary>
-    /// Handles the Save As button click event to initiate saving the current file with a new name or location.
-    /// </summary>
-    /// <remarks>This method delegates the save operation to the view model if the data context is set. The
-    /// operation is asynchronous and may prompt the user to select a file location.</remarks>
-    /// <param name="sender">The source of the event, typically the Save As button.</param>
-    /// <param name="e">The event data associated with the button click.</param>
-    private void OnSaveAsClick(object? sender, RoutedEventArgs e)
-    {
-        SaveFileAsAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to save file as from menu", ex));
-    }
-
-    /// <summary>
-    /// Shows a Save As dialog and saves the current content asynchronously.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private Task SaveFileAsAsync()
-    {
-        return Dispatcher.UIThread.InvokeAsync(async () => await _vm.SaveFileAsAsync(StorageProvider));
-    }
-
-    /// <summary>
-    /// Handles the click event for clearing the list of recent files in the user interface.
-    /// </summary>
-    /// <remarks>This method invokes the command to clear recent files on the associated view model if the
-    /// data context is set. Intended to be used as an event handler for UI elements such as buttons.</remarks>
-    /// <param name="sender">The source of the event, typically the control that was clicked.</param>
-    /// <param name="e">An object that contains the event data.</param>
-    private void OnClearRecentFilesClick(object? sender, RoutedEventArgs e)
-    {
-        _vm.ClearRecentFilesCommand.Execute(null);
-    }
-
-    #endregion File Open/Save handlers
 }

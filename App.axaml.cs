@@ -389,7 +389,7 @@ public sealed partial class App : Application, IDisposable
 
             await errorWindow.ShowDialog(mainWindow);
 
-            void CopyClickHandler(object? o, RoutedEventArgs routedEventArgs)
+            void CopyClickHandler(object? sender, RoutedEventArgs routedEventArgs)
             {
                 CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
                     .SafeFireAndForget(onException: static ex =>
@@ -399,7 +399,7 @@ public sealed partial class App : Application, IDisposable
                     });
             }
 
-            void OkClickHandler(object? o, RoutedEventArgs routedEventArgs)
+            void OkClickHandler(object? sender, RoutedEventArgs routedEventArgs)
             {
                 errorWindow.Close();
             }

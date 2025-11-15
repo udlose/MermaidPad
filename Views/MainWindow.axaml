@@ -4,7 +4,6 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
-  xmlns:views="clr-namespace:MermaidPad.Views"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="{Binding WindowTitle}"
@@ -32,16 +31,19 @@
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
         <MenuItem
-          Click="OnOpenClick"
+          Command="{Binding OpenFileCommand}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Open..."
           InputGesture="Ctrl+O" />
         <MenuItem
-          Click="OnSaveClick"
+          Command="{Binding SaveFileCommand}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Save"
           InputGesture="Ctrl+S"
           IsEnabled="{Binding CanSave}" />
         <MenuItem
-          Click="OnSaveAsClick"
+          Command="{Binding SaveFileAsCommand}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="Save _As..."
           InputGesture="Ctrl+Shift+S"
           IsEnabled="{Binding HasText}" />
@@ -49,19 +51,19 @@
         <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-              <MenuItem Header="{Binding}"
-                        Command="{Binding OpenRecentFileCommand, RelativeSource={RelativeSource AncestorType=views:MainWindow}}"
-                        CommandParameter="{Binding}" />
+          <MenuItem Header="{Binding}"
+                    Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
+                    CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
         </MenuItem>
         <MenuItem
-          Click="OnClearRecentFilesClick"
+          Command="{Binding ClearRecentFilesCommand}"
           Header="Clear Recent Files"
           IsEnabled="{Binding HasRecentFiles}" />
         <Separator />
         <MenuItem
-          Click="OnCloseClick"
+          Click="OnExitClick"
           Header="E_xit"
           InputGesture="Alt+F4" />
       </MenuItem>

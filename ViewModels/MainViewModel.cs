@@ -213,17 +213,13 @@ public sealed partial class MainViewModel : ViewModelBase
     #region File Open/Save
 
     /// <summary>
-    /// Opens a file using the specified storage provider, prompting the user to save unsaved changes if necessary, and
-    /// loads its contents into the current diagram.
+    /// Asynchronously opens a file using the specified storage provider.
     /// </summary>
-    /// <remarks>If there are unsaved changes, the user is prompted to save before opening a new file. The
-    /// method updates the current file path, diagram content, and recent files list upon successful file load. If the
-    /// file cannot be opened, an error message is displayed to the user.</remarks>
-    /// <param name="storageProvider">The storage provider used to access and open the file. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous operation. The task completes when the file has been opened and its
-    /// contents loaded.</returns>
+    /// <param name="storageProvider">The storage provider used to select and access the file. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous file open operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    public Task OpenFileAsync(IStorageProvider storageProvider)
+    [RelayCommand]
+    private Task OpenFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
@@ -287,14 +283,15 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Asynchronously saves the current diagram file using the specified storage provider.
+    /// Command to save the current diagram file using the specified storage provider.
     /// </summary>
     /// <remarks>If the file is saved successfully, the current file path is updated and the dirty state is
     /// cleared. If an error occurs during saving, an error message is displayed and the failure is logged.</remarks>
-    /// <param name="storageProvider">The storage provider used to persist the file. Cannot be null.</param>
+    /// <param name="storageProvider">The storage provider used to persist the file. If null, the command returns immediately.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    public Task SaveFileAsync(IStorageProvider storageProvider)
+    [RelayCommand]
+    private Task SaveFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
@@ -329,15 +326,15 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Saves the current diagram to a new file location using the specified storage provider.
+    /// Initiates a file save operation using the specified storage provider, allowing the user to choose the file
+    /// location and name.
     /// </summary>
-    /// <remarks>If the save operation is successful, the current file path is updated and the diagram is
-    /// marked as not dirty. If an error occurs during saving, an error message is displayed to the user and the error
-    /// is logged.</remarks>
-    /// <param name="storageProvider">The storage provider used to select the destination and save the file. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous save operation.</returns>
+    /// <param name="storageProvider">The storage provider used to present the file save dialog and handle file system access. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous save operation. The task completes when the file has been saved or the
+    /// operation is canceled.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    public Task SaveFileAsAsync(IStorageProvider storageProvider)
+    [RelayCommand]
+    private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
@@ -436,7 +433,7 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 case ConfirmationResult.Yes:
                     // Save the file
-                    await SaveFileAsync(storageProvider);
+                    await SaveFileCoreAsync(storageProvider);
                     return true;
 
                 case ConfirmationResult.No:
