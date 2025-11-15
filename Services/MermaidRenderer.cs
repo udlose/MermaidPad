@@ -25,6 +25,7 @@ using MermaidPad.Services.Platforms;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
@@ -891,9 +892,30 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <remarks>Call this method at the beginning of public members to ensure that operations are not
     /// performed on a disposed object. This helps prevent undefined behavior and enforces correct object lifecycle
     /// management.</remarks>
-    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(
-        Interlocked.CompareExchange(ref _isDisposeStarted, 0, 0) != 0, this);
+    private void ThrowIfDisposed(
+        [CallerMemberName] string? caller = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+    {
+        if (Interlocked.CompareExchange(ref _isDisposeStarted, 0, 0) != 0)
+        {
+            const string unknown = "unknown";
 
+            // Shorten file path for readability
+            string fileName;
+            if (callerFile is null)
+            {
+                fileName = unknown;
+            }
+            else
+            {
+                fileName = Path.GetFileName(callerFile) ?? unknown;
+            }
+
+            string callerInfo = caller is null ? $"(at {fileName}:{callerLine})" : $"{caller} (at {fileName}:{callerLine})";
+            throw new ObjectDisposedException($"{nameof(MermaidRenderer)} instance has been disposed. Caller: {callerInfo}");
+        }
+    }
 
     /// <summary>
     /// Asynchronously releases the resources used by the current instance.
