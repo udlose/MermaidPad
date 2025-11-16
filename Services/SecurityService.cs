@@ -26,6 +26,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security;
 
 namespace MermaidPad.Services;
+
 /// <summary>
 /// Provides a set of methods for validating file paths, file names, and directories to ensure secure file operations.
 /// </summary>

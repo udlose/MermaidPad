@@ -32,6 +32,7 @@ using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
+
 /// <summary>
 /// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
