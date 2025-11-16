@@ -34,6 +34,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace MermaidPad;
+
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>

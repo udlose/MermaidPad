@@ -31,6 +31,7 @@ using Serilog;
 using Serilog.Events;
 
 namespace MermaidPad.Infrastructure;
+
 /// <summary>
 /// Provides methods for configuring and building the application's dependency injection service provider.
 /// Handles asset extraction and validation for MermaidPad.

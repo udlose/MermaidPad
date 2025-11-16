@@ -25,24 +25,50 @@ using System.Text.Json;
 
 namespace MermaidPad.Services;
 
+/// <summary>
+/// Provides loading and saving of application settings to a per-user configuration directory.
+/// Handles secure file access and validates the settings file path and name prior to I/O operations.
+/// </summary>
 public sealed class SettingsService
 {
+    /// <summary>
+    /// <see cref="JsonSerializerOptions"/> used for (de)serializing <see cref="AppSettings"/>.
+    /// Configured to ignore case when matching property names and to write indented JSON.
+    /// </summary>
     private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
     {
         PropertyNameCaseInsensitive = true,
         WriteIndented = true
     };
 
+    /// <summary>
+    /// Full path to the settings file used by this instance.
+    /// </summary>
     private readonly string _settingsPath;
+
+    /// <summary>
+    /// Optional logger instance; may be <see langword="null"/> during early initialization.
+    /// </summary>
     private readonly ILogger<SettingsService>? _logger;
+
+    /// <summary>
+    /// The expected file name for persisted settings.
+    /// </summary>
     private const string SettingsFileName = "settings.json";
 
+    /// <summary>
+    /// The in-memory application settings instance. Consumers may read or modify properties
+    /// and then call <see cref="Save"/> to persist changes.
+    /// </summary>
     public AppSettings Settings { get; }
 
     /// <summary>
-    /// Initializes a new instance of the SettingsService class.
+    /// Initializes a new instance of the <see cref="SettingsService"/> class.
+    /// Ensures the configuration directory exists and loads persisted settings if available.
     /// </summary>
-    /// <param name="logger">Optional logger instance (it may be null during early initialization).</param>
+    /// <param name="logger">
+    /// Optional <see cref="ILogger{SettingsService}"/> for diagnostic messages. May be <see langword="null"/>.
+    /// </param>
     public SettingsService(ILogger<SettingsService>? logger = null)
     {
         _logger = logger;
@@ -52,12 +78,26 @@ public sealed class SettingsService
         Settings = Load();
     }
 
+    /// <summary>
+    /// Returns the per-user configuration directory path used by the application.
+    /// Typically resolves to "%APPDATA%\MermaidPad" on Windows.
+    /// </summary>
+    /// <returns>The full path to the application's config directory for the current user.</returns>
     private static string GetConfigDirectory()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         return Path.Combine(appData, "MermaidPad");
     }
 
+    /// <summary>
+    /// Loads persisted <see cref="AppSettings"/> from disk if a valid settings file exists.
+    /// Performs validation of the file name and path using <see cref="SecurityService"/>.
+    /// If loading fails or validation fails, returns a new default <see cref="AppSettings"/> instance.
+    /// </summary>
+    /// <remarks>
+    /// This method catches exceptions and logs errors via the injected logger when available.
+    /// </remarks>
+    /// <returns>The deserialized <see cref="AppSettings"/> from disk, or a new default instance.</returns>
     private AppSettings Load()
     {
         try
@@ -102,6 +142,15 @@ public sealed class SettingsService
         return new AppSettings();
     }
 
+    /// <summary>
+    /// Persists the current <see cref="Settings"/> to the settings file.
+    /// Validates that the destination path resides within the application's config directory
+    /// and that the file name matches the expected settings file name before writing.
+    /// </summary>
+    /// <remarks>
+    /// Any I/O or serialization exceptions are caught and logged via the injected logger.
+    /// The method overwrites the existing file by creating a new file stream via <see cref="File.Create(string)"/>.
+    /// </remarks>
     public void Save()
     {
         try
