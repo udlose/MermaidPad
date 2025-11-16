@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 using MermaidPad.Exceptions.Assets;
+using MermaidPad.Extensions;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -30,7 +32,7 @@ namespace MermaidPad.Services.Platforms;
 /// Provides utility methods for managing and validating assets, including retrieving assets from disk, extracting
 /// embedded resources, and ensuring asset integrity and security.
 /// </summary>
-/// <remarks>The <see cref="AssetHelper"/> class is designed to handle asset-related operations such as: <list
+/// <remarks>The <see cref="AssetService"/> class is designed to handle asset-related operations such as: <list
 /// type="bullet"> <item><description>Retrieving assets from disk with validation for security and
 /// integrity.</description></item> <item><description>Extracting embedded resources to disk and ensuring their
 /// presence.</description></item> <item><description>Validating asset names and paths to prevent unauthorized access or
@@ -40,8 +42,34 @@ namespace MermaidPad.Services.Platforms;
 /// Designed for single-file publishing scenarios where Content files are unreliable.
 /// IL3000-safe: Does not use Assembly.Location for single-file compatibility.</remarks>
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-public static class AssetHelper
+public sealed class AssetService
 {
+    private readonly ILogger<AssetService> _logger;
+    private readonly SecurityService _securityService;
+    private readonly AssetIntegrityService _assetIntegrityService;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AssetService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
+    /// <param name="securityService">The security service instance for file path validation.</param>
+    /// <param name="assetIntegrityService">The asset integrity service instance for asset validation.</param>
+    public AssetService(ILogger<AssetService> logger, SecurityService securityService, AssetIntegrityService assetIntegrityService)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _securityService = securityService;
+        _assetIntegrityService = assetIntegrityService;
+        _allowedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            IndexHtmlFilePath,
+            MermaidMinJsFilePath,
+            JsYamlFilePath,
+            MermaidLayoutElkPath,
+            MermaidLayoutElkChunkSP2CHFBEPath,
+            MermaidLayoutElkRenderAVRWSH4DPath
+        };
+    }
+
     /// <summary>
     /// The file name for the main HTML index asset.
     /// </summary>
@@ -104,15 +132,7 @@ public static class AssetHelper
     ///     <item><c>MermaidLayoutElkRenderAVRWSH4DPath</c></item>
     /// </list>
     /// </remarks>
-    private static readonly HashSet<string> _allowedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        IndexHtmlFilePath,
-        MermaidMinJsFilePath,
-        JsYamlFilePath,
-        MermaidLayoutElkPath,
-        MermaidLayoutElkChunkSP2CHFBEPath,
-        MermaidLayoutElkRenderAVRWSH4DPath
-    };
+    private readonly HashSet<string> _allowedAssets;
 
     private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
     private const string SecurityLogCategory = "Security: ";
@@ -151,10 +171,10 @@ public static class AssetHelper
     /// <exception cref="SecurityException">Thrown if the asset fails security checks, such as being outside the assets directory, exceeding the maximum
     /// allowed size, or being tampered with.</exception>
     /// <exception cref="AssetIntegrityException">Thrown if the asset fails integrity verification, even after attempting to restore it from embedded resources.</exception>
-    internal static async Task<byte[]> GetAssetFromDiskAsync(string assetName)
+    internal async Task<byte[]> GetAssetFromDiskAsync(string assetName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
-        SimpleLogger.Log($"Requesting asset from disk: {assetName}");
+        _logger.LogInformation("Requesting asset from disk: {AssetName}", assetName);
 
         // Step 1: Validate the asset name
         string validatedAssetName = ValidateAssetName(assetName);
@@ -173,10 +193,10 @@ public static class AssetHelper
         }
 
         // Step 5: Additional validation - ensure it's a file, not a directory or symlink
-        (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(assetPath, assetsDirectory, isAssetFile: true);
+        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(assetPath, assetsDirectory, isAssetFile: true);
         if (!isSecure && !string.IsNullOrEmpty(reason))
         {
-            SimpleLogger.LogError(reason);
+            _logger.LogError("{Reason}", reason);
             throw new SecurityException(reason);
         }
 
@@ -185,37 +205,34 @@ public static class AssetHelper
         if (fileInfo.Length > maxFileSize)
         {
             string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {maxFileSize})";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage);
         }
 
         // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
-        if (App.Services.GetService(typeof(SettingsService)) is SettingsService settingsService)
+        string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName);
+        if (expectedHash is not null)
         {
-            string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName, settingsService);
-            if (expectedHash is not null)
+            bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                .ConfigureAwait(false);
+
+            if (!integrityValid)
             {
-                bool integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
+                _logger.LogWarning("Asset '{ValidatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources", validatedAssetName);
+                ExtractResourceToDisk($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath);
+
+                // Re-verify integrity after extraction
+                integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
                     .ConfigureAwait(false);
 
                 if (!integrityValid)
                 {
-                    // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
-                    SimpleLogger.Log($"WARNING: Asset '{validatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources.");
-                    ExtractResourceToDisk($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath);
-
-                    // Re-verify integrity after extraction
-                    integrityValid = await AssetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
-                        .ConfigureAwait(false);
-
-                    if (!integrityValid)
-                    {
-                        throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification after re-extraction");
-                    }
-
-                    // Refresh file info as the file has been replaced
-                    fileInfo.Refresh();
+                    throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification after re-extraction");
                 }
+
+                // Refresh file info as the file has been replaced
+                fileInfo.Refresh();
             }
         }
 
@@ -223,7 +240,7 @@ public static class AssetHelper
         try
         {
             // Use FileShare.Read to allow other processes to read but not write
-            await using FileStream stream = SecurityService.CreateSecureFileStream(
+            await using FileStream stream = _securityService.CreateSecureFileStream(
                 assetPath,
                 FileMode.Open,
                 FileAccess.Read,
@@ -234,7 +251,7 @@ public static class AssetHelper
             if (stream.Length != fileInfo.Length)
             {
                 string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
-                SimpleLogger.LogError(errorMessage);
+                _logger.LogError("{ErrorMessage}", errorMessage);
                 throw new SecurityException(errorMessage);
             }
 
@@ -250,7 +267,7 @@ public static class AssetHelper
             if (ms.Length != expectedLength)
             {
                 string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
-                SimpleLogger.LogError(errorMessage);
+                _logger.LogError("{ErrorMessage}", errorMessage);
                 throw new SecurityException(errorMessage);
             }
 
@@ -262,31 +279,31 @@ public static class AssetHelper
                 segment.Count == expectedLength &&
                 segment.Array.Length == expectedLength)
             {
-                SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({segment.Count} bytes)");
+                _logger.LogInformation("Successfully read asset '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, segment.Count);
                 return segment.Array;
             }
 
             byte[] buffer = ms.ToArray(); // fallback (copies)
-            SimpleLogger.Log($"Successfully read asset '{validatedAssetName}' ({buffer.Length} bytes)");
+            _logger.LogInformation("Successfully read asset '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, buffer.Length);
             return buffer;
         }
         catch (UnauthorizedAccessException ex)
         {
             string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}': possible permission or symlink issue";
-            SimpleLogger.LogError(errorMessage, ex);
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage, ex);
         }
         catch (DirectoryNotFoundException ex)
         {
             string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}': possible symlink manipulation";
-            SimpleLogger.LogError(errorMessage, ex);
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage, ex);
         }
         catch (IOException ex)
         {
             // Handle platform-specific IO errors that might indicate symlink issues
             string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}': possible symlink or filesystem issue";
-            SimpleLogger.LogError(errorMessage, ex);
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage, ex);
         }
     }
@@ -303,22 +320,22 @@ public static class AssetHelper
     /// validates the presence of critical files after extraction. If the assets are  already up-to-date, the extraction
     /// process is skipped.</remarks>
     /// <returns>The path to the directory containing the extracted assets.</returns>
-    internal static string ExtractAssets()
+    internal string ExtractAssets()
     {
         const string timingMessage = "Asset extraction";
         bool skippedExtraction = false;
 
-        SimpleLogger.Log("Asset extraction process starting...");
+        _logger.LogInformation("Asset extraction process starting...");
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         // Use the SAME directory pattern as SettingsService for consistency
         string assetsDirectory = GetAssetsDirectory();
-        SimpleLogger.Log($"Assets directory: {assetsDirectory}");
+        _logger.LogInformation("Assets directory: {AssetsDirectory}", assetsDirectory);
 
         // Check if extraction is needed
         if (ShouldExtractAssets(assetsDirectory))
         {
-            SimpleLogger.Log("Assets require extraction/update");
+            _logger.LogInformation("Assets require extraction/update");
             Directory.CreateDirectory(assetsDirectory);
 
             try
@@ -328,8 +345,8 @@ public static class AssetHelper
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                SimpleLogger.LogTiming(timingMessage, stopwatch.Elapsed, success: false);
-                SimpleLogger.LogError("Asset extraction failed", ex);
+                _logger.LogTiming(timingMessage, stopwatch.Elapsed, success: false);
+                _logger.LogError(ex, "Asset extraction failed");
                 throw;
             }
         }
@@ -344,11 +361,11 @@ public static class AssetHelper
         stopwatch.Stop();
         if (skippedExtraction)
         {
-            SimpleLogger.LogTiming(timingMessage + " (skipped)", stopwatch.Elapsed, success: true);
+            _logger.LogTiming(timingMessage + " (skipped)", stopwatch.Elapsed, success: true);
         }
         else
         {
-            SimpleLogger.LogTiming(timingMessage, stopwatch.Elapsed, success: true);
+            _logger.LogTiming(timingMessage, stopwatch.Elapsed, success: true);
         }
 
         return assetsDirectory;
@@ -365,7 +382,7 @@ public static class AssetHelper
     /// <returns>A byte array containing the contents of the embedded resource.</returns>
     /// <exception cref="MissingAssetException">Thrown if the specified resource cannot be found in the assembly.</exception>
     /// <exception cref="AssetIntegrityException">Thrown if the integrity check for the retrieved resource fails.</exception>
-    internal static async Task<byte[]> GetEmbeddedResourceAsync(string resourceName)
+    internal async Task<byte[]> GetEmbeddedResourceAsync(string resourceName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
 
@@ -382,10 +399,10 @@ public static class AssetHelper
             .ConfigureAwait(false);
 
         // Verify integrity of embedded resource
-        bool integrityValid = AssetIntegrityService.VerifyEmbeddedAssetIntegrity(resourceName, buffer);
+        bool integrityValid = _assetIntegrityService.VerifyEmbeddedAssetIntegrity(resourceName, buffer);
         if (!integrityValid)
         {
-            SimpleLogger.LogError($"Embedded resource '{resourceName}' failed integrity check. This may indicate a corrupted assembly.");
+            _logger.LogError("Embedded resource '{ResourceName}' failed integrity check. This may indicate a corrupted assembly", resourceName);
             throw new AssetIntegrityException($"Embedded resource '{resourceName}' integrity check failed");
         }
 
@@ -400,13 +417,13 @@ public static class AssetHelper
     /// cache validation. The method logs the progress and timing  of the extraction process.</remarks>
     /// <param name="targetDirectory">The path to the directory where the embedded assets will be extracted. The directory will be created if it does
     /// not already exist.</param>
-    private static void ExtractEmbeddedAssetsToDisk(string targetDirectory)
+    private void ExtractEmbeddedAssetsToDisk(string targetDirectory)
     {
         Directory.CreateDirectory(targetDirectory);
-        SimpleLogger.Log($"Extracting embedded assets to: {targetDirectory}");
+        _logger.LogInformation("Extracting embedded assets to: {TargetDirectory}", targetDirectory);
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        SimpleLogger.Log("Asset extraction: Beginning extraction to disk");
+        _logger.LogInformation("Asset extraction: Beginning extraction to disk");
 
         // Extract all required assets
         foreach (string asset in _allowedAssets)
@@ -419,8 +436,8 @@ public static class AssetHelper
         WriteVersionMarker(targetDirectory);
 
         stopwatch.Stop();
-        SimpleLogger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
-        SimpleLogger.Log("Asset extraction: Completed");
+        _logger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
+        _logger.LogInformation("Asset extraction: Completed");
     }
 
     /// <summary>
@@ -442,7 +459,7 @@ public static class AssetHelper
     /// or if the resource fails content validation.</exception>
     /// <exception cref="SecurityException">Thrown if the temporary file becomes a symbolic link during the extraction process.</exception>
     /// <exception cref="AssetIntegrityException">Thrown if the content validation for JavaScript or HTML files fails.</exception>
-    private static void ExtractResourceToDisk(string resourceName, string targetPath)
+    private void ExtractResourceToDisk(string resourceName, string targetPath)
     {
         try
         {
@@ -477,7 +494,7 @@ public static class AssetHelper
                 string assetName = Path.GetFileName(targetPath);
 
                 // Verify integrity of the extracted asset
-                bool integrityValid = AssetIntegrityService.VerifyEmbeddedAssetIntegrity(assetName, extractedContent);
+                bool integrityValid = _assetIntegrityService.VerifyEmbeddedAssetIntegrity(assetName, extractedContent);
                 if (!integrityValid)
                 {
                     throw new AssetIntegrityException($"Extracted resource '{assetName}' failed integrity verification");
@@ -486,14 +503,14 @@ public static class AssetHelper
                 // Additional content validation for extra security
                 if (assetName.EndsWith(".js", StringComparison.OrdinalIgnoreCase) || assetName.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!AssetIntegrityService.ValidateJavaScriptContent(extractedContent))
+                    if (!_assetIntegrityService.ValidateJavaScriptContent(extractedContent))
                     {
                         throw new AssetIntegrityException($"Extracted JavaScript '{assetName}' failed content validation");
                     }
                 }
                 else if (assetName.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!AssetIntegrityService.ValidateHtmlContent(extractedContent))
+                    if (!_assetIntegrityService.ValidateHtmlContent(extractedContent))
                     {
                         throw new AssetIntegrityException($"Extracted HTML '{assetName}' failed content validation");
                     }
@@ -508,11 +525,11 @@ public static class AssetHelper
 
                 // Atomic move to final location
                 File.Move(tempFile, targetPath, overwrite: true);
-                SimpleLogger.Log($"Extracted and verified: {assetName} ({stream.Length:N0} bytes)");
+                _logger.LogAsset("extract", assetName, success: true, sizeBytes: stream.Length);
             }
             catch (Exception ex) when (ex is not SecurityException and not AssetIntegrityException and not MissingAssetException)
             {
-                SimpleLogger.LogError($"Failed to extract resource '{resourceName}' to '{targetPath}': {ex.Message}");
+                _logger.LogError(ex, "Failed to extract resource '{ResourceName}' to '{TargetPath}'", resourceName, targetPath);
                 throw;
             }
             finally
@@ -526,14 +543,14 @@ public static class AssetHelper
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError($"Failed to delete temp file '{tempFile}': {ex.Message}");
+                        _logger.LogError(ex, "Failed to delete temp file '{TempFile}'", tempFile);
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Failed to extract {resourceName}: {ex.Message}");
+            _logger.LogError(ex, "Failed to extract {ResourceName}", resourceName);
             throw;
         }
     }
@@ -552,7 +569,7 @@ public static class AssetHelper
     /// <returns>The full path to the assets directory.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the Application Data folder cannot be determined.</exception>
     /// <exception cref="SecurityException">Thrown if the assets directory is not located within the Application Data folder.</exception>
-    private static string GetAssetsDirectory()
+    private string GetAssetsDirectory()
     {
         const Environment.SpecialFolder appDataSpecialFolder = Environment.SpecialFolder.ApplicationData;
         string appData = Environment.GetFolderPath(appDataSpecialFolder);
@@ -577,7 +594,7 @@ public static class AssetHelper
         if (!fullPath.StartsWith(fullAppData, comparison))
         {
             string errorMessage = $"{SecurityLogCategory} Assets directory '{fullPath}' is not under AppData '{fullAppData}'";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage);
         }
 
@@ -593,12 +610,12 @@ public static class AssetHelper
     /// mechanism.</remarks>
     /// <param name="assetsDir">The path to the directory containing the assets.</param>
     /// <returns><see langword="true"/> if the assets need to be extracted; otherwise, <see langword="false"/>.</returns>
-    private static bool ShouldExtractAssets(string assetsDir)
+    private bool ShouldExtractAssets(string assetsDir)
     {
         // If directory doesn't exist, definitely extract
         if (!Directory.Exists(assetsDir))
         {
-            SimpleLogger.Log($"Expected Assets directory '{assetsDir}' does not exist, extraction required");
+            _logger.LogInformation("Expected Assets directory '{AssetsDir}' does not exist, extraction required", assetsDir);
             return true;
         }
 
@@ -608,14 +625,14 @@ public static class AssetHelper
             string filePath = Path.Combine(assetsDir, requiredFile);
             if (!File.Exists(filePath))
             {
-                SimpleLogger.Log($"Missing critical asset: {requiredFile}");
+                _logger.LogInformation("Missing critical asset: {RequiredFile}", requiredFile);
                 return true;
             }
         }
 
         // Use assembly version for cache validation (IL3000-safe)
         bool isCurrent = AreAssetsCurrent(assetsDir);
-        SimpleLogger.Log($"Asset currency check result: {isCurrent}");
+        _logger.LogDebug("Asset currency check result: {IsCurrent}", isCurrent);
         return !isCurrent;
     }
 
@@ -624,40 +641,40 @@ public static class AssetHelper
     /// </summary>
     /// <remarks>This method checks for the presence of a version marker file named <c>.version</c> in the
     /// specified directory. The file is expected to contain the version of the assets. The method compares this version
-    /// with the current assembly version of the <c>AssetHelper</c> class. If the versions do not match, or if the
+    /// with the current assembly version of the <c>AssetService</c> class. If the versions do not match, or if the
     /// version marker file is missing or unreadable, the method assumes the assets are not current.</remarks>
     /// <param name="assetsDir">The path to the directory containing the assets to check.</param>
     /// <returns><see langword="true"/> if the assets are current; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the assembly version of the <c>AssetHelper</c> class cannot be determined.</exception>
-    private static bool AreAssetsCurrent(string assetsDir)
+    /// <exception cref="InvalidOperationException">Thrown if the assembly version of the <c>AssetService</c> class cannot be determined.</exception>
+    private bool AreAssetsCurrent(string assetsDir)
     {
         try
         {
             string versionMarkerPath = Path.Combine(assetsDir, ".version");
             if (!File.Exists(versionMarkerPath))
             {
-                SimpleLogger.Log("Version marker file not found, assets need update");
+                _logger.LogDebug("Version marker file not found, assets need update");
                 return false;
             }
 
             string storedVersion = File.ReadAllText(versionMarkerPath).Trim();
-            Version? version = typeof(AssetHelper).Assembly.GetName().Version;
+            Version? version = typeof(AssetService).Assembly.GetName().Version;
             if (version is null)
             {
-                const string errorMessage = $"Could not determine assembly version for {nameof(AssetHelper)}. This may indicate a build or deployment issue.";
-                SimpleLogger.LogError(errorMessage);
+                const string errorMessage = $"Could not determine assembly version for {nameof(AssetService)}. This may indicate a build or deployment issue.";
+                _logger.LogError("{ErrorMessage}", errorMessage);
                 throw new InvalidOperationException(errorMessage);
             }
             string currentVersion = version.ToString();
 
             bool isCurrent = storedVersion == currentVersion;
-            SimpleLogger.Log($"Version comparison: stored={storedVersion}, current={currentVersion}, isCurrent={isCurrent}");
+            _logger.LogDebug("Version comparison: stored={StoredVersion}, current={CurrentVersion}, isCurrent={IsCurrent}", storedVersion, currentVersion, isCurrent);
 
             return isCurrent;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Version check failed, assuming assets need update", ex);
+            _logger.LogError(ex, "Version check failed, assuming assets need update");
             return false; // if we can't read version, re-extract to be safe
         }
     }
@@ -670,7 +687,7 @@ public static class AssetHelper
     /// required files are missing, an error is logged, and a <see cref="MissingAssetException"/> is thrown.</remarks>
     /// <param name="assetsDirectory">The path to the directory containing the asset files to validate.</param>
     /// <exception cref="MissingAssetException">Thrown if one or more required asset files are missing from the specified directory.</exception>
-    private static void ValidateAssets(string assetsDirectory)
+    private void ValidateAssets(string assetsDirectory)
     {
         List<string> missingFiles = new List<string>();
         foreach (string fileName in _allowedAssets)
@@ -679,23 +696,23 @@ public static class AssetHelper
             if (File.Exists(filePath))
             {
                 FileInfo fileInfo = new FileInfo(filePath);
-                SimpleLogger.LogAsset("validate", fileName, true, fileInfo.Length);
+                _logger.LogAsset("validate", fileName, success: true, sizeBytes: fileInfo.Length);
             }
             else
             {
-                SimpleLogger.LogAsset("validate", fileName, false);
+                _logger.LogAsset("validate", fileName, success: false);
                 missingFiles.Add(fileName);
             }
         }
 
         if (missingFiles.Count == 0)
         {
-            SimpleLogger.Log("All required assets validated successfully");
+            _logger.LogInformation("All required assets validated successfully");
         }
         else
         {
             string errorMessage = $"Asset validation after extraction failed: One or more required asset files are missing from {assetsDirectory}: {string.Join(", ", missingFiles)}";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("{ErrorMessage}", errorMessage);
             throw new MissingAssetException(errorMessage);
         }
     }
@@ -747,13 +764,13 @@ public static class AssetHelper
     ///         <item><description>The asset name is a path rather than a simple filename.</description></item>
     ///         <item><description>The asset name is a rooted path.</description></item>
     ///     </list></exception>
-    private static string ValidateAssetName(string assetName)
+    private string ValidateAssetName(string assetName)
     {
-        (bool isSecure, string? reason) = SecurityService.IsFileNameSecure(assetName, _allowedAssets);
+        (bool isSecure, string? reason) = _securityService.IsFileNameSecure(assetName, _allowedAssets);
         if (!isSecure)
         {
             string errorMessage = $"{SecurityLogCategory} Asset name '{assetName}' failed security validation: {reason}";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage);
         }
 

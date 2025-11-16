@@ -20,8 +20,10 @@
 
 using Avalonia.Threading;
 using AvaloniaWebView;
+using MermaidPad.Extensions;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -30,7 +32,6 @@ using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
-
 /// <summary>
 /// Provides rendering of Mermaid diagrams using a local HTTP server and Avalonia WebView.
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
@@ -38,12 +39,15 @@ namespace MermaidPad.Services;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
-    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFilePath}";
-    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFilePath}";
-    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFilePath}";
-    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
-    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
-    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly ILogger<MermaidRenderer> _logger;
+    private readonly AssetService _assetService;
+
+    private readonly string MermaidRequestPath;
+    private readonly string IndexRequestPath;
+    private readonly string JsYamlRequestPath;
+    private readonly string MermaidLayoutElkRequestPath;
+    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath;
+    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath;
 
     private int _isDisposeStarted; // 0 = not started, 1 = disposing/disposed
     private WebView? _webView;
@@ -73,6 +77,25 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly Lock _exportCallbackLock = new Lock();
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="MermaidRenderer"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
+    /// <param name="assetService">The asset service for managing assets.</param>
+    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _assetService = assetService ?? throw new ArgumentNullException(nameof(assetService));
+
+        // Initialize request paths using AssetService constants and properties
+        MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";
+        IndexRequestPath = $"/{AssetService.IndexHtmlFilePath}";
+        JsYamlRequestPath = $"/{AssetService.JsYamlFilePath}";
+        MermaidLayoutElkRequestPath = $"/{AssetService.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
+        MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetService.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
+        MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetService.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
     /// </summary>
     /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
@@ -82,7 +105,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(webView);
 
-        SimpleLogger.Log("=== MermaidRenderer Initialization ===");
+        _logger.LogInformation("=== MermaidRenderer Initialization ===");
         _webView = webView;
         return InitializeCoreAsync();
     }
@@ -179,7 +202,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         StartHttpServer();
 
         // Step 3: Wait for server ready
-        SimpleLogger.Log("Waiting for HTTP server to be ready...");
+        _logger.LogInformation("Waiting for HTTP server to be ready...");
         bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10))
             .ConfigureAwait(false);
         if (!serverReady)
@@ -204,12 +227,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
         Stopwatch sw = Stopwatch.StartNew();
 
         // Get assets in parallel
-        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
-        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
-        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
-        Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
-        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
-        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
+        Task<byte[]> indexHtmlTask = _assetService.GetAssetFromDiskAsync(AssetService.IndexHtmlFilePath);
+        Task<byte[]> jsTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidMinJsFilePath);
+        Task<byte[]> jsYamlTask = _assetService.GetAssetFromDiskAsync(AssetService.JsYamlFilePath);
+        Task<byte[]> mermaidLayoutElkTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkPath);
+        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkChunkSP2CHFBEPath);
+        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkRenderAVRWSH4DPath);
 
         await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
             .ConfigureAwait(false);
@@ -222,13 +245,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
         _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
 
         sw.Stop();
-        SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
-        SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
-        SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
-        SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
+        _logger.LogAsset("load asset", AssetService.IndexHtmlFilePath, true, _htmlContent.Length);
+        _logger.LogAsset("load asset", AssetService.MermaidMinJsFilePath, true, _mermaidJs.Length);
+        _logger.LogAsset("load asset", AssetService.JsYamlFilePath, true, _jsYamlJs.Length);
+        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkPath, true, _mermaidLayoutElkJs.Length);
+        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkChunkSP2CHFBEPath, true, _mermaidLayoutElkChunkSP2CHFBEJs.Length);
+        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkRenderAVRWSH4DPath, true, _mermaidLayoutElkRenderAVRWSH4DJs.Length);
+        _logger.LogTiming(nameof(PrepareContentFromDiskAsync), sw.Elapsed, success: true);
     }
 
     /// <summary>
@@ -255,11 +278,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("HTTP server task error", ex);
+                _logger.LogError(ex, "HTTP server task error");
             }
         });
 
-        SimpleLogger.Log($"HTTP server started on port {_serverPort}");
+        _logger.LogInformation("HTTP server started on port {ServerPort}", _serverPort);
     }
 
     /// <summary>
@@ -273,7 +296,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             // Signal server ready
             _serverReadySemaphore.Release();
-            SimpleLogger.Log("HTTP server ready");
+            _logger.LogInformation("HTTP server ready");
 
             while (_httpListener?.IsListening == true && !cancellationToken.IsCancellationRequested)
             {
@@ -303,7 +326,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Error processing HTTP request", ex);
+                    _logger.LogError(ex, "Error processing HTTP request");
                     try
                     {
                         context?.Response.Close();
@@ -317,11 +340,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         catch (Exception ex) when (ex is not ObjectDisposedException)
         {
-            SimpleLogger.LogError("HTTP server error", ex);
+            _logger.LogError(ex, "HTTP server error");
         }
         finally
         {
-            SimpleLogger.Log("HTTP request handler stopped");
+            _logger.LogInformation("HTTP request handler stopped");
         }
     }
 
@@ -336,7 +359,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             const string javascriptContentType = "application/javascript; charset=utf-8";
             string requestPath = context.Request.Url?.LocalPath ?? "/";
-            SimpleLogger.Log($"Processing request: {requestPath}");
+            _logger.LogDebug("Processing request: {RequestPath}", requestPath);
 
             byte[]? responseBytes = null;
             string? contentType = null;
@@ -381,7 +404,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             else
             {
                 context.Response.StatusCode = 404;
-                SimpleLogger.Log($"404 for: {requestPath}");
+                _logger.LogDebug("404 for: {RequestPath}", requestPath);
             }
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
@@ -393,12 +416,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 await context.Response.OutputStream.WriteAsync(responseBytes)
                     .ConfigureAwait(false);
 
-                SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
+                _logger.LogDebug("Served {RequestPath}: {SizeBytes} bytes", requestPath, responseBytes.Length);
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error processing HTTP request", ex);
+            _logger.LogError(ex, "Error processing HTTP request");
 
             // Setting the StatusCode property can throw exceptions in certain scenarios
             try
@@ -440,7 +463,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
 
         string serverUrl = $"http://localhost:{_serverPort}/";
-        SimpleLogger.Log($"Navigating to: {serverUrl}");
+        _logger.LogInformation("Navigating to: {ServerUrl}", serverUrl);
 
         TaskCompletionSource<bool> navigationCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -454,7 +477,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await navigationCompletedTcs.Task.WaitAsync(cts.Token);
 
-            SimpleLogger.Log("Navigation completed successfully");
+            _logger.LogInformation("Navigation completed successfully");
         }
         catch (OperationCanceledException)
         {
@@ -465,14 +488,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Failed to cleanup NavigationCompleted handler after timeout", ex);
+                _logger.LogError(ex, "Failed to cleanup NavigationCompleted handler after timeout");
             }
 
             throw new InvalidOperationException($"Navigation to {serverUrl} timed out after 10 seconds");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Navigation failed", ex);
+            _logger.LogError(ex, "Navigation failed");
 
             // Cleanup on any other error
             try
@@ -493,7 +516,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             try
             {
                 navigationCompletedTcs.TrySetResult(true);
-                SimpleLogger.LogWebView("navigation completed", "HTTP mode");
+                _logger.LogWebView("navigation completed", "HTTP mode");
             }
             finally
             {
@@ -503,7 +526,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Failed to unsubscribe from NavigationCompleted", ex);
+                    _logger.LogError(ex, "Failed to unsubscribe from NavigationCompleted");
                 }
             }
         }
@@ -517,7 +540,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// ports are found within the range, an <see cref="InvalidOperationException"/> is thrown.</remarks>
     /// <returns>The first available port number within the range 8083 to 8199.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no available ports are found in the range 8083-8199.</exception>
-    private static int GetAvailablePort()
+    private int GetAvailablePort()
     {
         for (int port = 8083; port < 8200; port++)
         {
@@ -532,7 +555,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             catch
             {
                 // Port in use, try next
-                SimpleLogger.Log($"Port {port} is in use, trying next: {port + 1}");
+                _logger.LogDebug("Port {Port} is in use, trying next: {NextPort}", port, port + 1);
             }
         }
         throw new InvalidOperationException("No available ports found in range 8083-8199");
@@ -554,7 +577,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         ThrowIfDisposed();
         if (_webView is null)
         {
-            SimpleLogger.LogError("WebView not initialized");
+            _logger.LogError("WebView not initialized");
             return;
         }
 
@@ -569,14 +592,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 // implicit capture of surrounding variables inside the function body).
                 await Dispatcher.UIThread.InvokeAsync(async () => await ClearOutputAsync(webView));
 
-                SimpleLogger.Log("Cleared output");
+                _logger.LogDebug("Cleared output");
 
                 // Static local function to avoid capturing outer variables inside the function
                 static Task ClearOutputAsync(WebView webViewParam) => webViewParam.ExecuteScriptAsync("clearOutput();");
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Clear failed", ex);
+                _logger.LogError(ex, "Clear failed");
             }
             return;
         }
@@ -609,7 +632,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Render failed", ex);
+            _logger.LogError(ex, "Render failed");
         }
 
         static string EscapeSource(string source)
@@ -680,7 +703,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 webView ??= _webView;
                 if (webView is null)
                 {
-                    SimpleLogger.Log("ExecuteScriptCoreAsync: WebView is null at UI invocation");
+                    _logger.LogWarning("ExecuteScriptCoreAsync: WebView is null at UI invocation");
                     return null;
                 }
 
@@ -690,7 +713,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Script execution failed", ex);
+            _logger.LogError(ex, "Script execution failed");
             return null;
         }
     }
@@ -763,7 +786,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Failed to stop export status polling", ex);
+                _logger.LogError(ex, "Failed to stop export status polling");
             }
         }
     }
@@ -803,7 +826,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation of the polling task.</returns>
     private async Task StartExportStatusPollingAsync(CancellationToken token)
     {
-        SimpleLogger.Log("Starting export status polling");
+        _logger.LogInformation("Starting export status polling");
         try
         {
             const int pollingIntervalMs = 200;
@@ -842,7 +865,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Ignore transient script errors but log for diagnostics
-                    SimpleLogger.LogError("Export status polling script error", ex);
+                    _logger.LogError(ex, "Export status polling script error");
                 }
 
                 try
@@ -857,7 +880,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         finally
         {
-            SimpleLogger.Log("Export status polling stopped");
+            _logger.LogInformation("Export status polling stopped");
         }
     }
 
@@ -868,7 +891,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="callbacksToInvoke">An array of callback delegates to be invoked with the export progress status. If null or empty, no callbacks are
     /// invoked.</param>
     /// <param name="statusJson">A JSON-formatted string containing the current export progress status to be supplied to each callback.</param>
-    private static void InvokeExportProgressCallbacks(Action<string>[]? callbacksToInvoke, string statusJson)
+    private void InvokeExportProgressCallbacks(Action<string>[]? callbacksToInvoke, string statusJson)
     {
         if (callbacksToInvoke?.Length > 0)
         {
@@ -880,7 +903,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Export progress callback threw", ex);
+                    _logger.LogError(ex, "Export progress callback threw");
                 }
             }
         }
@@ -971,7 +994,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError("Failed to cancel export polling CTS", ex);
+                        _logger.LogError(ex, "Failed to cancel export polling CTS");
                     }
                 }
 
@@ -985,7 +1008,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError("Export polling did not stop cleanly", ex);
+                        // Log but do not rethrow during dispose
+                        _logger.LogError(ex, "Export polling did not stop cleanly");
                     }
                 }
             }
@@ -1004,7 +1028,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Failed to dispose export polling CTS", ex);
+                    _logger.LogError(ex, "Failed to dispose export polling CTS");
                 }
             }
 
@@ -1020,9 +1044,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (TimeoutException)
                 {
-                    SimpleLogger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
+                    _logger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
+                    // No concern about capturing _logger here as DisposeAsync cannot be re-entered
+                    ILogger<MermaidRenderer> logger = _logger; // Capture for continuation
                     _ = serverTask.ContinueWith(
-                        static t =>
+                        t =>
                         {
                             try
                             {
@@ -1030,25 +1056,25 @@ public sealed class MermaidRenderer : IAsyncDisposable
                                 if (t.IsFaulted)
                                 {
                                     // Exception already observed and logged by StartHttpServer's try-catch
-                                    SimpleLogger.Log($"Abandoned server task faulted (exception already logged in {nameof(StartHttpServer)})");
+                                    logger.LogInformation("Abandoned server task faulted (exception already logged in {MethodName})", nameof(StartHttpServer));
                                 }
                                 else if (t.IsCanceled)
                                 {
-                                    SimpleLogger.Log("Abandoned server task was canceled");
+                                    logger.LogInformation("Abandoned server task was canceled");
                                 }
                                 else
                                 {
-                                    SimpleLogger.Log("Abandoned server task completed successfully");
+                                    logger.LogInformation("Abandoned server task completed successfully");
                                 }
 
                                 // Dispose in all cases
                                 t.Dispose();
-                                SimpleLogger.Log("Abandoned server task completed and disposed");
+                                logger.LogInformation("Abandoned server task completed and disposed");
                             }
                             catch (Exception ex)
                             {
                                 // This catch ensures the continuation itself doesn't have unobserved exceptions
-                                SimpleLogger.LogError("Error in abandoned server task continuation", ex);
+                                logger.LogError(ex, "Error in abandoned server task continuation");
                             }
                         },
                         CancellationToken.None,
@@ -1058,14 +1084,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 catch (Exception ex)
                 {
                     // Task threw exception, but we observed it
-                    SimpleLogger.LogError("Error waiting for server task", ex);
+                    _logger.LogError(ex, "Error waiting for server task");
                     try
                     {
                         serverTask.Dispose();
                     }
                     catch (Exception disposeEx)
                     {
-                        SimpleLogger.LogError("Error disposing server task", disposeEx);
+                        _logger.LogError(disposeEx, "Error disposing server task");
                     }
                 }
             }
@@ -1073,11 +1099,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             serverCts?.Dispose();
             _serverReadySemaphore.Dispose();
 
-            SimpleLogger.Log("MermaidRenderer disposed");
+            _logger.LogInformation("MermaidRenderer disposed");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error during disposal", ex);
+            _logger.LogError(ex, "Error during disposal");
         }
     }
 }
