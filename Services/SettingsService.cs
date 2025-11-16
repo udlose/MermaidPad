@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Models;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -33,12 +34,18 @@ public sealed class SettingsService
     };
 
     private readonly string _settingsPath;
+    private readonly ILogger<SettingsService>? _logger;
     private const string SettingsFileName = "settings.json";
 
     public AppSettings Settings { get; }
 
-    public SettingsService()
+    /// <summary>
+    /// Initializes a new instance of the SettingsService class.
+    /// </summary>
+    /// <param name="logger">Optional logger instance (it may be null during early initialization).</param>
+    public SettingsService(ILogger<SettingsService>? logger = null)
     {
+        _logger = logger;
         string baseDir = GetConfigDirectory();
         Directory.CreateDirectory(baseDir);
         _settingsPath = Path.Combine(baseDir, SettingsFileName);
@@ -69,16 +76,17 @@ public sealed class SettingsService
             if (File.Exists(fullSettingsPath))
             {
                 // Use SecurityService for comprehensive validation
-                (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
+                var securityService = new SecurityService(logger: null);
+                (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
                 if (!isSecure && !string.IsNullOrEmpty(reason))
                 {
-                    SimpleLogger.LogError($"Settings file validation failed: {reason}");
+                    _logger?.LogError("Settings file validation failed: {Reason}", reason);
                     return new AppSettings();
                 }
 
                 // Use SecurityService for secure file stream creation
                 string json;
-                using (FileStream fs = SecurityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
+                using (FileStream fs = securityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
                 using (StreamReader reader = new StreamReader(fs))
                 {
                     json = reader.ReadToEnd();
@@ -89,7 +97,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Settings load failed: {ex}");
+            _logger?.LogError(ex, "Settings load failed");
         }
         return new AppSettings();
     }
@@ -129,7 +137,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Settings save failed: {ex}");
+            _logger?.LogError(ex, "Settings save failed");
         }
     }
 }

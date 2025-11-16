@@ -96,4 +96,45 @@ public sealed class AppSettings
     /// Initialized to an empty list by default.
     /// </remarks>
     public List<string> RecentFiles { get; set; } = [];
+
+    /// <summary>
+    /// Logging configuration settings.
+    /// </summary>
+    public LoggingSettings Logging { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration settings for application logging.
+/// </summary>
+public sealed class LoggingSettings
+{
+    /// <summary>
+    /// Enables file-based logging to disk.
+    /// </summary>
+    public bool EnableFileLogging { get; set; } = true;
+
+    /// <summary>
+    /// Enables debug output (Visual Studio output window, console).
+    /// </summary>
+    public bool EnableDebugOutput { get; set; } = true;
+
+    /// <summary>
+    /// Minimum log level: Debug, Information, Warning, Error, Fatal.
+    /// </summary>
+    public string MinimumLogLevel { get; set; } = "Debug";
+
+    /// <summary>
+    /// File size limit in bytes before rolling (default 2MB).
+    /// </summary>
+    public long FileSizeLimitBytes { get; set; } = 2_097_152; // 2MB
+
+    /// <summary>
+    /// Number of log files to retain (default 5).
+    /// </summary>
+    public int RetainedFileCountLimit { get; set; } = 5;
+
+    /// <summary>
+    /// Custom log file path (null = default %APPDATA%/MermaidPad/debug.log).
+    /// </summary>
+    public string? CustomLogFilePath { get; set; }
 }
