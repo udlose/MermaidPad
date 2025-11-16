@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Services;
@@ -66,8 +67,18 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
     /// </summary>
     public const int DefaultCaretDebounceMilliseconds = 200;
 
+    private readonly ILogger<DebounceDispatcher> _logger;
     private readonly Lock _gate = new Lock();
     private readonly Dictionary<string, CancellationTokenSource> _tokens = new Dictionary<string, CancellationTokenSource>();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DebounceDispatcher"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
+    public DebounceDispatcher(ILogger<DebounceDispatcher> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Executes the specified action after a delay, ensuring that only the most recent invocation for the given key is
@@ -150,7 +161,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
                 {
                     // Log exceptions from user actions to prevent them from escaping
                     // and potentially preventing cleanup in the finally block
-                    SimpleLogger.LogError($"Exception in debounced action for key '{key}'", ex);
+                    _logger.LogError(ex, "Exception in debounced action for key {Key}", key);
                 }
             }
         }

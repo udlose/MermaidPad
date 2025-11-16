@@ -21,6 +21,7 @@
 using Avalonia.Styling;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
+using Microsoft.Extensions.Logging;
 using System.Reflection;
 using TextMateSharp.Grammars;
 
@@ -46,12 +47,22 @@ namespace MermaidPad.Services.Highlighting;
 /// </remarks>
 public sealed class SyntaxHighlightingService : IDisposable
 {
+    private readonly ILogger<SyntaxHighlightingService> _logger;
     private readonly Lock _sync = new Lock();
     private TextMate.Installation? _textMateInstallation;
     private TextEditor? _currentEditor;
     private ThemeName _currentTheme;
     private volatile bool _isInitialized;
     private volatile bool _isDisposed;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SyntaxHighlightingService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
+    public SyntaxHighlightingService(ILogger<SyntaxHighlightingService> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <summary>
     /// Initializes the syntax highlighting service, preparing it for use.
@@ -68,7 +79,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         // This is a volatile read
         if (_isInitialized)
         {
-            SimpleLogger.Log("Syntax highlighting service already initialized");
+            _logger.LogDebug("Syntax highlighting service already initialized");
             return;
         }
 
@@ -85,17 +96,17 @@ public sealed class SyntaxHighlightingService : IDisposable
 
                 if (_isInitialized)
                 {
-                    SimpleLogger.Log("Syntax highlighting service already initialized (post-verify)");
+                    _logger.LogDebug("Syntax highlighting service already initialized (post-verify)");
                     return;
                 }
 
                 _isInitialized = true;
-                SimpleLogger.Log("Syntax highlighting service initialized successfully");
+                _logger.LogInformation("Syntax highlighting service initialized successfully");
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.Log($"ERROR initializing syntax highlighting service: {ex.Message}");
+            _logger.LogError(ex, "Failed to initialize syntax highlighting service");
             throw;
         }
     }
@@ -173,7 +184,7 @@ public sealed class SyntaxHighlightingService : IDisposable
                     catch (Exception ex)
                     {
                         // Swallow to avoid throwing during concurrent disposal cleanup
-                        SimpleLogger.LogError("Error disposing concurrent installation during ApplyTo cleanup", ex);
+                        _logger.LogError(ex, "Error disposing concurrent installation during ApplyTo cleanup");
                     }
 
                     throw new ObjectDisposedException(nameof(SyntaxHighlightingService));
@@ -186,7 +197,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error applying syntax highlighting", ex);
+            _logger.LogError(ex, "Error applying syntax highlighting");
             throw;
         }
     }
@@ -246,11 +257,11 @@ public sealed class SyntaxHighlightingService : IDisposable
 
             if (currentThemeSnapshot == themeName)
             {
-                SimpleLogger.Log($"Theme is already set to {themeName}, skipping theme change");
+                _logger.LogDebug("Theme is already set to {ThemeName}, skipping theme change", themeName);
                 return;
             }
 
-            SimpleLogger.Log($"Changing syntax highlighting theme from {_currentTheme} to {themeName}");
+            _logger.LogInformation("Changing syntax highlighting theme from {CurrentTheme} to {NewTheme}", _currentTheme, themeName);
         }
 
         try
@@ -261,7 +272,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error changing theme", ex);
+            _logger.LogError(ex, "Error changing theme");
             throw;
         }
     }
@@ -273,7 +284,7 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// dark theme. This ensures consistent appearance even when theme information is unavailable.</remarks>
     /// <returns>A value of <see cref="ThemeName"/> corresponding to the current theme variant. Returns <see
     /// cref="ThemeName.DarkPlus"/> if the theme variant cannot be determined.</returns>
-    private static ThemeName GetThemeForCurrentVariant()
+    private ThemeName GetThemeForCurrentVariant()
     {
         // Try to get the current theme variant from the application
         ThemeVariant? actualThemeVariant = Avalonia.Application.Current?.ActualThemeVariant;
@@ -288,7 +299,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         }
 
         // Default to dark theme if we can't determine
-        SimpleLogger.Log($"Could not determine theme variant, defaulting to {nameof(ThemeName.DarkPlus)}");
+        _logger.LogWarning("Could not determine theme variant, defaulting to {DefaultTheme}", nameof(ThemeName.DarkPlus));
         return ThemeName.DarkPlus;
     }
 
@@ -343,7 +354,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error disposing syntax highlighting installation", ex);
+            _logger.LogError(ex, "Error disposing syntax highlighting installation");
         }
     }
 }

@@ -20,6 +20,8 @@
 
 using JetBrains.Annotations;
 using MermaidPad.Exceptions.Assets;
+using Microsoft.Extensions.Logging;
+using Serilog;
 using System.Diagnostics.CodeAnalysis;
 using System.Security;
 
@@ -33,10 +35,22 @@ namespace MermaidPad.Services;
 /// path traversal attacks, unauthorized access via symbolic links, and improper file name validation.</remarks>
 [SuppressMessage("ReSharper", "ConvertToStaticClass", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("Major Code Smell", "S1118:Utility classes should not have public constructors", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 public sealed class SecurityService
 {
     private const string SecurityLogCategory = "Security: ";
     private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
+    private readonly ILogger<SecurityService>? _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the SecurityService class.
+    /// </summary>
+    /// <param name="logger">Optional logger instance (it may be null during early initialization).</param>
+    public SecurityService(ILogger<SecurityService>? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Determines whether the specified file path is secure based on a series of validation checks.
@@ -60,7 +74,7 @@ public sealed class SecurityService
     /// <returns>A tuple containing a boolean value and an optional reason string. The boolean value indicates whether the file
     /// path is secure. If the file path is not secure, the reason string provides additional details about the failure.</returns>
     /// <exception cref="MissingAssetException">Thrown if <paramref name="isAssetFile"/> is <see langword="true"/> and the file does not exist.</exception>
-    public static (bool IsSecure, string? Reason) IsFilePathSecure(string filePath, string? allowedDirectory = null, bool isAssetFile = false)
+    public (bool IsSecure, string? Reason) IsFilePathSecure(string filePath, string? allowedDirectory = null, bool isAssetFile = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -116,7 +130,7 @@ public sealed class SecurityService
     /// If an error occurs during detection, the method assumes the file is a symbolic link and returns <see langword="true"/>.</remarks>
     /// <param name="fileInfo">The <see cref="FileInfo"/> object representing the file to check. Cannot be <see langword="null"/>.</param>
     /// <returns><see langword="true"/> if the file is a symbolic link; otherwise, <see langword="false"/>.</returns>
-    private static bool IsSymbolicLink(FileInfo fileInfo)
+    private bool IsSymbolicLink(FileInfo fileInfo)
     {
         ArgumentNullException.ThrowIfNull(fileInfo);
         try
@@ -124,14 +138,14 @@ public sealed class SecurityService
             // Layer 1: FileAttributes.ReparsePoint
             if ((fileInfo.Attributes & FileAttributes.ReparsePoint) != 0)
             {
-                SimpleLogger.Log($"File {fileInfo.FullName} detected as reparse point via FileAttributes");
+                LogInformation($"File {fileInfo.FullName} detected as reparse point via FileAttributes");
                 return true;
             }
 
             // Layer 2: .NET 6+ LinkTarget property
             if (fileInfo.LinkTarget is not null)
             {
-                SimpleLogger.Log($"File {fileInfo.FullName} has LinkTarget: {fileInfo.LinkTarget}");
+                LogInformation($"File {fileInfo.FullName} has LinkTarget: {fileInfo.LinkTarget}");
                 return true;
             }
 
@@ -140,7 +154,7 @@ public sealed class SecurityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Symlink detection failed for {fileInfo.FullName}", ex);
+            LogError(ex, $"Symlink detection failed for {fileInfo.FullName}");
             return true; // Fail secure - assume it's a symlink if we can't determine
         }
     }
@@ -162,7 +176,7 @@ public sealed class SecurityService
     /// if it is not secure. If the file name is secure, the reason will be <see langword="null"/>.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="fileName"/> is null, empty, or consists only of whitespace, or if <paramref
     /// name="allowedFiles"/> is empty.</exception>
-    public static (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
+    public (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(allowedFiles);
@@ -216,7 +230,7 @@ public sealed class SecurityService
     /// <returns>A <see cref="FileStream"/> configured with the specified options, optimized for sequential access and
     /// asynchronous operations.</returns>
     [MustDisposeResource]
-    public static FileStream CreateSecureFileStream(string path, FileMode mode, FileAccess access, FileShare share = FileShare.Read, int bufferSize = DefaultBufferSize)
+    public FileStream CreateSecureFileStream(string path, FileMode mode, FileAccess access, FileShare share = FileShare.Read, int bufferSize = DefaultBufferSize)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentOutOfRangeException.ThrowIfLessThan(bufferSize, 1);
@@ -226,7 +240,7 @@ public sealed class SecurityService
         if (!isSecure && !string.IsNullOrEmpty(reason))
         {
             string errorMessage = $"Requested path for FileStream is not secure: {reason}";
-            SimpleLogger.Log(errorMessage);
+            LogInformation(errorMessage);
             throw new SecurityException(errorMessage);
         }
 
@@ -252,7 +266,7 @@ public sealed class SecurityService
     /// <param name="filePath">The full path of the file to check. Cannot be null, empty, or whitespace.</param>
     /// <param name="allowedDirectory">The directory to validate against. Cannot be null, empty, or whitespace.</param>
     /// <returns><see langword="true"/> if the file path is within the specified directory; otherwise, <see langword="false"/>.</returns>
-    private static bool IsPathWithinDirectory(string filePath, string allowedDirectory)
+    private bool IsPathWithinDirectory(string filePath, string allowedDirectory)
     {
         try
         {
@@ -275,7 +289,7 @@ public sealed class SecurityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Path boundary validation failed for '{filePath}' in '{allowedDirectory}'", ex);
+            LogError(ex, $"Path boundary validation failed for '{filePath}' in '{allowedDirectory}'");
             return false;
         }
     }
@@ -290,7 +304,7 @@ public sealed class SecurityService
     /// <param name="originalPath">The original file or directory path to validate. Cannot be null, empty, or consist only of whitespace.</param>
     /// <returns><see langword="true"/> if the resolved path differs from the original path; otherwise, <see langword="false"/>.
     /// On Unix-based systems, additional validation is performed to ensure path consistency.</returns>
-    private static bool HasPathResolutionMismatch(string originalPath)
+    private bool HasPathResolutionMismatch(string originalPath)
     {
         try
         {
@@ -302,7 +316,7 @@ public sealed class SecurityService
 
             if (!string.Equals(originalPath, resolvedPath, comparison))
             {
-                SimpleLogger.Log($"Path resolution mismatch: original={originalPath}, resolved={resolvedPath}");
+                LogInformation($"Path resolution mismatch: original={originalPath}, resolved={resolvedPath}");
                 return true;
             }
 
@@ -316,7 +330,7 @@ public sealed class SecurityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Path resolution validation failed for '{originalPath}'", ex);
+            LogError(ex, $"Path resolution validation failed for '{originalPath}'");
             return true; // Assume mismatch if we can't validate
         }
     }
@@ -332,7 +346,7 @@ public sealed class SecurityService
     /// <param name="resolvedPath">The resolved path to validate. Must not be null, empty, or whitespace.</param>
     /// <returns><see langword="true"/> if the resolved path does not match its canonical form or if validation fails; otherwise,
     /// <see langword="false"/>.</returns>
-    private static bool ValidateUnixPathResolution(string originalPath, string resolvedPath)
+    private bool ValidateUnixPathResolution(string originalPath, string resolvedPath)
     {
         try
         {
@@ -340,7 +354,7 @@ public sealed class SecurityService
             string canonicalPath = Path.GetFullPath(resolvedPath);
             if (!string.Equals(resolvedPath, canonicalPath, StringComparison.Ordinal))
             {
-                SimpleLogger.Log($"Unix canonical path mismatch: resolved={resolvedPath}, canonical={canonicalPath}");
+                LogInformation($"Unix canonical path mismatch: resolved={resolvedPath}, canonical={canonicalPath}");
                 return true; // Indicates mismatch (potential symlink)
             }
 
@@ -348,10 +362,47 @@ public sealed class SecurityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Unix path resolution validation failed for '{originalPath}'", ex);
+            LogError(ex, $"Unix path resolution validation failed for '{originalPath}'");
             return true; // Assume mismatch if validation fails
         }
     }
 
     #endregion
+
+    #region Logging helpers
+
+    /// <summary>
+    /// Logs an error message and exception details to the configured logging provider.
+    /// </summary>
+    /// <param name="exception">The exception to be logged. Provides details about the error that occurred.</param>
+    /// <param name="message">The error message to log. Describes the context or additional information about the exception.</param>
+    private void LogError(Exception exception, string message)
+    {
+        if (_logger is not null)
+        {
+            _logger.LogError(exception, "{SecurityLogCategory} {Message}", SecurityLogCategory, message);
+            return;
+        }
+        Log.Error(exception, "{SecurityLogCategory} {Message}", SecurityLogCategory, message);
+    }
+
+    /// <summary>
+    /// Writes an informational message to the security log using the configured logging provider.
+    /// </summary>
+    /// <remarks>If a custom logger is configured, the message is logged using that provider; otherwise, a
+    /// default logger is used. This method is intended for logging non-sensitive, informational events related to
+    /// security operations.</remarks>
+    /// <param name="message">The informational message to be logged. Cannot be null.</param>
+    private void LogInformation(string message)
+    {
+        if (_logger is not null)
+        {
+            // Use a constant message template and pass variables as arguments
+            _logger.LogInformation("{SecurityLogCategory} {Message}", SecurityLogCategory, message);
+            return;
+        }
+        Log.Information("{SecurityLogCategory} {Message}", SecurityLogCategory, message);
+    }
+
+    #endregion Logging helpers
 }

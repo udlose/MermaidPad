@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Diagnostics;
@@ -81,10 +82,12 @@ public sealed class ExportService
     ];
     private static readonly SearchValues<char> _whitespaceSearchValues = SearchValues.Create(_whiteSpaceChars);
     private readonly MermaidRenderer _mermaidRenderer;
+    private readonly ILogger<ExportService> _logger;
 
-    public ExportService(MermaidRenderer mermaidRenderer)
+    public ExportService(MermaidRenderer mermaidRenderer, ILogger<ExportService> logger)
     {
         _mermaidRenderer = mermaidRenderer;
+        _logger = logger;
     }
 
     #region SVG Export
@@ -107,7 +110,7 @@ public sealed class ExportService
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
         options ??= new SvgExportOptions();
-        SimpleLogger.Log($"Starting SVG export to: {targetPath}");
+        _logger.LogInformation("Starting SVG export to: {TargetPath}", targetPath);
 
         return ExportSvgCoreAsync(targetPath, options, cancellationToken);
     }
@@ -143,11 +146,11 @@ public sealed class ExportService
             await WriteSvgToFileAsync(targetPath, svgContent, cancellationToken)
                 .ConfigureAwait(false);
 
-            SimpleLogger.Log($"SVG exported successfully: {new FileInfo(targetPath).Length:N0} bytes");
+            _logger.LogInformation("SVG exported successfully: {ByteCount:N0} bytes", new FileInfo(targetPath).Length);
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"SVG export failed: {ex.Message}", ex);
+            _logger.LogError(ex, "SVG export failed: {ErrorMessage}", ex.Message);
             throw;
         }
     }
@@ -161,7 +164,7 @@ public sealed class ExportService
     /// <param name="options">The options that determine how the SVG content should be processed, such as whether to optimize it.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A <see cref="ReadOnlyMemory{T}"/> containing the processed SVG content.</returns>
-    private static async Task<ReadOnlyMemory<char>> ProcessSvgContentAsync(
+    private async Task<ReadOnlyMemory<char>> ProcessSvgContentAsync(
         ReadOnlyMemory<char> svgContent,
         SvgExportOptions options,
         CancellationToken cancellationToken = default)
@@ -169,7 +172,7 @@ public sealed class ExportService
         // Apply optimization if requested
         if (options.Optimize)
         {
-            SimpleLogger.Log("Optimizing SVG content...");
+            _logger.LogInformation("Optimizing SVG content...");
             svgContent = await OptimizeSvgAsync(svgContent, options, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -215,12 +218,12 @@ public sealed class ExportService
     /// <param name="cancellationToken">A token to monitor for cancellation requests. The operation will terminate early if cancellation is requested.</param>
     /// <returns>A <see cref="ReadOnlyMemory{T}"/> containing the optimized SVG content. If the optimization fails, the original
     /// content is returned.</returns>
-    private static async Task<ReadOnlyMemory<char>> OptimizeSvgAsync(ReadOnlyMemory<char> svgContent,
+    private async Task<ReadOnlyMemory<char>> OptimizeSvgAsync(ReadOnlyMemory<char> svgContent,
         SvgExportOptions options, CancellationToken cancellationToken = default)
     {
         if (svgContent.Length > 5_000_000) // 5 MB
         {
-            SimpleLogger.Log($"Optimizing large SVG ({svgContent.Length:N0} characters). This may take a few seconds...");
+            _logger.LogInformation("Optimizing large SVG ({CharacterCount:N0} characters). This may take a few seconds...", svgContent.Length);
         }
 
         try
@@ -363,18 +366,19 @@ public sealed class ExportService
             await xmlWriter.FlushAsync().ConfigureAwait(false);
             string result = output.ToString();
 
-            SimpleLogger.Log($"SVG optimization complete. Original: {svgContent.Length:N0} characters, Optimized: {result.Length:N0} characters ({(1.0 - ((double)result.Length / svgContent.Length)) * 100:F1}% reduction)");
+            _logger.LogInformation("SVG optimization complete. Original: {OriginalLength:N0} characters, Optimized: {OptimizedLength:N0} characters ({Reduction:F1}% reduction)",
+                svgContent.Length, result.Length, (1.0 - ((double)result.Length / svgContent.Length)) * 100);
 
             return result.AsMemory();
         }
         catch (XmlException ex)
         {
-            SimpleLogger.LogError("SVG optimization failed due to invalid XML, returning original content", ex);
+            _logger.LogError(ex, "SVG optimization failed due to invalid XML, returning original content");
             return svgContent;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("SVG optimization failed, returning original content", ex);
+            _logger.LogError(ex, "SVG optimization failed, returning original content");
             return svgContent;
         }
     }
@@ -399,7 +403,7 @@ public sealed class ExportService
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
         options ??= new PngExportOptions();
-        SimpleLogger.Log($"Starting browser-based PNG export to: {targetPath} (DPI: {options.Dpi}, Scale: {options.ScaleFactor}x)");
+        _logger.LogInformation("Starting browser-based PNG export to: {TargetPath} (DPI: {Dpi}, Scale: {ScaleFactor}x)", targetPath, options.Dpi, options.ScaleFactor);
 
         return ExportPngCoreAsync(targetPath, options, progress, cancellationToken);
     }
@@ -447,12 +451,12 @@ public sealed class ExportService
         }
         catch (OperationCanceledException)
         {
-            SimpleLogger.Log("PNG export cancelled by user");
+            _logger.LogInformation("PNG export cancelled by user");
             throw;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"PNG export failed: {ex.Message}", ex);
+            _logger.LogError(ex, "PNG export failed: {ErrorMessage}", ex.Message);
             throw;
         }
     }
@@ -496,16 +500,16 @@ public sealed class ExportService
                 Message = "PNG export completed successfully!"
             });
 
-            SimpleLogger.Log($"PNG exported successfully: {bytesWritten:N0} bytes");
+            _logger.LogInformation("PNG exported successfully: {ByteCount:N0} bytes", bytesWritten);
         }
         catch (OperationCanceledException)
         {
-            SimpleLogger.Log("PNG export cancelled or timed out");
+            _logger.LogInformation("PNG export cancelled or timed out");
             throw;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"PNG export failed: {ex.Message}", ex);
+            _logger.LogError(ex, "PNG export failed: {ErrorMessage}", ex.Message);
             throw;
         }
     }
@@ -527,7 +531,7 @@ public sealed class ExportService
             backgroundColor = options.BackgroundColor ?? "transparent"
         });
 
-        SimpleLogger.Log($"Export options: {exportOptionsJson}");
+        _logger.LogDebug("Export options: {ExportOptions}", exportOptionsJson);
 
         string script = $"(async () => {{ return await globalThis.exportToPNG({exportOptionsJson}); }})();";
         await _mermaidRenderer.ExecuteScriptAsync(script);
@@ -983,7 +987,7 @@ public sealed class ExportService
     /// properties such as "step", "percent", and "message".</param>
     /// <param name="completionSource">A <see cref="TaskCompletionSource{TResult}"/> used to signal the completion or failure of the export operation.</param>
     /// <param name="progress">An optional <see cref="IProgress{T}"/> instance used to report progress updates to the caller.</param>
-    private static void HandleExportProgress(string statusJson, TaskCompletionSource<bool> completionSource, IProgress<ExportProgress>? progress)
+    private void HandleExportProgress(string statusJson, TaskCompletionSource<bool> completionSource, IProgress<ExportProgress>? progress)
     {
         if (string.IsNullOrWhiteSpace(statusJson))
         {
@@ -999,7 +1003,7 @@ public sealed class ExportService
             int percent = root.TryGetProperty("percent", out JsonElement percentEl) ? percentEl.GetInt32() : 0;
             string message = root.TryGetProperty("message", out JsonElement msgEl) ? msgEl.GetString() ?? string.Empty : string.Empty;
 
-            SimpleLogger.Log($"PNG export progress: {step} - {percent}% - {message}");
+            _logger.LogDebug("PNG export progress: {Step} - {Percent}% - {Message}", step, percent, message);
 
             ExportStep exportStep = step switch
             {
@@ -1026,7 +1030,7 @@ public sealed class ExportService
             // Handle completion or error
             if (step == "complete")
             {
-                SimpleLogger.Log("PNG export completed successfully");
+                _logger.LogInformation("PNG export completed successfully");
                 completionSource.TrySetResult(true);
             }
             else if (step == "error")
@@ -1040,7 +1044,7 @@ public sealed class ExportService
         }
         catch (JsonException ex)
         {
-            SimpleLogger.LogError("Failed to parse export status JSON", ex);
+            _logger.LogError(ex, "Failed to parse export status JSON");
         }
     }
 
@@ -1053,7 +1057,7 @@ public sealed class ExportService
     /// propagated.</remarks>
     /// <param name="progress">An optional progress handler that receives export progress updates. If null, no progress is reported.</param>
     /// <param name="exportProgress">The current state of the export operation to report to the progress handler.</param>
-    private static void ReportProgress(IProgress<ExportProgress>? progress, ExportProgress exportProgress)
+    private void ReportProgress(IProgress<ExportProgress>? progress, ExportProgress exportProgress)
     {
         if (progress is null)
         {
@@ -1078,7 +1082,7 @@ public sealed class ExportService
                 catch (Exception ex)
                 {
                     Debug.WriteLine(ex);
-                    SimpleLogger.LogError($"Progress report failed: {ex.Message}", ex);
+                    _logger.LogError(ex, "Progress report failed: {ErrorMessage}", ex.Message);
                 }
             });
         }
