@@ -24,8 +24,10 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
+using MermaidPad.Views.Dialogs;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -51,6 +53,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
+    private readonly IDialogFactory _dialogFactory;
 
     // Cached SVG dimensions
     private float _actualSvgWidth;
@@ -141,10 +144,12 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// dialog. If either service is null, related functionality may be limited.</remarks>
     /// <param name="imageConversionService">The service used to perform image format conversions. Can be null if image conversion is not required.</param>
     /// <param name="exportService">The service responsible for handling export operations. Can be null if export functionality is not needed.</param>
-    public ExportDialogViewModel(IImageConversionService? imageConversionService, ExportService? exportService)
+    /// <param name="dialogFactory">The factory for creating dialog view models.</param>
+    public ExportDialogViewModel(IImageConversionService imageConversionService, ExportService exportService, IDialogFactory dialogFactory)
     {
         _imageConversionService = imageConversionService;
         _exportService = exportService;
+        _dialogFactory = dialogFactory;
         AvailableFormats = new ObservableCollection<ExportFormatItem>
         {
             new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
@@ -444,100 +449,38 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the user
     /// confirms to overwrite; otherwise, <see langword="false"/>.</returns>
-    private static async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
+    private async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
     {
-        return await Dispatcher.UIThread.InvokeAsync(async () =>
+        return await Dispatcher.UIThread.InvokeAsync<bool>(async () =>
         {
             try
             {
+                Window? window = GetParentWindow();
+                if (window is null)
+                {
+                    // TODO LastError = "Unable to access window for confirmation dialog";
+                    SimpleLogger.LogError("Unable to access window for confirmation dialog");
+                    return false;
+                }
+
                 // Create confirmation window
-                Window confirmWindow = new Window
+                ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+                confirmViewModel.Title = "Confirm Overwrite";
+
+                confirmViewModel.Message = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFullPath(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?";
+                confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
+                confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
+
+                ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+
+                ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(window);
+                return result switch
                 {
-                    Title = "Confirm Overwrite",
-                    Width = 450,
-                    Height = 220,
-                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    CanResize = false
+                    ConfirmationResult.Yes => true,
+                    ConfirmationResult.No => false,
+                    ConfirmationResult.Cancel => false,
+                    _ => false
                 };
-
-                StackPanel stackPanel = new StackPanel
-                {
-                    Margin = new Avalonia.Thickness(20),
-                    Spacing = 15
-                };
-
-                stackPanel.Children.Add(new TextBlock
-                {
-                    Text = "File Already Exists",
-                    FontSize = 16,
-                    FontWeight = Avalonia.Media.FontWeight.Bold
-                });
-
-                stackPanel.Children.Add(new TextBlock
-                {
-                    Text = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFileName(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?",
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
-                });
-
-                StackPanel buttonPanel = new StackPanel
-                {
-                    Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    Spacing = 10
-                };
-
-                bool result = false;
-
-                Button yesButton = new Button
-                {
-                    Content = "Yes, Overwrite",
-                    Width = 120
-                };
-
-                Button noButton = new Button
-                {
-                    Content = "No, Cancel",
-                    Width = 120
-                };
-
-                // Store event handlers for cleanup
-                yesButton.Click += YesClickHandler;
-                noButton.Click += NoClickHandler;
-
-                buttonPanel.Children.Add(yesButton);
-                buttonPanel.Children.Add(noButton);
-                stackPanel.Children.Add(buttonPanel);
-
-                confirmWindow.Content = stackPanel;
-
-                // Get parent window
-                Window? parentWindow = GetParentWindow();
-                if (parentWindow is not null)
-                {
-                    await confirmWindow.ShowDialog(parentWindow);
-                }
-
-                return result;
-
-                void YesClickHandler(object? sender, RoutedEventArgs routedEventArgs)
-                {
-                    result = true;
-
-                    yesButton.Click -= YesClickHandler;
-                    noButton.Click -= NoClickHandler;
-
-                    confirmWindow.Close();
-                }
-
-                void NoClickHandler(object? sender, RoutedEventArgs routedEventArgs)
-                {
-                    result = false;
-
-                    yesButton.Click -= YesClickHandler;
-                    noButton.Click -= NoClickHandler;
-
-                    confirmWindow.Close();
-                }
             }
             catch (Exception ex)
             {
