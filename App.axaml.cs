@@ -27,14 +27,13 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using MermaidPad.Infrastructure;
-using MermaidPad.Services;
 using MermaidPad.Views;
+using Serilog;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace MermaidPad;
-
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>
@@ -89,7 +88,7 @@ public sealed partial class App : Application, IDisposable
         // Handle unobserved task exceptions
         TaskScheduler.UnobservedTaskException += OnTaskSchedulerUnobservedTaskException;
 
-        SimpleLogger.Log("Global exception handlers initialized");
+        Log.Information("Global exception handlers initialized");
     }
 
     /// <summary>
@@ -203,13 +202,13 @@ public sealed partial class App : Application, IDisposable
                 }
                 catch (Exception dialogEx)
                 {
-                    SimpleLogger.LogError("Failed to show error dialog for background exception", dialogEx);
+                    Log.Error(dialogEx, "Failed to show error dialog for background exception");
                 }
             }
         }
         else
         {
-            SimpleLogger.LogError($"Unhandled non-exception object: {e.ExceptionObject}");
+            Log.Error("Unhandled non-exception object: {ExceptionObject}", e.ExceptionObject);
         }
     }
 
@@ -251,7 +250,7 @@ public sealed partial class App : Application, IDisposable
                     .SafeFireAndForget(
                         onException: static ex =>
                         {
-                            SimpleLogger.LogError("Unhandled exception in ShowErrorDialogCoreAsync (UI)", ex);
+                            Log.Error(ex, "Unhandled exception in ShowErrorDialogCoreAsync (UI)");
                             Debug.Fail($"Unhandled exception in ShowErrorDialogCoreAsync (UI): {ex}");
                         },
                         continueOnCapturedContext: false);
@@ -263,7 +262,7 @@ public sealed partial class App : Application, IDisposable
                     .SafeFireAndForget(
                         onException: static ex =>
                         {
-                            SimpleLogger.LogError("Unhandled exception scheduling ShowErrorDialogCoreAsync", ex);
+                            Log.Error(ex, "Unhandled exception scheduling ShowErrorDialogCoreAsync");
                             Debug.Fail($"Unhandled exception scheduling ShowErrorDialogCoreAsync: {ex}");
                         },
                         continueOnCapturedContext: false);
@@ -272,7 +271,7 @@ public sealed partial class App : Application, IDisposable
         catch (Exception ex)
         {
             // Last resort logging if we can't even show the error dialog
-            SimpleLogger.LogError("Failed to show error dialog", ex);
+            Log.Error(ex, "Failed to show error dialog");
             Debug.Fail($"Failed to show error dialog: {ex}");
         }
     }
@@ -394,7 +393,7 @@ public sealed partial class App : Application, IDisposable
                 CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
                     .SafeFireAndForget(onException: static ex =>
                     {
-                        SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                        Log.Error(ex, "Failed to copy exception details to clipboard");
                         Debug.WriteLine($"Failed to copy to clipboard: {ex}");
                     });
             }
@@ -413,7 +412,7 @@ public sealed partial class App : Application, IDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to display error dialog", ex);
+            Log.Error(ex, "Failed to display error dialog");
             Debug.Fail($"Failed to display error dialog: {ex}");
         }
     }
@@ -432,12 +431,12 @@ public sealed partial class App : Application, IDisposable
     /// success.</param>
     /// <param name="exceptionDetails">The exception details text to copy to the clipboard. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous copy operation.</returns>
-    private static async Task CopyExceptionDetailsToClipboardAsync(Window? window, Button? copyButton, string? exceptionDetails)
+    private async Task CopyExceptionDetailsToClipboardAsync(Window? window, Button? copyButton, string? exceptionDetails)
     {
-        // Defensive checks - swallow problems early so SafeFireAndForget's static handler is never relied on
+        // Defensive checks - swallow problems early so SafeFireAndForget's handler is never relied on
         if (window is null || copyButton is null || exceptionDetails is null)
         {
-            SimpleLogger.LogError($"{nameof(CopyExceptionDetailsToClipboardAsync)} called with null argument(s).");
+            Log.Error("{MethodName} called with null argument(s)", nameof(CopyExceptionDetailsToClipboardAsync));
             return;
         }
 
@@ -464,7 +463,7 @@ public sealed partial class App : Application, IDisposable
             catch (Exception ex)
             {
                 // Handle clipboard-specific failures here so the button is never left in an inconsistent state.
-                SimpleLogger.LogError("Failed to copy exception details to clipboard", ex);
+                Log.Error(ex, "Failed to copy exception details to clipboard");
                 Debug.WriteLine($"Failed to copy to clipboard: {ex}");
 
                 // Show a transient failure state to the user before restoring original content
@@ -476,8 +475,8 @@ public sealed partial class App : Application, IDisposable
         }
         catch (Exception ex)
         {
-            // Catch any unexpected error inside this helper to avoid bubbling to SafeFireAndForget's static handler
-            SimpleLogger.LogError("Unexpected error in CopyExceptionDetailsToClipboardAsync", ex);
+            // Catch any unexpected error inside this helper to avoid bubbling to SafeFireAndForget's handler
+            Log.Error(ex, "Unexpected error in CopyExceptionDetailsToClipboardAsync");
             Debug.WriteLine($"Unexpected error in CopyExceptionDetailsToClipboardAsync: {ex}");
         }
         finally
@@ -500,7 +499,7 @@ public sealed partial class App : Application, IDisposable
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Failed to update button content on UI thread", ex);
+                Log.Error(ex, "Failed to update button content on UI thread");
             }
         }
     }
@@ -536,7 +535,8 @@ public sealed partial class App : Application, IDisposable
         logEntry.AppendLine(BuildExceptionDetails(exception));
         logEntry.AppendLine("---------------------------------------------------------------");
 
-        SimpleLogger.Log(logEntry.ToString());
+        Log.Error(exception, "EXCEPTION: {Message} | Time: {Time} | Thread Context: {ThreadContext} | Thread ID: {ThreadId}",
+            message, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), threadContext, Environment.CurrentManagedThreadId);
     }
 
     /// <summary>
@@ -765,19 +765,19 @@ public sealed partial class App : Application, IDisposable
                 if (Services is IAsyncDisposable asyncDisposableServices)
                 {
                     asyncDisposableServices.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    SimpleLogger.Log("Service provider successfully disposed asynchronously");
+                    Log.Information("Service provider successfully disposed asynchronously");
                 }
                 else if (Services is IDisposable disposableServices)
                 {
                     disposableServices.Dispose();
-                    SimpleLogger.Log("Service provider successfully disposed synchronously");
+                    Log.Information("Service provider successfully disposed synchronously");
                 }
 
-                SimpleLogger.Log("App disposed successfully");
+                Log.Information("App disposed successfully");
             }
             catch (Exception e)
             {
-                SimpleLogger.LogError("Exception during Dispose", e);
+                Log.Error(e, "Exception during Dispose");
                 // Don't rethrow - we're in shutdown - best effort cleanup
             }
         }

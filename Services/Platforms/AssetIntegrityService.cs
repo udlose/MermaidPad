@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Extensions;
 using MermaidPad.Generated;
+using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Diagnostics;
 using System.Security;
@@ -26,6 +28,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace MermaidPad.Services.Platforms;
+
 /// <summary>
 /// Provides methods for verifying the integrity of assets, including embedded resources and files on disk, as well as
 /// validating the content of JavaScript and HTML files.
@@ -34,8 +37,19 @@ namespace MermaidPad.Services.Platforms;
 /// integrity of assets during runtime. It also provides basic validation for JavaScript and HTML content to detect
 /// potential issues. The methods are designed for internal use and assume that inputs are pre-validated where
 /// applicable.</remarks>
-internal static class AssetIntegrityService
+public sealed class AssetIntegrityService
 {
+    private readonly ILogger<AssetIntegrityService> _logger;
+    private readonly SecurityService _securityService;
+    private readonly SettingsService _settingsService;
+
+    public AssetIntegrityService(ILogger<AssetIntegrityService> logger, SecurityService securityService, SettingsService settingsService)
+    {
+        _logger = logger;
+        _securityService = securityService;
+        _settingsService = settingsService;
+    }
+
     private const int StackAllocThreshold = 8_192;  // 8KB threshold for stack vs heap allocation
     private const int HashPreviewLength = 8;        // Number of characters to show in hash previews
     private static readonly SearchValues<string> _jsPatterns = SearchValues.Create(
@@ -66,7 +80,7 @@ internal static class AssetIntegrityService
     /// <param name="content">The binary content of the asset. Cannot be null.</param>
     /// <returns><see langword="true"/> if the asset's computed hash matches the expected hash;  otherwise, <see
     /// langword="false"/>.</returns>
-    internal static bool VerifyEmbeddedAssetIntegrity(string assetName, byte[] content)
+    internal bool VerifyEmbeddedAssetIntegrity(string assetName, byte[] content)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
         ArgumentNullException.ThrowIfNull(content);
@@ -82,11 +96,11 @@ internal static class AssetIntegrityService
 
             if (isValid)
             {
-                SimpleLogger.Log($"Asset integrity verified: {assetName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
+                _logger.LogAsset($"Asset integrity verified: {assetName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
             }
             else
             {
-                SimpleLogger.LogError($"Asset integrity check FAILED for {assetName}. Hash mismatch detected.");
+                _logger.LogError("Asset integrity check FAILED for {AssetName}. Hash mismatch detected.", assetName);
                 Debug.WriteLine($"Expected hash for {assetName} not found or doesn't match. Actual: {actualHash}");
             }
 
@@ -94,7 +108,7 @@ internal static class AssetIntegrityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Failed to verify integrity for {assetName}", ex);
+            _logger.LogError(ex, "Failed to verify integrity for {AssetName}", assetName);
             return false;
         }
     }
@@ -111,20 +125,20 @@ internal static class AssetIntegrityService
     /// Cannot be null, empty, or whitespace.</param>
     /// <returns><see langword="true"/> if the file's computed SHA-256 hash matches the <paramref name="expectedHash"/>;
     /// otherwise, <see langword="false"/>.</returns>
-    internal static async Task<bool> VerifyFileIntegrityAsync(string filePath, string expectedHash)
+    internal async Task<bool> VerifyFileIntegrityAsync(string filePath, string expectedHash)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedHash);
 
-        (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(filePath);
+        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(filePath);
         if (!isSecure && !string.IsNullOrEmpty(reason))
         {
             string errorMessage = $"Insecure file path detected: {filePath}. Reason: {reason}";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("Insecure file path detected: {FilePath}. Reason: {Reason}", filePath, reason);
             throw new SecurityException(errorMessage);
         }
 
-        await using FileStream stream = SecurityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using FileStream stream = _securityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using SHA256 sha256 = SHA256.Create();
         byte[] hashBytes = await sha256.ComputeHashAsync(stream)
             .ConfigureAwait(false);
@@ -135,12 +149,13 @@ internal static class AssetIntegrityService
         string fileName = Path.GetFileName(filePath);
         if (isValid)
         {
-            SimpleLogger.Log($"File integrity verified: {fileName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
+            _logger.LogAsset($"File integrity verified: {fileName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
         }
         else
         {
             int expectedHashPreviewLength = Math.Min(HashPreviewLength, expectedHash.Length);
-            SimpleLogger.LogError($"File integrity check FAILED for {fileName} from {filePath}. Expected: {expectedHash[..expectedHashPreviewLength]}..., Actual: {actualHash[..HashPreviewLength]}...");
+            _logger.LogError("File integrity check FAILED for {FileName} from {FilePath}. Expected: {ExpectedHash}..., Actual: {ActualHash}...",
+                fileName, filePath, expectedHash[..expectedHashPreviewLength], actualHash[..HashPreviewLength]);
         }
 
         return isValid;
@@ -157,19 +172,19 @@ internal static class AssetIntegrityService
     /// <exception cref="ArgumentException">Thrown if <paramref name="filePath"/>
     /// is null, empty, consists only of white-space characters,  is not an
     /// absolute path, or contains directory traversal sequences.</exception>
-    internal static async Task<string> ComputeFileHashAsync(string filePath)
+    internal async Task<string> ComputeFileHashAsync(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        (bool isSecure, string? reason) = SecurityService.IsFilePathSecure(filePath);
+        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(filePath);
         if (!isSecure && !string.IsNullOrEmpty(reason))
         {
             string errorMessage = $"Insecure file path detected: {filePath}. Reason: {reason}";
-            SimpleLogger.LogError(errorMessage);
+            _logger.LogError("Insecure file path detected: {FilePath}. Reason: {Reason}", filePath, reason);
             throw new SecurityException(errorMessage);
         }
 
-        await using FileStream stream = SecurityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using FileStream stream = _securityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using SHA256 sha256 = SHA256.Create();
         byte[] hashBytes = await sha256.ComputeHashAsync(stream)
             .ConfigureAwait(false);
@@ -185,7 +200,7 @@ internal static class AssetIntegrityService
     /// content does not contain suspicious patterns such as HTML or PHP injection markers, or null bytes.</remarks>
     /// <param name="content">The content to validate, represented as a byte array encoded in UTF-8.</param>
     /// <returns><see langword="true"/> if the content appears to be valid JavaScript; otherwise, <see langword="false"/>.</returns>
-    internal static bool ValidateJavaScriptContent(byte[] content)
+    internal bool ValidateJavaScriptContent(byte[] content)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (content.Length == 0)
@@ -225,7 +240,7 @@ internal static class AssetIntegrityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("JavaScript content validation failed", ex);
+            _logger.LogError(ex, "JavaScript content validation failed");
             return false;
         }
     }
@@ -240,7 +255,7 @@ internal static class AssetIntegrityService
     /// <param name="content">The HTML content to validate, represented as a UTF-8 encoded byte array.</param>
     /// <returns><see langword="true"/> if the content contains valid HTML structure and expected elements; otherwise, <see
     /// langword="false"/>.</returns>
-    internal static bool ValidateHtmlContent(byte[] content)
+    internal bool ValidateHtmlContent(byte[] content)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (content.Length == 0)
@@ -279,7 +294,7 @@ internal static class AssetIntegrityService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("HTML content validation failed", ex);
+            _logger.LogError(ex, "HTML content validation failed");
             return false;
         }
     }
@@ -297,10 +312,9 @@ internal static class AssetIntegrityService
     /// Retrieves the stored hash for the specified asset, if available.
     /// </summary>
     /// <param name="assetName">The name of the asset for which to retrieve the hash.</param>
-    /// <param name="settingsService">The settings service used to manage application settings.</param>
     /// <returns>The stored hash of the asset as a string, or <see langword="null"/> if no hash is available for the specified
     /// asset.</returns>
-    internal static string? GetStoredHashForAsset(string assetName, SettingsService settingsService)
+    internal static string? GetStoredHashForAsset(string assetName)
     {
         //TODO This will be expanded in Phase 2 to store hashes for updated assets. For now, we'll use the build-time hashes for existing embedded resources
         return AssetHashes.EmbeddedAssetHashes.TryGetValue(assetName, out string? hash) ? hash : null;

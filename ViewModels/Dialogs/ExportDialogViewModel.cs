@@ -25,9 +25,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
-using MermaidPad.Services;
 using MermaidPad.Services.Export;
 using MermaidPad.Views.Dialogs;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -51,6 +51,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 public sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
+    private readonly ILogger<ExportDialogViewModel> _logger;
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
     private readonly IDialogFactory _dialogFactory;
@@ -142,11 +143,13 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// </summary>
     /// <remarks>The constructor initializes the available export formats and DPI values for the export
     /// dialog. If either service is null, related functionality may be limited.</remarks>
+    /// <param name="logger">The logger for this view model.</param>
     /// <param name="imageConversionService">The service used to perform image format conversions. Can be null if image conversion is not required.</param>
     /// <param name="exportService">The service responsible for handling export operations. Can be null if export functionality is not needed.</param>
     /// <param name="dialogFactory">The factory for creating dialog view models.</param>
-    public ExportDialogViewModel(IImageConversionService imageConversionService, ExportService exportService, IDialogFactory dialogFactory)
+    public ExportDialogViewModel(ILogger<ExportDialogViewModel> logger, IImageConversionService imageConversionService, ExportService exportService, IDialogFactory dialogFactory)
     {
+        _logger = logger;
         _imageConversionService = imageConversionService;
         _exportService = exportService;
         _dialogFactory = dialogFactory;
@@ -238,7 +241,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         //catch (Exception ex)
         //{
         //    Debug.WriteLine($"Failed to load SVG dimensions: {ex}");
-        //    SimpleLogger.LogError($"Failed to load SVG dimensions: {ex}");
+        //    _logger.LogError(ex, "Failed to load SVG dimensions");
         //}
 
         // Fallback to default dimensions if loading fails
@@ -376,7 +379,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// <param name="title">The title to display in the error dialog window. Cannot be null.</param>
     /// <param name="message">The error message to display in the dialog. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation of displaying the error dialog.</returns>
-    private static async Task ShowErrorMessageAsync(string title, string message)
+    private async Task ShowErrorMessageAsync(string title, string message)
     {
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
@@ -435,7 +438,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to show error message: {ex}");
-                SimpleLogger.LogError($"Failed to show error message: {ex}");
+                _logger.LogError(ex, "Failed to show error message");
             }
         });
     }
@@ -459,7 +462,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 if (window is null)
                 {
                     // TODO LastError = "Unable to access window for confirmation dialog";
-                    SimpleLogger.LogError("Unable to access window for confirmation dialog");
+                    _logger.LogError("Unable to access window for confirmation dialog");
                     return false;
                 }
 
@@ -484,7 +487,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError($"Failed to show overwrite confirmation: {ex}");
+                _logger.LogError(ex, "Failed to show overwrite confirmation");
                 Debug.WriteLine($"Failed to show overwrite confirmation: {ex.Message}");
                 return false; // Default to not overwriting on error
             }
