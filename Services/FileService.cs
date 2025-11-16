@@ -20,6 +20,7 @@
 
 using Avalonia.Platform.Storage;
 using MermaidPad.Models;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -31,6 +32,7 @@ namespace MermaidPad.Services;
 /// </summary>
 public sealed class FileService : IFileService
 {
+    private readonly ILogger<FileService> _logger;
     private readonly SettingsService _settingsService;
 
     [SuppressMessage("ReSharper", "InconsistentNaming")]
@@ -44,10 +46,12 @@ public sealed class FileService : IFileService
     /// <summary>
     /// Initializes a new instance of the <see cref="FileService"/> class.
     /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="settingsService">The settings service for persisting file state.</param>
-    public FileService(SettingsService settingsService)
+    public FileService(ILogger<FileService> logger, SettingsService settingsService)
     {
-        _settingsService = settingsService;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
     }
 
     /// <summary>
@@ -106,19 +110,19 @@ public sealed class FileService : IFileService
             string? filePath = file.TryGetLocalPath();
             if (string.IsNullOrEmpty(filePath))
             {
-                SimpleLogger.LogError("Failed to get local path from selected file");
+                _logger.LogError("Failed to get local path from selected file");
                 return (null, null);
             }
 
             if (!ValidateFilePath(filePath))
             {
-                SimpleLogger.LogError($"File path validation failed: {filePath}");
+                _logger.LogError("File path validation failed: {FilePath}", filePath);
                 return (null, null);
             }
 
             if (!ValidateFileSize(filePath))
             {
-                SimpleLogger.LogError($"File size exceeds maximum allowed size: {filePath}");
+                _logger.LogError("File size exceeds maximum allowed size: {FilePath}", filePath);
                 return (null, null);
             }
 
@@ -130,14 +134,14 @@ public sealed class FileService : IFileService
                 content = await reader.ReadToEndAsync();
             }
 
-            SimpleLogger.Log($"Successfully opened file: {filePath} ({content.Length} characters)");
+            _logger.LogInformation("Successfully opened file: {FilePath} ({CharacterCount} characters)", filePath, content.Length);
 
             AddToRecentFiles(filePath);
             return (filePath, content);
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to open file", ex);
+            _logger.LogError(ex, "Failed to open file");
             return (null, null);
         }
     }
@@ -185,21 +189,21 @@ public sealed class FileService : IFileService
         {
             if (!ValidateFilePath(filePath))
             {
-                SimpleLogger.LogError($"File path validation failed: {filePath}");
+                _logger.LogError("File path validation failed: {FilePath}", filePath);
                 return null;
             }
 
             // Save with UTF-8 encoding
             await File.WriteAllTextAsync(filePath, content, Encoding.UTF8);
 
-            SimpleLogger.Log($"Successfully saved file: {filePath} ({content.Length} characters)");
+            _logger.LogInformation("Successfully saved file: {FilePath} ({CharacterCount} characters)", filePath, content.Length);
 
             AddToRecentFiles(filePath);
             return filePath;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Failed to save file: {filePath}", ex);
+            _logger.LogError(ex, "Failed to save file: {FilePath}", filePath);
             return null;
         }
     }
@@ -265,13 +269,13 @@ public sealed class FileService : IFileService
             string? filePath = result.TryGetLocalPath();
             if (string.IsNullOrEmpty(filePath))
             {
-                SimpleLogger.LogError("Failed to get local path from save dialog");
+                _logger.LogError("Failed to get local path from save dialog");
                 return null;
             }
 
             if (!ValidateFilePath(filePath))
             {
-                SimpleLogger.LogError($"File path validation failed: {filePath}");
+                _logger.LogError("File path validation failed: {FilePath}", filePath);
                 return null;
             }
 
@@ -289,14 +293,14 @@ public sealed class FileService : IFileService
                 await writer.FlushAsync();
             }
 
-            SimpleLogger.Log($"Successfully saved file as: {filePath} ({content.Length} characters)");
+            _logger.LogInformation("Successfully saved file as: {FilePath} ({CharacterCount} characters)", filePath, content.Length);
 
             AddToRecentFiles(filePath);
             return filePath;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to save file as", ex);
+            _logger.LogError(ex, "Failed to save file as");
             return null;
         }
     }
@@ -333,13 +337,13 @@ public sealed class FileService : IFileService
                 return true;
             }
 
-            SimpleLogger.LogError($"Invalid file extension: '{extension}'. Expected '{MermaidFileExtensionWithDot}'");
+            _logger.LogError("Invalid file extension: {Extension}. Expected {ExpectedExtension}", extension, MermaidFileExtensionWithDot);
             return false;
 
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("File path validation failed", ex);
+            _logger.LogError(ex, "File path validation failed");
             return false;
         }
     }
@@ -365,7 +369,7 @@ public sealed class FileService : IFileService
             {
                 // ReSharper disable once InconsistentNaming
                 double sizeMB = fileInfo.Length / OneMBInBytes;
-                SimpleLogger.LogError($"File size ({sizeMB:F2} MB) exceeds maximum allowed size ({MaxFileSizeBytes / OneMBInBytes} MB)");
+                _logger.LogError("File size ({SizeMB:F2} MB) exceeds maximum allowed size ({MaxSizeMB} MB)", sizeMB, MaxFileSizeBytes / OneMBInBytes);
                 return false;
             }
 
@@ -373,7 +377,7 @@ public sealed class FileService : IFileService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to validate file size", ex);
+            _logger.LogError(ex, "Failed to validate file size");
             return false;
         }
     }
@@ -407,11 +411,11 @@ public sealed class FileService : IFileService
 
             _settingsService.Save();
 
-            SimpleLogger.Log($"Added to recent files: {filePath}");
+            _logger.LogInformation("Added to recent files: {FilePath}", filePath);
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to add to recent files", ex);
+            _logger.LogError(ex, "Failed to add to recent files");
         }
     }
 
@@ -428,6 +432,6 @@ public sealed class FileService : IFileService
     {
         _settingsService.Settings.RecentFiles.Clear();
         _settingsService.Save();
-        SimpleLogger.Log("Recent files cleared");
+        _logger.LogInformation("Recent files cleared");
     }
 }

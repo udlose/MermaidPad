@@ -49,10 +49,7 @@ public static class ServiceConfiguration
         // Configure logging FIRST (before any services that need ILogger)
         ConfigureLogging(services);
 
-        SimpleLogger.Log("=== MermaidPad Service Configuration Started ===");
-
-        // Extract assets ONCE to user-writable directory (same pattern as settings)
-        string assetsDirectory = AssetHelper.ExtractAssets();
+        Log.Information("=== MermaidPad Service Configuration Started ===");
 
         // Add HTTP Client Factory
         services.AddHttpClient();
@@ -60,11 +57,28 @@ public static class ServiceConfiguration
         // Core singletons
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();
+        services.AddSingleton<AssetIntegrityService>();
+
+        // Build a temporary provider to get ILogger<AssetHelper> for early asset extraction
+        string assetsDirectory;
+        using (ServiceProvider tempProvider = services.BuildServiceProvider())
+        {
+            ILogger<AssetHelper> assetLogger = tempProvider.GetRequiredService<ILogger<AssetHelper>>();
+            AssetHelper assetHelper = new AssetHelper(assetLogger);
+
+            // Extract assets ONCE to user-writable directory (same pattern as settings)
+            assetsDirectory = assetHelper.ExtractAssets();
+
+            // Register the AssetHelper instance as a singleton
+            services.AddSingleton(assetHelper);
+        }
+
         services.AddSingleton(sp =>
         {
             IHttpClientFactory httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            ILogger<MermaidUpdateService> logger = sp.GetRequiredService<ILogger<MermaidUpdateService>>();
             Models.AppSettings settings = sp.GetRequiredService<SettingsService>().Settings;
-            return new MermaidUpdateService(settings, assetsDirectory, httpClientFactory);
+            return new MermaidUpdateService(settings, assetsDirectory, httpClientFactory, logger);
         });
 
         services.AddSingleton<SyntaxHighlightingService>();
@@ -88,9 +102,9 @@ public static class ServiceConfiguration
         // They are created directly with 'new' since they need special initialization
         // Only their ViewModels are created through DI
 
-        SimpleLogger.Log("Building Service Provider");
+        Log.Information("Building Service Provider");
         ServiceProvider serviceProvider = services.BuildServiceProvider();
-        SimpleLogger.Log("=== MermaidPad Service Configuration Completed ===");
+        Log.Information("=== MermaidPad Service Configuration Completed ===");
         return serviceProvider;
     }
 
@@ -125,14 +139,14 @@ public static class ServiceConfiguration
                 retainedFileCountLimit: loggingSettings.RetainedFileCountLimit,
                 shared: true, // Allow multiple processes to write to the same log file
                 flushToDiskInterval: TimeSpan.FromSeconds(1),
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}{MemberName} - {Message:lj}{NewLine}{Exception}");
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}");
         }
 
         // Add debug sink if enabled
         if (loggingSettings.EnableDebugOutput)
         {
             loggerConfig.WriteTo.Debug(
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}{MemberName} - {Message:lj}{NewLine}{Exception}");
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}");
         }
 
         // Create global logger and add to services

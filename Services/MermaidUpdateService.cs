@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Extensions;
 using MermaidPad.Models;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
@@ -36,6 +38,7 @@ public sealed class MermaidUpdateService
     private string AssetDir { get; }
 
     private readonly AppSettings _settings;
+    private readonly ILogger<MermaidUpdateService> _logger;
     private readonly HttpClient _httpClient;
     private const string MermaidMinJsFileName = "mermaid.min.js";
 
@@ -45,14 +48,17 @@ public sealed class MermaidUpdateService
     /// <param name="settings">Application settings containing Mermaid configuration.</param>
     /// <param name="assetDir">Directory path for storing Mermaid assets.</param>
     /// <param name="httpClientFactory">Factory to create HttpClient instances.</param>
-    public MermaidUpdateService(AppSettings settings, string assetDir, IHttpClientFactory httpClientFactory)
+    /// <param name="logger">Logger instance for structured logging.</param>
+    public MermaidUpdateService(AppSettings settings, string assetDir, IHttpClientFactory httpClientFactory, ILogger<MermaidUpdateService> logger)
     {
         _settings = settings;
         AssetDir = assetDir;
         _httpClient = httpClientFactory.CreateClient();
+        _logger = logger;
 
-        SimpleLogger.Log($"MermaidUpdateService initialized with AssetDir: {AssetDir}");
-        SimpleLogger.Log($"Auto-update enabled: {_settings.AutoUpdateMermaid}, Current bundled version: {_settings.BundledMermaidVersion}");
+        _logger.LogInformation("MermaidUpdateService initialized with AssetDir: {AssetDir}", AssetDir);
+        _logger.LogInformation("Auto-update enabled: {AutoUpdateEnabled}, Current bundled version: {BundledVersion}",
+            _settings.AutoUpdateMermaid, _settings.BundledMermaidVersion);
     }
 
     /// <summary>
@@ -68,44 +74,44 @@ public sealed class MermaidUpdateService
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        SimpleLogger.Log("=== Mermaid Update Check Started ===");
+        _logger.LogInformation("=== Mermaid Update Check Started ===");
 
         if (!_settings.AutoUpdateMermaid)
         {
-            SimpleLogger.Log("Auto-update disabled, skipping update check");
+            _logger.LogInformation("Auto-update disabled, skipping update check");
             return;
         }
 
         try
         {
-            SimpleLogger.Log("Fetching latest Mermaid version from npm registry...");
+            _logger.LogInformation("Fetching latest Mermaid version from npm registry...");
             (string remoteVersion, string url) = await FetchLatestVersionAsync();
 
             _settings.LatestCheckedMermaidVersion = remoteVersion;
-            SimpleLogger.Log($"Latest version check completed: {remoteVersion}");
+            _logger.LogInformation("Latest version check completed: {RemoteVersion}", remoteVersion);
 
             if (IsNewer(remoteVersion, _settings.BundledMermaidVersion))
             {
-                SimpleLogger.Log($"Update available: {_settings.BundledMermaidVersion} -> {remoteVersion}");
+                _logger.LogInformation("Update available: {CurrentVersion} -> {NewVersion}", _settings.BundledMermaidVersion, remoteVersion);
 
                 await DownloadAndInstallUpdateAsync(url, remoteVersion);
 
                 stopwatch.Stop();
-                SimpleLogger.LogTiming("Mermaid update (with download)", stopwatch.Elapsed, success: true);
-                SimpleLogger.Log($"=== Mermaid Update Completed Successfully: {remoteVersion} ===");
+                _logger.LogTiming("Mermaid update (with download)", stopwatch.Elapsed, success: true);
+                _logger.LogInformation("=== Mermaid Update Completed Successfully: {Version} ===", remoteVersion);
             }
             else
             {
                 stopwatch.Stop();
-                SimpleLogger.LogTiming("Mermaid update (no download needed)", stopwatch.Elapsed, success: true);
-                SimpleLogger.Log($"=== Mermaid Already Up-to-Date: {_settings.BundledMermaidVersion} ===");
+                _logger.LogTiming("Mermaid update (no download needed)", stopwatch.Elapsed, success: true);
+                _logger.LogInformation("=== Mermaid Already Up-to-Date: {Version} ===", _settings.BundledMermaidVersion);
             }
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            SimpleLogger.LogTiming("Mermaid update", stopwatch.Elapsed, success: false);
-            SimpleLogger.LogError("Mermaid update failed", ex);
+            _logger.LogTiming("Mermaid update", stopwatch.Elapsed, success: false);
+            _logger.LogError(ex, "Mermaid update failed");
             Debug.WriteLine($"Mermaid update failed: {ex}");
         }
     }
@@ -119,38 +125,39 @@ public sealed class MermaidUpdateService
     private async Task DownloadAndInstallUpdateAsync(string url, string newVersion)
     {
         Stopwatch downloadStopwatch = Stopwatch.StartNew();
-        SimpleLogger.Log($"Downloading Mermaid.js from: {url}");
+        _logger.LogInformation("Downloading Mermaid.js from: {Url}", url);
 
         try
         {
             // Step 1: Download to temporary file
             string tmpPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            SimpleLogger.Log($"Using temporary file: {tmpPath}");
+            _logger.LogDebug("Using temporary file: {TempPath}", tmpPath);
 
             string jsContent = await _httpClient.GetStringAsync(url);
             downloadStopwatch.Stop();
 
-            SimpleLogger.Log($"Download completed: {jsContent.Length:N0} characters in {downloadStopwatch.ElapsedMilliseconds}ms");
+            _logger.LogInformation("Download completed: {CharacterCount:N0} characters in {ElapsedMs}ms",
+                jsContent.Length, downloadStopwatch.ElapsedMilliseconds);
 
             // Step 2: Write to temp file
             await File.WriteAllTextAsync(tmpPath, jsContent);
-            SimpleLogger.Log("Content written to temporary file");
+            _logger.LogDebug("Content written to temporary file");
 
             // Step 3: Backup existing file (if it exists)
             string backupPath = BundledMermaidPath + ".backup";
             if (File.Exists(BundledMermaidPath))
             {
                 File.Copy(BundledMermaidPath, backupPath, overwrite: true);
-                SimpleLogger.Log($"Existing {MermaidMinJsFileName} backed up to: {backupPath}");
+                _logger.LogInformation("Existing {FileName} backed up to: {BackupPath}", MermaidMinJsFileName, backupPath);
             }
 
             // Step 4: Install new version
             File.Copy(tmpPath, BundledMermaidPath, overwrite: true);
-            SimpleLogger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
+            _logger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
 
             // Step 5: Update version in settings
             _settings.BundledMermaidVersion = newVersion;
-            SimpleLogger.Log($"Bundled version updated to: {newVersion}");
+            _logger.LogInformation("Bundled version updated to: {NewVersion}", newVersion);
 
             // Step 6: Cleanup
             try
@@ -163,16 +170,16 @@ public sealed class MermaidUpdateService
                 if (tmpFileDir == tempDir && tmpFileInfo.Exists && tmpFileInfo.FullName.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
                 {
                     File.Delete(tmpFileInfo.FullName);
-                    SimpleLogger.Log("Temporary file cleaned up");
+                    _logger.LogDebug("Temporary file cleaned up");
                 }
                 else
                 {
-                    SimpleLogger.LogError($"Refusing to delete file outside temp directory or with suspicious path: {tmpFileInfo.FullName}");
+                    _logger.LogError("Refusing to delete file outside temp directory or with suspicious path: {FilePath}", tmpFileInfo.FullName);
                 }
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Error during temp file cleanup", ex);
+                _logger.LogError(ex, "Error during temp file cleanup");
             }
 
             // Step 7: Verify installation
@@ -180,7 +187,7 @@ public sealed class MermaidUpdateService
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Failed to download and install Mermaid update from {url}", ex);
+            _logger.LogError(ex, "Failed to download and install Mermaid update from {Url}", url);
             throw;
         }
     }
@@ -193,7 +200,7 @@ public sealed class MermaidUpdateService
     {
         try
         {
-            SimpleLogger.Log("Verifying Mermaid installation...");
+            _logger.LogInformation("Verifying Mermaid installation...");
 
             if (!File.Exists(BundledMermaidPath))
             {
@@ -201,7 +208,7 @@ public sealed class MermaidUpdateService
             }
 
             FileInfo fileInfo = new FileInfo(BundledMermaidPath);
-            SimpleLogger.Log($"Installed file size: {fileInfo.Length:N0} bytes");
+            _logger.LogInformation("Installed file size: {FileSize:N0} bytes", fileInfo.Length);
 
             // Basic content validation
             string content = await File.ReadAllTextAsync(BundledMermaidPath);
@@ -217,11 +224,11 @@ public sealed class MermaidUpdateService
                 throw new InvalidOperationException("Installed file does not appear to contain Mermaid content");
             }
 
-            SimpleLogger.Log("Mermaid installation verified successfully");
+            _logger.LogInformation("Mermaid installation verified successfully");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Mermaid installation verification failed", ex);
+            _logger.LogError(ex, "Mermaid installation verification failed");
             throw;
         }
     }
@@ -240,37 +247,38 @@ public sealed class MermaidUpdateService
 
         try
         {
-            SimpleLogger.Log("Fetching package.json from unpkg.com...");
+            _logger.LogInformation("Fetching package.json from unpkg.com...");
 
             // unpkg exposes package.json
             string pkgJson = await _httpClient.GetStringAsync($"{mermaidUrlPrefix}/package.json");
             stopwatch.Stop();
 
-            SimpleLogger.Log($"Package.json fetched in {stopwatch.ElapsedMilliseconds}ms: {pkgJson.Length} characters");
+            _logger.LogInformation("Package.json fetched in {ElapsedMs}ms: {CharacterCount} characters",
+                stopwatch.ElapsedMilliseconds, pkgJson.Length);
 
             using JsonDocument doc = JsonDocument.Parse(pkgJson);
             string version = doc.RootElement.GetProperty("version").GetString() ?? "0.0.0";
             const string jsUrl = $"{mermaidUrlPrefix}/dist/{MermaidMinJsFileName}";
 
-            SimpleLogger.Log($"Latest Mermaid version discovered: {version}");
-            SimpleLogger.Log($"Download URL will be: {jsUrl}");
+            _logger.LogInformation("Latest Mermaid version discovered: {Version}", version);
+            _logger.LogDebug("Download URL will be: {Url}", jsUrl);
 
             _settings.LatestCheckedMermaidVersion = version;
             return (version, jsUrl);
         }
         catch (JsonException ex)
         {
-            SimpleLogger.LogError("Failed to parse package.json from unpkg.com", ex);
+            _logger.LogError(ex, "Failed to parse package.json from unpkg.com");
             throw;
         }
         catch (HttpRequestException ex)
         {
-            SimpleLogger.LogError("HTTP request failed while fetching version info", ex);
+            _logger.LogError(ex, "HTTP request failed while fetching version info");
             throw;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Unexpected error while fetching latest version", ex);
+            _logger.LogError(ex, "Unexpected error while fetching latest version");
             throw;
         }
     }
@@ -281,27 +289,28 @@ public sealed class MermaidUpdateService
     /// <param name="remote">The remote version string.</param>
     /// <param name="local">The local version string.</param>
     /// <returns><c>true</c> if the remote version is newer; otherwise, <c>false</c>.</returns>
-    private static bool IsNewer(string remote, string local)
+    private bool IsNewer(string remote, string local)
     {
         bool canParseRemote = Version.TryParse(remote, out Version? rv);
         bool canParseLocal = Version.TryParse(local, out Version? lv);
 
-        SimpleLogger.Log($"Version comparison: remote='{remote}' ({(canParseRemote ? "parsed" : "failed")}), local='{local}' ({(canParseLocal ? "parsed" : "failed")})");
+        _logger.LogDebug("Version comparison: remote='{RemoteVersion}' ({RemoteStatus}), local='{LocalVersion}' ({LocalStatus})",
+            remote, canParseRemote ? "parsed" : "failed", local, canParseLocal ? "parsed" : "failed");
 
         if (!canParseRemote)
         {
-            SimpleLogger.Log($"Cannot parse remote version '{remote}', assuming not newer");
+            _logger.LogWarning("Cannot parse remote version '{RemoteVersion}', assuming not newer", remote);
             return false;
         }
 
         if (!canParseLocal)
         {
-            SimpleLogger.Log($"Cannot parse local version '{local}', assuming remote is newer");
+            _logger.LogWarning("Cannot parse local version '{LocalVersion}', assuming remote is newer", local);
             return true;
         }
 
         bool isNewer = rv! > lv!;
-        SimpleLogger.Log($"Version comparison result: {rv} > {lv} = {isNewer}");
+        _logger.LogDebug("Version comparison result: {RemoteVersion} > {LocalVersion} = {IsNewer}", rv, lv, isNewer);
 
         return isNewer;
     }

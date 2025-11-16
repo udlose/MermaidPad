@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
 using SkiaSharp;
 using Svg.Skia;
 using System.Diagnostics;
@@ -38,6 +39,16 @@ namespace MermaidPad.Services.Export;
 public sealed partial class SkiaSharpImageConversionService : IImageConversionService
 {
     private static readonly char[] _separators = [',', ' ', '\t', '/'];
+    private readonly ILogger<SkiaSharpImageConversionService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SkiaSharpImageConversionService"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for this service.</param>
+    public SkiaSharpImageConversionService(ILogger<SkiaSharpImageConversionService> logger)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Converts the specified SVG content to a PNG image asynchronously using Svg.Skia's high-level API.
@@ -149,7 +160,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         //// Validate SVG content before parsing to prevent XML exceptions
         //if (svgContent.IsEmpty)
         //{
-        //    SimpleLogger.LogError("GetSvgDimensionsAsync called with null or empty SVG content");
+        //    _logger.LogError("GetSvgDimensionsAsync called with null or empty SVG content");
         //    return (0, 0);
         //}
 
@@ -158,7 +169,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         //if (!svgSpan.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) &&
         //    !svgSpan.StartsWith("<svg", StringComparison.OrdinalIgnoreCase))
         //{
-        //    SimpleLogger.LogError("SVG content does not start with XML declaration or <svg> tag");
+        //    _logger.LogError("SVG content does not start with XML declaration or <svg> tag");
         //    return (0, 0);
         //}
 
@@ -175,7 +186,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         //        using SKPicture? picture = svg.Load(stream);
         //        if (picture is null)
         //        {
-        //            SimpleLogger.LogError("Failed to load SVG picture - picture is null");
+        //            _logger.LogError("Failed to load SVG picture - picture is null");
         //            return (0, 0);
         //        }
 
@@ -183,7 +194,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
 
         //        if (bounds.Width <= 0 || bounds.Height <= 0)
         //        {
-        //            SimpleLogger.LogError($"SVG has invalid dimensions: {bounds.Width}x{bounds.Height}");
+        //            _logger.LogError("SVG has invalid dimensions: {Width}x{Height}", bounds.Width, bounds.Height);
         //            return (0, 0);
         //        }
 
@@ -191,7 +202,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         //    }
         //    catch (Exception ex)
         //    {
-        //        SimpleLogger.LogError("Failed to get SVG dimensions", ex);
+        //        _logger.LogError(ex, "Failed to get SVG dimensions");
         //        return (0, 0);
         //    }
         //})
@@ -317,18 +328,18 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
             TimeSpan elapsed = stopwatch.Elapsed;
             ReportProgress(progress, ExportStep.Complete, 100, $"Conversion complete in {elapsed.TotalMilliseconds:F2}ms");
 
-            SimpleLogger.Log($"PNG conversion successful: {result.Length:N0} bytes, took {elapsed.TotalMilliseconds:F0}ms");
+            _logger.LogInformation("PNG conversion successful: {ResultLength} bytes, took {ElapsedMs}ms", result.Length, elapsed.TotalMilliseconds);
 
             return result;
         }
         catch (OperationCanceledException)
         {
-            SimpleLogger.Log("PNG conversion cancelled by user");
+            _logger.LogInformation("PNG conversion cancelled by user");
             throw;
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("PNG conversion failed", ex);
+            _logger.LogError(ex, "PNG conversion failed");
             throw new InvalidOperationException($"Failed to convert SVG to PNG: {ex.Message}", ex);
         }
     }
@@ -512,7 +523,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                     return color;
                 }
 
-                SimpleLogger.Log($"Failed to parse rgb/rgba format: {colorString}");
+                _logger.LogWarning("Failed to parse rgb/rgba format: {ColorString}", colorString);
                 return SKColors.White;
             }
 
@@ -539,7 +550,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
         }
         catch (Exception ex)
         {
-            SimpleLogger.Log($"Failed to parse color '{colorString}': {ex.Message}");
+            _logger.LogWarning(ex, "Failed to parse color: {ColorString}", colorString);
             return SKColors.White;
         }
     }
@@ -764,7 +775,7 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
                 catch (Exception ex)
                 {
                     Debug.WriteLine(ex);
-                    SimpleLogger.LogError($"Progress report failed: {ex.Message}", ex);
+                    _logger.LogError(ex, "Progress report failed");
                 }
             });
         }

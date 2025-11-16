@@ -30,6 +30,7 @@ using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -55,6 +56,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
+    private readonly ILogger<MainViewModel> _logger;
 
     private const string DebounceRenderKey = "render";
 
@@ -184,7 +186,8 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
-    public MainViewModel(IServiceProvider services)
+    /// <param name="logger">The logger instance for this view model.</param>
+    public MainViewModel(IServiceProvider services, ILogger<MainViewModel> logger)
     {
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
@@ -193,6 +196,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
+        _logger = logger;
 
         InitializeCurrentMermaidPadVersion();
 
@@ -267,7 +271,7 @@ public sealed partial class MainViewModel : ViewModelBase
                         await _renderer.RenderAsync(DiagramText);
                     }
 
-                    SimpleLogger.Log($"Opened file: {filePath}");
+                    _logger.LogInformation("Opened file: {FilePath}", filePath);
                 }
                 finally
                 {
@@ -277,7 +281,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to open file", ex);
+            _logger.LogError(ex, "Failed to open file");
             await ShowErrorMessageAsync("Failed to open file. " + ex.Message);
         }
     }
@@ -313,12 +317,12 @@ public sealed partial class MainViewModel : ViewModelBase
                 CurrentFilePath = savedPath;
                 IsDirty = false;
                 UpdateRecentFiles();
-                SimpleLogger.Log($"Saved file: {savedPath}");
+                _logger.LogInformation("Saved file: {SavedPath}", savedPath);
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to save file", ex);
+            _logger.LogError(ex, "Failed to save file");
             await ShowErrorMessageAsync("Failed to save file. " + ex.Message);
         }
     }
@@ -361,12 +365,12 @@ public sealed partial class MainViewModel : ViewModelBase
                 CurrentFilePath = savedPath;
                 IsDirty = false;
                 UpdateRecentFiles();
-                SimpleLogger.Log($"Saved file as: {savedPath}");
+                _logger.LogInformation("Saved file as: {SavedPath}", savedPath);
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to save file as", ex);
+            _logger.LogError(ex, "Failed to save file as");
             await ShowErrorMessageAsync("Failed to save file. " + ex.Message);
         }
     }
@@ -446,7 +450,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to show save confirmation dialog", ex);
+            _logger.LogError(ex, "Failed to show save confirmation dialog");
             return true; // Continue on error to avoid blocking the user
         }
     }
@@ -526,7 +530,7 @@ public sealed partial class MainViewModel : ViewModelBase
                     await _renderer.RenderAsync(DiagramText);
                 }
 
-                SimpleLogger.Log($"Opened recent file: {filePath}");
+                _logger.LogInformation("Opened recent file: {FilePath}", filePath);
             }
             finally
             {
@@ -535,7 +539,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError($"Failed to open recent file: {filePath}", ex);
+            _logger.LogError(ex, "Failed to open recent file: {FilePath}", filePath);
             await ShowErrorMessageAsync($"Failed to open file: {ex.Message}");
         }
     }
@@ -551,7 +555,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         _fileService.ClearRecentFiles();
         UpdateRecentFiles();
-        SimpleLogger.Log("Recent files cleared");
+        _logger.LogInformation("Recent files cleared");
     }
 
     /// <summary>
@@ -628,7 +632,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to show error message", ex);
+            _logger.LogError(ex, "Failed to show error message");
         }
     }
 
@@ -734,7 +738,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Export failed", ex);
+            _logger.LogError(ex, "Export failed");
 
             // Setting LastError updates UI, must be on UI thread
             LastError = $"Export failed: {ex.Message}";
@@ -869,7 +873,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 }
                 catch (Exception outerEx)
                 {
-                    SimpleLogger.LogError("Export failed", outerEx);
+                    _logger.LogError(outerEx, "Export failed during PNG export with progress");
 
                     // Export failed - unsubscribe and close dialog
                     progressViewModel.PropertyChanged -= ProgressHandler;
@@ -887,7 +891,7 @@ public sealed partial class MainViewModel : ViewModelBase
                         }
                         catch (Exception ex)
                         {
-                            SimpleLogger.LogError("Error awaiting progress dialog task", ex);
+                            _logger.LogError(ex, "Error awaiting progress dialog task");
                             Debug.WriteLine($"Failed to close progress dialog after error: {ex}");
                         }
                     });
@@ -902,7 +906,7 @@ public sealed partial class MainViewModel : ViewModelBase
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError("Error awaiting progress dialog task", ex);
+                        _logger.LogError(ex, "Error awaiting progress dialog task during cleanup");
                         Debug.WriteLine($"Dialog task completed with error: {ex}");
                     }
                 }
@@ -936,7 +940,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Export failed", ex);
+            _logger.LogError(ex, "Export failed");
 
             // Setting LastError updates UI, must be on UI thread
             LastError = $"Export failed: {ex.Message}";
@@ -972,7 +976,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Failed to show success message", ex);
+            _logger.LogError(ex, "Failed to show success message");
             Debug.WriteLine($"Failed to show success message: {ex}");
         }
     }
@@ -988,7 +992,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// ready; otherwise, <see langword="false"/>.</param>
     partial void OnIsWebViewReadyChanged(bool value)
     {
-        SimpleLogger.Log($"IsWebViewReady changed to: {value}");
+        _logger.LogInformation("IsWebViewReady changed to: {IsWebViewReady}", value);
 
         // Update command states when WebView ready state changes
         RenderCommand.NotifyCanExecuteChanged();
@@ -1063,8 +1067,8 @@ public sealed partial class MainViewModel : ViewModelBase
                 {
                     LastError = $"Failed to render diagram: {ex.Message}";
                     Debug.WriteLine(ex);
+                    _logger.LogError(ex, "Live preview render failed");
                 });
-                SimpleLogger.LogError("Live preview render failed", ex);
             });
         }
         else

@@ -46,7 +46,7 @@ public sealed partial class MainWindow : Window
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
-    private readonly SyntaxHighlightingService _syntaxHighlightingService;
+    private readonly ILogger<MainWindow>? _logger;
 
     private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
@@ -74,7 +74,7 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     public MainWindow()
     {
-        SimpleLogger.Log("=== MainWindow Initialization Started ===");
+        _logger?.LogInformation("=== MainWindow Initialization Started ===");
 
         InitializeComponent();
 
@@ -83,11 +83,14 @@ public sealed partial class MainWindow : Window
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
-        _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
+        SyntaxHighlightingService syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
+        _logger = sp.GetService<ILogger<MainWindow>>();
         DataContext = _vm;
 
+        _logger?.LogInformation("=== MainWindow Initialization Started ===");
+
         // Initialize syntax highlighting before wiring up OnThemeChanged
-        InitializeSyntaxHighlighting();
+        InitializeSyntaxHighlighting(syntaxHighlightingService);
 
         // Store event handlers for proper cleanup
         _openedHandler = OnOpened;
@@ -110,12 +113,12 @@ public sealed partial class MainWindow : Window
             _vm.EditorCaretOffset
         );
 
-        SimpleLogger.Log($"Editor initialized with {_vm.DiagramText.Length} characters");
+        _logger?.LogInformation("Editor initialized with {CharacterCount} characters", _vm.DiagramText.Length);
 
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
 
-        SimpleLogger.Log("=== MainWindow Initialization Completed ===");
+        _logger?.LogInformation("=== MainWindow Initialization Completed ===");
     }
 
     /// <summary>
@@ -146,7 +149,7 @@ public sealed partial class MainWindow : Window
             Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
 
-            SimpleLogger.Log($"Editor state set: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset} (text length: {textLength})");
+            _logger?.LogInformation("Editor initialized with {CharacterCount} characters", textLength);
         }
         finally
         {
@@ -377,7 +380,7 @@ public sealed partial class MainWindow : Window
         OnOpenedCoreAsync()
             .SafeFireAndForget(onException: static ex =>
             {
-                SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
+                _logger?.LogError(ex, "Unhandled exception in OnOpened");
                 //TODO - show a message to the user (this would need UI thread!)
                 //Dispatcher.UIThread.Post(async () =>
                 //{
@@ -423,23 +426,23 @@ public sealed partial class MainWindow : Window
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        SimpleLogger.Log("=== Window Opened Sequence Started ===");
+        _logger?.LogInformation("=== Window Opened Sequence Started ===");
 
         try
         {
             // TODO - re-enable this once a more complete update mechanism is in place
             // Step 1: Check for Mermaid updates
-            //SimpleLogger.Log("Step 1: Checking for Mermaid updates...");
+            //_logger?.LogInformation("Step 1: Checking for Mermaid updates...");
             //await _vm.CheckForMermaidUpdatesAsync();
-            //SimpleLogger.Log("Mermaid update check completed");
+            //_logger?.LogInformation("Mermaid update check completed");
 
             // Step 2: Initialize WebView (editor state is already synchronized via constructor)
-            SimpleLogger.Log("Step 2: Initializing WebView...");
+            _logger?.LogInformation("Step 2: Initializing WebView...");
             string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
             if (assetsPath is null)
             {
                 const string error = "BundledMermaidPath does not contain a directory component";
-                SimpleLogger.LogError(error);
+                _logger?.LogError(error);
                 throw new InvalidOperationException(error);
             }
 
@@ -447,7 +450,7 @@ public sealed partial class MainWindow : Window
             await InitializeWebViewAsync();
 
             // Step 3: Update command states
-            SimpleLogger.Log("Step 3: Updating command states...");
+            _logger?.LogInformation("Step 3: Updating command states...");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.RenderCommand.NotifyCanExecuteChanged();
@@ -455,14 +458,14 @@ public sealed partial class MainWindow : Window
             });
 
             stopwatch.Stop();
-            SimpleLogger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
-            SimpleLogger.Log("=== Window Opened Sequence Completed Successfully ===");
+            _logger?.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
+            _logger?.LogInformation("=== Window Opened Sequence Completed Successfully ===");
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            SimpleLogger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: false);
-            SimpleLogger.LogError("Window opened sequence failed", ex);
+            _logger?.LogTiming("Window opened sequence", stopwatch.Elapsed, success: false);
+            _logger?.LogError(ex, "Window opened sequence failed");
             throw;
         }
     }
@@ -494,7 +497,7 @@ public sealed partial class MainWindow : Window
             PromptAndCloseAsync()
                 .SafeFireAndForget(onException: ex =>
                 {
-                    SimpleLogger.LogError("Failed during close prompt", ex);
+                    _logger?.LogError(ex, "Failed during close prompt");
                     _isClosingApproved = false; // Reset on error
                 });
             return; // Don't clean up - close was cancelled
@@ -522,15 +525,15 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error during window closing cleanup", ex);
+            _logger?.LogError(ex, "Error during window closing cleanup");
 
             // I don't want silent failures here - rethrow to let higher-level handlers know
             throw;
         }
 
-        // TODO - Perform async cleanup if needed in the future
-        //OnClosingAsync()
-        //    .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+        // Perform async cleanup
+        OnClosingAsync()
+            .SafeFireAndForget(onException: ex => _logger?.LogError(ex, "Failed during window close cleanup"));
     }
 
     /// <summary>
@@ -589,17 +592,22 @@ public sealed partial class MainWindow : Window
             _viewModelPropertyChangedHandler = null;
         }
 
-        SimpleLogger.Log("All event handlers unsubscribed successfully");
+        _logger?.LogInformation("All event handlers unsubscribed successfully");
     }
 
-    //TODO - re-enable this if I need async cleanup in the future
-    //private async Task OnClosingAsync()
-    //{
-    //    SimpleLogger.Log("Window closing, cleaning up...");
 
-    //    SimpleLogger.Log("Window cleanup completed successfully");
-    //    await Task.CompletedTask; // Keep method async for future async cleanup needs
-    //}
+    private async Task OnClosingAsync()
+    {
+        _logger?.LogInformation("Window closing, cleaning up...");
+
+        if (_renderer is IAsyncDisposable disposableRenderer)
+        {
+            await disposableRenderer.DisposeAsync();
+            _logger?.LogInformation("MermaidRenderer disposed");
+        }
+
+        _logger?.LogInformation("Window cleanup completed successfully");
+    }
 
     /// <summary>
     /// Prompts the user to save changes if there are unsaved modifications, and closes the window if the user confirms
@@ -624,7 +632,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error during close prompt", ex);
+            _logger?.LogError(ex, "Error during close prompt");
             _isClosingApproved = false; // Reset on exception
             throw;
         }
@@ -645,14 +653,14 @@ public sealed partial class MainWindow : Window
     private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        SimpleLogger.Log("=== WebView Initialization Started ===");
+        _logger?.LogInformation("=== WebView Initialization Started ===");
 
         // Temporarily disable live preview during WebView initialization
         bool originalLivePreview = await Dispatcher.UIThread.InvokeAsync(() =>
         {
             bool current = _vm.LivePreviewEnabled;
             _vm.LivePreviewEnabled = false;
-            SimpleLogger.Log($"Temporarily disabled live preview (was: {current})");
+            _logger?.LogInformation("Temporarily disabled live preview (was: {Current})", current);
             return current;
         }, DispatcherPriority.Normal);
 
@@ -670,7 +678,7 @@ public sealed partial class MainWindow : Window
             {
                 await _renderer.EnsureFirstRenderReadyAsync(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds));
                 await Dispatcher.UIThread.InvokeAsync(() => _vm.IsWebViewReady = true);
-                SimpleLogger.Log("WebView readiness observed");
+                _logger?.LogInformation("WebView readiness observed");
             }
             catch (TimeoutException)
             {
@@ -679,16 +687,16 @@ public sealed partial class MainWindow : Window
                     _vm.IsWebViewReady = true;
                     _vm.LastError = $"WebView initialization timed out after {WebViewReadyTimeoutSeconds} seconds. Some features may not work correctly.";
                 });
-                SimpleLogger.Log($"WebView readiness timed out after {WebViewReadyTimeoutSeconds}s; enabling commands with warning");
+                _logger?.LogWarning("WebView readiness timed out after {TimeoutSeconds}s; enabling commands with warning", WebViewReadyTimeoutSeconds);
             }
 
             success = true;
-            SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
+            _logger?.LogInformation("=== WebView Initialization Completed Successfully ===");
         }
         catch (OperationCanceledException)
         {
             // Treat cancellations distinctly; still propagate
-            SimpleLogger.Log("WebView initialization was canceled.");
+            _logger?.LogInformation("WebView initialization was canceled.");
             throw;
         }
         catch (Exception ex) when (ex is AssetIntegrityException or MissingAssetException)
@@ -699,19 +707,19 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             // Log and rethrow so OnOpenedAsync observes the failure and can abort the sequence
-            SimpleLogger.LogError("WebView initialization failed", ex);
+            _logger?.LogError(ex, "WebView initialization failed");
             throw;
         }
         finally
         {
             stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
+            _logger?.LogTiming("WebView initialization", stopwatch.Elapsed, success);
 
             // Re-enable live preview after WebView is ready (or on failure)
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.LivePreviewEnabled = originalLivePreview;
-                SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
+                _logger?.LogInformation("Re-enabled live preview: {OriginalLivePreview}", originalLivePreview);
             });
         }
     }
@@ -733,7 +741,7 @@ public sealed partial class MainWindow : Window
         _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
 
         UpdateCanPasteClipboardAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed to update CanPasteClipboard", ex));
+            .SafeFireAndForget(onException: ex => _logger?.LogError(ex, "Failed to update CanPasteClipboard"));
     }
 
     /// <summary>
@@ -788,7 +796,7 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             // Log and treat as no pasteable text
-            SimpleLogger.LogError("Error reading clipboard text", ex);
+            _logger?.LogError(ex, "Error reading clipboard text");
         }
 
         bool canPaste = !string.IsNullOrWhiteSpace(clipboardText);
@@ -804,25 +812,26 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Initializes syntax highlighting for the text editor.
     /// </summary>
+    /// <param name="syntaxHighlightingService">The syntax highlighting service to use.</param>
     /// <remarks>
     /// This method initializes the syntax highlighting service and applies Mermaid syntax highlighting
     /// to the editor. The theme is automatically selected based on the current Avalonia theme variant.
     /// </remarks>
-    private void InitializeSyntaxHighlighting()
+    private void InitializeSyntaxHighlighting(SyntaxHighlightingService syntaxHighlightingService)
     {
         try
         {
             // Initialize the service (verifies grammar resources exist)
-            _syntaxHighlightingService.Initialize();
+            syntaxHighlightingService.Initialize();
 
             // Apply Mermaid syntax highlighting with automatic theme detection
-            _syntaxHighlightingService.ApplyTo(Editor);
+            syntaxHighlightingService.ApplyTo(Editor);
 
-            SimpleLogger.Log("Syntax highlighting initialized successfully");
+            _logger?.LogInformation("Syntax highlighting initialized successfully");
         }
         catch (Exception ex)
         {
-            SimpleLogger.Log($"WARNING: Failed to initialize syntax highlighting: {ex.Message}");
+            _logger?.LogWarning(ex, "Failed to initialize syntax highlighting");
             // Non-fatal: Continue without syntax highlighting rather than crash the application
         }
     }
@@ -837,14 +846,16 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            // Get syntax highlighting service from App.Services
+            SyntaxHighlightingService syntaxHighlightingService = App.Services.GetRequiredService<SyntaxHighlightingService>();
             bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
 
             // Update syntax highlighting theme to match
-            _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
+            syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error handling theme change", ex);
+            _logger?.LogError(ex, "Error handling theme change");
             // Non-fatal: Continue with current theme
         }
     }
