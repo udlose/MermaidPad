@@ -139,16 +139,4 @@ public static class LoggerExtensions
 
         logger.LogDebug("[{MemberName}] {Message}", memberName, message);
     }
-
-    /// <summary>
-    /// Logs a simple asset-related message.
-    /// </summary>
-    /// <param name="logger">The logger instance.</param>
-    /// <param name="message">The message to log.</param>
-    /// <param name="memberName">The calling member name (autopopulated).</param>
-    public static void LogAsset(this ILogger logger, string message, [CallerMemberName] string? memberName = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        logger.LogInformation("[{MemberName}] {Message}", memberName, message);
-    }
 }

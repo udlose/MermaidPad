@@ -432,7 +432,7 @@ public sealed partial class App : Application, IDisposable
     /// success.</param>
     /// <param name="exceptionDetails">The exception details text to copy to the clipboard. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous copy operation.</returns>
-    private async Task CopyExceptionDetailsToClipboardAsync(Window? window, Button? copyButton, string? exceptionDetails)
+    private static async Task CopyExceptionDetailsToClipboardAsync(Window? window, Button? copyButton, string? exceptionDetails)
     {
         // Defensive checks - swallow problems early so SafeFireAndForget's handler is never relied on
         if (window is null || copyButton is null || exceptionDetails is null)

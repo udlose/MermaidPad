@@ -360,7 +360,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             const string javascriptContentType = "application/javascript; charset=utf-8";
             string requestPath = context.Request.Url?.LocalPath ?? "/";
-            _logger.LogDebug("Processing request: {RequestPath}", requestPath);
+
+            _logger.LogDebug("Processing request: {RequestPath}", SanitizeRequestPath(requestPath));
 
             byte[]? responseBytes = null;
             string? contentType = null;
@@ -405,7 +406,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             else
             {
                 context.Response.StatusCode = 404;
-                _logger.LogDebug("404 for: {RequestPath}", requestPath);
+                _logger.LogDebug("404 for: {RequestPath}", SanitizeRequestPath(requestPath));
             }
 
             if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
@@ -417,7 +418,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 await context.Response.OutputStream.WriteAsync(responseBytes)
                     .ConfigureAwait(false);
 
-                _logger.LogDebug("Served {RequestPath}: {SizeBytes} bytes", requestPath, responseBytes.Length);
+                _logger.LogDebug("Served {RequestPath}: {SizeBytes} bytes", SanitizeRequestPath(requestPath), responseBytes.Length);
             }
         }
         catch (Exception ex)
@@ -908,6 +909,62 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Normalizes and sanitizes a request path string by removing control characters, trimming whitespace, converting
+    /// backslashes to forward slashes, and collapsing consecutive slashes.
+    /// </summary>
+    /// <remarks>This method ensures the returned path is safe for use in routing or logging scenarios by
+    /// removing potentially problematic characters and normalizing the format. The output will always begin with a
+    /// forward slash, and all backslashes are replaced with forward slashes.</remarks>
+    /// <param name="path">The request path to sanitize. May be null, empty, or contain whitespace, control characters, or backslashes.</param>
+    /// <returns>A sanitized path string that starts with a single forward slash and contains no control characters or
+    /// consecutive slashes. Returns "/" if the input is null, empty, or consists only of whitespace.</returns>
+    private static string SanitizeRequestPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "/";
+        }
+
+        // Trim surrounding whitespace first (fixes inputs like " /foo")
+        string trimmed = path.Trim();
+
+        // Normalize and scrub control characters efficiently:
+        // - convert backslashes to forward slashes
+        // - remove CR/LF, NUL, TAB and other control chars (< 0x20)
+        // - collapse consecutive slashes to a single '/'
+        var sb = new StringBuilder(trimmed.Length);
+        char prev = '\0';
+        foreach (char ch0 in trimmed)
+        {
+            char ch = ch0 == '\\' ? '/' : ch0;
+
+            if (ch <= '\u001F') // control characters (incl. \r, \n, \t, \0)
+            {
+                continue;
+            }
+
+            // collapse repeated slashes
+            if (ch == '/' && prev == '/')
+            {
+                continue;
+            }
+
+            sb.Append(ch);
+            prev = ch;
+        }
+
+        string result = sb.Length == 0 ? "/" : sb.ToString();
+
+        // Ensure leading slash
+        if (!result.StartsWith('/'))
+        {
+            result = "/" + result;
+        }
+
+        return result;
     }
 
     /// <summary>
