@@ -935,12 +935,13 @@ public sealed class MermaidRenderer : IAsyncDisposable
         // - convert backslashes to forward slashes
         // - remove CR/LF, NUL, TAB and other control chars (< 0x20)
         // - collapse consecutive slashes to a single '/'
-        var sb = new StringBuilder(trimmed.Length);
+        StringBuilder sb = new StringBuilder(trimmed.Length);
         char prev = '\0';
-        foreach (char ch0 in trimmed)
-        {
-            char ch = ch0 == '\\' ? '/' : ch0;
 
+        // Map backslashes to forward slashes in the sequence
+        IEnumerable<char> normalizedChars = trimmed.Select(static ch0 => ch0 == '\\' ? '/' : ch0);
+        foreach (char ch in normalizedChars)
+        {
             if (ch <= '\u001F') // control characters (incl. \r, \n, \t, \0)
             {
                 continue;
