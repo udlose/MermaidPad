@@ -37,7 +37,11 @@ internal static class Program
         // This attempts to prevent crashes from architecture mismatches (e.g., x64 app on arm64 via Rosetta)
         PlatformCompatibilityChecker.CheckCompatibility();
 
-        // If we get here, platform compatibility is OK
+        // Check filesystem permissions (Mac/Linux only)
+        // Verifies app can write to config directory, assets directory, log files, and temp directory
+        PlatformCompatibilityChecker.CheckFilesystemPermissions();
+
+        // If we get here, platform compatibility and permissions are OK
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
