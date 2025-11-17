@@ -210,7 +210,7 @@ public sealed class AssetService
         }
 
         // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
-        string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName);
+        string? expectedHash = _assetIntegrityService.GetStoredHashForAsset(validatedAssetName);
         if (expectedHash is not null)
         {
             bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
