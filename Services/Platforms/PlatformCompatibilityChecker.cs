@@ -55,52 +55,16 @@ public static class PlatformCompatibilityChecker
         {
             string message = $"The linux-arm64 version is not supported at this time due to CefGlue limitations. See the releases page for available versions:{Environment.NewLine}{Environment.NewLine}{DownloadUrl}";
 
-            bool dialogShown = TryShowDialog("Warning: Unsupported Platform Detected", message);
-            ExitWithError(dialogShown);
+            bool dialogShown = TryShowNativeDialog("Warning: Unsupported Platform Detected", message);
+            ExitWithErrorDelay(dialogShown);
         }
 
         // Check for platform/architecture mismatch
         if (IsMismatch(currentInfo, targetInfo))
         {
             string message = CreateMismatchMessage(currentInfo, targetInfo);
-            bool dialogShown = TryShowDialog("Warning: Platform Mismatch Detected", message);
-            ExitWithError(dialogShown);
-        }
-
-        static bool TryShowDialog(string title, string message)
-        {
-            try
-            {
-                PlatformServiceFactory.Instance.ShowNativeDialog(title, message);
-                return true; // Dialog was shown and dismissed by user
-            }
-            catch (Exception ex)
-            {
-                // Fallback if platform service fails
-                Console.WriteLine($"{title}: {message}");
-                Console.WriteLine($"Dialog error: {ex.Message}");
-                return false; // Dialog failed, used console fallback
-            }
-        }
-
-        static void ExitWithError(bool dialogWasShown)
-        {
-            // Only sleep if we used console fallback (no user interaction)
-            // Native dialogs already block until dismissed, so no sleep needed
-            if (!dialogWasShown)
-            {
-                try
-                {
-                    const int consoleDisplayTimeMs = 10_000;
-                    Thread.Sleep(consoleDisplayTimeMs); // Give user time to read console message
-                }
-                catch (ThreadInterruptedException)
-                {
-                    // Handle interruption gracefully
-                }
-            }
-
-            Environment.Exit(1);
+            bool dialogShown = TryShowNativeDialog("Warning: Platform Mismatch Detected", message);
+            ExitWithErrorDelay(dialogShown);
         }
     }
 
@@ -450,7 +414,7 @@ public static class PlatformCompatibilityChecker
             return;
         }
 
-        List<string> errors = new List<string>();
+        List<string> errors = new List<string>(4);
 
         // 1. Check config directory access
         if (!CanAccessConfigDirectory(out string? configError))
@@ -477,20 +441,17 @@ public static class PlatformCompatibilityChecker
         }
 
         // 5. Linux-specific: Check display environment (warning only, not fatal)
-        if (OperatingSystem.IsLinux())
+        if (OperatingSystem.IsLinux() && !HasDisplayEnvironment(out string? displayWarning))
         {
-            if (!HasDisplayEnvironment(out string? displayWarning))
-            {
-                // This is a warning, not an error (can fall back to console dialogs)
-                Console.WriteLine($"Warning: {displayWarning}");
-            }
+            // This is a warning, not an error (can fall back to console dialogs)
+            Console.WriteLine($"Warning: {displayWarning}");
         }
 
         if (errors.Count > 0)
         {
             string message = CreatePermissionErrorMessage(errors);
-            ShowPermissionError(message);
-            Environment.Exit(1);
+            bool dialogShown = TryShowNativeDialog("Permission Error", message);
+            ExitWithErrorDelay(dialogShown);
         }
     }
 
@@ -721,4 +682,58 @@ public static class PlatformCompatibilityChecker
     }
 
     #endregion Filesystem Permission Checks
+
+    #region Shared Dialog Helpers
+
+    /// <summary>
+    /// Attempts to show a native OS dialog with the specified title and message.
+    /// Falls back to console output if the dialog cannot be shown.
+    /// </summary>
+    /// <param name="title">The dialog title.</param>
+    /// <param name="message">The dialog message.</param>
+    /// <returns>True if the native dialog was shown successfully; false if console fallback was used.</returns>
+    private static bool TryShowNativeDialog(string title, string message)
+    {
+        try
+        {
+            PlatformServiceFactory.Instance.ShowNativeDialog(title, message);
+            return true; // Dialog was shown and dismissed by user
+        }
+        catch (Exception ex)
+        {
+            // Fallback if platform service fails
+            Console.WriteLine($"{title}: {message}");
+            Console.WriteLine($"Dialog error: {ex.Message}");
+            return false; // Dialog failed, used console fallback
+        }
+    }
+
+    /// <summary>
+    /// Exits the application with error code 1, optionally pausing to allow console message reading.
+    /// </summary>
+    /// <param name="dialogWasShown">Whether a native dialog was successfully shown to the user.</param>
+    /// <remarks>
+    /// Only sleeps if console fallback was used (no user interaction).
+    /// Native dialogs already block until dismissed, so no sleep is needed in that case.
+    /// </remarks>
+    private static void ExitWithErrorDelay(bool dialogWasShown)
+    {
+        // Only sleep if we used console fallback (no user interaction)
+        // Native dialogs already block until dismissed, so no sleep needed
+        if (!dialogWasShown)
+        {
+            try
+            {
+                Thread.Sleep(10_000); // Give user time to read console message
+            }
+            catch (ThreadInterruptedException)
+            {
+                // Handle interruption gracefully
+            }
+        }
+
+        Environment.Exit(1);
+    }
+
+    #endregion Shared Dialog Helpers
 }
