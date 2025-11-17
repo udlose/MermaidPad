@@ -781,6 +781,12 @@ public sealed partial class App : Application, IDisposable
                 Log.Error(e, "Exception during Dispose");
                 // Don't rethrow - we're in shutdown - best effort cleanup
             }
+            finally
+            {
+                // Close and flush Serilog after all logging is complete
+                // We use dispose: false in ServiceConfiguration, so we manually control when to close
+                Log.CloseAndFlush();
+            }
         }
         else
         {

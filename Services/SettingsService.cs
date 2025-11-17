@@ -144,6 +144,62 @@ public sealed class SettingsService
     }
 
     /// <summary>
+    /// Loads only the logging settings from the settings file without creating a full SettingsService instance.
+    /// This is useful for bootstrapping logging configuration before the DI container is fully initialized.
+    /// Maintains full security validation even during bootstrap.
+    /// </summary>
+    /// <returns>
+    /// The <see cref="LoggingSettings"/> from the persisted settings file, or a new default instance if the file
+    /// doesn't exist or cannot be read.
+    /// </returns>
+    public static LoggingSettings LoadLoggingSettings()
+    {
+        try
+        {
+            string configDir = GetConfigDirectory();
+            string settingsPath = Path.Combine(configDir, SettingsFileName);
+            string fullSettingsPath = Path.GetFullPath(settingsPath);
+
+            // Validate file name
+            if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
+            {
+                Debug.WriteLine("Settings file name validation failed during logging settings load.");
+                return new LoggingSettings();
+            }
+
+            if (File.Exists(fullSettingsPath))
+            {
+                // Use SecurityService for full validation even during bootstrap (null logger is acceptable)
+                SecurityService securityService = new SecurityService(logger: null);
+                (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
+                if (!isSecure && !string.IsNullOrEmpty(reason))
+                {
+                    Debug.WriteLine($"Settings file validation failed during bootstrap: {reason}");
+                    return new LoggingSettings();
+                }
+
+                // Use secure file stream for reading
+                string json;
+                using (FileStream fs = securityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
+                using (StreamReader reader = new StreamReader(fs))
+                {
+                    json = reader.ReadToEnd();
+                }
+
+                AppSettings? settings = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions);
+                return settings?.Logging ?? new LoggingSettings();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to load logging settings during bootstrap: {ex.Message}");
+            throw;  // fatal error if we can't load AppSettings during bootstrap
+        }
+
+        return new LoggingSettings();
+    }
+
+    /// <summary>
     /// Persists the current <see cref="Settings"/> to the settings file.
     /// Validates that the destination path resides within the application's config directory
     /// and that the file name matches the expected settings file name before writing.
