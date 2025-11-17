@@ -83,7 +83,7 @@ public sealed partial class MacPlatformServices : IPlatformServices
     /// care. Incorrect usage may result in runtime errors or application instability. It is the caller's responsibility
     /// to ensure that the arguments and return value are correctly marshaled and that the selector matches the expected
     /// method signature.</remarks>
-    /// <param name="target">A pointer to the Objective-C object that will receive the message. Must not be null.</param>
+    /// <param name="target">A pointer to the Objective-C object that will receive the message. Must not be <c>IntPtr.Zero</c>.</param>
     /// <param name="selector">A pointer to the selector representing the method to invoke. Must correspond to a valid method of the target
     /// object.</param>
     /// <param name="arg1">A pointer to the argument to pass to the method. The meaning and type depend on the method being called.</param>
