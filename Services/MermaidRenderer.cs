@@ -227,32 +227,39 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         Stopwatch sw = Stopwatch.StartNew();
 
-        // Get assets in parallel
-        Task<byte[]> indexHtmlTask = _assetService.GetAssetFromDiskAsync(AssetService.IndexHtmlFilePath);
-        Task<byte[]> jsTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidMinJsFilePath);
-        Task<byte[]> jsYamlTask = _assetService.GetAssetFromDiskAsync(AssetService.JsYamlFilePath);
-        Task<byte[]> mermaidLayoutElkTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkPath);
-        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkChunkSP2CHFBEPath);
-        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkRenderAVRWSH4DPath);
+        // Explicitly offload to thread pool to prevent any potential blocking of the UI thread with file I/O
+        // While wrapping async I/O in Task.Run is generally an antipattern,
+        // this code has synchronous CPU-bound work (log message formatting, path validation, FileInfo creation)
+        // that executes before the first await. Without Task.Run, all 6 parallel tasks execute this work on the UI thread
+        await Task.Run(async () =>
+        {
+            // Get assets in parallel
+            Task<byte[]> indexHtmlTask = _assetService.GetAssetFromDiskAsync(AssetService.IndexHtmlFilePath);
+            Task<byte[]> jsTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidMinJsFilePath);
+            Task<byte[]> jsYamlTask = _assetService.GetAssetFromDiskAsync(AssetService.JsYamlFilePath);
+            Task<byte[]> mermaidLayoutElkTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkPath);
+            Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkChunkSP2CHFBEPath);
+            Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkRenderAVRWSH4DPath);
 
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
-            .ConfigureAwait(false);
+            await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
+                .ConfigureAwait(false);
 
-        _htmlContent = await indexHtmlTask.ConfigureAwait(false);
-        _mermaidJs = await jsTask.ConfigureAwait(false);
-        _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
-        _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
-        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
-        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
+            _htmlContent = await indexHtmlTask.ConfigureAwait(false);
+            _mermaidJs = await jsTask.ConfigureAwait(false);
+            _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
+            _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
+            _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
+            _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
 
-        sw.Stop();
-        _logger.LogAsset("load asset", AssetService.IndexHtmlFilePath, true, _htmlContent.Length);
-        _logger.LogAsset("load asset", AssetService.MermaidMinJsFilePath, true, _mermaidJs.Length);
-        _logger.LogAsset("load asset", AssetService.JsYamlFilePath, true, _jsYamlJs.Length);
-        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkPath, true, _mermaidLayoutElkJs.Length);
-        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkChunkSP2CHFBEPath, true, _mermaidLayoutElkChunkSP2CHFBEJs.Length);
-        _logger.LogAsset("load asset", AssetService.MermaidLayoutElkRenderAVRWSH4DPath, true, _mermaidLayoutElkRenderAVRWSH4DJs.Length);
-        _logger.LogTiming(nameof(PrepareContentFromDiskAsync), sw.Elapsed, success: true);
+            sw.Stop();
+            _logger.LogAsset("load asset", AssetService.IndexHtmlFilePath, true, _htmlContent.Length);
+            _logger.LogAsset("load asset", AssetService.MermaidMinJsFilePath, true, _mermaidJs.Length);
+            _logger.LogAsset("load asset", AssetService.JsYamlFilePath, true, _jsYamlJs.Length);
+            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkPath, true, _mermaidLayoutElkJs.Length);
+            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkChunkSP2CHFBEPath, true, _mermaidLayoutElkChunkSP2CHFBEJs.Length);
+            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkRenderAVRWSH4DPath, true, _mermaidLayoutElkRenderAVRWSH4DJs.Length);
+            _logger.LogTiming(nameof(PrepareContentFromDiskAsync), sw.Elapsed, success: true);
+        }).ConfigureAwait(false);
     }
 
     /// <summary>
