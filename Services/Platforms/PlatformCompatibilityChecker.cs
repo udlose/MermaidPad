@@ -419,25 +419,25 @@ public static class PlatformCompatibilityChecker
         // 1. Check config directory access
         if (!CanAccessConfigDirectory(out string? configError))
         {
-            errors.Add(configError!);
+            errors.Add(configError);
         }
 
         // 2. Check assets directory (will be created by AssetService)
         if (!CanAccessAssetsDirectory(out string? assetsError))
         {
-            errors.Add(assetsError!);
+            errors.Add(assetsError);
         }
 
         // 3. Check log file write
         if (!CanWriteLogFile(out string? logError))
         {
-            errors.Add(logError!);
+            errors.Add(logError);
         }
 
         // 4. Check temp directory
         if (!CanAccessTempDirectory(out string? tempError))
         {
-            errors.Add(tempError!);
+            errors.Add(tempError);
         }
 
         // 5. Linux-specific: Check display environment (warning only, not fatal)
@@ -661,24 +661,6 @@ public static class PlatformCompatibilityChecker
         sb.AppendLine($"Config directory: {GetConfigDirectory()}");
 
         return sb.ToString();
-    }
-
-    /// <summary>
-    /// Shows a permission error dialog using platform-specific services.
-    /// </summary>
-    /// <param name="message">The error message to display.</param>
-    private static void ShowPermissionError(string message)
-    {
-        try
-        {
-            PlatformServiceFactory.Instance.ShowNativeDialog("Permission Error", message);
-        }
-        catch (Exception ex)
-        {
-            // Fallback to console if dialog fails
-            Console.WriteLine(message);
-            Console.WriteLine($"Dialog error: {ex.Message}");
-        }
     }
 
     #endregion Filesystem Permission Checks
