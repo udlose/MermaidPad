@@ -57,7 +57,7 @@
 
 	<!-- Only include Avalonia.Diagnostics in Debug builds -->
 	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
-		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.0" />
+		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
 	</ItemGroup>
 
 	<ItemGroup>
