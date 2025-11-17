@@ -323,9 +323,6 @@ public sealed class AssetIntegrityService
     {
         //TODO This will be expanded in Phase 2 to store hashes for updated assets. For now, we'll use the build-time hashes for existing embedded resources
         return AssetHashes.EmbeddedAssetHashes.TryGetValue(assetName, out string? hash) ? hash : null;
-
-        //TODO In Phase 2, we'll check settingsService.Settings.AssetHashes dictionary
-        // Consider using a combined lookup strategy or caching layer for multiple hash sources
     }
 
     /// <summary>
