@@ -44,27 +44,49 @@ public sealed class AssetIntegrityService
 {
     private readonly ILogger<AssetIntegrityService> _logger;
     private readonly SecurityService _securityService;
-    private readonly SettingsService _settingsService;
 
-    public AssetIntegrityService(ILogger<AssetIntegrityService> logger, SecurityService securityService, SettingsService settingsService)
+    /// <summary>
+    /// Initializes a new instance of the AssetIntegrityService class with the specified logger and security service.
+    /// </summary>
+    /// <param name="logger">The logger used to record diagnostic and operational information for the service.</param>
+    /// <param name="securityService">The security service used to perform authentication and authorization operations within the service.</param>
+    public AssetIntegrityService(ILogger<AssetIntegrityService> logger, SecurityService securityService)
     {
         _logger = logger;
         _securityService = securityService;
-        _settingsService = settingsService;
     }
 
     private const int StackAllocThreshold = 8_192;  // 8KB threshold for stack vs heap allocation
     private const int HashPreviewLength = 8;        // Number of characters to show in hash previews
+
+    /// <summary>
+    /// Provides a set of string patterns commonly used to identify JavaScript code constructs.
+    /// </summary>
+    /// <remarks>This collection includes keywords and symbols such as "function", "const ", "var ", "let ",
+    /// "=>", "class ", "import ", and "export ", which are typically found in JavaScript source code. The patterns are
+    /// compared using ordinal string comparison for performance and accuracy.</remarks>
     private static readonly SearchValues<string> _jsPatterns = SearchValues.Create(
     [
         "function", "const ", "var ", "let ", "=>", "class ", "import ", "export "
     ], StringComparison.Ordinal);
 
+    /// <summary>
+    /// Provides a set of string patterns used to identify potentially suspicious or unsafe content in input data.
+    /// </summary>
+    /// <remarks>The patterns include common indicators of embedded scripts, server-side code, or malformed
+    /// input. This set is intended for use in case-insensitive searches to detect possible security risks such as
+    /// cross-site scripting or code injection attempts.</remarks>
     private static readonly SearchValues<string> _suspiciousPatterns = SearchValues.Create(
     [
         "<script", "<?php", "<?xml", "\0"
     ], StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Provides a set of string patterns used to identify HTML content in a case-insensitive manner.
+    /// </summary>
+    /// <remarks>This value is intended for use in operations that need to quickly determine whether a given
+    /// input contains HTML markup, such as content type detection or input validation. The patterns include common HTML
+    /// document start sequences and are compared using ordinal case-insensitive matching.</remarks>
     private static readonly SearchValues<string> _htmlPatterns = SearchValues.Create(
     [
         "<!DOCTYPE", "<html", "<HTML"
