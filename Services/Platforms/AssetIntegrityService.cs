@@ -23,6 +23,7 @@ using MermaidPad.Generated;
 using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Security;
 using System.Security.Cryptography;
 using System.Text;
@@ -37,6 +38,8 @@ namespace MermaidPad.Services.Platforms;
 /// integrity of assets during runtime. It also provides basic validation for JavaScript and HTML content to detect
 /// potential issues. The methods are designed for internal use and assume that inputs are pre-validated where
 /// applicable.</remarks>
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 public sealed class AssetIntegrityService
 {
     private readonly ILogger<AssetIntegrityService> _logger;
@@ -96,11 +99,12 @@ public sealed class AssetIntegrityService
 
             if (isValid)
             {
-                _logger.LogAsset($"Asset integrity verified: {assetName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
+                _logger.LogAsset("embedded asset integrity verified", assetName, isValid, content.Length);
+                _logger.LogInformation("Embedded Asset integrity verified: {AssetName} (SHA-256: {ActualHashPreview}...)", assetName, actualHash[..HashPreviewLength]);
             }
             else
             {
-                _logger.LogError("Asset integrity check FAILED for {AssetName}. Hash mismatch detected.", assetName);
+                _logger.LogError("Embedded Asset integrity check FAILED for {AssetName}. Hash mismatch detected.", assetName);
                 Debug.WriteLine($"Expected hash for {assetName} not found or doesn't match. Actual: {actualHash}");
             }
 
@@ -108,7 +112,7 @@ public sealed class AssetIntegrityService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to verify integrity for {AssetName}", assetName);
+            _logger.LogError(ex, "Failed to verify integrity for Embedded {AssetName}", assetName);
             return false;
         }
     }
@@ -149,7 +153,8 @@ public sealed class AssetIntegrityService
         string fileName = Path.GetFileName(filePath);
         if (isValid)
         {
-            _logger.LogAsset($"File integrity verified: {fileName} (SHA-256: {actualHash[..HashPreviewLength]}...)");
+            _logger.LogAsset("file integrity verified", filePath, isValid);
+            _logger.LogInformation("File integrity verified: {FileName} (SHA-256: {AssetHashPreview}...)", fileName, actualHash[..HashPreviewLength]);
         }
         else
         {
@@ -314,7 +319,7 @@ public sealed class AssetIntegrityService
     /// <param name="assetName">The name of the asset for which to retrieve the hash.</param>
     /// <returns>The stored hash of the asset as a string, or <see langword="null"/> if no hash is available for the specified
     /// asset.</returns>
-    internal static string? GetStoredHashForAsset(string assetName)
+    internal string? GetStoredHashForAsset(string assetName)
     {
         //TODO This will be expanded in Phase 2 to store hashes for updated assets. For now, we'll use the build-time hashes for existing embedded resources
         return AssetHashes.EmbeddedAssetHashes.TryGetValue(assetName, out string? hash) ? hash : null;
