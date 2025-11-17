@@ -30,9 +30,14 @@ namespace MermaidPad.Services;
 #pragma warning restore IDE0130 // Namespace does not match folder structure
 
 /// <summary>
-/// Provides platform-specific services for Linux, including native dialog display.
-/// All dialog methods block by default until the user closes the dialog, ensuring modality.
+/// Provides Linux-specific platform services, including displaying native dialogs using available graphical tools or
+/// falling back to console output when necessary.
 /// </summary>
+/// <remarks>This class is intended for use on Linux systems and is marked with the <see
+/// cref="SupportedOSPlatformAttribute"/> for "linux". It attempts to use common graphical dialog utilities such as
+/// zenity, kdialog, yad, Xdialog, or gxmessage if a graphical environment is detected. If no graphical environment is
+/// available or no supported dialog tool is found, dialogs are displayed in the console. This class is sealed and
+/// cannot be inherited.</remarks>
 [SupportedOSPlatform("linux")]
 public sealed class LinuxPlatformServices : IPlatformServices
 {
@@ -342,24 +347,5 @@ public sealed class LinuxPlatformServices : IPlatformServices
             // In case console input is not available
             Thread.Sleep(3_000);
         }
-    }
-
-    /// <summary>
-    /// Escapes a shell argument to prevent injection by wrapping in single quotes and escaping internal single quotes.
-    /// </summary>
-    /// <param name="arg">The argument to escape.</param>
-    /// <returns>
-    /// The escaped shell argument.
-    /// </returns>
-    private static string EscapeShellArg(string? arg)
-    {
-        // Wrap in single quotes and escape single quotes inside the argument
-        // No longer needed for ArgumentList, but kept for compatibility
-        if (arg is null)
-        {
-            return "''";
-        }
-
-        return $"'{arg.Replace("'", "'\\''")}'";
     }
 }
