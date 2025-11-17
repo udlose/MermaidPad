@@ -69,12 +69,10 @@ public static class ServiceConfiguration
             using SerilogLoggerFactory loggerFactory = new SerilogLoggerFactory(Log.Logger);
             ILogger<AssetService> assetLogger = loggerFactory.CreateLogger<AssetService>();
             ILogger<AssetIntegrityService> integrityLogger = loggerFactory.CreateLogger<AssetIntegrityService>();
-            ILogger<SettingsService> settingsLogger = loggerFactory.CreateLogger<SettingsService>();
 
             // Create dependencies manually (they're designed to accept null logger during bootstrap)
             SecurityService securityService = new SecurityService(logger: null);
-            SettingsService settingsService = new SettingsService(settingsLogger);
-            AssetIntegrityService assetIntegrityService = new AssetIntegrityService(integrityLogger, securityService, settingsService);
+            AssetIntegrityService assetIntegrityService = new AssetIntegrityService(integrityLogger, securityService);
 
             // Create AssetService and extract assets
             AssetService assetService = new AssetService(assetLogger, securityService, assetIntegrityService);
@@ -143,25 +141,33 @@ public static class ServiceConfiguration
             .Enrich.WithProcessId()
             .MinimumLevel.Is(minimumLevel);
 
-        // Add file sink if enabled
+        const string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} (ThreadId:{ThreadId}, ThreadName:{ThreadName}, ProcessId:{ProcessId}) - {Message:lj}{NewLine}{Exception}";
+
+        // Add async file sink if enabled
         if (loggingSettings.EnableFileLogging)
         {
-            loggerConfig.WriteTo.File(
-                path: logFilePath,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
+            // shared: false provides better performance (no inter-process locking overhead)
+            // shared: true is required if multiple processes write to the same log file
+            const bool useSharedFileHandle = true;
+
+            // Don't block if buffer fills - drop old messages instead. This is better than blocking the main thread
+            const bool blockWhenFull = false;
+            loggerConfig.WriteTo.Async(a => a.File(path: logFilePath,
+                outputTemplate: outputTemplate,
                 fileSizeLimitBytes: loggingSettings.FileSizeLimitBytes,
-                shared: true,
+                shared: useSharedFileHandle,      // Share the log file handle across multiple MP processes
                 flushToDiskInterval: TimeSpan.FromSeconds(1),
-                rollingInterval: RollingInterval.Infinite, // Allow multiple processes to write to the same log file
+                rollingInterval: RollingInterval.Infinite,
                 rollOnFileSizeLimit: true,
-                retainedFileCountLimit: loggingSettings.RetainedFileCountLimit);
+                retainedFileCountLimit: loggingSettings.RetainedFileCountLimit),
+                bufferSize: 10_000,
+                blockWhenFull: blockWhenFull);
         }
 
         // Add debug sink if enabled
         if (loggingSettings.EnableDebugOutput)
         {
-            loggerConfig.WriteTo.Debug(
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}");
+            loggerConfig.WriteTo.Debug(outputTemplate: outputTemplate);
         }
 
         // Create global logger and add to services
