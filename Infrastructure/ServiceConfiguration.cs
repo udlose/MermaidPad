@@ -27,8 +27,8 @@ using MermaidPad.ViewModels.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-
 using Serilog.Events;
+using Serilog.Extensions.Logging;
 
 namespace MermaidPad.Infrastructure;
 
@@ -60,19 +60,27 @@ public static class ServiceConfiguration
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
 
-        // Build a temporary provider to get dependencies for early asset extraction
+        // Extract assets early without building a temporary service provider
+        // Create minimal dependencies manually to avoid complexity and resource leaks
         string assetsDirectory;
-        using (ServiceProvider tempProvider = services.BuildServiceProvider())
         {
-            ILogger<AssetService> assetLogger = tempProvider.GetRequiredService<ILogger<AssetService>>();
-            SecurityService securityService = tempProvider.GetRequiredService<SecurityService>();
-            AssetIntegrityService assetIntegrityService = tempProvider.GetRequiredService<AssetIntegrityService>();
-            AssetService assetService = new AssetService(assetLogger, securityService, assetIntegrityService);
+            // Create a single logger factory from the global logger already configured
+            // This avoids creating a second logging pipeline
+            using SerilogLoggerFactory loggerFactory = new SerilogLoggerFactory(Log.Logger);
+            ILogger<AssetService> assetLogger = loggerFactory.CreateLogger<AssetService>();
+            ILogger<AssetIntegrityService> integrityLogger = loggerFactory.CreateLogger<AssetIntegrityService>();
+            ILogger<SettingsService> settingsLogger = loggerFactory.CreateLogger<SettingsService>();
 
-            // Extract assets ONCE to user-writable directory (same pattern as settings)
+            // Create dependencies manually (they're designed to accept null logger during bootstrap)
+            SecurityService securityService = new SecurityService(logger: null);
+            SettingsService settingsService = new SettingsService(settingsLogger);
+            AssetIntegrityService assetIntegrityService = new AssetIntegrityService(integrityLogger, securityService, settingsService);
+
+            // Create AssetService and extract assets
+            AssetService assetService = new AssetService(assetLogger, securityService, assetIntegrityService);
             assetsDirectory = assetService.ExtractAssets();
 
-            // Register the AssetService instance as a singleton
+            // Register the AssetService instance as a singleton so it's reused
             services.AddSingleton(assetService);
         }
 
@@ -117,9 +125,9 @@ public static class ServiceConfiguration
     /// <param name="services">The service collection to configure.</param>
     private static void ConfigureLogging(ServiceCollection services)
     {
-        // Load settings to get logging configuration
-        SettingsService settingsService = new SettingsService(logger: null);
-        Models.LoggingSettings loggingSettings = settingsService.Settings.Logging;
+        // Load logging settings directly without creating a full SettingsService instance
+        // This avoids circular dependency since SettingsService needs ILogger, but we're configuring logging here
+        Models.LoggingSettings loggingSettings = SettingsService.LoadLoggingSettings();
 
         // Determine log file path
         string logFilePath = loggingSettings.CustomLogFilePath ?? GetDefaultLogPath();
@@ -162,7 +170,9 @@ public static class ServiceConfiguration
         services.AddLogging(static builder =>
         {
             builder.ClearProviders();
-            builder.AddSerilog(dispose: true);
+            // dispose: false - We manually call Log.CloseAndFlush() in App.Dispose() after all logging is complete
+            // This ensures logs written during App disposal are not lost
+            builder.AddSerilog(dispose: false);
         });
     }
 
