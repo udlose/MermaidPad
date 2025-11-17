@@ -36,9 +36,14 @@ public static class PlatformCompatibilityChecker
     private const string DownloadUrl = "https://github.com/udlose/MermaidPad/releases";
 
     /// <summary>
-    /// Checks if the current runtime platform and architecture match the build target.
-    /// If a mismatch is detected, displays a native OS dialog with details and terminates the application.
+    /// Checks whether the current platform and architecture are compatible with the application's requirements, and
+    /// terminates the process if an unsupported or mismatched configuration is detected.
     /// </summary>
+    /// <remarks>This method should be called at application startup to ensure that the runtime environment
+    /// matches the expected platform and architecture. If an unsupported platform (such as linux-arm64) or a mismatch
+    /// between the current and target platform is detected, a warning is displayed to the user and the application
+    /// exits with an error code. The method may show a native dialog or print a message to the console, depending on
+    /// platform capabilities.</remarks>
     public static void CheckCompatibility()
     {
         PlatformInfo currentInfo = GetCurrentPlatformInfo();
@@ -50,53 +55,52 @@ public static class PlatformCompatibilityChecker
         {
             string message = $"The linux-arm64 version is not supported at this time due to CefGlue limitations. See the releases page for available versions:{Environment.NewLine}{Environment.NewLine}{DownloadUrl}";
 
-            try
-            {
-                PlatformServiceFactory.Instance.ShowNativeDialog("Warning: Unsupported Platform Detected", message);
-            }
-            catch (Exception ex)
-            {
-                // Fallback if platform service fails
-                Console.WriteLine("Warning: Unsupported Platform Detected: " + message);
-                Console.WriteLine($"Dialog error: {ex.Message}");
-            }
-
-            PauseAndExitWithError();
+            bool dialogShown = TryShowDialog("Warning: Unsupported Platform Detected", message);
+            ExitWithError(dialogShown);
         }
 
         // Check for platform/architecture mismatch
         if (IsMismatch(currentInfo, targetInfo))
         {
             string message = CreateMismatchMessage(currentInfo, targetInfo);
+            bool dialogShown = TryShowDialog("Warning: Platform Mismatch Detected", message);
+            ExitWithError(dialogShown);
+        }
+
+        static bool TryShowDialog(string title, string message)
+        {
             try
             {
-                PlatformServiceFactory.Instance.ShowNativeDialog("Warning: Platform Mismatch Detected", message);
+                PlatformServiceFactory.Instance.ShowNativeDialog(title, message);
+                return true; // Dialog was shown and dismissed by user
             }
             catch (Exception ex)
             {
                 // Fallback if platform service fails
-                Console.WriteLine("Warning: Platform Mismatch Detected: " + message);
+                Console.WriteLine($"{title}: {message}");
                 Console.WriteLine($"Dialog error: {ex.Message}");
+                return false; // Dialog failed, used console fallback
             }
-
-            PauseAndExitWithError();
         }
 
-        static void PauseAndExitWithError()
+        static void ExitWithError(bool dialogWasShown)
         {
-            try
+            // Only sleep if we used console fallback (no user interaction)
+            // Native dialogs already block until dismissed, so no sleep needed
+            if (!dialogWasShown)
             {
-                // Introduce a delay to ensure users have time to read the message
-                Thread.Sleep(10_000); // Wait for 10 seconds before exiting
+                try
+                {
+                    const int consoleDisplayTimeMs = 10_000;
+                    Thread.Sleep(consoleDisplayTimeMs); // Give user time to read console message
+                }
+                catch (ThreadInterruptedException)
+                {
+                    // Handle interruption gracefully
+                }
             }
-            catch (ThreadInterruptedException)
-            {
-                // Handle any potential interruption gracefully
-            }
-            finally
-            {
-                Environment.Exit(1);
-            }
+
+            Environment.Exit(1);
         }
     }
 
@@ -420,4 +424,301 @@ public static class PlatformCompatibilityChecker
     /// Represents platform information including OS identifier, architecture, and translation/emulation status.
     /// </summary>
     private readonly record struct PlatformInfo(string OS, string Architecture, bool IsTranslated);
+
+    #region Filesystem Permission Checks
+
+    /// <summary>
+    /// Verifies filesystem permissions required for app operation on Mac/Linux.
+    /// Shows native dialog and exits if critical permissions are missing.
+    /// </summary>
+    /// <remarks>
+    /// This method checks:
+    /// <list type="bullet">
+    ///     <item><description>Configuration directory access (for settings.json)</description></item>
+    ///     <item><description>Assets directory access (for extracted resources)</description></item>
+    ///     <item><description>Log file write permissions (for debug.log)</description></item>
+    ///     <item><description>Temp directory access (for update downloads)</description></item>
+    ///     <item><description>Display environment availability on Linux (for GUI dialogs)</description></item>
+    /// </list>
+    /// On Windows, this check is skipped as permission issues are rare.
+    /// </remarks>
+    public static void CheckFilesystemPermissions()
+    {
+        // Skip on Windows - permissions rarely an issue with normal user accounts
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        List<string> errors = new List<string>();
+
+        // 1. Check config directory access
+        if (!CanAccessConfigDirectory(out string? configError))
+        {
+            errors.Add(configError!);
+        }
+
+        // 2. Check assets directory (will be created by AssetService)
+        if (!CanAccessAssetsDirectory(out string? assetsError))
+        {
+            errors.Add(assetsError!);
+        }
+
+        // 3. Check log file write
+        if (!CanWriteLogFile(out string? logError))
+        {
+            errors.Add(logError!);
+        }
+
+        // 4. Check temp directory
+        if (!CanAccessTempDirectory(out string? tempError))
+        {
+            errors.Add(tempError!);
+        }
+
+        // 5. Linux-specific: Check display environment (warning only, not fatal)
+        if (OperatingSystem.IsLinux())
+        {
+            if (!HasDisplayEnvironment(out string? displayWarning))
+            {
+                // This is a warning, not an error (can fall back to console dialogs)
+                Console.WriteLine($"Warning: {displayWarning}");
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            string message = CreatePermissionErrorMessage(errors);
+            ShowPermissionError(message);
+            Environment.Exit(1);
+        }
+    }
+
+    /// <summary>
+    /// Checks if the application can access the configuration directory.
+    /// </summary>
+    /// <param name="error">Error message if check fails, otherwise null.</param>
+    /// <returns>True if directory is accessible, false otherwise.</returns>
+    private static bool CanAccessConfigDirectory([NotNullWhen(false)] out string? error)
+    {
+        try
+        {
+            string configDir = GetConfigDirectory();
+
+            // Try to create directory
+            Directory.CreateDirectory(configDir);
+
+            // Verify we can write/read a test file
+            string testFile = Path.Combine(configDir, ".permission_test");
+            File.WriteAllText(testFile, "test");
+            _ = File.ReadAllText(testFile);
+            File.Delete(testFile);
+
+            error = null;
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = $"No permission to access config directory: {ex.Message}";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = $"Config directory access failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if the application can create and write to the assets directory.
+    /// </summary>
+    /// <param name="error">Error message if check fails, otherwise null.</param>
+    /// <returns>True if assets directory is accessible, false otherwise.</returns>
+    private static bool CanAccessAssetsDirectory([NotNullWhen(false)] out string? error)
+    {
+        try
+        {
+            string configDir = GetConfigDirectory();
+            string assetsDir = Path.Combine(configDir, "Assets");
+
+            Directory.CreateDirectory(assetsDir);
+
+            // Test write/read of a file similar to what AssetService will extract
+            string testFile = Path.Combine(assetsDir, ".test.html");
+            File.WriteAllText(testFile, "<html></html>");
+            _ = File.ReadAllText(testFile);
+            File.Delete(testFile);
+
+            error = null;
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = $"No permission to create/write asset files: {ex.Message}";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = $"Assets directory access failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if the application can write to the log file.
+    /// </summary>
+    /// <param name="error">Error message if check fails, otherwise null.</param>
+    /// <returns>True if log file is writable, false otherwise.</returns>
+    private static bool CanWriteLogFile([NotNullWhen(false)] out string? error)
+    {
+        try
+        {
+            string configDir = GetConfigDirectory();
+            string logFile = Path.Combine(configDir, "debug.log");
+
+            // Test append mode with FileShare.ReadWrite to match Serilog's exact behavior.
+            // We must use FileStream instead of File.AppendAllText() because:
+            // - Serilog is configured with shared:true (see ServiceConfiguration.cs:160)
+            // - This means FileShare.ReadWrite, allowing multiple processes/threads to write
+            // - File.AppendAllText() uses FileShare.Read by default, which would fail this test
+            //   even though Serilog would succeed, creating a false negative.
+            using (FileStream fs = new FileStream(logFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
+            using (StreamWriter writer = new StreamWriter(fs))
+            {
+                writer.WriteLine($"# Permission test {DateTime.UtcNow:O}");
+            }
+
+            // Clean up test entry if file is small (< 1KB)
+            const int maxTestLogSize = 1_024;
+            if (File.Exists(logFile) && new FileInfo(logFile).Length < maxTestLogSize)
+            {
+                File.Delete(logFile);
+            }
+
+            error = null;
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = $"No permission to write log file: {ex.Message}";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = $"Log file write test failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if the application can access the system temp directory.
+    /// </summary>
+    /// <param name="error">Error message if check fails, otherwise null.</param>
+    /// <returns>True if temp directory is accessible, false otherwise.</returns>
+    private static bool CanAccessTempDirectory([NotNullWhen(false)] out string? error)
+    {
+        try
+        {
+            // Try to create and delete a temp file
+            // This test purposely uses Path.GetTempPath() to match actual temp file usage instead of Path.GetTempFileName()
+            string tempDir = Path.GetTempPath();
+            string testFile = Path.Combine(tempDir, $"mermaidpad_test_{Guid.NewGuid():N}.tmp");
+
+            File.WriteAllText(testFile, "test");
+            File.Delete(testFile);
+
+            error = null;
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = $"No permission to write temp files: {ex.Message}";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = $"Temp directory access failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a graphical display environment is available on Linux.
+    /// </summary>
+    /// <param name="warning">Warning message if no display is available, otherwise null.</param>
+    /// <returns>True if display environment is available, false otherwise.</returns>
+    private static bool HasDisplayEnvironment([NotNullWhen(false)] out string? warning)
+    {
+        string? display = Environment.GetEnvironmentVariable("DISPLAY");
+        string? waylandDisplay = Environment.GetEnvironmentVariable("WAYLAND_DISPLAY");
+
+        if (string.IsNullOrEmpty(display) && string.IsNullOrEmpty(waylandDisplay))
+        {
+            warning = "No graphical environment detected (DISPLAY/WAYLAND_DISPLAY not set). GUI dialogs may not work.";
+            return false;
+        }
+
+        warning = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Gets the application configuration directory path.
+    /// </summary>
+    /// <returns>Full path to the MermaidPad config directory.</returns>
+    private static string GetConfigDirectory()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(appData, "MermaidPad");
+    }
+
+    /// <summary>
+    /// Creates a user-friendly error message describing filesystem permission failures.
+    /// </summary>
+    /// <param name="errors">List of permission errors encountered.</param>
+    /// <returns>Formatted error message with troubleshooting guidance.</returns>
+    private static string CreatePermissionErrorMessage(List<string> errors)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine("MermaidPad Filesystem Permission Error");
+        sb.AppendLine();
+        sb.AppendLine("The application cannot start due to insufficient filesystem permissions:");
+        sb.AppendLine();
+
+        foreach (string error in errors)
+        {
+            sb.AppendLine($"• {error}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("On Linux/macOS, ensure:");
+        sb.AppendLine("1. You have write access to your home directory");
+        sb.AppendLine("2. ~/.config/ (Linux) or ~/Library/Application Support/ (macOS) is writable");
+        sb.AppendLine("3. SELinux/AppArmor policies don't block the application");
+        sb.AppendLine("4. Disk is not full or read-only");
+        sb.AppendLine();
+        sb.AppendLine($"Config directory: {GetConfigDirectory()}");
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Shows a permission error dialog using platform-specific services.
+    /// </summary>
+    /// <param name="message">The error message to display.</param>
+    private static void ShowPermissionError(string message)
+    {
+        try
+        {
+            PlatformServiceFactory.Instance.ShowNativeDialog("Permission Error", message);
+        }
+        catch (Exception ex)
+        {
+            // Fallback to console if dialog fails
+            Console.WriteLine(message);
+            Console.WriteLine($"Dialog error: {ex.Message}");
+        }
+    }
+
+    #endregion Filesystem Permission Checks
 }
