@@ -27,6 +27,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -270,10 +271,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// until explicitly stopped.</remarks>
     private void StartHttpServer()
     {
-        _serverPort = GetAvailablePort();
         _serverCancellation = new CancellationTokenSource();
-
         _httpListener = new HttpListener();
+
+        //TODO: There is a small "race" here between the time the port is assigned
+        // get OS-assigned available port and start HttpListener asap
+        _serverPort = GetAvailablePort();
         _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
         _httpListener.Start();
 
@@ -542,32 +545,40 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Finds and returns the first available port within the range 8083 to 8199.
+    /// Gets an available port by letting the OS assign one automatically using TcpListener.
     /// </summary>
-    /// <remarks>This method attempts to bind to each port in the specified range, starting from 8083, to
-    /// determine if it is available for use. If a port is in use, the method proceeds to the next port. If no available
-    /// ports are found within the range, an <see cref="InvalidOperationException"/> is thrown.</remarks>
-    /// <returns>The first available port number within the range 8083 to 8199.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if no available ports are found in the range 8083-8199.</exception>
+    /// <remarks>This method uses TcpListener with port 0 to let the operating system assign an available
+    /// ephemeral port, which is faster and more reliable than sequential scanning. The assigned port is extracted
+    /// from the listener's LocalEndpoint after binding, then the listener is stopped and the port is returned.</remarks>
+    /// <returns>An available port number assigned by the OS.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if unable to get an OS-assigned port.</exception>
     private int GetAvailablePort()
     {
-        for (int port = 8083; port < 8200; port++)
+        try
         {
-            try
-            {
-                using HttpListener listener = new HttpListener();
-                listener.Prefixes.Add($"http://localhost:{port}/");
-                listener.Start();
-                listener.Stop();
-                return port;
-            }
-            catch
-            {
-                // Port in use, try next
-                _logger.LogDebug("Port {Port} is in use, trying next: {NextPort}", port, port + 1);
-            }
+            // Use TcpListener with port 0 to let the OS assign an available port
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+
+            // Get the assigned port from the local endpoint
+            int assignedPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            _logger.LogDebug("OS assigned port: {AssignedPort}", assignedPort);
+            return assignedPort;
         }
-        throw new InvalidOperationException("No available ports found in range 8083-8199");
+        catch (SocketException ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port due to a socket error.", ex);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port because the listener was disposed.", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port due to an unexpected error.", ex);
+        }
     }
 
     /// <summary>
