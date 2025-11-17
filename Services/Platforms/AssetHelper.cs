@@ -58,6 +58,11 @@ public static class AssetHelper
     internal const string JsYamlFilePath = "js-yaml.min.js";
 
     /// <summary>
+    /// The file name for the compiled TypeScript bundle JavaScript asset.
+    /// </summary>
+    internal const string BundleJsFilePath = "bundle.js";
+
+    /// <summary>
     /// Represents the relative path to the Mermaid ELK layout module file.
     /// </summary>
     /// <remarks>This path is used to locate the Mermaid ELK layout module, which is required for rendering
@@ -99,6 +104,7 @@ public static class AssetHelper
     ///     <item><c>IndexHtmlFileName</c></item>
     ///     <item><c>MermaidMinJsFileName</c></item>
     ///     <item><c>JsYamlFileName</c></item>
+    ///     <item><c>BundleJsFilePath</c></item>
     ///     <item><c>MermaidLayoutElkPath</c></item>
     ///     <item><c>MermaidLayoutElkChunkSP2CHFBEPath</c></item>
     ///     <item><c>MermaidLayoutElkRenderAVRWSH4DPath</c></item>
@@ -109,6 +115,7 @@ public static class AssetHelper
         IndexHtmlFilePath,
         MermaidMinJsFilePath,
         JsYamlFilePath,
+        BundleJsFilePath,
         MermaidLayoutElkPath,
         MermaidLayoutElkChunkSP2CHFBEPath,
         MermaidLayoutElkRenderAVRWSH4DPath

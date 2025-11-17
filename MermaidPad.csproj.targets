@@ -16,9 +16,17 @@
 		<Compile Remove="$(AssetHashesDir)/$(AssetHashFileName)" />
 	</ItemGroup>
 
+	<!-- Compile TypeScript to JavaScript before generating asset hashes -->
+	<!-- This ensures bundle.js exists before hash generation -->
+	<Target Name="CompileTypeScript" BeforeTargets="GenerateAssetHashes">
+		<Message Importance="High" Text="Compiling TypeScript to JavaScript..." />
+		<Exec Command="npm run build" WorkingDirectory="$(MSBuildProjectDirectory)" />
+		<Message Importance="High" Text="TypeScript compilation completed" />
+	</Target>
+
 	<!-- Generate asset hashes at build time for integrity verification -->
 	<!-- Runs before CoreCompile so the compiler sees the file in the same build -->
-	<Target Name="GenerateAssetHashes" BeforeTargets="CoreCompile">
+	<Target Name="GenerateAssetHashes" BeforeTargets="CoreCompile" DependsOnTargets="CompileTypeScript">
 		<!-- Ensure repo-root Generated folder exists -->
 		<MakeDir Directories="$(GeneratedRepoDir)" />
 
@@ -41,6 +49,9 @@
 		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/render-AVRWSH4D.mjs" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutChunkRenderAVRWSH4DHash" />
 		</GetFileHash>
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/dist/bundle.js" Algorithm="SHA256">
+			<Output TaskParameter="Hash" PropertyName="BundleJsHash" />
+		</GetFileHash>
 
 		<Message Importance="High" Text="Index.html Hash: $(IndexHtmlHash)" />
 		<Message Importance="High" Text="Mermaid.min.js Hash: $(MermaidJsHash)" />
@@ -48,6 +59,7 @@
 		<Message Importance="High" Text="Mermaid-ELK-Layout Hash: $(MermaidElkLayoutHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-SP2CHFBE Hash: $(MermaidElkLayoutChunkSP2CHFBEHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-Render-AVRWSH4D Hash: $(MermaidElkLayoutChunkRenderAVRWSH4DHash)" />
+		<Message Importance="High" Text="Bundle.js Hash: $(BundleJsHash)" />
 
 		<ItemGroup>
 			<AssetHashFile Include="$(AssetHashFileName)">
@@ -93,6 +105,7 @@ internal static class AssetHashes
 		["index.html"] = "$(IndexHtmlHash)",
 		["mermaid.min.js"] = "$(MermaidJsHash)",
 		["js-yaml.min.js"] = "$(JsYamlHash)",
+		["bundle.js"] = "$(BundleJsHash)",
 		["mermaid-layout-elk.esm.min.mjs"] = "$(MermaidElkLayoutHash)",
 		["chunk-SP2CHFBE.mjs"] = "$(MermaidElkLayoutChunkSP2CHFBEHash)",
 		["render-AVRWSH4D.mjs"] = "$(MermaidElkLayoutChunkRenderAVRWSH4DHash)",
