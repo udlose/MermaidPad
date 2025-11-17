@@ -27,7 +27,6 @@ using System.Reflection;
 using System.Security;
 
 namespace MermaidPad.Services.Platforms;
-
 /// <summary>
 /// Provides utility methods for managing and validating assets, including retrieving assets from disk, extracting
 /// embedded resources, and ensuring asset integrity and security.
@@ -414,37 +413,36 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// Asynchronously extracts embedded assets to the specified directory on disk.
+    /// Extracts all allowed embedded assets to the specified directory on disk asynchronously and in parallel.
     /// </summary>
-    /// <remarks>This method extracts a predefined set of embedded assets to the specified directory.
-    /// It ensures that the directory exists before extraction and writes a version marker to the directory for future
-    /// cache validation. The method logs the progress and timing  of the extraction process.</remarks>
-    /// <param name="targetDirectory">The path to the directory where the embedded assets will be extracted. The directory will be created if it does
-    /// not already exist.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>Asset extraction is performed in parallel to improve performance. Upon completion, a version
+    /// marker is written to the target directory to support future cache validation.</remarks>
+    /// <param name="targetDirectory">The path to the directory where embedded assets will be extracted. If the directory does not exist, it will be
+    /// created.</param>
+    /// <returns>A task that represents the asynchronous extraction operation.</returns>
     private async Task ExtractEmbeddedAssetsToDiskAsync(string targetDirectory)
     {
         Directory.CreateDirectory(targetDirectory);
-        _logger.LogInformation("Extracting embedded assets to: {TargetDirectory}", targetDirectory);
-
+        _logger.LogInformation("Beginning parallel extraction of embedded assets to: {TargetDirectory}", targetDirectory);
         Stopwatch stopwatch = Stopwatch.StartNew();
-        _logger.LogInformation("Asset extraction: Beginning extraction to disk");
 
-        // Extract all required assets
-        //TODO - DaveBlack: optimize this to run in parallel
-        foreach (string asset in _allowedAssets)
+        // Extract all required assets in parallel and materialize the collection
+        List<Task> extractionTasks = _allowedAssets.Select(async asset =>
         {
             string normalizedAssetName = asset.Replace(Path.DirectorySeparatorChar, '.');
             await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset))
                 .ConfigureAwait(false);
-        }
+        }).ToList();
+
+        await Task.WhenAll(extractionTasks)
+            .ConfigureAwait(false);
 
         // Write version marker for future cache validation
         await WriteVersionMarkerAsync(targetDirectory)
             .ConfigureAwait(false);
 
         stopwatch.Stop();
-        _logger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
+        _logger.LogTiming("Completed parallel asset extraction to disk", stopwatch.Elapsed, success: true);
         _logger.LogInformation("Asset extraction: Completed");
     }
 
