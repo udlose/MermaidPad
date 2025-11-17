@@ -29,6 +29,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using Serilog.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Infrastructure;
 
@@ -43,6 +44,7 @@ public static class ServiceConfiguration
     /// Registers core services, asset extraction, and view models.
     /// </summary>
     /// <returns>A fully configured <see cref="ServiceProvider"/> instance.</returns>
+    [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "We don't have async Main in WPF apps, so this is necessary during startup.")]
     public static ServiceProvider BuildServiceProvider()
     {
         ServiceCollection services = new ServiceCollection();
@@ -74,9 +76,12 @@ public static class ServiceConfiguration
             SecurityService securityService = new SecurityService(logger: null);
             AssetIntegrityService assetIntegrityService = new AssetIntegrityService(integrityLogger, securityService);
 
-            // Create AssetService and extract assets
+            // Create AssetService and extract assets asynchronously
+            // Use Task.Run to explicitly offload file I/O to thread pool during app startup
             AssetService assetService = new AssetService(assetLogger, securityService, assetIntegrityService);
-            assetsDirectory = assetService.ExtractAssets();
+            assetsDirectory = Task.Run(async () => await assetService.ExtractAssetsAsync())
+                .GetAwaiter()
+                .GetResult();
 
             // Register the AssetService instance as a singleton so it's reused
             services.AddSingleton(assetService);

@@ -220,7 +220,8 @@ public sealed class AssetService
             {
                 // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
                 _logger.LogWarning("Asset '{ValidatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources", validatedAssetName);
-                ExtractResourceToDisk($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath);
+                await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath)
+                    .ConfigureAwait(false);
 
                 // Re-verify integrity after extraction
                 integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
@@ -313,14 +314,15 @@ public sealed class AssetService
     #region Asset Extraction
 
     /// <summary>
-    /// Extracts embedded assets to the disk if necessary and validates their presence.
+    /// Asynchronously extracts embedded assets to the disk if necessary and validates their presence.
     /// </summary>
     /// <remarks>This method ensures that the required assets are available on the disk by extracting them
     /// from embedded resources if they are missing or outdated. The extraction process is logged,  and the method
     /// validates the presence of critical files after extraction. If the assets are  already up-to-date, the extraction
     /// process is skipped.</remarks>
-    /// <returns>The path to the directory containing the extracted assets.</returns>
-    internal string ExtractAssets()
+    /// <returns>A task that represents the asynchronous operation.
+    /// The task result contains the path to the directory containing the extracted assets.</returns>
+    internal async Task<string> ExtractAssetsAsync()
     {
         const string timingMessage = "Asset extraction";
         bool skippedExtraction = false;
@@ -333,14 +335,16 @@ public sealed class AssetService
         _logger.LogInformation("Assets directory: {AssetsDirectory}", assetsDirectory);
 
         // Check if extraction is needed
-        if (ShouldExtractAssets(assetsDirectory))
+        if (await ShouldExtractAssetsAsync(assetsDirectory)
+            .ConfigureAwait(false))
         {
             _logger.LogInformation("Assets require extraction/update");
             Directory.CreateDirectory(assetsDirectory);
 
             try
             {
-                ExtractEmbeddedAssetsToDisk(assetsDirectory);
+                await ExtractEmbeddedAssetsToDiskAsync(assetsDirectory)
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -410,14 +414,15 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// Extracts embedded assets to the specified directory on disk.
+    /// Asynchronously extracts embedded assets to the specified directory on disk.
     /// </summary>
     /// <remarks>This method extracts a predefined set of embedded assets to the specified directory.
     /// It ensures that the directory exists before extraction and writes a version marker to the directory for future
     /// cache validation. The method logs the progress and timing  of the extraction process.</remarks>
     /// <param name="targetDirectory">The path to the directory where the embedded assets will be extracted. The directory will be created if it does
     /// not already exist.</param>
-    private void ExtractEmbeddedAssetsToDisk(string targetDirectory)
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ExtractEmbeddedAssetsToDiskAsync(string targetDirectory)
     {
         Directory.CreateDirectory(targetDirectory);
         _logger.LogInformation("Extracting embedded assets to: {TargetDirectory}", targetDirectory);
@@ -426,14 +431,17 @@ public sealed class AssetService
         _logger.LogInformation("Asset extraction: Beginning extraction to disk");
 
         // Extract all required assets
+        //TODO - DaveBlack: optimize this to run in parallel
         foreach (string asset in _allowedAssets)
         {
             string normalizedAssetName = asset.Replace(Path.DirectorySeparatorChar, '.');
-            ExtractResourceToDisk($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset));
+            await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset))
+                .ConfigureAwait(false);
         }
 
         // Write version marker for future cache validation
-        WriteVersionMarker(targetDirectory);
+        await WriteVersionMarkerAsync(targetDirectory)
+            .ConfigureAwait(false);
 
         stopwatch.Stop();
         _logger.LogTiming("Completed asset extraction to disk", stopwatch.Elapsed, success: true);
@@ -441,7 +449,7 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// Extracts an embedded resource from the assembly and writes it to the specified file path on disk.
+    /// Asynchronously extracts an embedded resource from the assembly and writes it to the specified file path on disk.
     /// </summary>
     /// <remarks>This method ensures the integrity and security of the extracted resource by performing the
     /// following steps:
@@ -455,15 +463,16 @@ public sealed class AssetService
     /// If the resource fails any validation step, an exception is thrown, and the operation is aborted.</remarks>
     /// <param name="resourceName">The name of the embedded resource to extract. This must match the resource name in the assembly.</param>
     /// <param name="targetPath">The full file path where the resource will be written. The path must be within the assets directory.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="MissingAssetException">Thrown if the resource is not found in the assembly, if the resource fails integrity verification,
     /// or if the resource fails content validation.</exception>
     /// <exception cref="SecurityException">Thrown if the temporary file becomes a symbolic link during the extraction process.</exception>
     /// <exception cref="AssetIntegrityException">Thrown if the content validation for JavaScript or HTML files fails.</exception>
-    private void ExtractResourceToDisk(string resourceName, string targetPath)
+    private async Task ExtractResourceToDiskAsync(string resourceName, string targetPath)
     {
         try
         {
-            using Stream? stream = _currentAssembly.GetManifestResourceStream(resourceName);
+            await using Stream? stream = _currentAssembly.GetManifestResourceStream(resourceName);
             if (stream is null)
             {
                 string available = string.Join(", ", _currentAssembly.GetManifestResourceNames());
@@ -476,10 +485,11 @@ public sealed class AssetService
 
             try
             {
-                // Write to temp file first
-                using (FileStream fileStream = File.Create(tempFile))
+                // Write to temp file first using async I/O
+                await using (FileStream fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, DefaultBufferSize, useAsync: true))
                 {
-                    stream.CopyTo(fileStream);
+                    await stream.CopyToAsync(fileStream)
+                        .ConfigureAwait(false);
                 }
 
                 // Validate temp file before moving
@@ -489,8 +499,9 @@ public sealed class AssetService
                     throw new SecurityException("Temporary file became a symbolic link");
                 }
 
-                // Read the temp file to verify integrity before moving
-                byte[] extractedContent = File.ReadAllBytes(tempFile);
+                // Read the temp file asynchronously to verify integrity before moving
+                byte[] extractedContent = await File.ReadAllBytesAsync(tempFile)
+                    .ConfigureAwait(false);
                 string assetName = Path.GetFileName(targetPath);
 
                 // Verify integrity of the extracted asset
@@ -602,15 +613,15 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// Determines whether the assets in the specified directory need to be extracted.
+    /// Asynchronously determines whether the assets in the specified directory need to be extracted.
     /// </summary>
     /// <remarks>This method checks the existence of the specified directory and verifies that all required
     /// asset files are present. If the directory does not exist or any required file is missing, extraction is deemed
     /// necessary. Additionally, the method validates the currency of the assets using an internal cache validation
     /// mechanism.</remarks>
     /// <param name="assetsDir">The path to the directory containing the assets.</param>
-    /// <returns><see langword="true"/> if the assets need to be extracted; otherwise, <see langword="false"/>.</returns>
-    private bool ShouldExtractAssets(string assetsDir)
+    /// <returns>A task that represents the asynchronous operation. The task result contains <see langword="true"/> if the assets need to be extracted; otherwise, <see langword="false"/>.</returns>
+    private async Task<bool> ShouldExtractAssetsAsync(string assetsDir)
     {
         // If directory doesn't exist, definitely extract
         if (!Directory.Exists(assetsDir))
@@ -631,22 +642,23 @@ public sealed class AssetService
         }
 
         // Use assembly version for cache validation (IL3000-safe)
-        bool isCurrent = AreAssetsCurrent(assetsDir);
+        bool isCurrent = await AreAssetsCurrentAsync(assetsDir)
+            .ConfigureAwait(false);
         _logger.LogDebug("Asset currency check result: {IsCurrent}", isCurrent);
         return !isCurrent;
     }
 
     /// <summary>
-    /// Determines whether the assets in the specified directory are up-to-date based on a version marker file.
+    /// Asynchronously determines whether the assets in the specified directory are up-to-date based on a version marker file.
     /// </summary>
     /// <remarks>This method checks for the presence of a version marker file named <c>.version</c> in the
     /// specified directory. The file is expected to contain the version of the assets. The method compares this version
     /// with the current assembly version of the <c>AssetService</c> class. If the versions do not match, or if the
     /// version marker file is missing or unreadable, the method assumes the assets are not current.</remarks>
     /// <param name="assetsDir">The path to the directory containing the assets to check.</param>
-    /// <returns><see langword="true"/> if the assets are current; otherwise, <see langword="false"/>.</returns>
+    /// <returns>A task that represents the asynchronous operation. The task result contains <see langword="true"/> if the assets are current; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the assembly version of the <c>AssetService</c> class cannot be determined.</exception>
-    private bool AreAssetsCurrent(string assetsDir)
+    private async Task<bool> AreAssetsCurrentAsync(string assetsDir)
     {
         try
         {
@@ -657,7 +669,7 @@ public sealed class AssetService
                 return false;
             }
 
-            string storedVersion = File.ReadAllText(versionMarkerPath).Trim();
+            string storedVersion = (await File.ReadAllTextAsync(versionMarkerPath).ConfigureAwait(false)).Trim();
             Version? version = typeof(AssetService).Assembly.GetName().Version;
             if (version is null)
             {
@@ -718,14 +730,15 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// Writes a version marker file to the specified directory.
+    /// Asynchronously writes a version marker file to the specified directory.
     /// </summary>
     /// <remarks>The version marker file is named <c>.version</c> and contains the version of the current
     /// assembly. If the assembly version cannot be determined, an <see cref="InvalidOperationException"/> is
     /// thrown.</remarks>
     /// <param name="assetsDirectory">The directory where the version marker file will be created. This directory must exist and be writable.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the assembly version cannot be determined, which may indicate a build or deployment issue.</exception>
-    private static void WriteVersionMarker(string assetsDirectory)
+    private static async Task WriteVersionMarkerAsync(string assetsDirectory)
     {
         try
         {
@@ -734,7 +747,8 @@ public sealed class AssetService
                 throw new InvalidOperationException("Assembly version could not be determined. This may indicate a build or deployment issue.");
 
             string version = versionObj.ToString();
-            File.WriteAllText(versionMarkerPath, version);
+            await File.WriteAllTextAsync(versionMarkerPath, version)
+                .ConfigureAwait(false);
             Debug.WriteLine($"Version marker written: {version}");
         }
         catch (Exception ex)
