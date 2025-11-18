@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using JetBrains.Annotations;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using Microsoft.Extensions.Logging;
@@ -43,6 +44,7 @@ namespace MermaidPad.Services.Platforms;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class AssetService
 {
+    private const long MaxFileSize = 10 * 1_024 * 1_024; // 10 MB max file size
     private readonly ILogger<AssetService> _logger;
     private readonly SecurityService _securityService;
     private readonly AssetIntegrityService _assetIntegrityService;
@@ -200,10 +202,9 @@ public sealed class AssetService
         }
 
         // Step 6: Check file size to prevent resource exhaustion
-        const long maxFileSize = 10 * 1_024 * 1_024; // 10MB max
-        if (fileInfo.Length > maxFileSize)
+        if (fileInfo.Length > MaxFileSize)
         {
-            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {maxFileSize})";
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {MaxFileSize})";
             _logger.LogError("{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage);
         }
@@ -286,6 +287,155 @@ public sealed class AssetService
             byte[] buffer = ms.ToArray(); // fallback (copies)
             _logger.LogInformation("Successfully read asset '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, buffer.Length);
             return buffer;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}': possible permission or symlink issue";
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
+            throw new SecurityException(errorMessage, ex);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}': possible symlink manipulation";
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
+            throw new SecurityException(errorMessage, ex);
+        }
+        catch (IOException ex)
+        {
+            // Handle platform-specific IO errors that might indicate symlink issues
+            string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}': possible symlink or filesystem issue";
+            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
+            throw new SecurityException(errorMessage, ex);
+        }
+    }
+
+    /// <summary>
+    /// Opens a read-only stream to the specified asset file on disk for efficient file streaming.
+    /// </summary>
+    /// <remarks>
+    /// This method performs the same security and integrity checks as <see cref="GetAssetFromDiskAsync"/>,
+    /// but returns a stream instead of loading the entire file into memory. This is more efficient for serving
+    /// large files over HTTP or when the file content will be copied to another stream.
+    /// <para>
+    /// The caller is responsible for disposing the returned stream.
+    /// </para>
+    /// <para>
+    /// Security and validation steps:
+    /// <list type="bullet">
+    ///     <item><description>Validates that the asset name is not null, empty, or invalid.</description></item>
+    ///     <item><description>Ensures the asset path is within the designated assets directory.</description></item>
+    ///     <item><description>Checks that the asset is a regular file and not a symbolic link or reparse point.</description></item>
+    ///     <item><description>Enforces a maximum file size limit of 10 MB to prevent resource exhaustion.</description></item>
+    ///     <item><description>Verifies the file's integrity against a known hash.</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="assetName">The name of the asset to stream. This value cannot be <see langword="null"/> or whitespace.</param>
+    /// <returns>A <see cref="FileStream"/> opened for reading the asset. The stream uses <see cref="FileShare.Read"/>
+    /// to allow concurrent reads. The caller must dispose the stream when done.</returns>
+    /// <exception cref="MissingAssetException">Thrown if the specified asset does not exist at the expected location.</exception>
+    /// <exception cref="SecurityException">Thrown if the asset fails security checks, such as being outside the assets directory,
+    /// exceeding the maximum allowed size, or being tampered with.</exception>
+    /// <exception cref="AssetIntegrityException">Thrown if the asset fails integrity verification, even after attempting to
+    /// restore it from embedded resources.</exception>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="assetName"/> is null or whitespace.</exception>
+    [MustDisposeResource]
+    internal async Task<FileStream> GetAssetStreamAsync(string assetName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
+        _logger.LogInformation("Requesting asset stream from disk: {AssetName}", assetName);
+
+        // Step 1: Validate the asset name
+        string validatedAssetName = ValidateAssetName(assetName);
+
+        // Step 2: Get the assets directory
+        string assetsDirectory = GetAssetsDirectory();
+
+        // Step 3: Build the full path using Path.Combine (safe API)
+        string assetPath = Path.Combine(assetsDirectory, validatedAssetName);
+
+        // Step 4: Check file existence and attributes
+        FileInfo fileInfo = new FileInfo(assetPath);
+        if (!fileInfo.Exists)
+        {
+            throw new MissingAssetException($"Asset '{validatedAssetName}' not found at '{assetPath}'");
+        }
+
+        // Step 5: Additional validation - ensure it's a file, not a directory or symlink
+        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(assetPath, assetsDirectory, isAssetFile: true);
+        if (!isSecure && !string.IsNullOrEmpty(reason))
+        {
+            _logger.LogError("{Reason}", reason);
+            throw new SecurityException(reason);
+        }
+
+        // Step 6: Check file size to prevent resource exhaustion
+        if (fileInfo.Length > MaxFileSize)
+        {
+            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {MaxFileSize})";
+            _logger.LogError("{ErrorMessage}", errorMessage);
+            throw new SecurityException(errorMessage);
+        }
+
+        // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
+        string? expectedHash = _assetIntegrityService.GetStoredHashForAsset(validatedAssetName);
+        if (expectedHash is not null)
+        {
+            bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                .ConfigureAwait(false);
+
+            if (!integrityValid)
+            {
+                // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
+                _logger.LogWarning("Asset '{ValidatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources", validatedAssetName);
+                await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath)
+                    .ConfigureAwait(false);
+
+                // Re-verify integrity after extraction
+                integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
+                    .ConfigureAwait(false);
+
+                if (!integrityValid)
+                {
+                    throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification after re-extraction");
+                }
+
+                // Refresh file info as the file has been replaced
+                fileInfo.Refresh();
+            }
+        }
+
+        // Step 8: Open the file with proper sharing mode
+        try
+        {
+            // Use FileShare.Read to allow other processes to read but not write
+            FileStream stream = _securityService.CreateSecureFileStream(
+                assetPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                DefaultBufferSize);
+
+            // Validate stream properties match file info (TOCTOU protection)
+            if (stream.Length != fileInfo.Length)
+            {
+                try
+                {
+                    await stream.DisposeAsync();
+                    stream = null!;
+                }
+                catch (Exception disposeEx)
+                {
+                    _logger.LogError(disposeEx, "Exception occurred while disposing stream for asset '{ValidatedAssetName}' after TOCTOU detection", validatedAssetName);
+                }
+
+                string errorMessage = $"{SecurityLogCategory} File size changed during open for '{validatedAssetName}': possible TOCTOU attack";
+                _logger.LogError("{ErrorMessage}", errorMessage);
+                throw new SecurityException(errorMessage);
+            }
+
+            _logger.LogInformation("Successfully opened asset stream '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, stream.Length);
+            return stream;
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -427,12 +577,11 @@ public sealed class AssetService
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         // Extract all required assets in parallel and materialize the collection
-        List<Task> extractionTasks = _allowedAssets.Select(async asset =>
+        Task[] extractionTasks = _allowedAssets.Select(asset =>
         {
             string normalizedAssetName = asset.Replace(Path.DirectorySeparatorChar, '.');
-            await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset))
-                .ConfigureAwait(false);
-        }).ToList();
+            return ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{normalizedAssetName}", Path.Combine(targetDirectory, asset));
+        }).ToArray();
 
         await Task.WhenAll(extractionTasks)
             .ConfigureAwait(false);
