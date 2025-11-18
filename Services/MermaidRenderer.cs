@@ -176,7 +176,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             // Exponential backoff: 50ms -> 100ms -> 200ms -> 400ms (max)
             // Reduces WebView script execution overhead while staying responsive for fast renders
-            int delayMs = Math.Min(50 * (int)Math.Pow(2, attemptCount), 400);
+            int delayMs = Math.Min(50 * (int)Math.Pow(2, Math.Min(attemptCount, 3)), 400);
             await Task.Delay(delayMs);
         }
 
@@ -259,9 +259,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 {
                     transientListener?.Close();
                 }
-                catch
+                catch (Exception cleanupEx)
                 {
-                    // Best effort cleanup
+                    _logger.LogWarning(cleanupEx, "Exception during best effort cleanup of transientListener");
                 }
 
                 if (attempt == maxRetries - 1)
