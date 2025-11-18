@@ -28,6 +28,7 @@ using System.Reflection;
 using System.Security;
 
 namespace MermaidPad.Services.Platforms;
+
 /// <summary>
 /// Provides utility methods for managing and validating assets, including retrieving assets from disk, extracting
 /// embedded resources, and ensuring asset integrity and security.
