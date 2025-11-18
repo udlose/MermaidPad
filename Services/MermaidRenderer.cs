@@ -20,6 +20,7 @@
 
 using Avalonia.Threading;
 using AvaloniaWebView;
+using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
@@ -29,6 +30,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security;
 using System.Text;
 using System.Text.Json;
 
@@ -53,12 +55,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
     private int _isDisposeStarted; // 0 = not started, 1 = disposing/disposed
     private WebView? _webView;
-    private byte[]? _htmlContent;
-    private byte[]? _mermaidJs;
-    private byte[]? _jsYamlJs;
-    private byte[]? _mermaidLayoutElkJs;
-    private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
-    private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
     private int _serverPort;
     private Task? _serverTask;
     private bool _isWebViewReady;
@@ -150,17 +146,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Ensures that the first render of the WebView2 control is complete within the specified timeout period.
     /// </summary>
     /// <remarks>This method repeatedly checks the rendering status of the WebView2 control by executing a
-    /// script in the WebView2 environment. If the rendering is not completed within the specified timeout, a <see
-    /// cref="TimeoutException"/> is thrown.</remarks>
+    /// script in the WebView2 environment using exponential backoff for polling intervals (50ms -> 100ms -> 200ms -> 400ms).
+    /// This reduces WebView overhead while staying responsive. If the rendering is not completed within the specified timeout,
+    /// a <see cref="TimeoutException"/> is thrown.</remarks>
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
     private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        const int renderReadyPollingIntervalMs = 100;
-
-        while (stopwatch.Elapsed < timeout)
+        for (int attemptCount = 0; stopwatch.Elapsed < timeout; attemptCount++)
         {
             // Return only a primitive, never a Promise. WebView2 ExecuteScriptAsync doesn't support Promises.
             // WebView2 will JSON-encode strings (e.g., "\"true\"" or "\"pending\"")
@@ -179,31 +174,30 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
 
-            await Task.Delay(renderReadyPollingIntervalMs);
+            // Exponential backoff: 50ms -> 100ms -> 200ms -> 400ms (max)
+            // Reduces WebView script execution overhead while staying responsive for fast renders
+            int delayMs = Math.Min(50 * (int)Math.Pow(2, attemptCount), 400);
+            await Task.Delay(delayMs);
         }
 
         throw new TimeoutException($"First render not signaled within {timeout.TotalSeconds:0.##} seconds.");
     }
 
     /// <summary>
-    /// Initializes the application by preparing content, starting an HTTP server, and navigating to the server.
+    /// Initializes the application by starting an HTTP server and navigating to it.
     /// </summary>
-    /// <remarks>This method performs the following steps: 1. Prepares the required content from disk. 2.
-    /// Starts an HTTP server to serve the content. 3. Waits for the HTTP server to be ready, with a timeout of 10
-    /// seconds. 4. Navigates to the HTTP server once it is ready.  If the HTTP server fails to start within the timeout
-    /// period, a <see cref="TimeoutException"/> is thrown.</remarks>
+    /// <remarks>This method performs the following steps: 1. Starts an HTTP server to serve assets from disk on-demand.
+    /// 2. Waits for the HTTP server to be ready, with a timeout of 10 seconds. 3. Navigates to the HTTP server once it is ready.
+    /// If the HTTP server fails to start within the timeout period, a <see cref="TimeoutException"/> is thrown.
+    /// Assets are loaded from disk on first HTTP request to minimize memory usage.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the HTTP server does not become ready within the 10-second timeout period.</exception>
     private async Task InitializeWithHttpServerAsync()
     {
-        // Step 1: Prepare content (HTML and JS separately)
-        await PrepareContentFromDiskAsync()
-            .ConfigureAwait(false);
-
-        // Step 2: Start HTTP server
+        // Step 1: Start HTTP server (assets will be loaded from disk on-demand)
         StartHttpServer();
 
-        // Step 3: Wait for server ready
+        // Step 2: Wait for server ready
         _logger.LogInformation("Waiting for HTTP server to be ready...");
         bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10))
             .ConfigureAwait(false);
@@ -212,55 +206,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
             throw new TimeoutException("HTTP server failed to start within timeout");
         }
 
-        // Step 4: Navigate to server
+        // Step 3: Navigate to server
         await NavigateToServerAsync();  // Navigation needs UI context, so no ConfigureAwait(false) here
-    }
-
-    /// <summary>
-    /// Asynchronously loads and prepares content from disk, including HTML, JavaScript, and other assets, for use in
-    /// the application.
-    /// </summary>
-    /// <remarks>This method retrieves multiple assets in parallel to optimize performance. The loaded content
-    /// is stored in memory for subsequent use. The method logs the size of each asset and the total time taken to
-    /// complete the operation.</remarks>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    private async Task PrepareContentFromDiskAsync()
-    {
-        Stopwatch sw = Stopwatch.StartNew();
-
-        // Explicitly offload to thread pool to prevent any potential blocking of the UI thread with file I/O
-        // While wrapping async I/O in Task.Run is generally an antipattern,
-        // this code has synchronous CPU-bound work (log message formatting, path validation, FileInfo creation)
-        // that executes before the first await. Without Task.Run, all 6 parallel tasks execute this work on the UI thread
-        await Task.Run(async () =>
-        {
-            // Get assets in parallel
-            Task<byte[]> indexHtmlTask = _assetService.GetAssetFromDiskAsync(AssetService.IndexHtmlFilePath);
-            Task<byte[]> jsTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidMinJsFilePath);
-            Task<byte[]> jsYamlTask = _assetService.GetAssetFromDiskAsync(AssetService.JsYamlFilePath);
-            Task<byte[]> mermaidLayoutElkTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkPath);
-            Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkChunkSP2CHFBEPath);
-            Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = _assetService.GetAssetFromDiskAsync(AssetService.MermaidLayoutElkRenderAVRWSH4DPath);
-
-            await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
-                .ConfigureAwait(false);
-
-            _htmlContent = await indexHtmlTask.ConfigureAwait(false);
-            _mermaidJs = await jsTask.ConfigureAwait(false);
-            _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
-            _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
-            _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
-            _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
-
-            sw.Stop();
-            _logger.LogAsset("load asset", AssetService.IndexHtmlFilePath, true, _htmlContent.Length);
-            _logger.LogAsset("load asset", AssetService.MermaidMinJsFilePath, true, _mermaidJs.Length);
-            _logger.LogAsset("load asset", AssetService.JsYamlFilePath, true, _jsYamlJs.Length);
-            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkPath, true, _mermaidLayoutElkJs.Length);
-            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkChunkSP2CHFBEPath, true, _mermaidLayoutElkChunkSP2CHFBEJs.Length);
-            _logger.LogAsset("load asset", AssetService.MermaidLayoutElkRenderAVRWSH4DPath, true, _mermaidLayoutElkRenderAVRWSH4DJs.Length);
-            _logger.LogTiming(nameof(PrepareContentFromDiskAsync), sw.Elapsed, success: true);
-        }).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -268,32 +215,53 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <remarks>This method initializes an <see cref="HttpListener"/> instance, binds it to an available port
     /// on localhost, and starts a background task to handle incoming HTTP requests asynchronously. The server runs
-    /// until explicitly stopped.</remarks>
+    /// until explicitly stopped. Implements retry logic to handle the race condition where the OS-assigned port
+    /// becomes unavailable between assignment and binding.</remarks>
     private void StartHttpServer()
     {
+        const int maxRetries = 10;
         _serverCancellation = new CancellationTokenSource();
-        _httpListener = new HttpListener();
 
-        //TODO: There is a small "race" here between the time the port is assigned
-        // get OS-assigned available port and start HttpListener asap
-        _serverPort = GetAvailablePort();
-        _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
-        _httpListener.Start();
-
-        // Background task - _serverTask is needed for proper cleanup
-        _serverTask = Task.Run(async () =>
+        for (int attempt = 0; attempt < maxRetries; attempt++)
         {
             try
             {
-                await HandleHttpRequestsAsync(_serverCancellation.Token);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "HTTP server task error");
-            }
-        });
+                _serverPort = GetAvailablePort(); // OS assigns the port
+                _httpListener = new HttpListener();
+                _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
+                _httpListener.Start(); // Race window is here, but we retry if it fails
 
-        _logger.LogInformation("HTTP server started on port {ServerPort}", _serverPort);
+                // Background task - _serverTask is needed for proper cleanup
+                _serverTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleHttpRequestsAsync(_serverCancellation.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "HTTP server task error");
+                    }
+                });
+
+                _logger.LogInformation("HTTP server started on port {ServerPort}", _serverPort);
+                return;
+            }
+            catch (HttpListenerException ex)
+            {
+                // Port was grabbed between GetAvailablePort() and Start()
+                _httpListener?.Close();
+                _httpListener = null;
+
+                if (attempt == maxRetries - 1)
+                {
+                    throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts", ex);
+                }
+
+                _logger.LogWarning("Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
+                    _serverPort, attempt + 1, maxRetries);
+            }
+        }
     }
 
     /// <summary>
@@ -360,8 +328,18 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Processes a single HTTP request and serves the requested asset.
+    /// Processes a single HTTP request and streams the requested asset from disk directly to the response.
     /// </summary>
+    /// <remarks>
+    /// Assets are streamed directly from disk to the HTTP response without loading the entire file into memory.
+    /// This approach:
+    /// <list type="bullet">
+    ///     <item><description>Minimizes memory usage - files are never fully loaded into managed memory</description></item>
+    ///     <item><description>Reduces GC pressure - no large byte[] allocations</description></item>
+    ///     <item><description>Improves performance for serving static assets over HTTP</description></item>
+    /// </list>
+    /// Each request opens a new FileStream, streams the content, and immediately disposes the stream.
+    /// </remarks>
     /// <param name="context">The HTTP request context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ProcessRequestAsync(HttpListenerContext context)
@@ -369,66 +347,91 @@ public sealed class MermaidRenderer : IAsyncDisposable
         try
         {
             const string javascriptContentType = "application/javascript; charset=utf-8";
-            string requestPath = context.Request.Url?.LocalPath ?? "/";
+            const string htmlContentType = "text/html; charset=utf-8";
 
+            string requestPath = context.Request.Url?.LocalPath ?? "/";
             _logger.LogDebug("Processing request: {RequestPath}", SanitizeRequestPath(requestPath));
 
-            byte[]? responseBytes = null;
+            // Map request path to asset name and content type
+            string? assetName = null;
             string? contentType = null;
 
-            // Separate file handling is needed to avoid JavaScript injection issues
-            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
+            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidJs;
+                assetName = AssetService.MermaidMinJsFilePath;
                 contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                context.Response.StatusCode = 404;
+                assetName = AssetService.IndexHtmlFilePath;
+                contentType = htmlContentType;
             }
-            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
-                contentType = "text/html; charset=utf-8";
-            }
-            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
-            {
-                responseBytes = _jsYamlJs;
+                assetName = AssetService.JsYamlFilePath;
                 contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkJs;
+                assetName = AssetService.MermaidLayoutElkPath;
                 contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkChunkSP2CHFBEJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
+                assetName = AssetService.MermaidLayoutElkChunkSP2CHFBEPath;
                 contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkRenderAVRWSH4DJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
+                assetName = AssetService.MermaidLayoutElkRenderAVRWSH4DPath;
                 contentType = javascriptContentType;
+            }
+
+            // Stream asset from disk directly to response (no intermediate memory allocation)
+            if (assetName is not null && contentType is not null)
+            {
+                try
+                {
+                    await using FileStream assetStream = await _assetService.GetAssetStreamAsync(assetName)
+                        .ConfigureAwait(false);
+
+                    // Set response headers before streaming
+                    context.Response.StatusCode = 200;
+                    context.Response.ContentType = contentType;
+                    context.Response.ContentLength64 = assetStream.Length;
+
+                    // Stream file directly to HTTP response without loading into memory
+                    await assetStream.CopyToAsync(context.Response.OutputStream)
+                        .ConfigureAwait(false);
+
+                    _logger.LogDebug("Streamed {RequestPath}: {SizeBytes} bytes", SanitizeRequestPath(requestPath), assetStream.Length);
+                }
+                catch (AssetIntegrityException aie)
+                {
+                    context.Response.StatusCode = 403;
+                    _logger.LogError(aie, "403 for asset integrity failure: {AssetName}", assetName);
+                }
+                catch (SecurityException se)
+                {
+                    context.Response.StatusCode = 403;
+                    _logger.LogError(se, "403 for security failure: {AssetName}", assetName);
+                }
+                catch (MissingAssetException mae)
+                {
+                    context.Response.StatusCode = 404;
+                    _logger.LogError(mae, "404 for missing asset: {AssetName}", assetName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error streaming asset {AssetName}", assetName);
+                    context.Response.StatusCode = 500;
+                }
             }
             else
             {
                 context.Response.StatusCode = 404;
                 _logger.LogDebug("404 for: {RequestPath}", SanitizeRequestPath(requestPath));
-            }
-
-            if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
-            {
-                // set the response code before writing to the output stream
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = contentType;
-                context.Response.ContentLength64 = responseBytes.Length;
-                await context.Response.OutputStream.WriteAsync(responseBytes)
-                    .ConfigureAwait(false);
-
-                _logger.LogDebug("Served {RequestPath}: {SizeBytes} bytes", SanitizeRequestPath(requestPath), responseBytes.Length);
             }
         }
         catch (Exception ex)
@@ -486,7 +489,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
             await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
 
             // Wait for navigation with 10 second timeout (more generous for slower systems)
+#if DEBUG
+            // no timeout in DEBUG builds to aid debugging
+            using CancellationTokenSource cts = new CancellationTokenSource();
+#else
             using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+#endif
             await navigationCompletedTcs.Task.WaitAsync(cts.Token);
 
             _logger.LogInformation("Navigation completed successfully");
