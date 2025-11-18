@@ -48,7 +48,7 @@
           InputGesture="Ctrl+Shift+S"
           IsEnabled="{Binding HasText}" />
         <Separator />
-        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
+<!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
               <MenuItem Header="{Binding}"
@@ -56,12 +56,12 @@
                         CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
-        </MenuItem>
+        </MenuItem>        
         <MenuItem
           Command="{Binding ClearRecentFilesCommand}"
           Header="Clear Recent Files"
           IsEnabled="{Binding HasRecentFiles}" />
-        <Separator />
+        <Separator />-->
         <MenuItem
           Click="OnExitClick"
           Header="E_xit"
