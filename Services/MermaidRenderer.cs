@@ -215,21 +215,25 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <remarks>This method initializes an <see cref="HttpListener"/> instance, binds it to an available port
     /// on localhost, and starts a background task to handle incoming HTTP requests asynchronously. The server runs
-    /// until explicitly stopped. Implements retry logic to handle the race condition where the OS-assigned port
+    /// until explicitly stopped. Implements retry logic to handle the rare race condition where the OS-assigned port
     /// becomes unavailable between assignment and binding.</remarks>
     private void StartHttpServer()
     {
-        const int maxRetries = 10;
-        _serverCancellation = new CancellationTokenSource();
-
+        const int maxRetries = 3;
         for (int attempt = 0; attempt < maxRetries; attempt++)
         {
+            HttpListener? transientListener = null;
             try
             {
                 _serverPort = GetAvailablePort(); // OS assigns the port
-                _httpListener = new HttpListener();
-                _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
-                _httpListener.Start(); // Race window is here, but we retry if it fails
+
+                transientListener = new HttpListener();
+                transientListener.Prefixes.Add($"http://localhost:{_serverPort}/");
+                transientListener.Start();
+
+                // Success - capture to field only after Start() succeeds
+                _httpListener = transientListener;
+                _serverCancellation = new CancellationTokenSource();
 
                 // Background task - _serverTask is needed for proper cleanup
                 _serverTask = Task.Run(async () =>
@@ -249,13 +253,20 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             catch (HttpListenerException ex)
             {
-                // Port was grabbed between GetAvailablePort() and Start()
-                _httpListener?.Close();
-                _httpListener = null;
+                // Port was grabbed by another process between GetAvailablePort() and Start()
+                // Clean up the failed listener
+                try
+                {
+                    transientListener?.Close();
+                }
+                catch
+                {
+                    // Best effort cleanup
+                }
 
                 if (attempt == maxRetries - 1)
                 {
-                    throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts", ex);
+                    throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts.", ex);
                 }
 
                 _logger.LogWarning("Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
