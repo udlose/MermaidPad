@@ -56,7 +56,7 @@
                         CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>
-        </MenuItem>        
+        </MenuItem>
         <MenuItem
           Command="{Binding ClearRecentFilesCommand}"
           Header="Clear Recent Files"
