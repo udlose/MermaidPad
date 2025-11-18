@@ -146,7 +146,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Ensures that the first render of the WebView2 control is complete within the specified timeout period.
     /// </summary>
     /// <remarks>This method repeatedly checks the rendering status of the WebView2 control by executing a
-    /// script in the WebView2 environment using exponential backoff for polling intervals (50ms -> 100ms -> 200ms -> 400ms).
+    /// script in the WebView2 environment using exponential backoff for polling intervals.
     /// This reduces WebView overhead while staying responsive. If the rendering is not completed within the specified timeout,
     /// a <see cref="TimeoutException"/> is thrown.</remarks>
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
@@ -174,9 +174,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
 
-            // Exponential backoff: 50ms -> 100ms -> 200ms -> 400ms (max)
             // Reduces WebView script execution overhead while staying responsive for fast renders
-            int delayMs = Math.Min(50 * (int)Math.Pow(2, Math.Min(attemptCount, 3)), 400);
+            int delayMs = 50 * (int)Math.Pow(2, Math.Min(attemptCount, 3));
             await Task.Delay(delayMs);
         }
 
