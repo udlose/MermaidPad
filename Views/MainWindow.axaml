@@ -49,20 +49,6 @@
           InputGesture="Ctrl+Shift+S"
           IsEnabled="{Binding HasText}" />
         <Separator />
-<!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
-          <MenuItem.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <MenuItem Header="{Binding}"
-                        Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
-                        CommandParameter="{Binding}" />
-            </DataTemplate>
-          </MenuItem.ItemTemplate>
-        </MenuItem>
-        <MenuItem
-          Command="{Binding ClearRecentFilesCommand}"
-          Header="Clear Recent Files"
-          IsEnabled="{Binding HasRecentFiles}" />
-        <Separator />-->
         <MenuItem
           Click="OnExitClick"
           Header="E_xit"
@@ -91,14 +77,6 @@
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Separator Margin="6,0" />
       <Button
-        Command="{Binding ToggleAIPanelCommand}"
-        Content="{Binding IsAIPanelVisible, Converter={x:Static ObjectConverters.TrueToObject}, ConverterParameter='Hide AI Panel', FalseValue='Show AI Panel'}"
-        ToolTip.Tip="Toggle AI Assistant Panel" />
-      <Button
-        Command="{Binding SwapEditorPreviewCommand}"
-        Content="Swap Panels"
-        ToolTip.Tip="Swap Editor and Preview positions" />
-      <Button
         Command="{Binding OpenSettingsCommand}"
         Content="Settings"
         ToolTip.Tip="Configure AI settings" />
@@ -110,10 +88,6 @@
         IsChecked="{Binding LivePreviewEnabled}"
         IsEnabled="{Binding IsWebViewReady}"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
-      <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
-      <TextBlock Text="{Binding BundledMermaidVersion}" />
-      <TextBlock Margin="12,0,4,0" Text="Latest:" />
-      <TextBlock Text="{Binding LatestMermaidVersion}" />-->
       <TextBlock
         Margin="12,0,0,0"
         HorizontalAlignment="Right"
@@ -130,60 +104,56 @@
         Text="{Binding StatusText}" />
     </StackPanel>
 
-    <!-- Main Content with dockable AI panel, Editor, and WebView -->
+    <!-- Main Content with 3 flexible columns for dockable panels -->
     <Grid DockPanel.Dock="Top" x:Name="MainContentGrid">
       <Grid.ColumnDefinitions>
-        <!-- AI Panel (when visible on left) -->
-        <ColumnDefinition Width="300" MinWidth="200" />
+        <!-- Column 1 -->
+        <ColumnDefinition Width="*" MinWidth="250" />
         <ColumnDefinition Width="Auto" />
-
-        <!-- First main panel (Editor when not swapped, Preview when swapped) -->
-        <ColumnDefinition Width="*" MinWidth="300" />
+        <!-- Column 2 -->
+        <ColumnDefinition Width="2*" MinWidth="250" />
         <ColumnDefinition Width="Auto" />
-
-        <!-- Second main panel (Preview when not swapped, Editor when swapped) -->
-        <ColumnDefinition Width="2*" MinWidth="300" />
+        <!-- Column 3 -->
+        <ColumnDefinition Width="*" MinWidth="250" />
       </Grid.ColumnDefinitions>
 
-      <!-- AI Panel on Left (visible when IsAIPanelVisible=true) -->
-      <Border
-        Grid.Column="0"
-        Margin="6,0,0,6"
-        BorderBrush="LightGray"
-        BorderThickness="1"
-        CornerRadius="4"
-        IsVisible="{Binding IsAIPanelVisible}">
-        <DockPanel>
-          <TextBlock
-            DockPanel.Dock="Top"
-            Margin="8,6"
-            FontWeight="Bold"
-            Text="AI Assistant" />
-          <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
-        </DockPanel>
-      </Border>
-
-      <!-- GridSplitter for AI Panel -->
+      <!-- Column 1 Splitter -->
       <GridSplitter
         Grid.Column="1"
         Width="6"
         Background="Transparent"
-        IsVisible="{Binding IsAIPanelVisible}"
         ResizeDirection="Columns" />
 
-      <!-- Text Editor Panel (in column 2 when not swapped, column 4 when swapped) -->
+      <!-- Column 2 Splitter -->
+      <GridSplitter
+        Grid.Column="3"
+        Width="6"
+        Background="Transparent"
+        ResizeDirection="Columns" />
+
+      <!-- Editor Panel (positioned dynamically by code-behind) -->
       <Border
         x:Name="EditorBorder"
+        Grid.Column="0"
         Margin="6,0,0,6"
         BorderBrush="LightGray"
         BorderThickness="1"
         CornerRadius="4">
         <DockPanel>
-          <TextBlock
-            DockPanel.Dock="Top"
-            Margin="8,6"
-            FontWeight="Bold"
-            Text="Editor" />
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="Editor" VerticalAlignment="Center" />
+            <Button
+              Content="←"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              x:Name="EditorMoveLeftButton" />
+            <Button
+              Content="→"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              x:Name="EditorMoveRightButton" />
+          </StackPanel>
           <edit:TextEditor
             x:Name="Editor"
             FontFamily="Consolas"
@@ -205,26 +175,29 @@
         </DockPanel>
       </Border>
 
-      <!-- Middle GridSplitter -->
-      <GridSplitter
-        Grid.Column="3"
-        Width="6"
-        Background="Transparent"
-        ResizeDirection="Columns" />
-
-      <!-- WebView Panel (in column 4 when not swapped, column 2 when swapped) -->
+      <!-- Preview Panel (positioned dynamically by code-behind) -->
       <Border
         x:Name="PreviewBorder"
-        Margin="0,0,6,6"
+        Grid.Column="2"
+        Margin="0,0,0,6"
         BorderBrush="LightGray"
         BorderThickness="1"
         CornerRadius="4">
         <DockPanel>
-          <TextBlock
-            DockPanel.Dock="Top"
-            Margin="8,6"
-            FontWeight="Bold"
-            Text="Preview" />
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="Preview" VerticalAlignment="Center" />
+            <Button
+              Content="←"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              x:Name="PreviewMoveLeftButton" />
+            <Button
+              Content="→"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              x:Name="PreviewMoveRightButton" />
+          </StackPanel>
           <Grid>
             <wv:WebView Name="Preview" />
             <TextBlock
@@ -237,6 +210,33 @@
               Text="{Binding LastError}"
               TextWrapping="Wrap" />
           </Grid>
+        </DockPanel>
+      </Border>
+
+      <!-- AI Assistant Panel (positioned dynamically by code-behind) -->
+      <Border
+        x:Name="AIBorder"
+        Grid.Column="4"
+        Margin="0,0,6,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="AI Assistant" VerticalAlignment="Center" />
+            <Button
+              Content="←"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              x:Name="AIMoveLeftButton" />
+            <Button
+              Content="→"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              x:Name="AIMoveRightButton" />
+          </StackPanel>
+          <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
         </DockPanel>
       </Border>
     </Grid>

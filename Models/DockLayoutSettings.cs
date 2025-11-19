@@ -22,36 +22,40 @@ namespace MermaidPad.Models;
 
 /// <summary>
 /// Persisted layout configuration for the docking system.
+/// Supports three flexible columns that can contain any panel.
 /// </summary>
 public sealed class DockLayoutSettings
 {
     /// <summary>
-    /// Whether the AI panel is visible.
+    /// Which panel is in column 1 (left).
+    /// Valid values: "Editor", "Preview", "AI", "None"
     /// </summary>
-    public bool AIsPanelVisible { get; set; } = false;
+    public string Column1Panel { get; set; } = "Editor";
 
     /// <summary>
-    /// Position of the AI panel (Left, Right).
+    /// Which panel is in column 2 (center).
+    /// Valid values: "Editor", "Preview", "AI", "None"
     /// </summary>
-    public string AIPanelPosition { get; set; } = "Right";
+    public string Column2Panel { get; set; } = "Preview";
 
     /// <summary>
-    /// Width of the AI panel in pixels.
+    /// Which panel is in column 3 (right).
+    /// Valid values: "Editor", "Preview", "AI", "None"
     /// </summary>
-    public double AIPanelWidth { get; set; } = 300;
+    public string Column3Panel { get; set; } = "AI";
 
     /// <summary>
-    /// Position of the editor panel (Left, Right, Center).
+    /// Proportional width of column 1 (Star sizing).
     /// </summary>
-    public string EditorPosition { get; set; } = "Left";
+    public double Column1Width { get; set; } = 1.0;
 
     /// <summary>
-    /// Position of the preview panel (Left, Right, Center).
+    /// Proportional width of column 2 (Star sizing).
     /// </summary>
-    public string PreviewPosition { get; set; } = "Right";
+    public double Column2Width { get; set; } = 2.0;
 
     /// <summary>
-    /// Width of the editor panel as proportion (0-1).
+    /// Proportional width of column 3 (Star sizing).
     /// </summary>
-    public double EditorProportionalWidth { get; set; } = 0.5;
+    public double Column3Width { get; set; } = 1.0;
 }

@@ -67,9 +67,18 @@ public sealed partial class MainWindow : Window
     private EventHandler? _themeChangedHandler;
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
-    // References to borders for panel swapping
+    // References to panel borders for dynamic positioning
     private Border? _editorBorder;
     private Border? _previewBorder;
+    private Border? _aiBorder;
+
+    // References to move buttons
+    private Button? _editorMoveLeftButton;
+    private Button? _editorMoveRightButton;
+    private Button? _previewMoveLeftButton;
+    private Button? _previewMoveRightButton;
+    private Button? _aiMoveLeftButton;
+    private Button? _aiMoveRightButton;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -123,9 +132,26 @@ public sealed partial class MainWindow : Window
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
 
-        // Get border references for panel swapping
+        // Get panel border references for dynamic positioning
         _editorBorder = this.FindControl<Border>("EditorBorder");
         _previewBorder = this.FindControl<Border>("PreviewBorder");
+        _aiBorder = this.FindControl<Border>("AIBorder");
+
+        // Get move button references
+        _editorMoveLeftButton = this.FindControl<Button>("EditorMoveLeftButton");
+        _editorMoveRightButton = this.FindControl<Button>("EditorMoveRightButton");
+        _previewMoveLeftButton = this.FindControl<Button>("PreviewMoveLeftButton");
+        _previewMoveRightButton = this.FindControl<Button>("PreviewMoveRightButton");
+        _aiMoveLeftButton = this.FindControl<Button>("AIMoveLeftButton");
+        _aiMoveRightButton = this.FindControl<Button>("AIMoveRightButton");
+
+        // Wire up move button click handlers
+        if (_editorMoveLeftButton != null) _editorMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Editor", -1 });
+        if (_editorMoveRightButton != null) _editorMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Editor", 1 });
+        if (_previewMoveLeftButton != null) _previewMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Preview", -1 });
+        if (_previewMoveRightButton != null) _previewMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Preview", 1 });
+        if (_aiMoveLeftButton != null) _aiMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "AI", -1 });
+        if (_aiMoveRightButton != null) _aiMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "AI", 1 });
 
         // Set initial panel positions
         UpdatePanelPositions();
@@ -342,31 +368,88 @@ public sealed partial class MainWindow : Window
                 DispatcherPriority.Background);
                 break;
 
-            case nameof(_vm.IsPanelsSwapped):
+            case nameof(_vm.Column1Panel):
+            case nameof(_vm.Column2Panel):
+            case nameof(_vm.Column3Panel):
                 UpdatePanelPositions();
                 break;
         }
     }
 
     /// <summary>
-    /// Updates the grid column positions of the editor and preview panels based on the IsPanelsSwapped state.
+    /// Updates the grid column positions of all panels based on the ViewModel's column assignments.
     /// </summary>
     private void UpdatePanelPositions()
     {
-        if (_editorBorder is null || _previewBorder is null)
+        if (_editorBorder is null || _previewBorder is null || _aiBorder is null)
         {
             return;
         }
 
-        // When not swapped: Editor=column 2, Preview=column 4
-        // When swapped: Editor=column 4, Preview=column 2
-        int editorColumn = _vm.IsPanelsSwapped ? 4 : 2;
-        int previewColumn = _vm.IsPanelsSwapped ? 2 : 4;
+        // Map panel names to their borders
+        Dictionary<string, Border> panelBorders = new()
+        {
+            { "Editor", _editorBorder },
+            { "Preview", _previewBorder },
+            { "AI", _aiBorder }
+        };
 
-        Grid.SetColumn(_editorBorder, editorColumn);
-        Grid.SetColumn(_previewBorder, previewColumn);
+        // Position each panel in its assigned column
+        // Grid columns: 0 (column 1), 2 (column 2), 4 (column 3)
+        // Columns 1 and 3 are splitters
+        PositionPanelInColumn(_vm.Column1Panel, 0, panelBorders);
+        PositionPanelInColumn(_vm.Column2Panel, 2, panelBorders);
+        PositionPanelInColumn(_vm.Column3Panel, 4, panelBorders);
 
-        _logger.LogInformation("Panel positions updated: Editor=column {EditorColumn}, Preview=column {PreviewColumn}", editorColumn, previewColumn);
+        // Update button enabled states
+        UpdateMoveButtonStates();
+
+        _logger.LogInformation("Panel positions updated: Column1={Column1}, Column2={Column2}, Column3={Column3}",
+            _vm.Column1Panel, _vm.Column2Panel, _vm.Column3Panel);
+    }
+
+    /// <summary>
+    /// Positions a panel in the specified grid column.
+    /// </summary>
+    private void PositionPanelInColumn(string panelName, int gridColumn, Dictionary<string, Border> panelBorders)
+    {
+        if (panelBorders.TryGetValue(panelName, out Border? border) && border != null)
+        {
+            Grid.SetColumn(border, gridColumn);
+            border.IsVisible = true;
+        }
+    }
+
+    /// <summary>
+    /// Updates the enabled state of move buttons based on panel positions.
+    /// </summary>
+    private void UpdateMoveButtonStates()
+    {
+        // Editor buttons
+        int editorColumn = GetColumnNumberForPanel("Editor");
+        if (_editorMoveLeftButton != null) _editorMoveLeftButton.IsEnabled = editorColumn > 1;
+        if (_editorMoveRightButton != null) _editorMoveRightButton.IsEnabled = editorColumn < 3;
+
+        // Preview buttons
+        int previewColumn = GetColumnNumberForPanel("Preview");
+        if (_previewMoveLeftButton != null) _previewMoveLeftButton.IsEnabled = previewColumn > 1;
+        if (_previewMoveRightButton != null) _previewMoveRightButton.IsEnabled = previewColumn < 3;
+
+        // AI buttons
+        int aiColumn = GetColumnNumberForPanel("AI");
+        if (_aiMoveLeftButton != null) _aiMoveLeftButton.IsEnabled = aiColumn > 1;
+        if (_aiMoveRightButton != null) _aiMoveRightButton.IsEnabled = aiColumn < 3;
+    }
+
+    /// <summary>
+    /// Gets the column number (1-3) for the specified panel.
+    /// </summary>
+    private int GetColumnNumberForPanel(string panelName)
+    {
+        if (_vm.Column1Panel == panelName) return 1;
+        if (_vm.Column2Panel == panelName) return 2;
+        if (_vm.Column3Panel == panelName) return 3;
+        return -1;
     }
 
     /// <summary>

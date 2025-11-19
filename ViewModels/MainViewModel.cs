@@ -177,16 +177,22 @@ public sealed partial class MainViewModel : ViewModelBase
     public AIPanelViewModel AIPanelViewModel { get; private set; } = null!;
 
     /// <summary>
-    /// Gets or sets a value indicating whether the AI panel is visible.
+    /// Gets or sets which panel is in column 1 (left).
     /// </summary>
     [ObservableProperty]
-    public partial bool IsAIPanelVisible { get; set; }
+    public partial string Column1Panel { get; set; } = "Editor";
 
     /// <summary>
-    /// Gets or sets a value indicating whether the editor and preview panels are swapped.
+    /// Gets or sets which panel is in column 2 (center).
     /// </summary>
     [ObservableProperty]
-    public partial bool IsPanelsSwapped { get; set; }
+    public partial string Column2Panel { get; set; } = "Preview";
+
+    /// <summary>
+    /// Gets or sets which panel is in column 3 (right).
+    /// </summary>
+    [ObservableProperty]
+    public partial string Column3Panel { get; set; } = "AI";
 
     /// <summary>
     /// Gets a value indicating whether the Save command can execute.
@@ -238,8 +244,11 @@ public sealed partial class MainViewModel : ViewModelBase
         IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
         AIPanelViewModel = new AIPanelViewModel(aiService);
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
-        IsAIPanelVisible = _settingsService.Settings.DockLayout.AIsPanelVisible;
-        IsPanelsSwapped = _settingsService.Settings.DockLayout.EditorPosition == "Right";
+
+        // Initialize docking layout
+        Column1Panel = _settingsService.Settings.DockLayout.Column1Panel;
+        Column2Panel = _settingsService.Settings.DockLayout.Column2Panel;
+        Column3Panel = _settingsService.Settings.DockLayout.Column3Panel;
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -591,27 +600,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     #endregion File Open/Save
 
-    #region AI Features
-
-    /// <summary>
-    /// Toggles the visibility of the AI panel.
-    /// </summary>
-    [RelayCommand]
-    private void ToggleAIPanel()
-    {
-        IsAIPanelVisible = !IsAIPanelVisible;
-        _logger.LogInformation("AI panel visibility toggled to: {IsAIPanelVisible}", IsAIPanelVisible);
-    }
-
-    /// <summary>
-    /// Swaps the positions of the editor and preview panels.
-    /// </summary>
-    [RelayCommand]
-    private void SwapEditorPreview()
-    {
-        IsPanelsSwapped = !IsPanelsSwapped;
-        _logger.LogInformation("Panels swapped: {IsPanelsSwapped}", IsPanelsSwapped);
-    }
+    #region AI Features and Panel Docking
 
     /// <summary>
     /// Opens the settings dialog for AI configuration.
@@ -652,6 +641,82 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Moves a panel from one column to another.
+    /// </summary>
+    /// <param name="panelName">The name of the panel to move ("Editor", "Preview", "AI")</param>
+    /// <param name="direction">The direction to move (-1 for left, 1 for right)</param>
+    [RelayCommand]
+    private void MovePanel(object? parameter)
+    {
+        if (parameter is not object[] parameters || parameters.Length != 2)
+            return;
+
+        string panelName = parameters[0]?.ToString() ?? string.Empty;
+        int direction = Convert.ToInt32(parameters[1]);
+
+        // Find which column currently contains this panel
+        int currentColumn = GetColumnForPanel(panelName);
+        if (currentColumn == -1)
+            return;
+
+        int targetColumn = currentColumn + direction;
+        if (targetColumn < 1 || targetColumn > 3)
+            return; // Can't move beyond boundaries
+
+        // Swap the panels in current and target columns
+        string targetPanel = GetPanelInColumn(targetColumn);
+        SetPanelInColumn(currentColumn, targetPanel);
+        SetPanelInColumn(targetColumn, panelName);
+
+        _logger.LogInformation("Moved panel {PanelName} from column {CurrentColumn} to column {TargetColumn}",
+            panelName, currentColumn, targetColumn);
+    }
+
+    /// <summary>
+    /// Gets the column number (1-3) that contains the specified panel.
+    /// </summary>
+    private int GetColumnForPanel(string panelName)
+    {
+        if (Column1Panel == panelName) return 1;
+        if (Column2Panel == panelName) return 2;
+        if (Column3Panel == panelName) return 3;
+        return -1;
+    }
+
+    /// <summary>
+    /// Gets the panel name in the specified column.
+    /// </summary>
+    private string GetPanelInColumn(int column)
+    {
+        return column switch
+        {
+            1 => Column1Panel,
+            2 => Column2Panel,
+            3 => Column3Panel,
+            _ => "None"
+        };
+    }
+
+    /// <summary>
+    /// Sets which panel is in the specified column.
+    /// </summary>
+    private void SetPanelInColumn(int column, string panelName)
+    {
+        switch (column)
+        {
+            case 1:
+                Column1Panel = panelName;
+                break;
+            case 2:
+                Column2Panel = panelName;
+                break;
+            case 3:
+                Column3Panel = panelName;
+                break;
+        }
+    }
+
+    /// <summary>
     /// Handles the DiagramGenerated event from the AI panel.
     /// </summary>
     private void OnDiagramGenerated(object? sender, string generatedDiagram)
@@ -672,28 +737,33 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Handles changes to the AI panel visibility state.
+    /// Handles changes to column 1 panel assignment.
     /// </summary>
-    partial void OnIsAIPanelVisibleChanged(bool value)
+    partial void OnColumn1PanelChanged(string value)
     {
-        _settingsService.Settings.DockLayout.AIsPanelVisible = value;
+        _settingsService.Settings.DockLayout.Column1Panel = value;
         _settingsService.Save();
     }
 
     /// <summary>
-    /// Handles changes to the panels swapped state.
+    /// Handles changes to column 2 panel assignment.
     /// </summary>
-    partial void OnIsPanelsSwappedChanged(bool value)
+    partial void OnColumn2PanelChanged(string value)
     {
-        string editorPosition = value ? "Right" : "Left";
-        string previewPosition = value ? "Left" : "Right";
-
-        _settingsService.Settings.DockLayout.EditorPosition = editorPosition;
-        _settingsService.Settings.DockLayout.PreviewPosition = previewPosition;
+        _settingsService.Settings.DockLayout.Column2Panel = value;
         _settingsService.Save();
     }
 
-    #endregion AI Features
+    /// <summary>
+    /// Handles changes to column 3 panel assignment.
+    /// </summary>
+    partial void OnColumn3PanelChanged(string value)
+    {
+        _settingsService.Settings.DockLayout.Column3Panel = value;
+        _settingsService.Save();
+    }
+
+    #endregion AI Features and Panel Docking
 
     /// <summary>
     /// Updates the window title to reflect the current file name and unsaved changes status.
@@ -1308,9 +1378,9 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
 
         // Persist dock layout settings
-        _settingsService.Settings.DockLayout.AIsPanelVisible = IsAIPanelVisible;
-        _settingsService.Settings.DockLayout.EditorPosition = IsPanelsSwapped ? "Right" : "Left";
-        _settingsService.Settings.DockLayout.PreviewPosition = IsPanelsSwapped ? "Left" : "Right";
+        _settingsService.Settings.DockLayout.Column1Panel = Column1Panel;
+        _settingsService.Settings.DockLayout.Column2Panel = Column2Panel;
+        _settingsService.Settings.DockLayout.Column3Panel = Column3Panel;
 
         _settingsService.Save();
     }
