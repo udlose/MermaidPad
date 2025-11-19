@@ -32,6 +32,9 @@
 		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/js-yaml.min.js" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="JsYamlHash" />
 		</GetFileHash>
+		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/panzoom.min.js" Algorithm="SHA256">
+			<Output TaskParameter="Hash" PropertyName="PanzoomHash" />
+		</GetFileHash>
 		<GetFileHash Files="$(MSBuildProjectDirectory)/Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs" Algorithm="SHA256">
 			<Output TaskParameter="Hash" PropertyName="MermaidElkLayoutHash" />
 		</GetFileHash>
@@ -45,6 +48,7 @@
 		<Message Importance="High" Text="Index.html Hash: $(IndexHtmlHash)" />
 		<Message Importance="High" Text="Mermaid.min.js Hash: $(MermaidJsHash)" />
 		<Message Importance="High" Text="Js-YAML.min.js Hash: $(JsYamlHash)" />
+		<Message Importance="High" Text="Panzoom.min.js Hash: $(PanzoomHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Hash: $(MermaidElkLayoutHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-SP2CHFBE Hash: $(MermaidElkLayoutChunkSP2CHFBEHash)" />
 		<Message Importance="High" Text="Mermaid-ELK-Layout Chunk-Render-AVRWSH4D Hash: $(MermaidElkLayoutChunkRenderAVRWSH4DHash)" />
@@ -93,6 +97,7 @@ internal static class AssetHashes
 		["index.html"] = "$(IndexHtmlHash)",
 		["mermaid.min.js"] = "$(MermaidJsHash)",
 		["js-yaml.min.js"] = "$(JsYamlHash)",
+		["panzoom.min.js"] = "$(PanzoomHash)",
 		["mermaid-layout-elk.esm.min.mjs"] = "$(MermaidElkLayoutHash)",
 		["chunk-SP2CHFBE.mjs"] = "$(MermaidElkLayoutChunkSP2CHFBEHash)",
 		["render-AVRWSH4D.mjs"] = "$(MermaidElkLayoutChunkRenderAVRWSH4DHash)",

@@ -82,6 +82,24 @@ public sealed class AppSettings
     public int EditorCaretOffset { get; set; }
 
     /// <summary>
+    /// Gets or sets the saved zoom level for the diagram preview.
+    /// Default is 1.0 (100%). Range: 0.1 (10%) to 5.0 (500%).
+    /// </summary>
+    public double ZoomLevel { get; set; } = 1.0;
+
+    /// <summary>
+    /// Gets or sets the horizontal offset of the rendered diagram, in
+    /// device-independent units, applied when panning the content.
+    /// </summary>
+    public double PanOffsetX { get; set; }
+
+    /// <summary>
+    /// Gets or sets the vertical offset of the rendered diagram, in
+    /// device-independent units, applied when panning the content.
+    /// </summary>
+    public double PanOffsetY { get; set; }
+
+    /// <summary>
     /// The file path of the currently open diagram file.
     /// </summary>
     /// <value>
