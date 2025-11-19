@@ -62,6 +62,9 @@
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="Dock.Avalonia" Version="11.3.8" />
+		<PackageReference Include="Dock.Model.Mvvm" Version="11.3.8" />
+		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.8" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
 		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" Version="8.0.0" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />

@@ -177,6 +177,12 @@ public sealed partial class MainViewModel : ViewModelBase
     public AIPanelViewModel AIPanelViewModel { get; private set; } = null!;
 
     /// <summary>
+    /// Gets or sets the docking layout.
+    /// </summary>
+    [ObservableProperty]
+    public partial Dock.Model.Core.IDock? Layout { get; set; }
+
+    /// <summary>
     /// Gets or sets which panel is in column 1 (left).
     /// </summary>
     [ObservableProperty]
@@ -245,6 +251,11 @@ public sealed partial class MainViewModel : ViewModelBase
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
 
         // Initialize docking layout
+        var dockFactory = new Infrastructure.DockFactory(this);
+        Layout = dockFactory.CreateLayout();
+        dockFactory.InitLayout(Layout);
+
+        // Keep old panel column settings for backwards compatibility
         Column1Panel = _settingsService.Settings.DockLayout.Column1Panel;
         Column2Panel = _settingsService.Settings.DockLayout.Column2Panel;
         Column3Panel = _settingsService.Settings.DockLayout.Column3Panel;

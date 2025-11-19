@@ -1,0 +1,74 @@
+<ResourceDictionary
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:views="clr-namespace:MermaidPad.Views"
+  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+  xmlns:dock="clr-namespace:Dock.Model.Mvvm.Controls;assembly=Dock.Model.Mvvm"
+  xmlns:core="clr-namespace:Dock.Model.Core;assembly=Dock.Model">
+
+  <!-- Editor Panel Template -->
+  <DataTemplate DataType="dock:Tool" x:Key="EditorTemplate">
+    <Panel>
+      <Panel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="Editor" />
+          <Binding Path="Context" Converter="{x:Static ObjectConverters.IsNotNull}" />
+        </MultiBinding>
+      </Panel.IsVisible>
+      <edit:TextEditor
+        x:Name="Editor"
+        FontFamily="Consolas"
+        HorizontalScrollBarVisibility="Auto"
+        LineNumbersForeground="Lime"
+        ShowLineNumbers="True"
+        VerticalScrollBarVisibility="Auto">
+        <edit:TextEditor.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Copy" />
+            <MenuItem Header="Paste" />
+          </ContextMenu>
+        </edit:TextEditor.ContextMenu>
+      </edit:TextEditor>
+    </Panel>
+  </DataTemplate>
+
+  <!-- Preview Panel Template -->
+  <DataTemplate DataType="dock:Tool" x:Key="PreviewTemplate">
+    <Panel>
+      <Panel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="Preview" />
+          <Binding Path="Context" Converter="{x:Static ObjectConverters.IsNotNull}" />
+        </MultiBinding>
+      </Panel.IsVisible>
+      <Grid DataContext="{Binding Context}">
+        <wv:WebView Name="Preview" />
+        <TextBlock
+          Margin="10"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          FontSize="11"
+          Foreground="Red"
+          IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          Text="{Binding LastError}"
+          TextWrapping="Wrap" />
+      </Grid>
+    </Panel>
+  </DataTemplate>
+
+  <!-- AI Assistant Panel Template -->
+  <DataTemplate DataType="dock:Tool" x:Key="AITemplate">
+    <Panel>
+      <Panel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="AIAssistant" />
+          <Binding Path="Context" Converter="{x:Static ObjectConverters.IsNotNull}" />
+        </MultiBinding>
+      </Panel.IsVisible>
+      <views:AIPanel DataContext="{Binding Context}" />
+    </Panel>
+  </DataTemplate>
+
+</ResourceDictionary>

@@ -14,6 +14,7 @@
     <StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <StyleInclude Source="avares://Dock.Avalonia.Themes.Fluent/DockFluentTheme.axaml" />
     <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
   </Application.Styles>
 </Application>
