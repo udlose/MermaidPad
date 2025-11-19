@@ -26,6 +26,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
+using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
@@ -57,6 +58,9 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly ISecureStorageService _secureStorage;
+    private readonly AIServiceFactory _aiServiceFactory;
+    private readonly IServiceProvider _services;
 
     private const string DebounceRenderKey = "render";
 
@@ -168,6 +172,23 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial ObservableCollection<string> RecentFiles { get; set; } = [];
 
     /// <summary>
+    /// Gets the AI panel view model.
+    /// </summary>
+    public AIPanelViewModel AIPanelViewModel { get; private set; } = null!;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the AI panel is visible.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsAIPanelVisible { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the editor and preview panels are swapped.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsPanelsSwapped { get; set; }
+
+    /// <summary>
     /// Gets a value indicating whether the Save command can execute.
     /// </summary>
     public bool CanSave => HasText && IsDirty;
@@ -197,6 +218,9 @@ public sealed partial class MainViewModel : ViewModelBase
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
         _logger = logger;
+        _secureStorage = services.GetRequiredService<ISecureStorageService>();
+        _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
+        _services = services;
 
         InitializeCurrentMermaidPadVersion();
 
@@ -209,6 +233,13 @@ public sealed partial class MainViewModel : ViewModelBase
         EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
         EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
+
+        // Initialize AI panel
+        IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
+        AIPanelViewModel = new AIPanelViewModel(aiService);
+        AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
+        IsAIPanelVisible = _settingsService.Settings.DockLayout.AIsPanelVisible;
+        IsPanelsSwapped = _settingsService.Settings.DockLayout.EditorPosition == "Right";
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -558,6 +589,112 @@ public sealed partial class MainViewModel : ViewModelBase
         _logger.LogInformation("Recent files cleared");
     }
 
+    #endregion File Open/Save
+
+    #region AI Features
+
+    /// <summary>
+    /// Toggles the visibility of the AI panel.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleAIPanel()
+    {
+        IsAIPanelVisible = !IsAIPanelVisible;
+        _logger.LogInformation("AI panel visibility toggled to: {IsAIPanelVisible}", IsAIPanelVisible);
+    }
+
+    /// <summary>
+    /// Swaps the positions of the editor and preview panels.
+    /// </summary>
+    [RelayCommand]
+    private void SwapEditorPreview()
+    {
+        IsPanelsSwapped = !IsPanelsSwapped;
+        _logger.LogInformation("Panels swapped: {IsPanelsSwapped}", IsPanelsSwapped);
+    }
+
+    /// <summary>
+    /// Opens the settings dialog for AI configuration.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        try
+        {
+            Window? mainWindow = GetParentWindow();
+            if (mainWindow is null)
+            {
+                _logger.LogWarning("Cannot open settings: main window not found");
+                return;
+            }
+
+            SettingsDialogViewModel settingsViewModel = new SettingsDialogViewModel(
+                _settingsService,
+                _secureStorage,
+                _aiServiceFactory);
+
+            SettingsDialog settingsDialog = new SettingsDialog(settingsViewModel);
+            bool? result = await settingsDialog.ShowDialog<bool?>(mainWindow);
+
+            if (result == true)
+            {
+                // Settings were saved, recreate AI service with updated settings
+                IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
+                AIPanelViewModel.UpdateAIService(aiService);
+                _logger.LogInformation("Settings saved and AI service updated");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open settings dialog");
+            await ShowErrorMessageAsync("Failed to open settings. " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Handles the DiagramGenerated event from the AI panel.
+    /// </summary>
+    private void OnDiagramGenerated(object? sender, string generatedDiagram)
+    {
+        try
+        {
+            // Insert or replace the diagram text
+            Dispatcher.UIThread.Post(() =>
+            {
+                DiagramText = generatedDiagram;
+                _logger.LogInformation("Diagram generated by AI and inserted into editor");
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to handle generated diagram");
+        }
+    }
+
+    /// <summary>
+    /// Handles changes to the AI panel visibility state.
+    /// </summary>
+    partial void OnIsAIPanelVisibleChanged(bool value)
+    {
+        _settingsService.Settings.DockLayout.AIsPanelVisible = value;
+        _settingsService.Save();
+    }
+
+    /// <summary>
+    /// Handles changes to the panels swapped state.
+    /// </summary>
+    partial void OnIsPanelsSwappedChanged(bool value)
+    {
+        string editorPosition = value ? "Right" : "Left";
+        string previewPosition = value ? "Left" : "Right";
+
+        _settingsService.Settings.DockLayout.EditorPosition = editorPosition;
+        _settingsService.Settings.DockLayout.PreviewPosition = previewPosition;
+        _settingsService.Save();
+    }
+
+    #endregion AI Features
+
     /// <summary>
     /// Updates the window title to reflect the current file name and unsaved changes status.
     /// </summary>
@@ -635,8 +772,6 @@ public sealed partial class MainViewModel : ViewModelBase
             _logger.LogError(ex, "Failed to show error message");
         }
     }
-
-    #endregion File Open/Save
 
     /// <summary>
     /// Asynchronously renders the diagram text using the configured renderer.
@@ -1158,7 +1293,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Persists the current application settings to storage.
     /// </summary>
     /// <remarks>This method updates the settings service with the current state of the application,
-    /// including diagram text, live preview settings, Mermaid version information, and editor  selection details. After
+    /// including diagram text, live preview settings, Mermaid version information, editor  selection details, and dock layout. After
     /// updating the settings, the method saves them to ensure they  are persisted across application
     /// sessions.</remarks>
     public void Persist()
@@ -1171,6 +1306,12 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
         _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
+
+        // Persist dock layout settings
+        _settingsService.Settings.DockLayout.AIsPanelVisible = IsAIPanelVisible;
+        _settingsService.Settings.DockLayout.EditorPosition = IsPanelsSwapped ? "Right" : "Left";
+        _settingsService.Settings.DockLayout.PreviewPosition = IsPanelsSwapped ? "Left" : "Right";
+
         _settingsService.Save();
     }
 

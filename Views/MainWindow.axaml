@@ -4,6 +4,7 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:views="clr-namespace:MermaidPad.Views"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="{Binding WindowTitle}"
@@ -88,8 +89,22 @@
         Command="{Binding ExportCommand}"
         Content="Export"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+      <Separator Margin="6,0" />
+      <Button
+        Command="{Binding ToggleAIPanelCommand}"
+        Content="{Binding IsAIPanelVisible, Converter={x:Static ObjectConverters.TrueToObject}, ConverterParameter='Hide AI Panel', FalseValue='Show AI Panel'}"
+        ToolTip.Tip="Toggle AI Assistant Panel" />
+      <Button
+        Command="{Binding SwapEditorPreviewCommand}"
+        Content="Swap Panels"
+        ToolTip.Tip="Swap Editor and Preview positions" />
+      <Button
+        Command="{Binding OpenSettingsCommand}"
+        Content="Settings"
+        ToolTip.Tip="Configure AI settings" />
+      <Separator Margin="6,0" />
       <CheckBox
-        Margin="12,0,0,0"
+        Margin="6,0,0,0"
         Content="Live Preview:"
         FlowDirection="RightToLeft"
         IsChecked="{Binding LivePreviewEnabled}"
@@ -115,67 +130,114 @@
         Text="{Binding StatusText}" />
     </StackPanel>
 
-    <!-- Main Content (your existing GridSplitter, Editor, WebView) -->
-    <Grid DockPanel.Dock="Top">
+    <!-- Main Content with dockable AI panel, Editor, and WebView -->
+    <Grid DockPanel.Dock="Top" x:Name="MainContentGrid">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
+        <!-- AI Panel (when visible on left) -->
+        <ColumnDefinition Width="300" MinWidth="200" />
         <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="2*" />
+
+        <!-- First main panel (Editor when not swapped, Preview when swapped) -->
+        <ColumnDefinition Width="*" MinWidth="300" />
+        <ColumnDefinition Width="Auto" />
+
+        <!-- Second main panel (Preview when not swapped, Editor when swapped) -->
+        <ColumnDefinition Width="2*" MinWidth="300" />
       </Grid.ColumnDefinitions>
 
-      <!-- Text Editor Panel -->
+      <!-- AI Panel on Left (visible when IsAIPanelVisible=true) -->
       <Border
         Grid.Column="0"
         Margin="6,0,0,6"
         BorderBrush="LightGray"
         BorderThickness="1"
-        CornerRadius="4">
-        <edit:TextEditor
-          x:Name="Editor"
-          FontFamily="Consolas"
-          HorizontalScrollBarVisibility="Auto"
-          LineNumbersForeground="Lime"
-          ShowLineNumbers="True"
-          VerticalScrollBarVisibility="Auto">
-          <edit:TextEditor.ContextMenu>
-            <ContextMenu Opening="GetContextMenuState">
-            <MenuItem 
-              Header="Copy" 
-              IsEnabled="{Binding CanCopyClipboard}"/>
-            <MenuItem 
-              Header="Paste" 
-              IsEnabled="{Binding CanPasteClipboard}"/>
-            </ContextMenu>
-          </edit:TextEditor.ContextMenu>
-        </edit:TextEditor>
+        CornerRadius="4"
+        IsVisible="{Binding IsAIPanelVisible}">
+        <DockPanel>
+          <TextBlock
+            DockPanel.Dock="Top"
+            Margin="8,6"
+            FontWeight="Bold"
+            Text="AI Assistant" />
+          <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
+        </DockPanel>
       </Border>
 
-      <!-- GridSplitter -->
+      <!-- GridSplitter for AI Panel -->
       <GridSplitter
         Grid.Column="1"
         Width="6"
         Background="Transparent"
+        IsVisible="{Binding IsAIPanelVisible}"
         ResizeDirection="Columns" />
 
-      <!-- WebView Panel -->
+      <!-- Text Editor Panel (in column 2 when not swapped, column 4 when swapped) -->
       <Border
-        Grid.Column="2"
+        x:Name="EditorBorder"
+        Margin="6,0,0,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <DockPanel>
+          <TextBlock
+            DockPanel.Dock="Top"
+            Margin="8,6"
+            FontWeight="Bold"
+            Text="Editor" />
+          <edit:TextEditor
+            x:Name="Editor"
+            FontFamily="Consolas"
+            HorizontalScrollBarVisibility="Auto"
+            LineNumbersForeground="Lime"
+            ShowLineNumbers="True"
+            VerticalScrollBarVisibility="Auto">
+            <edit:TextEditor.ContextMenu>
+              <ContextMenu Opening="GetContextMenuState">
+                <MenuItem
+                  Header="Copy"
+                  IsEnabled="{Binding CanCopyClipboard}"/>
+                <MenuItem
+                  Header="Paste"
+                  IsEnabled="{Binding CanPasteClipboard}"/>
+              </ContextMenu>
+            </edit:TextEditor.ContextMenu>
+          </edit:TextEditor>
+        </DockPanel>
+      </Border>
+
+      <!-- Middle GridSplitter -->
+      <GridSplitter
+        Grid.Column="3"
+        Width="6"
+        Background="Transparent"
+        ResizeDirection="Columns" />
+
+      <!-- WebView Panel (in column 4 when not swapped, column 2 when swapped) -->
+      <Border
+        x:Name="PreviewBorder"
         Margin="0,0,6,6"
         BorderBrush="LightGray"
         BorderThickness="1"
         CornerRadius="4">
-        <Grid>
-          <wv:WebView Name="Preview" />
+        <DockPanel>
           <TextBlock
-            Margin="10"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Top"
-            FontSize="11"
-            Foreground="Red"
-            IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="{Binding LastError}"
-            TextWrapping="Wrap" />
-        </Grid>
+            DockPanel.Dock="Top"
+            Margin="8,6"
+            FontWeight="Bold"
+            Text="Preview" />
+          <Grid>
+            <wv:WebView Name="Preview" />
+            <TextBlock
+              Margin="10"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
+              FontSize="11"
+              Foreground="Red"
+              IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+              Text="{Binding LastError}"
+              TextWrapping="Wrap" />
+          </Grid>
+        </DockPanel>
       </Border>
     </Grid>
   </DockPanel>

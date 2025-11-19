@@ -67,6 +67,10 @@ public sealed partial class MainWindow : Window
     private EventHandler? _themeChangedHandler;
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
+    // References to borders for panel swapping
+    private Border? _editorBorder;
+    private Border? _previewBorder;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
     /// </summary>
@@ -118,6 +122,13 @@ public sealed partial class MainWindow : Window
 
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
+
+        // Get border references for panel swapping
+        _editorBorder = this.FindControl<Border>("EditorBorder");
+        _previewBorder = this.FindControl<Border>("PreviewBorder");
+
+        // Set initial panel positions
+        UpdatePanelPositions();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
@@ -330,7 +341,32 @@ public sealed partial class MainWindow : Window
                 },
                 DispatcherPriority.Background);
                 break;
+
+            case nameof(_vm.IsPanelsSwapped):
+                UpdatePanelPositions();
+                break;
         }
+    }
+
+    /// <summary>
+    /// Updates the grid column positions of the editor and preview panels based on the IsPanelsSwapped state.
+    /// </summary>
+    private void UpdatePanelPositions()
+    {
+        if (_editorBorder is null || _previewBorder is null)
+        {
+            return;
+        }
+
+        // When not swapped: Editor=column 2, Preview=column 4
+        // When swapped: Editor=column 4, Preview=column 2
+        int editorColumn = _vm.IsPanelsSwapped ? 4 : 2;
+        int previewColumn = _vm.IsPanelsSwapped ? 2 : 4;
+
+        Grid.SetColumn(_editorBorder, editorColumn);
+        Grid.SetColumn(_previewBorder, previewColumn);
+
+        _logger.LogInformation("Panel positions updated: Editor=column {EditorColumn}, Preview=column {PreviewColumn}", editorColumn, previewColumn);
     }
 
     /// <summary>
