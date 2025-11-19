@@ -22,9 +22,8 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Anthropic.SDK;
-using Anthropic.SDK.Constants;
-using Anthropic.SDK.Messaging;
+using Anthropic;
+using Anthropic.Messages;
 
 namespace MermaidPad.Services.AI;
 
@@ -43,8 +42,8 @@ public sealed class AnthropicAIService : IAIService
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
 
         _apiKey = apiKey;
-        _model = string.IsNullOrWhiteSpace(model) ? AnthropicModels.Claude3Sonnet : model;
-        _client = new AnthropicClient(new APIAuthentication(apiKey));
+        _model = string.IsNullOrWhiteSpace(model) ? "claude-sonnet-4" : model;
+        _client = new AnthropicClient(apiKey);
     }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
@@ -53,24 +52,21 @@ public sealed class AnthropicAIService : IAIService
     {
         try
         {
-            var messages = new[]
+            var request = new MessageRequest
             {
-                new Message
+                Model = _model,
+                MaxTokens = 10,
+                Messages = new[]
                 {
-                    Role = RoleType.User,
-                    Content = "Hello, please respond with 'OK'."
+                    new Message
+                    {
+                        Role = "user",
+                        Content = "Hello, please respond with 'OK'."
+                    }
                 }
             };
 
-            var parameters = new MessageParameters
-            {
-                Messages = messages,
-                MaxTokens = 10,
-                Model = _model,
-                Stream = false
-            };
-
-            var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+            var response = await _client.Messages.CreateAsync(request, cancellationToken);
             return response?.Content?.Any() == true;
         }
         catch (Exception)
@@ -98,25 +94,22 @@ flowchart TD
     A[Start] --> B[Process]
     B --> C[End]";
 
-        var messages = new[]
+        var request = new MessageRequest
         {
-            new Message
+            Model = _model,
+            MaxTokens = 2048,
+            System = systemPrompt,
+            Messages = new[]
             {
-                Role = RoleType.User,
-                Content = prompt
+                new Message
+                {
+                    Role = "user",
+                    Content = prompt
+                }
             }
         };
 
-        var parameters = new MessageParameters
-        {
-            Messages = messages,
-            MaxTokens = 2048,
-            Model = _model,
-            Stream = false,
-            System = systemPrompt
-        };
-
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await _client.Messages.CreateAsync(request, cancellationToken);
         var content = response?.Content?.FirstOrDefault()?.Text ?? string.Empty;
 
         // Clean up response in case AI included markdown fences
@@ -144,25 +137,22 @@ flowchart TD
 
         var systemPrompt = @"You are an expert at reading and explaining Mermaid diagrams. Provide clear, concise explanations of what the diagram represents, its structure, and key relationships. Format your response in a readable way.";
 
-        var messages = new[]
+        var request = new MessageRequest
         {
-            new Message
+            Model = _model,
+            MaxTokens = 1024,
+            System = systemPrompt,
+            Messages = new[]
             {
-                Role = RoleType.User,
-                Content = $"Please explain this Mermaid diagram:\n\n{mermaidCode}"
+                new Message
+                {
+                    Role = "user",
+                    Content = $"Please explain this Mermaid diagram:\n\n{mermaidCode}"
+                }
             }
         };
 
-        var parameters = new MessageParameters
-        {
-            Messages = messages,
-            MaxTokens = 1024,
-            Model = _model,
-            Stream = false,
-            System = systemPrompt
-        };
-
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await _client.Messages.CreateAsync(request, cancellationToken);
         return response?.Content?.FirstOrDefault()?.Text ?? "Unable to generate explanation.";
     }
 
@@ -173,25 +163,22 @@ flowchart TD
 
         var systemPrompt = @"You are an expert at analyzing Mermaid diagrams. Suggest improvements for clarity, structure, and best practices. Be specific and actionable.";
 
-        var messages = new[]
+        var request = new MessageRequest
         {
-            new Message
+            Model = _model,
+            MaxTokens = 1024,
+            System = systemPrompt,
+            Messages = new[]
             {
-                Role = RoleType.User,
-                Content = $"Please analyze this Mermaid diagram and suggest improvements:\n\n{mermaidCode}"
+                new Message
+                {
+                    Role = "user",
+                    Content = $"Please analyze this Mermaid diagram and suggest improvements:\n\n{mermaidCode}"
+                }
             }
         };
 
-        var parameters = new MessageParameters
-        {
-            Messages = messages,
-            MaxTokens = 1024,
-            Model = _model,
-            Stream = false,
-            System = systemPrompt
-        };
-
-        var response = await _client.Messages.GetClaudeMessageAsync(parameters, cancellationToken);
+        var response = await _client.Messages.CreateAsync(request, cancellationToken);
         return response?.Content?.FirstOrDefault()?.Text ?? "Unable to generate suggestions.";
     }
 }
