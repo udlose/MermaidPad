@@ -66,6 +66,7 @@ public sealed class AssetService
             IndexHtmlFilePath,
             MermaidMinJsFilePath,
             JsYamlFilePath,
+            PanzoomMinJsFilePath,
             MermaidLayoutElkPath,
             MermaidLayoutElkChunkSP2CHFBEPath,
             MermaidLayoutElkRenderAVRWSH4DPath
@@ -73,19 +74,31 @@ public sealed class AssetService
     }
 
     /// <summary>
-    /// The file name for the main HTML index asset.
+    /// Represents the relative file path to the application's main HTML file, used as the entry point for web resources.
     /// </summary>
     internal const string IndexHtmlFilePath = "index.html";
 
     /// <summary>
-    /// The file name for the minified Mermaid JavaScript asset.
+    /// Represents the file path to the minified Mermaid.js library.
     /// </summary>
+    /// <remarks>This constant specifies the relative or absolute path to the "mermaid.min.js" file,  which is
+    /// typically used for rendering Mermaid diagrams in web applications.</remarks>
     internal const string MermaidMinJsFilePath = "mermaid.min.js";
 
     /// <summary>
-    /// The file name for the minified js-yaml JavaScript asset.
+    /// Represents the file path to the minimized JavaScript library "js-yaml".
     /// </summary>
+    /// <remarks>This constant specifies the relative path to the "js-yaml.min.js" file, which is typically
+    /// used for YAML parsing in JavaScript environments.</remarks>
     internal const string JsYamlFilePath = "js-yaml.min.js";
+
+    /// <summary>
+    /// Represents the file path to the minimized version of the Panzoom JavaScript library.
+    /// </summary>
+    /// <remarks>This constant provides the relative path to the "panzoom.min.js" file, which is typically
+    /// used for including the Panzoom library in web-based applications. Ensure that the file exists at the specified
+    /// location when referencing this constant.</remarks>
+    internal const string PanzoomMinJsFilePath = "panzoom.min.js";
 
     /// <summary>
     /// Represents the relative path to the Mermaid ELK layout module file.
@@ -129,6 +142,7 @@ public sealed class AssetService
     ///     <item><c>IndexHtmlFileName</c></item>
     ///     <item><c>MermaidMinJsFileName</c></item>
     ///     <item><c>JsYamlFileName</c></item>
+    ///     <item><c>PanzoomMinJsFileName</c></item>
     ///     <item><c>MermaidLayoutElkPath</c></item>
     ///     <item><c>MermaidLayoutElkChunkSP2CHFBEPath</c></item>
     ///     <item><c>MermaidLayoutElkRenderAVRWSH4DPath</c></item>
@@ -142,181 +156,9 @@ public sealed class AssetService
     #region Get assets from disk
 
     /// <summary>
-    /// Asynchronously retrieves the specified asset from disk as a byte array.
-    /// </summary>
-    /// <remarks>This method performs several security and integrity checks to ensure the asset is safe to
-    /// use. These include validating the file path, verifying the file's integrity, and ensuring the file size does not
-    /// exceed the maximum allowed limit. If the asset fails integrity verification, the method attempts to restore it
-    /// from embedded resources.
-    ///     <list type="bullet">
-    ///         <item>
-    ///             <description>Validates that the asset name is not null, empty, or invalid.</description>
-    ///         </item>
-    ///         <item>
-    ///             <description>Ensures the asset path is within the designated assets directory.</description>
-    ///         </item>
-    ///         <item>
-    ///             <description>Checks that the asset is a regular file and not a symbolic link or reparse point.</description>
-    ///         </item>
-    ///         <item>
-    ///             <description>Enforces a maximum file size limit of 50 MB to prevent resource exhaustion.</description>
-    ///         </item>
-    ///         <item>
-    ///             <description>Verifies the file's integrity against a known hash.</description>
-    ///         </item>
-    ///     </list>
-    /// </remarks>
-    /// <param name="assetName">The name of the asset to retrieve. This value cannot be <see langword="null"/> or whitespace.</param>
-    /// <returns>A byte array containing the contents of the asset. The array will contain the asset's data if the file is found,
-    /// valid, and passes all security and integrity checks.</returns>
-    /// <exception cref="MissingAssetException">Thrown if the specified asset does not exist at the expected location.</exception>
-    /// <exception cref="SecurityException">Thrown if the asset fails security checks, such as being outside the assets directory, exceeding the maximum
-    /// allowed size, or being tampered with.</exception>
-    /// <exception cref="AssetIntegrityException">Thrown if the asset fails integrity verification, even after attempting to restore it from embedded resources.</exception>
-    internal async Task<byte[]> GetAssetFromDiskAsync(string assetName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(assetName);
-        _logger.LogInformation("Requesting asset from disk: {AssetName}", assetName);
-
-        // Step 1: Validate the asset name
-        string validatedAssetName = ValidateAssetName(assetName);
-
-        // Step 2: Get the assets directory
-        string assetsDirectory = GetAssetsDirectory();
-
-        // Step 3: Build the full path using Path.Combine (safe API)
-        string assetPath = Path.Combine(assetsDirectory, validatedAssetName);
-
-        // Step 4: Check file existence and attributes
-        FileInfo fileInfo = new FileInfo(assetPath);
-        if (!fileInfo.Exists)
-        {
-            throw new MissingAssetException($"Asset '{validatedAssetName}' not found at '{assetPath}'");
-        }
-
-        // Step 5: Additional validation - ensure it's a file, not a directory or symlink
-        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(assetPath, assetsDirectory, isAssetFile: true);
-        if (!isSecure && !string.IsNullOrEmpty(reason))
-        {
-            _logger.LogError("{Reason}", reason);
-            throw new SecurityException(reason);
-        }
-
-        // Step 6: Check file size to prevent resource exhaustion
-        if (fileInfo.Length > MaxFileSize)
-        {
-            string errorMessage = $"{SecurityLogCategory} Asset '{validatedAssetName}' exceeds max size ({fileInfo.Length} > {MaxFileSize})";
-            _logger.LogError("{ErrorMessage}", errorMessage);
-            throw new SecurityException(errorMessage);
-        }
-
-        // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
-        string? expectedHash = _assetIntegrityService.GetStoredHashForAsset(validatedAssetName);
-        if (expectedHash is not null)
-        {
-            bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
-                .ConfigureAwait(false);
-
-            if (!integrityValid)
-            {
-                // If integrity check fails, extract from embedded resources as a fallback and overwrite the invalid file
-                _logger.LogWarning("Asset '{ValidatedAssetName}' failed integrity check on disk. File may be corrupted or tampered with. Re-extracting from embedded resources", validatedAssetName);
-                await ExtractResourceToDiskAsync($"{EmbeddedResourcePrefix}{validatedAssetName}", assetPath)
-                    .ConfigureAwait(false);
-
-                // Re-verify integrity after extraction
-                integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
-                    .ConfigureAwait(false);
-
-                if (!integrityValid)
-                {
-                    throw new AssetIntegrityException($"Asset '{validatedAssetName}' failed integrity verification after re-extraction");
-                }
-
-                // Refresh file info as the file has been replaced
-                fileInfo.Refresh();
-            }
-        }
-
-        // Step 8: Read the file with proper sharing mode
-        try
-        {
-            // Use FileShare.Read to allow other processes to read but not write
-            await using FileStream stream = _securityService.CreateSecureFileStream(
-                assetPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                DefaultBufferSize);
-
-            // Step 9: Validate stream properties match file info (TOCTOU protection)
-            if (stream.Length != fileInfo.Length)
-            {
-                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
-                _logger.LogError("{ErrorMessage}", errorMessage);
-                throw new SecurityException(errorMessage);
-            }
-
-            // Copy using an intermediate buffer of DefaultBufferSize. This reads/writes in chunks, but the MemoryStream still
-            // produces a single contiguous buffer. We pre-size the MemoryStream to avoid internal growth reallocations.
-            int expectedLength = checked((int)fileInfo.Length);
-            await using MemoryStream ms = new MemoryStream(capacity: expectedLength);
-
-            await stream.CopyToAsync(ms, DefaultBufferSize)
-                .ConfigureAwait(false);
-
-            // Optional: post-read consistency check
-            if (ms.Length != expectedLength)
-            {
-                string errorMessage = $"{SecurityLogCategory} File size changed during read for '{validatedAssetName}': possible TOCTOU attack";
-                _logger.LogError("{ErrorMessage}", errorMessage);
-                throw new SecurityException(errorMessage);
-            }
-
-            // Return the underlying buffer when possible to avoid an extra copy.
-            // Ensure we don't return an oversized internal buffer.
-            if (ms.TryGetBuffer(out ArraySegment<byte> segment) &&
-                segment.Array is not null &&
-                segment.Offset == 0 &&
-                segment.Count == expectedLength &&
-                segment.Array.Length == expectedLength)
-            {
-                _logger.LogInformation("Successfully read asset '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, segment.Count);
-                return segment.Array;
-            }
-
-            byte[] buffer = ms.ToArray(); // fallback (copies)
-            _logger.LogInformation("Successfully read asset '{ValidatedAssetName}' ({SizeBytes} bytes)", validatedAssetName, buffer.Length);
-            return buffer;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            string errorMessage = $"{SecurityLogCategory} Access denied to asset '{validatedAssetName}': possible permission or symlink issue";
-            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
-            throw new SecurityException(errorMessage, ex);
-        }
-        catch (DirectoryNotFoundException ex)
-        {
-            string errorMessage = $"{SecurityLogCategory} Directory not found for asset '{validatedAssetName}': possible symlink manipulation";
-            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
-            throw new SecurityException(errorMessage, ex);
-        }
-        catch (IOException ex)
-        {
-            // Handle platform-specific IO errors that might indicate symlink issues
-            string errorMessage = $"{SecurityLogCategory} IO error accessing asset '{validatedAssetName}': possible symlink or filesystem issue";
-            _logger.LogError(ex, "{ErrorMessage}", errorMessage);
-            throw new SecurityException(errorMessage, ex);
-        }
-    }
-
-    /// <summary>
     /// Opens a read-only stream to the specified asset file on disk for efficient file streaming.
     /// </summary>
     /// <remarks>
-    /// This method performs the same security and integrity checks as <see cref="GetAssetFromDiskAsync"/>,
-    /// but returns a stream instead of loading the entire file into memory. This is more efficient for serving
-    /// large files over HTTP or when the file content will be copied to another stream.
     /// <para>
     /// The caller is responsible for disposing the returned stream.
     /// </para>
@@ -324,7 +166,7 @@ public sealed class AssetService
     /// Security and validation steps:
     /// <list type="bullet">
     ///     <item><description>Validates that the asset name is not null, empty, or invalid.</description></item>
-    ///     <item><description>Ensures the asset path is within the designated assets directory.</description></item>
+    ///     <item><description>Ensures the asset path is within the designated 'Assets' directory.</description></item>
     ///     <item><description>Checks that the asset is a regular file and not a symbolic link or reparse point.</description></item>
     ///     <item><description>Enforces a maximum file size limit of 10 MB to prevent resource exhaustion.</description></item>
     ///     <item><description>Verifies the file's integrity against a known hash.</description></item>

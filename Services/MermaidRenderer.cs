@@ -49,6 +49,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly string MermaidRequestPath;
     private readonly string IndexRequestPath;
     private readonly string JsYamlRequestPath;
+    private readonly string PanZoomRequestPath;
     private readonly string MermaidLayoutElkRequestPath;
     private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath;
     private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath;
@@ -58,6 +59,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private int _serverPort;
     private Task? _serverTask;
     private bool _isWebViewReady;
+
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private HttpListener? _httpListener;
 
@@ -88,6 +90,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";
         IndexRequestPath = $"/{AssetService.IndexHtmlFilePath}";
         JsYamlRequestPath = $"/{AssetService.JsYamlFilePath}";
+        PanZoomRequestPath = $"/{AssetService.PanzoomMinJsFilePath}";
         MermaidLayoutElkRequestPath = $"/{AssetService.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
         MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetService.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
         MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetService.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
@@ -380,6 +383,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase))
             {
                 assetName = AssetService.JsYamlFilePath;
+                contentType = javascriptContentType;
+            }
+            else if (string.Equals(requestPath, PanZoomRequestPath, StringComparison.OrdinalIgnoreCase))
+            {
+                assetName = AssetService.PanzoomMinJsFilePath;
                 contentType = javascriptContentType;
             }
             else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase))
@@ -752,6 +760,152 @@ public sealed class MermaidRenderer : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Script execution failed");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Restores the view state of the WebView by applying the specified zoom level and pan offsets.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>globalThis.restoreViewState</c> within
+    /// the WebView context. The function must be defined in the WebView's loaded content for the operation to succeed.
+    /// If the WebView instance is null, the method logs a warning and exits without performing any action.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply, in pixels.</param>
+    /// <param name="panY">The vertical pan offset to apply, in pixels.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="zoomLevel"/> is less than or equal to zero.</exception>
+    public Task RestoreViewStateAsync(double zoomLevel, double panX, double panY)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(zoomLevel, 0.0);
+        if (_webView is null)
+        {
+            _logger.LogWarning("Cannot restore view state: WebView is null");
+            return Task.CompletedTask;
+        }
+
+        return RestoreViewStateCoreAsync(zoomLevel, panX, panY);
+    }
+
+    /// <summary>
+    /// Restores the view state of a web view by applying the specified zoom level and pan coordinates.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>restoreViewState</c> in the web view, if
+    /// it is defined. The function is invoked with the specified zoom level and pan coordinates. Ensure that the web
+    /// view is initialized and the <c>restoreViewState</c> function is available in the global JavaScript context
+    /// before calling this method.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply.</param>
+    /// <param name="panY">The vertical pan offset to apply.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    private async Task RestoreViewStateCoreAsync(double zoomLevel, double panX, double panY)
+    {
+        // minimize script injection possibilities by using Json serialization for the parameters
+        string zoomLevelJson = JsonSerializer.Serialize(zoomLevel);
+        string panXJson = JsonSerializer.Serialize(panX);
+        string panYJson = JsonSerializer.Serialize(panY);
+        string script = $@"
+        if (typeof globalThis.restoreViewState === 'function') {{
+            globalThis.restoreViewState({zoomLevelJson}, 
+                                        {panXJson}, 
+                                        {panYJson});
+        }}
+        ";
+        try
+        {
+            await _webView!.ExecuteScriptAsync(script);
+            _logger.LogDebug("Restored view state: zoom={ZoomLevel}, pan=({PanX}, {PanY})", zoomLevel, panX, panY);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restore view state");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously retrieves the current view state, including zoom level and pan offsets, from the WebView.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function, <c>getViewState</c>, in the WebView's context to
+    /// obtain the view state. The JavaScript function must be defined globally as <c>globalThis.getViewState</c> and
+    /// return an object with the properties <c>zoom</c>, <c>panX</c>, and <c>panY</c>. If the function is not defined
+    /// or returns <c>null</c>, this method will return <c>null</c>.</remarks>
+    /// <returns>A tuple containing the zoom level, horizontal pan offset, and vertical pan offset, or <c>null</c> if the view
+    /// state cannot be retrieved.</returns>
+    public async Task<(double zoom, double panX, double panY)?> GetViewStateAsync()
+    {
+        if (_webView is null)
+        {
+            _logger.LogInformation("Cannot get view state: WebView is null");
+            return null;
+        }
+
+        // Call globalThis.getViewState() which returns JSON.stringify({zoom, panX, panY})
+        const string script = @"
+        (function() {
+            if (typeof globalThis.getViewState === 'function') {
+                return globalThis.getViewState();
+            }
+            return null;
+        })();
+        ";
+
+        try
+        {
+            string? result = await _webView.ExecuteScriptAsync(script);
+            if (string.IsNullOrEmpty(result) || result == "null" || result == "undefined")
+            {
+                _logger.LogDebug("globalThis.getViewState() returned: {Result}", result);
+                return null;
+            }
+
+            // Handle potential double-quoting by WebView bridge
+            // WebView may return: "\"{\\"zoom\\":1.5,\\"panX\\":10,\\"panY\\":20}\""
+            // We need to strip outer quotes if present before parsing
+            string jsonString = result;
+
+            // If the result starts and ends with quotes, it's double-quoted - deserialize once to unwrap
+            if (jsonString.StartsWith('\"') && jsonString.EndsWith('\"') && jsonString.Length > 2)
+            {
+                try
+                {
+                    // Deserialize to remove outer JSON encoding
+                    string? unwrapped = JsonSerializer.Deserialize<string>(jsonString);
+                    if (!string.IsNullOrEmpty(unwrapped))
+                    {
+                        jsonString = unwrapped;
+                        _logger.LogDebug("Unwrapped double-quoted JSON: {JsonString}", jsonString);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // If unwrapping fails, proceed with original string
+                    _logger.LogWarning("JSON unwrapping failed, using original result of {Result}{NewLine}{JsonString}", result, Environment.NewLine, jsonString);
+                }
+            }
+
+            using JsonDocument json = JsonDocument.Parse(jsonString);
+            JsonElement root = json.RootElement;
+            if (root.TryGetProperty("zoom", out JsonElement zoomElem) &&
+                root.TryGetProperty("panX", out JsonElement panXElem) &&
+                root.TryGetProperty("panY", out JsonElement panYElem) &&
+                zoomElem.ValueKind == JsonValueKind.Number &&
+                panXElem.ValueKind == JsonValueKind.Number &&
+                panYElem.ValueKind == JsonValueKind.Number)
+            {
+                double zoom = zoomElem.GetDouble();
+                double panX = panXElem.GetDouble();
+                double panY = panYElem.GetDouble();
+
+                _logger.LogDebug("Retrieved view state: zoom={Zoom}, panX={PanX}, panY={PanY}", zoom, panX, panY);
+                return (zoom, panX, panY);
+            }
+
+            _logger.LogError("State JSON missing required properties or invalid types. Json string: {JsonString}", jsonString);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get view state");
             return null;
         }
     }

@@ -20,6 +20,7 @@
 
 using AsyncAwaitBestPractices;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -56,6 +57,15 @@ public sealed partial class MainWindow : Window
     private bool _suppressEditorStateSync; // Prevent circular updates
 
     private const int WebViewReadyTimeoutSeconds = 30;
+    private const string ZoomCommandReset = "resetZoom";
+    private const string ZoomCommandIn = "zoomIn";
+    private const string ZoomCommandOut = "zoomOut";
+    private static readonly HashSet<string> _allowedZoomCommands =
+    [
+        ZoomCommandReset,
+        ZoomCommandIn,
+        ZoomCommandOut
+    ];
 
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
@@ -65,6 +75,7 @@ public sealed partial class MainWindow : Window
     private EventHandler? _editorSelectionChangedHandler;
     private EventHandler? _editorCaretPositionChangedHandler;
     private EventHandler? _themeChangedHandler;
+    private EventHandler<KeyEventArgs>? _webViewKeyDownHandler;
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
@@ -105,6 +116,9 @@ public sealed partial class MainWindow : Window
 
         _activatedHandler = (_, _) => BringFocusToEditor();
         Activated += _activatedHandler;
+
+        _webViewKeyDownHandler = OnKeyDown;
+        Preview.KeyDown += _webViewKeyDownHandler;
 
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
@@ -520,9 +534,6 @@ public sealed partial class MainWindow : Window
         {
             // Only unsubscribe when we're actually closing (e.Cancel is still false)
             UnsubscribeAllEventHandlers();
-
-            // Save state
-            _vm.Persist();
         }
         catch (Exception ex)
         {
@@ -571,6 +582,12 @@ public sealed partial class MainWindow : Window
             _themeChangedHandler = null;
         }
 
+        if (_webViewKeyDownHandler is not null)
+        {
+            Preview.KeyDown -= _webViewKeyDownHandler;
+            _webViewKeyDownHandler = null;
+        }
+
         if (_editorTextChangedHandler is not null)
         {
             Editor.TextChanged -= _editorTextChangedHandler;
@@ -603,6 +620,19 @@ public sealed partial class MainWindow : Window
     {
         _logger.LogInformation("Window closing, cleaning up...");
 
+        // Get and save current zoom/pan state
+        var viewState = await _renderer.GetViewStateAsync();
+        if (viewState.HasValue)
+        {
+            _vm.ZoomLevel = viewState.Value.zoom;
+            _vm.PanOffsetX = viewState.Value.panX;
+            _vm.PanOffsetY = viewState.Value.panY;
+            _logger.LogDebug("Saved view state: zoom={Zoom}, pan=({PanX}, {PanY})", viewState.Value.zoom, viewState.Value.panX, viewState.Value.panY);
+        }
+
+        // Save state
+        _vm.Persist();
+
         if (_renderer is IAsyncDisposable disposableRenderer)
         {
             await disposableRenderer.DisposeAsync();
@@ -611,6 +641,82 @@ public sealed partial class MainWindow : Window
 
         _logger.LogInformation("Window cleanup completed successfully");
     }
+
+    #region PanZoom methods
+
+    /// <summary>
+    /// Handles the OnKeyDown event to process keyboard shortcuts for zoom commands.
+    /// </summary>
+    /// <remarks>This method listens for specific key combinations involving the <c>Control</c> key and
+    /// numeric or symbol keys to execute zoom-related commands: <list type="bullet"> <item><description><c>Ctrl+0</c>:
+    /// Resets the zoom level.</description></item> <item><description><c>Ctrl++</c>: Zooms in.</description></item>
+    /// <item><description><c>Ctrl+-</c>: Zooms out.</description></item> </list> The method ensures that the zoom
+    /// commands are executed only when the <c>Control</c> key is pressed and the WebView is ready. If a recognized key
+    /// combination is handled, the event is marked as handled by setting <see cref="KeyEventArgs.Handled"/> to <see
+    /// langword="true"/>.
+    /// <para>
+    /// <b>Note:</b> The event is marked as handled (<see cref="KeyEventArgs.Handled"/> set to <see langword="true"/>)
+    /// <b>only</b> for recognized zoom commands. For all other key combinations, the event is not marked as handled.
+    /// </para></remarks>
+    /// <param name="sender">The source of the event. This parameter is optional and may be <see langword="null"/>.</param>
+    /// <param name="e">The <see cref="KeyEventArgs"/> instance containing the event data, including the key pressed and any modifier
+    /// keys.</param>
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        bool isCtrlPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (!isCtrlPressed || !_vm.IsWebViewReady)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.D0: // Ctrl+0 - Reset zoom
+            case Key.NumPad0:
+                ExecuteZoomCommand(ZoomCommandReset);
+                e.Handled = true;
+                break;
+
+            case Key.OemPlus: // Ctrl++ - Zoom in
+            case Key.Add:
+                ExecuteZoomCommand(ZoomCommandIn);
+                e.Handled = true;
+                break;
+
+            case Key.OemMinus: // Ctrl+- - Zoom out
+            case Key.Subtract:
+                ExecuteZoomCommand(ZoomCommandOut);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Executes a specified zoom command by invoking a corresponding JavaScript function in the web preview.
+    /// </summary>
+    /// <remarks>If the specified JavaScript function does not exist or an error occurs during execution, the
+    /// failure is logged.</remarks>
+    /// <param name="command">The name of the JavaScript function to execute. This function must be defined in the global scope of the web
+    /// preview.</param>
+    private void ExecuteZoomCommand(string command)
+    {
+        if (!_allowedZoomCommands.Contains(command))
+        {
+            _logger.LogError("Attempted to execute invalid zoom command: {Command}", command);
+            return;
+        }
+
+        string script = $@"
+        if (typeof globalThis.{command} === 'function') {{
+            globalThis.{command}();
+        }}
+        ";
+
+        _renderer.ExecuteScriptAsync(script)
+            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Exception while executing zoom command script: {Command}", command));
+    }
+
+    #endregion PanZoom methods
 
     /// <summary>
     /// Prompts the user to save changes if there are unsaved modifications, and closes the window if the user confirms
@@ -675,6 +781,9 @@ public sealed partial class MainWindow : Window
 
             // Step 2: Kick first render; index.html sets globalThis.__renderingComplete__ in hideLoadingIndicator()
             await _renderer.RenderAsync(_vm.DiagramText);
+
+            // Step 2.5: Restore zoom and pan state
+            await _renderer.RestoreViewStateAsync(_vm.ZoomLevel, _vm.PanOffsetX, _vm.PanOffsetY);
 
             // Step 3: Await readiness
             try
