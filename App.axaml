@@ -6,8 +6,6 @@
 
   <Application.Resources>
     <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
-    <converters:IsNotEqualConverter x:Key="IsNotEqualConverter" />
-    <converters:IsEqualConverter x:Key="IsEqualConverter" />
     <converters:InverseBoolToObjectConverter x:Key="InverseBoolToObjectConverter" />
   </Application.Resources>
 

@@ -103,7 +103,7 @@
               </StackPanel>
 
               <!--  API Key  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsNotEqualConverter}, ConverterParameter={x:Static ai:AIProvider.None}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.NotEqual}, ConverterParameter={x:Static ai:AIProvider.None}}">
                 <TextBlock Classes="OptionLabel" Text="API Key:" />
                 <TextBox
                   Width="280"
@@ -117,7 +117,7 @@
               </StackPanel>
 
               <!--  Model Selection  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsEqualConverter}, ConverterParameter={x:Static ai:AIProvider.Anthropic}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ai:AIProvider.Anthropic}}">
                 <TextBlock Classes="OptionLabel" Text="Model:" />
                 <ComboBox
                   Width="350"
@@ -126,7 +126,7 @@
               </StackPanel>
 
               <!--  Test Connection  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsNotEqualConverter}, ConverterParameter={x:Static ai:AIProvider.None}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.NotEqual}, ConverterParameter={x:Static ai:AIProvider.None}}">
                 <TextBlock Classes="OptionLabel" Text="" />
                 <Button
                   Width="150"
