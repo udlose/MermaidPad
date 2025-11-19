@@ -1,7 +1,16 @@
 <Application
   x:Class="MermaidPad.App"
   xmlns="https://github.com/avaloniaui"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:converters="clr-namespace:MermaidPad.Converters">
+
+  <Application.Resources>
+    <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
+    <converters:IsNotEqualConverter x:Key="IsNotEqualConverter" />
+    <converters:IsEqualConverter x:Key="IsEqualConverter" />
+    <converters:InverseBoolToObjectConverter x:Key="InverseBoolToObjectConverter" />
+  </Application.Resources>
+
   <Application.Styles>
     <!--<StyleInclude Source="avares://MermaidPad/Styles/Styles.axaml" />
     <StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->

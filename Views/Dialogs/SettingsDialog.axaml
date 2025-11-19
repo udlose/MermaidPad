@@ -103,21 +103,21 @@
               </StackPanel>
 
               <!--  API Key  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotEqual}, ConverterParameter={x:Static ai:AIProvider.None}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsNotEqualConverter}, ConverterParameter={x:Static ai:AIProvider.None}}">
                 <TextBlock Classes="OptionLabel" Text="API Key:" />
                 <TextBox
                   Width="280"
-                  PasswordChar="{Binding ShowApiKey, Converter={x:Static ObjectConverters.FalseToObject}, ConverterParameter='•'}"
+                  PasswordChar="{Binding ShowApiKey, Converter={StaticResource InverseBoolToObjectConverter}, ConverterParameter='•'}"
                   Text="{Binding ApiKey}"
                   Watermark="Enter your API key" />
                 <Button
                   Width="60"
                   Command="{Binding ToggleApiKeyVisibilityCommand}"
-                  Content="{Binding ShowApiKey, Converter={x:Static ObjectConverters.TrueToObject}, ConverterParameter='Hide', FalseValue='Show'}" />
+                  Content="{Binding ShowApiKey, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Hide|Show'}" />
               </StackPanel>
 
               <!--  Model Selection  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static ai:AIProvider.Anthropic}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsEqualConverter}, ConverterParameter={x:Static ai:AIProvider.Anthropic}}">
                 <TextBlock Classes="OptionLabel" Text="Model:" />
                 <ComboBox
                   Width="350"
@@ -126,12 +126,12 @@
               </StackPanel>
 
               <!--  Test Connection  -->
-              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotEqual}, ConverterParameter={x:Static ai:AIProvider.None}}">
+              <StackPanel Classes="OptionRow" IsVisible="{Binding SelectedProvider, Converter={StaticResource IsNotEqualConverter}, ConverterParameter={x:Static ai:AIProvider.None}}">
                 <TextBlock Classes="OptionLabel" Text="" />
                 <Button
                   Width="150"
                   Command="{Binding TestConnectionCommand}"
-                  Content="{Binding IsTestingConnection, Converter={x:Static ObjectConverters.TrueToObject}, ConverterParameter='Testing...', FalseValue='Test Connection'}"
+                  Content="{Binding IsTestingConnection, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Testing...|Test Connection'}"
                   IsEnabled="{Binding !IsTestingConnection}" />
               </StackPanel>
 
