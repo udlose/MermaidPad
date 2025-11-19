@@ -44,7 +44,6 @@
       height: 100vh; /*fill viewport height*/
       box-sizing: border-box;
       display: none;
-      background-color: yellow; /* TODO: DaveBlack - TEMP debugging - remove this line when done*/
       position: fixed; /* changed from 'relative' - stay fixed to viewport */
       top: 0;
       left: 0;
@@ -836,6 +835,45 @@
           if (output) {
             output.innerHTML = htmlContent;  // NO wrapper - back to original
           }
+
+          // CRITICAL: Cache intrinsic SVG dimensions IMMEDIATELY after render
+          // This must happen before any transforms are applied by panzoom
+          // Clear old cache first
+          globalThis.cachedIntrinsicDimensions = null;
+
+          // Force immediate dimension caching for this render
+          const svg = output?.querySelector('svg');
+          if (svg) {
+            let width, height;
+
+            // Prefer viewBox as it's always intrinsic
+            if (svg.hasAttribute('viewBox')) {
+              const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+              width = Number.parseFloat(viewBox[2]);
+              height = Number.parseFloat(viewBox[3]);
+            }
+            // Try width/height attributes
+            else if (svg.hasAttribute('width') && svg.hasAttribute('height')) {
+              width = Number.parseFloat(svg.getAttribute('width'));
+              height = Number.parseFloat(svg.getAttribute('height'));
+            }
+            // Last resort: use getBBox() which returns intrinsic size
+            else {
+              try {
+                const bbox = svg.getBBox();
+                width = bbox.width;
+                height = bbox.height;
+              } catch (e) {
+                console.warn('Failed to get bbox for caching:', e);
+                width = 800;
+                height = 600;
+              }
+            }
+
+            globalThis.cachedIntrinsicDimensions = { width, height };
+            console.log(`Cached intrinsic dimensions: ${width.toFixed(0)}x${height.toFixed(0)}`);
+          }
+
           // Enhance hover interactivity after SVG is rendered
           if (typeof globalThis.enhanceHoverability === 'function') {
             const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50;
@@ -1393,7 +1431,59 @@
     globalThis.panzoomInstance = null;
     globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
     globalThis.panzoomInitializedOnce = false; // Track first initialization
+    globalThis.cachedIntrinsicDimensions = null; // Cache intrinsic SVG dimensions to avoid recalculation
     const ZOOM_STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+
+    // Helper function to get intrinsic SVG dimensions (cached for performance with LivePreview)
+    // Returns { width, height } of the SVG's intrinsic (un-scaled) dimensions
+    function getIntrinsicSVGDimensions() {
+      // Return cached dimensions if available
+      if (globalThis.cachedIntrinsicDimensions) {
+        return globalThis.cachedIntrinsicDimensions;
+      }
+
+      // Otherwise, compute from current SVG
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (!svg) {
+        console.warn('No SVG found when getting intrinsic dimensions');
+        return { width: 800, height: 600 }; // Fallback
+      }
+
+      let width, height;
+
+      // Prefer viewBox as it's always intrinsic
+      if (svg.hasAttribute('viewBox')) {
+        const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+        width = Number.parseFloat(viewBox[2]);
+        height = Number.parseFloat(viewBox[3]);
+      }
+      // Try width/height attributes
+      else if (svg.hasAttribute('width') && svg.hasAttribute('height')) {
+        width = Number.parseFloat(svg.getAttribute('width'));
+        height = Number.parseFloat(svg.getAttribute('height'));
+      }
+      // Last resort: use getBBox() which returns intrinsic size
+      else {
+        try {
+          const bbox = svg.getBBox();
+          width = bbox.width;
+          height = bbox.height;
+        } catch (e) {
+          console.warn('Failed to get bbox, using fallback dimensions:', e);
+          width = 800;
+          height = 600;
+        }
+      }
+
+      const dimensions = { width, height };
+
+      // Cache for future use (until next render)
+      globalThis.cachedIntrinsicDimensions = dimensions;
+
+      return dimensions;
+    }
 
     function findCurrentStepIndex(scale) {
       let nearestIndex = 0;
@@ -1505,29 +1595,19 @@
         console.log("=== ATTEMPTING INITIAL CENTERING ===");
 
         try {
-          const svg = output.querySelector('svg');
-          if (svg) {
-            let svgWidth, svgHeight;
-            if (svg.hasAttribute('viewBox')) {
-              const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-              svgWidth = Number.parseFloat(viewBox[2]);
-              svgHeight = Number.parseFloat(viewBox[3]);
-            } else {
-              svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-              svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-            }
+          // Use cached intrinsic dimensions
+          const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
-            const containerWidth = output.offsetWidth;
-            const containerHeight = output.offsetHeight;
-            const outputPadding = 8;
+          const containerWidth = output.offsetWidth;
+          const containerHeight = output.offsetHeight;
 
-            const panX = (containerWidth - svgWidth) / 2 - outputPadding;
-            const panY = (containerHeight - svgHeight) / 2 - outputPadding;
+          // Perfect centering formula (no padding offset needed)
+          const panX = (containerWidth - svgWidth) / 2;
+          const panY = (containerHeight - svgHeight) / 2;
 
-            globalThis.panzoomInstance.pan(panX, panY, { animate: false });
-            console.log(`Initial centering: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
-            console.log("=== INITIAL CENTERING COMPLETE ===");
-          }
+          globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+          console.log(`Initial centering: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+          console.log("=== INITIAL CENTERING COMPLETE ===");
         } catch (e) {
           console.error('Failed initial centering:', e);
         }
@@ -1566,18 +1646,9 @@
         if (now - lastPanLimitTime < panLimitDebounceMs) return;
 
         const pan = globalThis.panzoomInstance.getPan();
-        const svg = output.querySelector('svg');
-        if (!svg) return;
 
-        let svgWidth, svgHeight;
-        if (svg.hasAttribute('viewBox')) {
-          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = Number.parseFloat(viewBox[2]);
-          svgHeight = Number.parseFloat(viewBox[3]);
-        } else {
-          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-        }
+        // Use cached intrinsic dimensions
+        const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
         const scale = globalThis.panzoomInstance.getScale();
         const containerWidth = output.offsetWidth;
@@ -1820,59 +1891,43 @@
       if (!globalThis.panzoomInstance) return;
 
       const output = document.getElementById('output');
-      const svg = output?.querySelector('svg');
+      if (!output) return;
 
-      if (svg) {
-        let svgWidth, svgHeight;
-        if (svg.hasAttribute('viewBox')) {
-          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = Number.parseFloat(viewBox[2]);
-          svgHeight = Number.parseFloat(viewBox[3]);
-        } else {
-          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-        }
+      // Use cached intrinsic dimensions
+      const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
-        const containerWidth = output.offsetWidth;
-        const containerHeight = output.offsetHeight;
-        const outputPadding = 8;
-        const panX = (containerWidth - svgWidth) / 2 - outputPadding;
-        const panY = (containerHeight - svgHeight) / 2 - outputPadding;
+      const containerWidth = output.offsetWidth;
+      const containerHeight = output.offsetHeight;
 
-        globalThis.panzoomInstance.zoom(1, { animate: false });
-        globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+      // Perfect centering formula (no padding offset needed)
+      const panX = (containerWidth - svgWidth) / 2;
+      const panY = (containerHeight - svgHeight) / 2;
 
-        console.log(`Reset: zoom=100%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
-      }
+      globalThis.panzoomInstance.zoom(1, { animate: false });
+      globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+      console.log(`Reset: zoom=100%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
     };
 
     globalThis.centerDiagram = function () {
       if (!globalThis.panzoomInstance) return;
 
       const output = document.getElementById('output');
-      const svg = output?.querySelector('svg');
+      if (!output) return;
 
-      if (svg) {
-        let svgWidth, svgHeight;
-        if (svg.hasAttribute('viewBox')) {
-          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = Number.parseFloat(viewBox[2]);
-          svgHeight = Number.parseFloat(viewBox[3]);
-        } else {
-          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-        }
+      // Use cached intrinsic dimensions
+      const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
-        const containerWidth = output.offsetWidth;
-        const containerHeight = output.offsetHeight;
-        const scale = globalThis.panzoomInstance.getScale();
-        const outputPadding = 8;
-        const panX = (containerWidth - svgWidth * scale) / 2 - outputPadding;
-        const panY = (containerHeight - svgHeight * scale) / 2 - outputPadding;
+      const containerWidth = output.offsetWidth;
+      const containerHeight = output.offsetHeight;
+      const scale = globalThis.panzoomInstance.getScale();
 
-        globalThis.panzoomInstance.pan(panX, panY, { animate: true });
-        console.log(`Centered at ${Math.round(scale * 100)}%: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
-      }
+      // Perfect centering formula with current scale (no padding offset needed)
+      const panX = (containerWidth - svgWidth * scale) / 2;
+      const panY = (containerHeight - svgHeight * scale) / 2;
+
+      globalThis.panzoomInstance.pan(panX, panY, { animate: true });
+      console.log(`Centered at ${Math.round(scale * 100)}%: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
     };
 
     // Fit-to-screen is idempotent. Uses intrinsic SVG dimensions and calculates proper center position
@@ -1881,48 +1936,35 @@
       if (!globalThis.panzoomInstance) return;
 
       const output = document.getElementById('output');
-      const svg = output?.querySelector('svg');
+      if (!output) return;
 
-      if (svg) {
-        // Get intrinsic SVG dimensions (NOT scaled!)
-        let svgWidth, svgHeight;
-        if (svg.hasAttribute('viewBox')) {
-          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-          svgWidth = Number.parseFloat(viewBox[2]);
-          svgHeight = Number.parseFloat(viewBox[3]);
-        } else {
-          // Fallback to attributes (avoid clientWidth/clientHeight as they may be scaled)
-          svgWidth = Number.parseFloat(svg.getAttribute('width')) || 800;
-          svgHeight = Number.parseFloat(svg.getAttribute('height')) || 600;
-        }
+      // Use cached intrinsic dimensions
+      const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
-        // CRITICAL FIX: Use offsetWidth/offsetHeight instead of getBoundingClientRect()
-        // offsetWidth/offsetHeight return layout dimensions BEFORE transforms are applied
-        const containerWidth = output.offsetWidth;
-        const containerHeight = output.offsetHeight;
+      // Use offsetWidth/offsetHeight (layout dimensions BEFORE transforms)
+      const containerWidth = output.offsetWidth;
+      const containerHeight = output.offsetHeight;
 
-        // Calculate scale to fit with 40px diagram padding
-        const diagramPadding = 40;
-        const scaleX = (containerWidth - diagramPadding) / svgWidth;
-        const scaleY = (containerHeight - diagramPadding) / svgHeight;
-        const targetScale = Math.min(scaleX, scaleY);
+      // Calculate scale to fit with 40px diagram padding
+      const diagramPadding = 40;
+      const scaleX = (containerWidth - diagramPadding) / svgWidth;
+      const scaleY = (containerHeight - diagramPadding) / svgHeight;
+      const targetScale = Math.min(scaleX, scaleY);
 
-        // Clamp to panzoom limits
-        const minZoomScale = 0.1;
-        const maxZoomScale = 4;
-        const clampedScale = Math.max(minZoomScale, Math.min(maxZoomScale, targetScale));
+      // Clamp to panzoom limits
+      const minZoomScale = 0.1;
+      const maxZoomScale = 4;
+      const clampedScale = Math.max(minZoomScale, Math.min(maxZoomScale, targetScale));
 
-        // Calculate centered pan at target scale
-        const outputPadding = 8;
-        const panX = (containerWidth - svgWidth * clampedScale) / 2 - outputPadding;
-        const panY = (containerHeight - svgHeight * clampedScale) / 2 - outputPadding;
+      // Perfect centering formula with target scale (no padding offset needed)
+      const panX = (containerWidth - svgWidth * clampedScale) / 2;
+      const panY = (containerHeight - svgHeight * clampedScale) / 2;
 
-        // Apply both without animation to avoid conflicts
-        globalThis.panzoomInstance.zoom(clampedScale, { animate: false });
-        globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+      // Apply both without animation to avoid conflicts
+      globalThis.panzoomInstance.zoom(clampedScale, { animate: false });
+      globalThis.panzoomInstance.pan(panX, panY, { animate: false });
 
-        console.log(`Fit: scale=${(clampedScale * 100).toFixed(0)}%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)}), container=${containerWidth.toFixed(0)}x${containerHeight.toFixed(0)}`);
-      }
+      console.log(`Fit: scale=${(clampedScale * 100).toFixed(0)}%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)}), container=${containerWidth.toFixed(0)}x${containerHeight.toFixed(0)}`);
     };
 
     // State management functions
@@ -1932,30 +1974,24 @@
 
       try {
         const output = document.getElementById('output');
-        const svg = output?.querySelector('svg');
+        if (!output) return;
+
         const panToleranceThreshold = 0.1;
         const isPanNearZero = Math.abs(panX) < panToleranceThreshold && Math.abs(panY) < panToleranceThreshold;
 
-        if (svg && isPanNearZero) {
+        if (isPanNearZero) {
           console.log('Detected default pan values - applying centering instead');
 
-          let svgWidth, svgHeight;
-          if (svg.hasAttribute('viewBox')) {
-            const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-            svgWidth = Number.parseFloat(viewBox[2]);
-            svgHeight = Number.parseFloat(viewBox[3]);
-          } else {
-            svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-            svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-          }
+          // Use cached intrinsic dimensions
+          const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
           const containerWidth = output.offsetWidth;
           const containerHeight = output.offsetHeight;
-          const outputPadding = 8;
           const scale = zoomLevel || 1.0;
 
-          const centeredPanX = (containerWidth - svgWidth * scale) / 2 - outputPadding;
-          const centeredPanY = (containerHeight - svgHeight * scale) / 2 - outputPadding;
+          // Perfect centering formula (no padding offset needed)
+          const centeredPanX = (containerWidth - svgWidth * scale) / 2;
+          const centeredPanY = (containerHeight - svgHeight * scale) / 2;
 
           globalThis.panzoomInstance.zoom(scale, { animate: false });
           globalThis.panzoomInstance.pan(centeredPanX, centeredPanY, { animate: false });
@@ -2009,16 +2045,8 @@
         return;
       }
 
-      // Get all dimensions
-      let svgWidth, svgHeight;
-      if (svg.hasAttribute('viewBox')) {
-        const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
-        svgWidth = Number.parseFloat(viewBox[2]);
-        svgHeight = Number.parseFloat(viewBox[3]);
-      } else {
-        svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
-        svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
-      }
+      // Use cached intrinsic dimensions
+      const { width: svgWidth, height: svgHeight } = getIntrinsicSVGDimensions();
 
       const svgRect = svg.getBoundingClientRect();
       const outputRect = output.getBoundingClientRect();
@@ -2029,7 +2057,7 @@
       const transform = window.getComputedStyle(output).transform;
 
       console.log('=== PAN/ZOOM DEBUG INFO ===');
-      console.log('SVG intrinsic dimensions:', { width: svgWidth, height: svgHeight });
+      console.log('SVG intrinsic dimensions (cached):', { width: svgWidth, height: svgHeight });
       console.log('SVG bounding rect (scaled):', {
         width: svgRect.width,
         height: svgRect.height,
@@ -2052,6 +2080,11 @@
       console.log('Expected centered position (if centered):', {
         left: (outputRect.width - svgRect.width) / 2,
         top: (outputRect.height - svgRect.height) / 2
+      });
+      console.log('Cached vs Actual check:', {
+        cachedDimensions: globalThis.cachedIntrinsicDimensions,
+        expectedScaled: { width: svgWidth * scale, height: svgHeight * scale },
+        actualScaled: { width: svgRect.width, height: svgRect.height }
       });
       console.log('========================');
 
