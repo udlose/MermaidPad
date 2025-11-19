@@ -37,6 +37,22 @@ public interface IPlatformServices
     /// <param name="title">Dialog title</param>
     /// <param name="message">Dialog message</param>
     void ShowNativeDialog(string title, string message);
+
+    /// <summary>
+    /// Encrypts a plaintext string using platform-specific secure storage.
+    /// Windows uses DPAPI (Data Protection API), Linux/macOS use AES-GCM authenticated encryption.
+    /// </summary>
+    /// <param name="plaintext">The plaintext string to encrypt</param>
+    /// <returns>Base64-encoded encrypted string</returns>
+    string EncryptString(string plaintext);
+
+    /// <summary>
+    /// Decrypts an encrypted string using platform-specific secure storage.
+    /// Windows uses DPAPI (Data Protection API), Linux/macOS use AES-GCM authenticated encryption.
+    /// </summary>
+    /// <param name="encrypted">The Base64-encoded encrypted string</param>
+    /// <returns>Decrypted plaintext string</returns>
+    string DecryptString(string encrypted);
 }
 
 /// <summary>

@@ -25,6 +25,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
 
 #pragma warning disable IDE0130 // Namespace does not match folder structure
 namespace MermaidPad.Services;
@@ -41,6 +43,11 @@ namespace MermaidPad.Services;
 [SupportedOSPlatform("windows")]
 public sealed partial class WindowsPlatformServices : IPlatformServices
 {
+    /// <summary>
+    /// Additional entropy for Windows DPAPI encryption to ensure application-specific encryption.
+    /// </summary>
+    private static readonly byte[] AdditionalEntropy = Encoding.UTF8.GetBytes("MermaidPad.AI.Encryption.v1");
+
     /// <summary>
     /// Displays a native Windows MessageBox dialog.
     /// </summary>
@@ -81,5 +88,57 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
         // Even though the cast is redundant, it clarifies the intent that we are converting to IntPtr
         IntPtr mainWindowHandle = (IntPtr)Process.GetCurrentProcess().MainWindowHandle;
         MessageBox(mainWindowHandle, message, title, MB_OK | MB_ICONERROR);
+    }
+
+    /// <summary>
+    /// Encrypts a plaintext string using Windows DPAPI (Data Protection API).
+    /// </summary>
+    /// <param name="plaintext">The plaintext string to encrypt</param>
+    /// <returns>Base64-encoded encrypted string</returns>
+    /// <exception cref="InvalidOperationException">Thrown if encryption fails</exception>
+    public string EncryptString(string plaintext)
+    {
+        if (string.IsNullOrEmpty(plaintext))
+            return string.Empty;
+
+        try
+        {
+            byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+            byte[] encryptedBytes = ProtectedData.Protect(
+                plaintextBytes,
+                AdditionalEntropy,
+                DataProtectionScope.CurrentUser);
+            return Convert.ToBase64String(encryptedBytes);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to encrypt data using Windows DPAPI", ex);
+        }
+    }
+
+    /// <summary>
+    /// Decrypts an encrypted string using Windows DPAPI (Data Protection API).
+    /// </summary>
+    /// <param name="encrypted">The Base64-encoded encrypted string</param>
+    /// <returns>Decrypted plaintext string</returns>
+    /// <exception cref="InvalidOperationException">Thrown if decryption fails</exception>
+    public string DecryptString(string encrypted)
+    {
+        if (string.IsNullOrEmpty(encrypted))
+            return string.Empty;
+
+        try
+        {
+            byte[] encryptedBytes = Convert.FromBase64String(encrypted);
+            byte[] plaintextBytes = ProtectedData.Unprotect(
+                encryptedBytes,
+                AdditionalEntropy,
+                DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plaintextBytes);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to decrypt data using Windows DPAPI", ex);
+        }
     }
 }

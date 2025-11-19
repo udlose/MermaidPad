@@ -110,6 +110,9 @@ public static class ServiceConfiguration
         services.AddSingleton<IDialogFactory, DialogFactory>();
         services.AddSingleton<IFileService, FileService>();
 
+        // Platform Services
+        services.AddSingleton<IPlatformServices>(_ => PlatformServiceFactory.Instance);
+
         // AI Services
         services.AddSingleton<ISecureStorageService, SecureStorageService>();
         services.AddSingleton<AIServiceFactory>();

@@ -24,6 +24,8 @@ using MermaidPad.Services.Platforms;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
 
 #pragma warning disable IDE0130 // Namespace does not match folder structure
 namespace MermaidPad.Services;
@@ -41,6 +43,11 @@ namespace MermaidPad.Services;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed partial class MacPlatformServices : IPlatformServices
 {
+    /// <summary>
+    /// Additional entropy for encryption to ensure application-specific encryption.
+    /// </summary>
+    private static readonly byte[] AdditionalEntropy = Encoding.UTF8.GetBytes("MermaidPad.AI.Encryption.v1");
+
     /// <summary>
     /// Retrieves a pointer to the Objective-C class definition for the specified class name.
     /// </summary>
@@ -175,5 +182,95 @@ public sealed partial class MacPlatformServices : IPlatformServices
             Console.WriteLine($"macOS Dialog Error: {ex.Message}");
             Console.WriteLine($"{title}: {message}");
         }
+    }
+
+    /// <summary>
+    /// Encrypts a plaintext string using AES-GCM authenticated encryption with a machine-specific key.
+    /// </summary>
+    /// <param name="plaintext">The plaintext string to encrypt</param>
+    /// <returns>Base64-encoded encrypted string containing nonce, tag, and ciphertext</returns>
+    /// <exception cref="InvalidOperationException">Thrown if encryption fails</exception>
+    public string EncryptString(string plaintext)
+    {
+        if (string.IsNullOrEmpty(plaintext))
+            return string.Empty;
+
+        try
+        {
+            byte[] key = GetMachineSpecificKey();
+            byte[] nonce = new byte[AesGcm.NonceByteSizes.MaxSize];
+            byte[] tag = new byte[AesGcm.TagByteSizes.MaxSize];
+            byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+            byte[] ciphertext = new byte[plaintextBytes.Length];
+
+            RandomNumberGenerator.Fill(nonce);
+
+            using var aesGcm = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
+            aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
+
+            // Combine nonce + tag + ciphertext
+            byte[] result = new byte[nonce.Length + tag.Length + ciphertext.Length];
+            Buffer.BlockCopy(nonce, 0, result, 0, nonce.Length);
+            Buffer.BlockCopy(tag, 0, result, nonce.Length, tag.Length);
+            Buffer.BlockCopy(ciphertext, 0, result, nonce.Length + tag.Length, ciphertext.Length);
+
+            return Convert.ToBase64String(result);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to encrypt data using AES-GCM", ex);
+        }
+    }
+
+    /// <summary>
+    /// Decrypts an encrypted string using AES-GCM authenticated encryption with a machine-specific key.
+    /// </summary>
+    /// <param name="encrypted">The Base64-encoded encrypted string containing nonce, tag, and ciphertext</param>
+    /// <returns>Decrypted plaintext string</returns>
+    /// <exception cref="InvalidOperationException">Thrown if decryption fails</exception>
+    public string DecryptString(string encrypted)
+    {
+        if (string.IsNullOrEmpty(encrypted))
+            return string.Empty;
+
+        try
+        {
+            byte[] combined = Convert.FromBase64String(encrypted);
+            byte[] key = GetMachineSpecificKey();
+
+            int nonceSize = AesGcm.NonceByteSizes.MaxSize;
+            int tagSize = AesGcm.TagByteSizes.MaxSize;
+
+            // Extract nonce, tag, and ciphertext
+            byte[] nonce = new byte[nonceSize];
+            byte[] tag = new byte[tagSize];
+            byte[] ciphertext = new byte[combined.Length - nonceSize - tagSize];
+
+            Buffer.BlockCopy(combined, 0, nonce, 0, nonceSize);
+            Buffer.BlockCopy(combined, nonceSize, tag, 0, tagSize);
+            Buffer.BlockCopy(combined, nonceSize + tagSize, ciphertext, 0, ciphertext.Length);
+
+            byte[] plaintext = new byte[ciphertext.Length];
+
+            using var aesGcm = new AesGcm(key, tagSize);
+            aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
+
+            return Encoding.UTF8.GetString(plaintext);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to decrypt data using AES-GCM", ex);
+        }
+    }
+
+    /// <summary>
+    /// Generates a machine-specific encryption key using SHA256 hash of machine name, username, and additional entropy.
+    /// </summary>
+    /// <returns>256-bit encryption key</returns>
+    private static byte[] GetMachineSpecificKey()
+    {
+        string entropy = $"{Environment.MachineName}:{Environment.UserName}:{Convert.ToBase64String(AdditionalEntropy)}";
+        byte[] entropyBytes = Encoding.UTF8.GetBytes(entropy);
+        return SHA256.HashData(entropyBytes);
     }
 }

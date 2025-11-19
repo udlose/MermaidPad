@@ -19,9 +19,6 @@
 // SOFTWARE.
 
 using System;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace MermaidPad.Services.Platforms;
 
@@ -47,57 +44,54 @@ public interface ISecureStorageService
 }
 
 /// <summary>
-/// Secure storage implementation using platform-specific encryption.
-/// - Windows: DPAPI (Data Protection API)
-/// - Linux/macOS: AES with machine-specific entropy
+/// Secure storage implementation that delegates to platform-specific services.
+/// - Windows: DPAPI (Data Protection API) - Best practice for Windows desktop apps
+/// - Linux/macOS: AES-GCM authenticated encryption - Modern, secure, and cross-platform
 /// </summary>
 public sealed class SecureStorageService : ISecureStorageService
 {
-    private static readonly byte[] AdditionalEntropy = Encoding.UTF8.GetBytes("MermaidPad.AI.Encryption.v1");
+    private readonly IPlatformServices _platformServices;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SecureStorageService"/> class.
+    /// </summary>
+    /// <param name="platformServices">Platform-specific services for encryption/decryption</param>
+    public SecureStorageService(IPlatformServices platformServices)
+    {
+        _platformServices = platformServices ?? throw new ArgumentNullException(nameof(platformServices));
+    }
+
+    /// <summary>
+    /// Encrypts a plaintext string using platform-specific secure storage.
+    /// </summary>
+    /// <param name="plaintext">The plaintext string to encrypt</param>
+    /// <returns>Base64-encoded encrypted string</returns>
     public string Encrypt(string plaintext)
     {
         if (string.IsNullOrEmpty(plaintext))
             return string.Empty;
 
-        try
-        {
-#if WINDOWS
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return EncryptWindows(plaintext);
-            }
-#endif
-            // Linux and macOS: Use AES encryption with machine-specific key
-            return EncryptCrossPlatform(plaintext);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to encrypt data", ex);
-        }
+        return _platformServices.EncryptString(plaintext);
     }
 
+    /// <summary>
+    /// Decrypts an encrypted string using platform-specific secure storage.
+    /// </summary>
+    /// <param name="encrypted">The Base64-encoded encrypted string</param>
+    /// <returns>Decrypted plaintext string</returns>
     public string Decrypt(string encrypted)
     {
         if (string.IsNullOrEmpty(encrypted))
             return string.Empty;
 
-        try
-        {
-#if WINDOWS
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return DecryptWindows(encrypted);
-            }
-#endif
-            return DecryptCrossPlatform(encrypted);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Failed to decrypt data", ex);
-        }
+        return _platformServices.DecryptString(encrypted);
     }
 
+    /// <summary>
+    /// Checks if the encrypted string is valid and can be decrypted.
+    /// </summary>
+    /// <param name="encrypted">The encrypted string to validate</param>
+    /// <returns>True if the string can be decrypted; otherwise, false</returns>
     public bool IsValid(string encrypted)
     {
         if (string.IsNullOrEmpty(encrypted))
@@ -112,83 +106,5 @@ public sealed class SecureStorageService : ISecureStorageService
         {
             return false;
         }
-    }
-
-#if WINDOWS
-    private static string EncryptWindows(string plaintext)
-    {
-        byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        byte[] encryptedBytes = ProtectedData.Protect(
-            plaintextBytes,
-            AdditionalEntropy,
-            DataProtectionScope.CurrentUser);
-        return Convert.ToBase64String(encryptedBytes);
-    }
-
-    private static string DecryptWindows(string encrypted)
-    {
-        byte[] encryptedBytes = Convert.FromBase64String(encrypted);
-        byte[] plaintextBytes = ProtectedData.Unprotect(
-            encryptedBytes,
-            AdditionalEntropy,
-            DataProtectionScope.CurrentUser);
-        return Encoding.UTF8.GetString(plaintextBytes);
-    }
-#endif
-
-    private static string EncryptCrossPlatform(string plaintext)
-    {
-        using var aes = Aes.Create();
-
-        // Derive key from machine-specific information
-        var machineKey = GetMachineSpecificKey();
-        aes.Key = machineKey;
-        aes.GenerateIV();
-
-        using var encryptor = aes.CreateEncryptor();
-        byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        byte[] encryptedBytes = encryptor.TransformFinalBlock(plaintextBytes, 0, plaintextBytes.Length);
-
-        // Combine IV and encrypted data
-        byte[] result = new byte[aes.IV.Length + encryptedBytes.Length];
-        Buffer.BlockCopy(aes.IV, 0, result, 0, aes.IV.Length);
-        Buffer.BlockCopy(encryptedBytes, 0, result, aes.IV.Length, encryptedBytes.Length);
-
-        return Convert.ToBase64String(result);
-    }
-
-    private static string DecryptCrossPlatform(string encrypted)
-    {
-        byte[] combined = Convert.FromBase64String(encrypted);
-
-        using var aes = Aes.Create();
-
-        // Derive key from machine-specific information
-        var machineKey = GetMachineSpecificKey();
-        aes.Key = machineKey;
-
-        // Extract IV
-        byte[] iv = new byte[aes.IV.Length];
-        Buffer.BlockCopy(combined, 0, iv, 0, iv.Length);
-        aes.IV = iv;
-
-        // Extract encrypted data
-        byte[] encryptedBytes = new byte[combined.Length - iv.Length];
-        Buffer.BlockCopy(combined, iv.Length, encryptedBytes, 0, encryptedBytes.Length);
-
-        using var decryptor = aes.CreateDecryptor();
-        byte[] plaintextBytes = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
-
-        return Encoding.UTF8.GetString(plaintextBytes);
-    }
-
-    private static byte[] GetMachineSpecificKey()
-    {
-        // Use machine name and user as entropy source
-        var entropy = $"{Environment.MachineName}:{Environment.UserName}:{AdditionalEntropy}";
-        var entropyBytes = Encoding.UTF8.GetBytes(entropy);
-
-        // Derive a 256-bit key using SHA256
-        return SHA256.HashData(entropyBytes);
     }
 }
