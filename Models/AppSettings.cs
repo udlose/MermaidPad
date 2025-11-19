@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Models.AI;
+
 namespace MermaidPad.Models;
 
 /// <summary>
@@ -101,6 +103,16 @@ public sealed class AppSettings
     /// Logging configuration settings.
     /// </summary>
     public LoggingSettings Logging { get; set; } = new();
+
+    /// <summary>
+    /// AI configuration settings.
+    /// </summary>
+    public AISettings AI { get; set; } = new();
+
+    /// <summary>
+    /// Dock layout persistence settings.
+    /// </summary>
+    public DockLayoutSettings DockLayout { get; set; } = new();
 }
 
 /// <summary>
