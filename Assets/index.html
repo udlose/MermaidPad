@@ -39,10 +39,15 @@
 
     #output {
       padding: 8px;
-      overflow: auto;
-      height: 100vh;
+      overflow: hidden;
+      width: 100vw; /*fill viewport width*/
+      height: 100vh; /*fill viewport height*/
       box-sizing: border-box;
       display: none;
+      background-color: yellow; /* TODO: DaveBlack - TEMP debugging - remove this line when done*/
+      position: fixed; /* changed from 'relative' - stay fixed to viewport */
+      top: 0;
+      left: 0;
     }
 
       #output.visible {
@@ -155,7 +160,7 @@
     #output svg .nodeLabel,
     #output svg .edgeLabel {
       transition: all 0.2s ease-in-out;
-      cursor: pointer;
+      cursor: inherit; /*changed from 'pointer' to allow panzoom cursor*/
     }
 
     /* ============================================
@@ -346,7 +351,7 @@
     #output svg .stateGroup,
     #output svg .task,
     #output svg .pieCircle {
-      cursor: pointer;
+      cursor: inherit; /*Inherit the grab cursor from panzoom*/
     }
 
     /* Prevent text selection during hover interactions */
@@ -400,6 +405,131 @@
       stroke-width: 2.5px !important;
       filter: drop-shadow(0 0 6px rgba(77, 184, 255, 0.5));
     }
+
+    /* ============================================
+    FLOATING ZOOM TOOLBAR STYLES FOR PAN/ZOOM FEATURE
+    ============================================ */
+    #zoom-toolbar {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      border-radius: 8px;
+      padding: 8px;
+      padding-top: 12px; /*space at top for dragging*/
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      transition: opacity 0.2s ease-in-out;
+      user-select: none;
+      cursor: grab;
+    }
+
+    body.light-theme #zoom-toolbar {
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    #zoom-toolbar.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /*Draggable area visual indicator: drag handle*/
+    #zoom-toolbar::before {
+      content: '⋮⋮⋮⋮⋮';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      line-height: 8px;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.4);
+      cursor: grab;
+      user-select: none;
+    }
+
+    body.light-theme #zoom-toolbar::before {
+      color: rgba(0, 0, 0, 0.3);
+    }
+
+    #zoom-toolbar:hover::before {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    body.light-theme #zoom-toolbar:hover::before {
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    .zoom-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s ease-in-out;
+      white-space: nowrap;
+    }
+
+    body.light-theme .zoom-button {
+      background: rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.15);
+      color: #333;
+    }
+
+    .zoom-button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: translateX(-2px);
+    }
+
+    body.light-theme .zoom-button:hover {
+      background: rgba(0, 0, 0, 0.1);
+      border-color: rgba(0, 0, 0, 0.3);
+    }
+
+    .zoom-button:active {
+      transform: translateX(-2px) scale(0.95);
+    }
+
+    .zoom-button-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    #zoom-level-display {
+      text-align: center;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      margin-top: 4px;
+    }
+
+    body.light-theme #zoom-level-display {
+      color: #333;
+      border-top-color: rgba(0, 0, 0, 0.15);
+    }
+
+    /* Keyboard focus indicator for accessibility */
+    .zoom-button:focus {
+      outline: 2px solid rgba(255, 255, 255, 0.6);
+      outline-offset: 2px;
+    }
+
+    body.light-theme .zoom-button:focus {
+      outline: 2px solid rgba(0, 122, 204, 0.8);
+    }
   </style>
   <!-- Apply theme immediately before any scripts load -->
   <script>
@@ -439,6 +569,9 @@
 
   <!-- Load Mermaid, no defer to avoid races -->
   <script src="mermaid.min.js" id="mermaid-script"></script>
+
+  <!-- Load Panzoom, no defer to avoid races -->
+  <script src="panzoom.min.js" id="panzoom-script"></script>
 
   <!-- Main initialization with proper event-driven loading -->
   <script type="module">
@@ -642,6 +775,7 @@
         if (globalThis.chrome && globalThis.chrome.webview && globalThis.chrome.webview.postMessage) {
           try {
             globalThis.chrome.webview.postMessage('renderingComplete');
+            console.debug('Sent postMessage via chrome.webview (may not be received by AvaloniaWebView)');
           } catch (chromeError) {
             // Silently ignore - AvaloniaWebView may not support this
             console.debug('chrome.webview.postMessage failed:', chromeError.message);
@@ -652,6 +786,7 @@
         if (globalThis.webkit && globalThis.webkit.messageHandlers && globalThis.webkit.messageHandlers.renderingComplete) {
           try {
             globalThis.webkit.messageHandlers.renderingComplete.postMessage('');
+            console.log('Sent postMessage via webkit.messageHandlers (may not be received by AvaloniaWebView)');
           } catch (webkitError) {
             // Silently ignore - AvaloniaWebView may not support this
             console.debug('webkit.messageHandlers failed:', webkitError.message);
@@ -699,12 +834,21 @@
         const trimmed = htmlContent.trim();
         if (trimmed.startsWith('<svg') && trimmed.includes('</svg>')) {
           if (output) {
-            output.innerHTML = htmlContent;
+            output.innerHTML = htmlContent;  // NO wrapper - back to original
           }
           // Enhance hover interactivity after SVG is rendered
           if (typeof globalThis.enhanceHoverability === 'function') {
-            const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
+            const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50;
             setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
+          }
+          // Initialize pan/zoom after SVG is rendered (only if not already initialized)
+          if (typeof globalThis.initializePanZoom === 'function') {
+            if (globalThis.panzoomInstance) {
+              console.log('Pan/zoom already initialized - skipping re-init');
+            } else {
+              console.log('First render - initializing pan/zoom');
+              globalThis.initializePanZoom();
+            }
           }
         } else {
           showError('Invalid diagram content received');
@@ -1163,7 +1307,7 @@
         hitArea.style.stroke = 'transparent';
         hitArea.style.fill = 'none';
         hitArea.style.pointerEvents = 'stroke';
-        hitArea.style.cursor = 'pointer';
+        hitArea.style.cursor = 'inherit'; /*changed from 'pointer' to allow panzoom cursor*/
 
         // Insert the hit area immediately after the original path (stable sibling relationship)
         path.parentNode.insertBefore(hitArea, path.nextSibling);
@@ -1184,7 +1328,7 @@
         hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.pointerEvents = 'stroke';
-        hitArea.style.cursor = 'pointer';
+        hitArea.style.cursor = 'inherit'; /*changed from 'pointer' to allow panzoom cursor*/
 
         // Insert the hit area immediately after the original line (stable sibling relationship)
         line.parentNode.insertBefore(hitArea, line.nextSibling);
@@ -1242,7 +1386,687 @@
       }
     };
 
-    console.log('Hover enhancement function registered: globalThis.enhanceHoverability');
+    // ==========================================
+    // PANZOOM FUNCTIONALITY
+    // Initializes pan/zoom on the output container. Preserves zoom/pan state across renders
+    // ==========================================
+    globalThis.panzoomInstance = null;
+    globalThis.panzoomEventHandlers = null; // Store handlers for cleanup
+    globalThis.panzoomInitializedOnce = false; // Track first initialization
+    const ZOOM_STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+
+    function findCurrentStepIndex(scale) {
+      let nearestIndex = 0;
+      let minDiff = Math.abs(scale - ZOOM_STEPS[0]);
+
+      for (let i = 1; i < ZOOM_STEPS.length; i++) {
+        const diff = Math.abs(scale - ZOOM_STEPS[i]);
+        if (diff < minDiff) {
+          minDiff = diff;
+          nearestIndex = i;
+        }
+      }
+
+      return nearestIndex;
+    }
+
+    // Replace the entire initializePanZoom function:
+    globalThis.initializePanZoom = function () {
+      const output = document.getElementById('output');
+      if (!output) {
+        console.error('Cannot initialize pan/zoom: output element not found');
+        return;
+      }
+
+      // Capture current state BEFORE destroying instance
+      let savedState = null;
+      if (globalThis.panzoomInstance && globalThis.panzoomInitializedOnce) {
+        try {
+          const scale = globalThis.panzoomInstance.getScale();
+          const pan = globalThis.panzoomInstance.getPan();
+          savedState = { scale, panX: pan.x, panY: pan.y };
+          console.log('Captured state before re-init:', savedState);
+        } catch (e) {
+          console.warn('Failed to capture state:', e);
+        }
+      }
+
+      // Remove old event listeners to prevent memory leaks
+      if (globalThis.panzoomEventHandlers) {
+        const handlers = globalThis.panzoomEventHandlers;
+
+        // Remove viewport-wide handlers from BODY
+        if (handlers.wheelHandler) {
+          document.body.removeEventListener('wheel', handlers.wheelHandler);
+        }
+        if (handlers.doubleClickHandler) {
+          document.body.removeEventListener('dblclick', handlers.doubleClickHandler);
+        }
+
+        // Remove panzoom-specific handlers from OUTPUT
+        if (handlers.zoomHandler) {
+          output.removeEventListener('panzoomzoom', handlers.zoomHandler);
+        }
+        if (handlers.changeHandler) {
+          output.removeEventListener('panzoomchange', handlers.changeHandler);
+        }
+        if (handlers.panLimitHandler) {
+          output.removeEventListener('panzoomchange', handlers.panLimitHandler);
+        }
+
+        console.log('Cleaned up previous panzoom event listeners');
+      }
+
+      // Destroy existing panzoom instance
+      if (globalThis.panzoomInstance) {
+        try {
+          globalThis.panzoomInstance.destroy();
+          console.log('Destroyed previous panzoom instance');
+        } catch (e) {
+          console.warn('Error destroying previous panzoom instance:', e);
+        }
+      }
+
+      // Create new panzoom instance with default starting position
+      globalThis.panzoomInstance = Panzoom(output, {
+        maxScale: 4,
+        minScale: 0.1,
+        step: 0.25,
+        canvas: true,  // This makes Panzoom listen to the parent (output) instead of the element itself
+        cursor: 'grab',
+        animate: true,
+        duration: 200,
+        easing: 'ease-in-out',
+        startScale: 1,
+        startX: 0,
+        startY: 0
+      });
+
+      // Restore saved state after creating new instance
+      if (savedState) {
+        try {
+          globalThis.panzoomInstance.reset({ animate: false });
+
+          if (savedState.scale !== 1) {
+            globalThis.panzoomInstance.zoom(savedState.scale, { animate: false });
+          }
+
+          if (savedState.panX !== 0 || savedState.panY !== 0) {
+            globalThis.panzoomInstance.pan(savedState.panX, savedState.panY, { animate: false });
+          }
+
+          console.log('Restored saved state:', savedState);
+        } catch (e) {
+          console.warn('Failed to restore state:', e);
+        }
+      }
+      // Apply initial centering if no saved state
+      else {
+        console.log("=== ATTEMPTING INITIAL CENTERING ===");
+
+        try {
+          const svg = output.querySelector('svg');
+          if (svg) {
+            let svgWidth, svgHeight;
+            if (svg.hasAttribute('viewBox')) {
+              const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+              svgWidth = Number.parseFloat(viewBox[2]);
+              svgHeight = Number.parseFloat(viewBox[3]);
+            } else {
+              svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+              svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+            }
+
+            const containerWidth = output.offsetWidth;
+            const containerHeight = output.offsetHeight;
+            const outputPadding = 8;
+
+            const panX = (containerWidth - svgWidth) / 2 - outputPadding;
+            const panY = (containerHeight - svgHeight) / 2 - outputPadding;
+
+            globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+            console.log(`Initial centering: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+            console.log("=== INITIAL CENTERING COMPLETE ===");
+          }
+        } catch (e) {
+          console.error('Failed initial centering:', e);
+        }
+      }
+
+      // Event handlers (stored for cleanup)
+      const wheelHandler = function (event) {
+        event.preventDefault();
+        if (globalThis.panzoomInstance) {
+          globalThis.panzoomInstance.zoomWithWheel(event);
+        }
+      };
+
+      const doubleClickHandler = function (event) {
+        if (!event.target.closest('#zoom-toolbar')) {
+          globalThis.fitToScreen();
+        }
+      };
+
+      const zoomHandler = function () {
+        updateZoomDisplay();
+      };
+
+      const changeHandler = function () {
+        updateZoomDisplay();
+      };
+
+      // Pan limit handler
+      let lastPanLimitTime = 0;
+      const panLimitDebounceMs = 16;
+
+      const panLimitHandler = function () {
+        if (!globalThis.panzoomInstance) return;
+
+        const now = Date.now();
+        if (now - lastPanLimitTime < panLimitDebounceMs) return;
+
+        const pan = globalThis.panzoomInstance.getPan();
+        const svg = output.querySelector('svg');
+        if (!svg) return;
+
+        let svgWidth, svgHeight;
+        if (svg.hasAttribute('viewBox')) {
+          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
+        } else {
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+        }
+
+        const scale = globalThis.panzoomInstance.getScale();
+        const containerWidth = output.offsetWidth;
+        const containerHeight = output.offsetHeight;
+
+        const minVisiblePercent = 0.2;
+        const scaledWidth = svgWidth * scale;
+        const scaledHeight = svgHeight * scale;
+
+        const maxPanX = containerWidth * (1 - minVisiblePercent);
+        const minPanX = -(scaledWidth - containerWidth * minVisiblePercent);
+        const maxPanY = containerHeight * (1 - minVisiblePercent);
+        const minPanY = -(scaledHeight - containerHeight * minVisiblePercent);
+
+        const clampedX = Math.max(minPanX, Math.min(maxPanX, pan.x));
+        const clampedY = Math.max(minPanY, Math.min(maxPanY, pan.y));
+
+        if (clampedX !== pan.x || clampedY !== pan.y) {
+          lastPanLimitTime = now;
+          globalThis.panzoomInstance.pan(clampedX, clampedY, { animate: false, force: true });
+        }
+      };
+
+      // Store handlers for cleanup
+      globalThis.panzoomEventHandlers = {
+        wheelHandler,
+        doubleClickHandler,
+        zoomHandler,
+        changeHandler,
+        panLimitHandler
+      };
+
+      // Initialize keyboard handler once
+      if (!globalThis.keyboardPanInitialized) {
+        document.addEventListener('keydown', handleKeyboardPan);
+        globalThis.keyboardPanInitialized = true;
+        console.log('Keyboard pan handler initialized (one-time setup)');
+      }
+
+      // Initialize toolbar dragging once
+      const toolbar = document.getElementById('zoom-toolbar');
+      if (toolbar && !toolbar.dataset.draggingInit) {
+        initializeToolbarDragging(toolbar);
+        toolbar.dataset.draggingInit = 'true';
+        console.log('Toolbar dragging initialized (one-time setup)');
+      }
+
+      // Register event listeners
+      // Viewport-wide handlers on BODY (zoom/dblclick anywhere in viewport)
+      document.body.addEventListener('wheel', wheelHandler, { passive: false });
+      document.body.addEventListener('dblclick', doubleClickHandler);
+
+      // Panzoom-specific events on OUTPUT (where panzoom is attached)
+      output.addEventListener('panzoomzoom', zoomHandler);
+      output.addEventListener('panzoomchange', changeHandler);
+      output.addEventListener('panzoomchange', panLimitHandler);
+
+      // Show toolbar when pan/zoom is initialized
+      if (toolbar) {
+        toolbar.classList.remove('hidden');
+      }
+
+      globalThis.panzoomInitializedOnce = true;
+      console.log('Pan/zoom initialized successfully (memory-safe, state-preserving)');
+    };
+
+    // Toolbar dragging functionality
+    function initializeToolbarDragging(toolbar) {
+      let isDragging = false;
+      let currentX;
+      let currentY;
+      let initialX;
+      let initialY;
+
+      const handleMouseMove = (e) => {
+        if (!isDragging) return;
+
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+
+        // Keep toolbar within viewport bounds
+        const rect = toolbar.getBoundingClientRect();
+        const maxX = window.innerWidth - rect.width;
+        const maxY = window.innerHeight - rect.height;
+
+        currentX = Math.max(0, Math.min(currentX, maxX));
+        currentY = Math.max(0, Math.min(currentY, maxY));
+
+        toolbar.style.right = 'auto'; // Clear fixed positioning
+        toolbar.style.bottom = 'auto';
+        toolbar.style.left = currentX + 'px';
+        toolbar.style.top = currentY + 'px';
+      };
+
+      const handleMouseUp = () => {
+        if (isDragging) {
+          isDragging = false;
+          toolbar.style.cursor = '';
+
+          // Remove mousemove/mouseup listeners after drag ends
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        }
+      };
+
+      const handleMouseDown = (e) => {
+        // Only allow dragging from toolbar background, not buttons
+        if (e.target.closest('.zoom-button') || e.target.closest('#zoom-level-display')) {
+          return;
+        }
+
+        isDragging = true;
+
+        // Use offsetLeft/offsetTop to get rendered position
+        // This correctly handles the initial fixed position (bottom: 20px, right: 20px)
+        initialX = e.clientX - toolbar.offsetLeft;
+        initialY = e.clientY - toolbar.offsetTop;
+
+        toolbar.style.cursor = 'grabbing';
+
+        // Attach mousemove/mouseup only during drag
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        e.preventDefault();
+      };
+
+      // Only attach mousedown handler (mousemove/mouseup are attached dynamically during drag)
+      toolbar.addEventListener('mousedown', handleMouseDown);
+    }
+
+    // Keyboard pan: Defined at global scope (initialized once)
+    // ArrowUp should pan UP (move content down = positive Y)
+    // ArrowDown should pan DOWN (move content up = negative Y)
+    // ArrowLeft should pan LEFT (move content right = positive X)
+    // ArrowRight should pan RIGHT (move content left = negative X)
+    function handleKeyboardPan(event) {
+      if (!globalThis.panzoomInstance) return;
+
+      // Check if user is typing in an input field
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      const panDistance = event.shiftKey ? 100 : 20;
+      let handled = false;
+
+      switch (event.key) {
+        case 'ArrowUp':
+          globalThis.panzoomInstance.pan(0, -panDistance, { relative: true });
+          handled = true;
+          break;
+        case 'ArrowDown':
+          globalThis.panzoomInstance.pan(0, panDistance, { relative: true });
+          handled = true;
+          break;
+        case 'ArrowLeft':
+          globalThis.panzoomInstance.pan(-panDistance, 0, { relative: true });
+          handled = true;
+          break;
+        case 'ArrowRight':
+          globalThis.panzoomInstance.pan(panDistance, 0, { relative: true });
+          handled = true;
+          break;
+      }
+
+      if (handled) {
+        event.preventDefault();
+        updateZoomDisplay();
+      }
+    }
+
+    // Zoom display: Update function
+    function updateZoomDisplay() {
+      const display = document.getElementById('zoom-level-display');
+      if (display && globalThis.panzoomInstance) {
+        const scale = globalThis.panzoomInstance.getScale();
+        display.textContent = `${Math.round(scale * 100)}%`;
+      }
+    }
+
+    // Zoom control functions
+    globalThis.zoomIn = function () {
+      if (!globalThis.panzoomInstance) return;
+
+      const output = document.getElementById('output');
+      if (!output) return;
+
+      const currentScale = globalThis.panzoomInstance.getScale();
+      const currentIndex = findCurrentStepIndex(currentScale);
+
+      const nextIndex = Math.min(currentIndex + 1, ZOOM_STEPS.length - 1);
+      if (nextIndex === currentIndex) {
+        console.log('Already at maximum zoom');
+        return;
+      }
+
+      const targetScale = ZOOM_STEPS[nextIndex];
+
+      const outputRect = output.getBoundingClientRect();
+      const syntheticEvent = {
+        clientX: outputRect.left + outputRect.width / 2,
+        clientY: outputRect.top + outputRect.height / 2
+      };
+
+      globalThis.panzoomInstance.zoomToPoint(targetScale, syntheticEvent, { animate: true });
+      console.log(`Zoom In: ${Math.round(currentScale * 100)}% → ${Math.round(targetScale * 100)}%`);
+    };
+
+    globalThis.zoomOut = function () {
+      if (!globalThis.panzoomInstance) return;
+
+      const output = document.getElementById('output');
+      if (!output) return;
+
+      const currentScale = globalThis.panzoomInstance.getScale();
+      const currentIndex = findCurrentStepIndex(currentScale);
+
+      const nextIndex = Math.max(currentIndex - 1, 0);
+      if (nextIndex === currentIndex) {
+        console.log('Already at minimum zoom');
+        return;
+      }
+
+      const targetScale = ZOOM_STEPS[nextIndex];
+
+      const outputRect = output.getBoundingClientRect();
+      const syntheticEvent = {
+        clientX: outputRect.left + outputRect.width / 2,
+        clientY: outputRect.top + outputRect.height / 2
+      };
+
+      globalThis.panzoomInstance.zoomToPoint(targetScale, syntheticEvent, { animate: true });
+      console.log(`Zoom Out: ${Math.round(currentScale * 100)}% → ${Math.round(targetScale * 100)}%`);
+    };
+
+    globalThis.resetZoom = function () {
+      if (!globalThis.panzoomInstance) return;
+
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (svg) {
+        let svgWidth, svgHeight;
+        if (svg.hasAttribute('viewBox')) {
+          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
+        } else {
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+        }
+
+        const containerWidth = output.offsetWidth;
+        const containerHeight = output.offsetHeight;
+        const outputPadding = 8;
+        const panX = (containerWidth - svgWidth) / 2 - outputPadding;
+        const panY = (containerHeight - svgHeight) / 2 - outputPadding;
+
+        globalThis.panzoomInstance.zoom(1, { animate: false });
+        globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+        console.log(`Reset: zoom=100%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+      }
+    };
+
+    globalThis.centerDiagram = function () {
+      if (!globalThis.panzoomInstance) return;
+
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (svg) {
+        let svgWidth, svgHeight;
+        if (svg.hasAttribute('viewBox')) {
+          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
+        } else {
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+        }
+
+        const containerWidth = output.offsetWidth;
+        const containerHeight = output.offsetHeight;
+        const scale = globalThis.panzoomInstance.getScale();
+        const outputPadding = 8;
+        const panX = (containerWidth - svgWidth * scale) / 2 - outputPadding;
+        const panY = (containerHeight - svgHeight * scale) / 2 - outputPadding;
+
+        globalThis.panzoomInstance.pan(panX, panY, { animate: true });
+        console.log(`Centered at ${Math.round(scale * 100)}%: pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+      }
+    };
+
+    // Fit-to-screen is idempotent. Uses intrinsic SVG dimensions and calculates proper center position
+    // Removed 1.0 max scale limit to allow zooming out for large diagrams
+    globalThis.fitToScreen = function () {
+      if (!globalThis.panzoomInstance) return;
+
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (svg) {
+        // Get intrinsic SVG dimensions (NOT scaled!)
+        let svgWidth, svgHeight;
+        if (svg.hasAttribute('viewBox')) {
+          const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+          svgWidth = Number.parseFloat(viewBox[2]);
+          svgHeight = Number.parseFloat(viewBox[3]);
+        } else {
+          // Fallback to attributes (avoid clientWidth/clientHeight as they may be scaled)
+          svgWidth = Number.parseFloat(svg.getAttribute('width')) || 800;
+          svgHeight = Number.parseFloat(svg.getAttribute('height')) || 600;
+        }
+
+        // CRITICAL FIX: Use offsetWidth/offsetHeight instead of getBoundingClientRect()
+        // offsetWidth/offsetHeight return layout dimensions BEFORE transforms are applied
+        const containerWidth = output.offsetWidth;
+        const containerHeight = output.offsetHeight;
+
+        // Calculate scale to fit with 40px diagram padding
+        const diagramPadding = 40;
+        const scaleX = (containerWidth - diagramPadding) / svgWidth;
+        const scaleY = (containerHeight - diagramPadding) / svgHeight;
+        const targetScale = Math.min(scaleX, scaleY);
+
+        // Clamp to panzoom limits
+        const minZoomScale = 0.1;
+        const maxZoomScale = 4;
+        const clampedScale = Math.max(minZoomScale, Math.min(maxZoomScale, targetScale));
+
+        // Calculate centered pan at target scale
+        const outputPadding = 8;
+        const panX = (containerWidth - svgWidth * clampedScale) / 2 - outputPadding;
+        const panY = (containerHeight - svgHeight * clampedScale) / 2 - outputPadding;
+
+        // Apply both without animation to avoid conflicts
+        globalThis.panzoomInstance.zoom(clampedScale, { animate: false });
+        globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+        console.log(`Fit: scale=${(clampedScale * 100).toFixed(0)}%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)}), container=${containerWidth.toFixed(0)}x${containerHeight.toFixed(0)}`);
+      }
+    };
+
+    // State management functions
+    // Replace restoreViewState function:
+    globalThis.restoreViewState = function (zoomLevel, panX, panY) {
+      if (!globalThis.panzoomInstance) return;
+
+      try {
+        const output = document.getElementById('output');
+        const svg = output?.querySelector('svg');
+        const panToleranceThreshold = 0.1;
+        const isPanNearZero = Math.abs(panX) < panToleranceThreshold && Math.abs(panY) < panToleranceThreshold;
+
+        if (svg && isPanNearZero) {
+          console.log('Detected default pan values - applying centering instead');
+
+          let svgWidth, svgHeight;
+          if (svg.hasAttribute('viewBox')) {
+            const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+            svgWidth = Number.parseFloat(viewBox[2]);
+            svgHeight = Number.parseFloat(viewBox[3]);
+          } else {
+            svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+            svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+          }
+
+          const containerWidth = output.offsetWidth;
+          const containerHeight = output.offsetHeight;
+          const outputPadding = 8;
+          const scale = zoomLevel || 1.0;
+
+          const centeredPanX = (containerWidth - svgWidth * scale) / 2 - outputPadding;
+          const centeredPanY = (containerHeight - svgHeight * scale) / 2 - outputPadding;
+
+          globalThis.panzoomInstance.zoom(scale, { animate: false });
+          globalThis.panzoomInstance.pan(centeredPanX, centeredPanY, { animate: false });
+
+          console.log(`Applied centering: zoom=${(scale * 100).toFixed(0)}%, pan=(${centeredPanX.toFixed(1)}, ${centeredPanY.toFixed(1)})`);
+        } else {
+          globalThis.panzoomInstance.reset({ animate: false });
+
+          if (zoomLevel && zoomLevel !== 1) {
+            globalThis.panzoomInstance.zoom(zoomLevel, { animate: false });
+          }
+
+          globalThis.panzoomInstance.pan(panX, panY, { animate: false });
+
+          console.log(`Restored view state: zoom=${(zoomLevel * 100).toFixed(0)}%, pan=(${panX.toFixed(1)}, ${panY.toFixed(1)})`);
+        }
+
+        updateZoomDisplay();
+      } catch (e) {
+        console.error('Error restoring view state:', e);
+      }
+    };
+
+    // C# will handle the serialization
+    globalThis.getViewState = function () {
+      if (globalThis.panzoomInstance) {
+        const scale = globalThis.panzoomInstance.getScale();
+        const pan = globalThis.panzoomInstance.getPan();
+        // Return JSON string for C# ExecuteScriptAsync
+        return JSON.stringify({
+          zoom: scale,
+          panX: pan.x,
+          panY: pan.y
+        });
+      }
+      // Return JSON string for default state
+      return JSON.stringify({ zoom: 1, panX: 0, panY: 0 });
+    };
+
+    globalThis.debugPanZoom = function () {
+      if (!globalThis.panzoomInstance) {
+        console.log('No panzoom instance');
+        return;
+      }
+
+      const output = document.getElementById('output');
+      const svg = output?.querySelector('svg');
+
+      if (!svg) {
+        console.log('No SVG found');
+        return;
+      }
+
+      // Get all dimensions
+      let svgWidth, svgHeight;
+      if (svg.hasAttribute('viewBox')) {
+        const viewBox = svg.getAttribute('viewBox').split(/\s+|,/);
+        svgWidth = Number.parseFloat(viewBox[2]);
+        svgHeight = Number.parseFloat(viewBox[3]);
+      } else {
+        svgWidth = Number.parseFloat(svg.getAttribute('width')) || svg.clientWidth;
+        svgHeight = Number.parseFloat(svg.getAttribute('height')) || svg.clientHeight;
+      }
+
+      const svgRect = svg.getBoundingClientRect();
+      const outputRect = output.getBoundingClientRect();
+      const scale = globalThis.panzoomInstance.getScale();
+      const pan = globalThis.panzoomInstance.getPan();
+
+      // Get computed transform for verification
+      const transform = window.getComputedStyle(output).transform;
+
+      console.log('=== PAN/ZOOM DEBUG INFO ===');
+      console.log('SVG intrinsic dimensions:', { width: svgWidth, height: svgHeight });
+      console.log('SVG bounding rect (scaled):', {
+        width: svgRect.width,
+        height: svgRect.height,
+        left: svgRect.left,
+        top: svgRect.top
+      });
+      console.log('Container bounding rect:', {
+        width: outputRect.width,
+        height: outputRect.height,
+        left: outputRect.left,
+        top: outputRect.top
+      });
+      console.log('Current scale:', scale);
+      console.log('Current pan:', pan);
+      console.log('Computed transform:', transform);
+      console.log('SVG visual position relative to container:', {
+        left: svgRect.left - outputRect.left,
+        top: svgRect.top - outputRect.top
+      });
+      console.log('Expected centered position (if centered):', {
+        left: (outputRect.width - svgRect.width) / 2,
+        top: (outputRect.height - svgRect.height) / 2
+      });
+      console.log('========================');
+
+      return {
+        svgIntrinsic: { width: svgWidth, height: svgHeight },
+        svgScaled: { width: svgRect.width, height: svgRect.height },
+        container: { width: outputRect.width, height: outputRect.height },
+        scale: scale,
+        pan: pan,
+        visualOffset: {
+          left: svgRect.left - outputRect.left,
+          top: svgRect.top - outputRect.top
+        }
+      };
+    };
   </script>
 </head>
 <body>
@@ -1251,5 +2075,28 @@
     <div id="loading-status">Initializing...</div>
   </div>
   <div id="output"></div>
+  <div id="zoom-toolbar" class="hidden">
+    <div class="zoom-button" onclick="globalThis.zoomIn()" aria-label="Zoom In">
+      <span class="zoom-button-icon">🔍+</span>
+      <span>Zoom In</span>
+    </div>
+    <div class="zoom-button" onclick="globalThis.zoomOut()" aria-label="Zoom Out">
+      <span class="zoom-button-icon">🔍−</span>
+      <span>Zoom Out</span>
+    </div>
+    <div class="zoom-button" onclick="globalThis.resetZoom()" aria-label="Reset Zoom">
+      <span class="zoom-button-icon">⟲</span>
+      <span>Reset</span>
+    </div>
+    <div class="zoom-button" onclick="globalThis.centerDiagram()" aria-label="Center Diagram">
+      <span class="zoom-button-icon">⊙</span>
+      <span>Center</span>
+    </div>
+    <div class="zoom-button" onclick="globalThis.fitToScreen()" aria-label="Fit to Screen">
+      <span class="zoom-button-icon">⊡</span>
+      <span>Fit to Screen</span>
+    </div>
+    <div id="zoom-level-display">100%</div>
+  </div>
 </body>
 </html>
