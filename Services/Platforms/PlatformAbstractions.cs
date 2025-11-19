@@ -23,6 +23,12 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Services.Platforms;
 
+/// <summary>
+/// Provides platform-specific services for displaying native operating system dialogs and related functionality.
+/// </summary>
+/// <remarks>Implementations of this interface enable applications to interact with platform-native features, such
+/// as showing dialogs, in a way that is abstracted from the underlying operating system. This allows for consistent
+/// behavior across different platforms while leveraging native capabilities.</remarks>
 public interface IPlatformServices
 {
     /// <summary>
@@ -33,10 +39,31 @@ public interface IPlatformServices
     void ShowNativeDialog(string title, string message);
 }
 
+/// <summary>
+/// Provides access to platform-specific services for the current operating system using a factory pattern.
+/// </summary>
+/// <remarks>This class automatically selects the appropriate implementation of <see cref="IPlatformServices"/>
+/// based on the detected operating system at runtime. Only Windows, Linux, and macOS are supported. The factory pattern
+/// enables easy extension and customization for additional platforms if needed.</remarks>
 public static class PlatformServiceFactory
 {
+    /// <summary>
+    /// Gets the singleton instance of the platform services provider for the current application environment.
+    /// </summary>
+    /// <remarks>Use this property to access platform-specific functionality through the <see
+    /// cref="IPlatformServices"/> interface. The returned instance is initialized once and shared throughout the
+    /// application's lifetime.</remarks>
     public static IPlatformServices Instance { get; } = Create();
 
+    /// <summary>
+    /// Creates an instance of <see cref="IPlatformServices"/> that provides platform-specific services for the current
+    /// operating system.
+    /// </summary>
+    /// <remarks>This method selects the correct platform services implementation based on the runtime
+    /// environment. Only Windows, Linux, and macOS are supported; other platforms will result in an
+    /// exception.</remarks>
+    /// <returns>An implementation of <see cref="IPlatformServices"/> appropriate for the detected operating system.</returns>
+    /// <exception cref="PlatformNotSupportedException">Thrown if the current operating system is not Windows, Linux, or macOS.</exception>
     [SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance", Justification = "The factory pattern allows for easy extension and platform-specific implementations.")]
     private static IPlatformServices Create()
     {

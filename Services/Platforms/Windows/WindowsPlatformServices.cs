@@ -31,8 +31,12 @@ namespace MermaidPad.Services;
 #pragma warning restore IDE0130 // Namespace does not match folder structure
 
 /// <summary>
-/// Provides Windows-specific platform services, including native dialog display.
+/// Provides Windows-specific platform services, including the ability to display native MessageBox dialogs.
 /// </summary>
+/// <remarks>This class is intended for use on Windows operating systems and exposes functionality that interacts
+/// directly with Windows APIs. It implements the <see cref="IPlatformServices"/> interface to provide
+/// platform-dependent features for Windows environments. All members are supported only on Windows; attempting to use
+/// them on other platforms will result in a platform compatibility error.</remarks>
 [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Win32 API naming conventions")]
 [SupportedOSPlatform("windows")]
 public sealed partial class WindowsPlatformServices : IPlatformServices

@@ -20,13 +20,18 @@
 
 using AsyncAwaitBestPractices;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MermaidPad.Exceptions.Assets;
+using MermaidPad.Extensions;
 using MermaidPad.Services;
+using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -43,12 +48,35 @@ public sealed partial class MainWindow : Window
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
+    private readonly SyntaxHighlightingService _syntaxHighlightingService;
     private readonly IDebounceDispatcher _editorDebouncer;
+    private readonly ILogger<MainWindow> _logger;
 
+    private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
 
     private const int WebViewReadyTimeoutSeconds = 30;
+    private const string ZoomCommandReset = "resetZoom";
+    private const string ZoomCommandIn = "zoomIn";
+    private const string ZoomCommandOut = "zoomOut";
+    private static readonly HashSet<string> _allowedZoomCommands =
+    [
+        ZoomCommandReset,
+        ZoomCommandIn,
+        ZoomCommandOut
+    ];
+
+    // Event handlers stored for proper cleanup
+    private EventHandler? _activatedHandler;
+    private EventHandler? _openedHandler;
+    private EventHandler<WindowClosingEventArgs>? _closingHandler;
+    private EventHandler? _editorTextChangedHandler;
+    private EventHandler? _editorSelectionChangedHandler;
+    private EventHandler? _editorCaretPositionChangedHandler;
+    private EventHandler? _themeChangedHandler;
+    private EventHandler<KeyEventArgs>? _webViewKeyDownHandler;
+    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -67,15 +95,30 @@ public sealed partial class MainWindow : Window
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
+        _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
+        _logger = sp.GetRequiredService<ILogger<MainWindow>>();
         DataContext = _vm;
 
-        SimpleLogger.Log("=== MainWindow Initialization Started ===");
+        _logger.LogInformation("=== MainWindow Initialization Started ===");
 
-        Opened += OnOpened;
-        Closing += OnClosing;
+        // Initialize syntax highlighting before wiring up OnThemeChanged
+        InitializeSyntaxHighlighting();
 
-        // Focus the editor when the window is activated
-        Activated += (_, _) => BringFocusToEditor();
+        // Store event handlers for proper cleanup
+        _openedHandler = OnOpened;
+        Opened += _openedHandler;
+
+        _closingHandler = OnClosing;
+        Closing += _closingHandler;
+
+        _themeChangedHandler = OnThemeChanged;
+        ActualThemeVariantChanged += _themeChangedHandler;
+
+        _activatedHandler = (_, _) => BringFocusToEditor();
+        Activated += _activatedHandler;
+
+        _webViewKeyDownHandler = OnKeyDown;
+        Preview.KeyDown += _webViewKeyDownHandler;
 
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
@@ -85,12 +128,12 @@ public sealed partial class MainWindow : Window
             _vm.EditorCaretOffset
         );
 
-        SimpleLogger.Log($"Editor initialized with {_vm.DiagramText.Length} characters");
+        _logger.LogInformation("Editor initialized with {CharacterCount} characters", _vm.DiagramText.Length);
 
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
 
-        SimpleLogger.Log("=== MainWindow Initialization Completed ===");
+        _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
 
     /// <summary>
@@ -121,7 +164,7 @@ public sealed partial class MainWindow : Window
             Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
 
-            SimpleLogger.Log($"Editor state set: Start={validSelectionStart}, Length={validSelectionLength}, Caret={validCaretOffset} (text length: {textLength})");
+            _logger.LogInformation("Editor state set with {CharacterCount} characters", textLength);
         }
         finally
         {
@@ -140,7 +183,7 @@ public sealed partial class MainWindow : Window
     private void SetupEditorViewModelSync()
     {
         // Editor -> ViewModel synchronization (text)
-        Editor.TextChanged += (_, _) =>
+        _editorTextChangedHandler = (_, _) =>
         {
             if (_suppressEditorTextChanged)
             {
@@ -165,9 +208,10 @@ public sealed partial class MainWindow : Window
             },
             DispatcherPriority.Background);
         };
+        Editor.TextChanged += _editorTextChangedHandler;
 
         // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
-        Editor.TextArea.SelectionChanged += (_, _) =>
+        _editorSelectionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -176,8 +220,9 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.SelectionChanged += _editorSelectionChangedHandler;
 
-        Editor.TextArea.Caret.PositionChanged += (_, _) =>
+        _editorCaretPositionChangedHandler = (_, _) =>
         {
             if (_suppressEditorStateSync)
             {
@@ -186,9 +231,11 @@ public sealed partial class MainWindow : Window
 
             ScheduleEditorStateSyncIfNeeded();
         };
+        Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
 
         // ViewModel -> Editor synchronization
-        _vm.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
+        _vm.PropertyChanged += _viewModelPropertyChangedHandler;
     }
 
     /// <summary>
@@ -267,6 +314,8 @@ public sealed partial class MainWindow : Window
 
             case nameof(_vm.EditorSelectionStart):
             case nameof(_vm.EditorSelectionLength):
+            case nameof(_vm.CanCopyClipboard):
+            case nameof(_vm.CanPasteClipboard):
             case nameof(_vm.EditorCaretOffset):
                 _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
                 {
@@ -344,9 +393,9 @@ public sealed partial class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         OnOpenedCoreAsync()
-            .SafeFireAndForget(onException: static ex =>
+            .SafeFireAndForget(onException: ex =>
             {
-                SimpleLogger.LogError("Unhandled exception in OnOpened", ex);
+                _logger.LogError(ex, "Unhandled exception in OnOpened");
                 //TODO - show a message to the user (this would need UI thread!)
                 //Dispatcher.UIThread.Post(async () =>
                 //{
@@ -366,8 +415,16 @@ public sealed partial class MainWindow : Window
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task OnOpenedCoreAsync()
     {
-        await OnOpenedAsync();
-        BringFocusToEditor();
+        _suppressEditorStateSync = true;
+        try
+        {
+            await OnOpenedAsync();
+            BringFocusToEditor();
+        }
+        finally
+        {
+            _suppressEditorStateSync = false;
+        }
     }
 
     /// <summary>
@@ -384,23 +441,23 @@ public sealed partial class MainWindow : Window
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        SimpleLogger.Log("=== Window Opened Sequence Started ===");
+        _logger.LogInformation("=== Window Opened Sequence Started ===");
 
         try
         {
             // TODO - re-enable this once a more complete update mechanism is in place
             // Step 1: Check for Mermaid updates
-            //SimpleLogger.Log("Step 1: Checking for Mermaid updates...");
+            //_logger.LogInformation("Step 1: Checking for Mermaid updates...");
             //await _vm.CheckForMermaidUpdatesAsync();
-            //SimpleLogger.Log("Mermaid update check completed");
+            //_logger.LogInformation("Mermaid update check completed");
 
             // Step 2: Initialize WebView (editor state is already synchronized via constructor)
-            SimpleLogger.Log("Step 2: Initializing WebView...");
+            _logger.LogInformation("Step 2: Initializing WebView...");
             string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
             if (assetsPath is null)
             {
                 const string error = "BundledMermaidPath does not contain a directory component";
-                SimpleLogger.LogError(error);
+                _logger.LogError(error);
                 throw new InvalidOperationException(error);
             }
 
@@ -408,7 +465,7 @@ public sealed partial class MainWindow : Window
             await InitializeWebViewAsync();
 
             // Step 3: Update command states
-            SimpleLogger.Log("Step 3: Updating command states...");
+            _logger.LogInformation("Step 3: Updating command states...");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.RenderCommand.NotifyCanExecuteChanged();
@@ -416,44 +473,162 @@ public sealed partial class MainWindow : Window
             });
 
             stopwatch.Stop();
-            SimpleLogger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
-            SimpleLogger.Log("=== Window Opened Sequence Completed Successfully ===");
+            _logger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
+            _logger.LogInformation("=== Window Opened Sequence Completed Successfully ===");
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-            SimpleLogger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: false);
-            SimpleLogger.LogError("Window opened sequence failed", ex);
+            _logger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: false);
+            _logger.LogError(ex, "Window opened sequence failed");
             throw;
         }
     }
 
     /// <summary>
-    /// Handles the window close event and initiates the cleanup sequence.
+    /// Handles the Click event for the Exit menu item and closes the current window.
     /// </summary>
-    /// <param name="sender">Event sender (window).</param>
-    /// <param name="e">Cancel event args allowing the close to be canceled (not used here).</param>
-    /// <remarks>
-    /// This method delegates to <see cref="OnClosingAsync"/> to perform asynchronous cleanup operations.
-    /// Uses SafeFireAndForget to handle the async cleanup without blocking the window close event.
-    /// </remarks>
+    /// <param name="sender">The source of the event, typically the Exit menu item.</param>
+    /// <param name="e">The event data associated with the Click event.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+    private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
+    /// before the window closes.
+    /// </summary>
+    /// <remarks>If there are unsaved changes, the method prompts the user before allowing the window to
+    /// close. Cleanup and state persistence are only performed if the close operation is not cancelled by this or other
+    /// event handlers.</remarks>
+    /// <param name="sender">The source of the event, typically the window that is being closed.</param>
+    /// <param name="e">A <see cref="CancelEventArgs"/> that contains the event data, including a flag
+    /// to cancel the closing operation.</param>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        // Check for unsaved changes (only if not already approved)
+        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        {
+            e.Cancel = true;
+            PromptAndCloseAsync()
+                .SafeFireAndForget(onException: ex =>
+                {
+                    _logger.LogError(ex, "Failed during close prompt");
+                    _isClosingApproved = false; // Reset on error
+                });
+            return; // Don't clean up - close was cancelled
+        }
+
+        // Reset approval flag if it was set
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+        }
+
+        // Check if close was cancelled by another handler or the system
+        if (e.Cancel)
+        {
+            return; // Don't clean up - window is not actually closing
+        }
+
+        try
+        {
+            // Only unsubscribe when we're actually closing (e.Cancel is still false)
+            UnsubscribeAllEventHandlers();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during window closing cleanup");
+
+            // I don't want silent failures here - rethrow to let higher-level handlers know
+            throw;
+        }
+
+        // Perform async cleanup
+        // Capture logger for use in lambda in case 'this' is disposed before the async work completes
+        ILogger<MainWindow> logger = _logger;
         OnClosingAsync()
-            .SafeFireAndForget(onException: static ex => SimpleLogger.LogError("Failed during window close cleanup", ex));
+            .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
     }
 
     /// <summary>
-    /// Performs cleanup operations when the window is closing, including persisting state and disposing of resources
-    /// asynchronously.
+    /// Unsubscribes all event handlers that were previously attached to window and editor events.
     /// </summary>
-    /// <remarks>This method ensures that the application state is saved and any resources, such as the renderer, are
-    /// properly disposed of before the window is closed. It logs the progress of the cleanup process for diagnostic
-    /// purposes.</remarks>
-    /// <returns>A <see cref="Task"/> that represents the asynchronous cleanup operation.</returns>
+    /// <remarks>Call this method to detach all event handlers managed by the instance, typically during
+    /// cleanup or disposal. After calling this method, the instance will no longer respond to the associated events
+    /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
+    private void UnsubscribeAllEventHandlers()
+    {
+        if (_openedHandler is not null)
+        {
+            Opened -= _openedHandler;
+            _openedHandler = null;
+        }
+
+        if (_closingHandler is not null)
+        {
+            Closing -= _closingHandler;
+            _closingHandler = null;
+        }
+
+        if (_activatedHandler is not null)
+        {
+            Activated -= _activatedHandler;
+            _activatedHandler = null;
+        }
+
+        if (_themeChangedHandler is not null)
+        {
+            ActualThemeVariantChanged -= _themeChangedHandler;
+            _themeChangedHandler = null;
+        }
+
+        if (_webViewKeyDownHandler is not null)
+        {
+            Preview.KeyDown -= _webViewKeyDownHandler;
+            _webViewKeyDownHandler = null;
+        }
+
+        if (_editorTextChangedHandler is not null)
+        {
+            Editor.TextChanged -= _editorTextChangedHandler;
+            _editorTextChangedHandler = null;
+        }
+
+        if (_editorSelectionChangedHandler is not null)
+        {
+            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
+            _editorSelectionChangedHandler = null;
+        }
+
+        if (_editorCaretPositionChangedHandler is not null)
+        {
+            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
+            _editorCaretPositionChangedHandler = null;
+        }
+
+        if (_viewModelPropertyChangedHandler is not null)
+        {
+            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _viewModelPropertyChangedHandler = null;
+        }
+
+        _logger.LogInformation("All event handlers unsubscribed successfully");
+    }
+
+
     private async Task OnClosingAsync()
     {
-        SimpleLogger.Log("Window closing, cleaning up...");
+        _logger.LogInformation("Window closing, cleaning up...");
+
+        // Get and save current zoom/pan state
+        var viewState = await _renderer.GetViewStateAsync();
+        if (viewState.HasValue)
+        {
+            _vm.ZoomLevel = viewState.Value.zoom;
+            _vm.PanOffsetX = viewState.Value.panX;
+            _vm.PanOffsetY = viewState.Value.panY;
+            _logger.LogDebug("Saved view state: zoom={Zoom}, pan=({PanX}, {PanY})", viewState.Value.zoom, viewState.Value.panX, viewState.Value.panY);
+        }
 
         // Save state
         _vm.Persist();
@@ -461,10 +636,115 @@ public sealed partial class MainWindow : Window
         if (_renderer is IAsyncDisposable disposableRenderer)
         {
             await disposableRenderer.DisposeAsync();
-            SimpleLogger.Log("MermaidRenderer disposed");
+            _logger.LogInformation("MermaidRenderer disposed");
         }
 
-        SimpleLogger.Log("Window cleanup completed successfully");
+        _logger.LogInformation("Window cleanup completed successfully");
+    }
+
+    #region PanZoom methods
+
+    /// <summary>
+    /// Handles the OnKeyDown event to process keyboard shortcuts for zoom commands.
+    /// </summary>
+    /// <remarks>This method listens for specific key combinations involving the <c>Control</c> key and
+    /// numeric or symbol keys to execute zoom-related commands: <list type="bullet"> <item><description><c>Ctrl+0</c>:
+    /// Resets the zoom level.</description></item> <item><description><c>Ctrl++</c>: Zooms in.</description></item>
+    /// <item><description><c>Ctrl+-</c>: Zooms out.</description></item> </list> The method ensures that the zoom
+    /// commands are executed only when the <c>Control</c> key is pressed and the WebView is ready. If a recognized key
+    /// combination is handled, the event is marked as handled by setting <see cref="KeyEventArgs.Handled"/> to <see
+    /// langword="true"/>.
+    /// <para>
+    /// <b>Note:</b> The event is marked as handled (<see cref="KeyEventArgs.Handled"/> set to <see langword="true"/>)
+    /// <b>only</b> for recognized zoom commands. For all other key combinations, the event is not marked as handled.
+    /// </para></remarks>
+    /// <param name="sender">The source of the event. This parameter is optional and may be <see langword="null"/>.</param>
+    /// <param name="e">The <see cref="KeyEventArgs"/> instance containing the event data, including the key pressed and any modifier
+    /// keys.</param>
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        bool isCtrlPressed = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (!isCtrlPressed || !_vm.IsWebViewReady)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.D0: // Ctrl+0 - Reset zoom
+            case Key.NumPad0:
+                ExecuteZoomCommand(ZoomCommandReset);
+                e.Handled = true;
+                break;
+
+            case Key.OemPlus: // Ctrl++ - Zoom in
+            case Key.Add:
+                ExecuteZoomCommand(ZoomCommandIn);
+                e.Handled = true;
+                break;
+
+            case Key.OemMinus: // Ctrl+- - Zoom out
+            case Key.Subtract:
+                ExecuteZoomCommand(ZoomCommandOut);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Executes a specified zoom command by invoking a corresponding JavaScript function in the web preview.
+    /// </summary>
+    /// <remarks>If the specified JavaScript function does not exist or an error occurs during execution, the
+    /// failure is logged.</remarks>
+    /// <param name="command">The name of the JavaScript function to execute. This function must be defined in the global scope of the web
+    /// preview.</param>
+    private void ExecuteZoomCommand(string command)
+    {
+        if (!_allowedZoomCommands.Contains(command))
+        {
+            _logger.LogError("Attempted to execute invalid zoom command: {Command}", command);
+            return;
+        }
+
+        string script = $@"
+        if (typeof globalThis.{command} === 'function') {{
+            globalThis.{command}();
+        }}
+        ";
+
+        _renderer.ExecuteScriptAsync(script)
+            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Exception while executing zoom command script: {Command}", command));
+    }
+
+    #endregion PanZoom methods
+
+    /// <summary>
+    /// Prompts the user to save changes if there are unsaved modifications, and closes the window if the user confirms
+    /// or no changes need to be saved.
+    /// </summary>
+    /// <remarks>If the window is closed, any unsaved changes are either saved or discarded based on the
+    /// user's response to the prompt. The method ensures that the close operation does not trigger the save prompt
+    /// again. This method should be called when attempting to close the window to prevent accidental loss of unsaved
+    /// data.</remarks>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the prompt and close sequence has
+    /// finished.</returns>
+    private async Task PromptAndCloseAsync()
+    {
+        try
+        {
+            bool canClose = await _vm.PromptSaveIfDirtyAsync(StorageProvider);
+            if (canClose)
+            {
+                _isClosingApproved = true;
+                Close(); // Triggers OnClosing, which resets the flag
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during close prompt");
+            _isClosingApproved = false; // Reset on exception
+            throw;
+        }
     }
 
     /// <summary>
@@ -482,15 +762,16 @@ public sealed partial class MainWindow : Window
     private async Task InitializeWebViewAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        SimpleLogger.Log("=== WebView Initialization Started ===");
+        _logger.LogInformation("=== WebView Initialization Started ===");
 
         // Temporarily disable live preview during WebView initialization
-        bool originalLivePreview = _vm.LivePreviewEnabled;
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        bool originalLivePreview = await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            bool current = _vm.LivePreviewEnabled;
             _vm.LivePreviewEnabled = false;
-            SimpleLogger.Log($"Temporarily disabled live preview (was: {originalLivePreview})");
-        });
+            _logger.LogInformation("Temporarily disabled live preview (was: {Current})", current);
+            return current;
+        }, DispatcherPriority.Normal);
 
         bool success = false;
         try
@@ -501,12 +782,15 @@ public sealed partial class MainWindow : Window
             // Step 2: Kick first render; index.html sets globalThis.__renderingComplete__ in hideLoadingIndicator()
             await _renderer.RenderAsync(_vm.DiagramText);
 
+            // Step 2.5: Restore zoom and pan state
+            await _renderer.RestoreViewStateAsync(_vm.ZoomLevel, _vm.PanOffsetX, _vm.PanOffsetY);
+
             // Step 3: Await readiness
             try
             {
                 await _renderer.EnsureFirstRenderReadyAsync(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds));
                 await Dispatcher.UIThread.InvokeAsync(() => _vm.IsWebViewReady = true);
-                SimpleLogger.Log("WebView readiness observed");
+                _logger.LogInformation("WebView readiness observed");
             }
             catch (TimeoutException)
             {
@@ -515,16 +799,16 @@ public sealed partial class MainWindow : Window
                     _vm.IsWebViewReady = true;
                     _vm.LastError = $"WebView initialization timed out after {WebViewReadyTimeoutSeconds} seconds. Some features may not work correctly.";
                 });
-                SimpleLogger.Log($"WebView readiness timed out after {WebViewReadyTimeoutSeconds}s; enabling commands with warning");
+                _logger.LogWarning("WebView readiness timed out after {TimeoutSeconds}s; enabling commands with warning", WebViewReadyTimeoutSeconds);
             }
 
             success = true;
-            SimpleLogger.Log("=== WebView Initialization Completed Successfully ===");
+            _logger.LogInformation("=== WebView Initialization Completed Successfully ===");
         }
         catch (OperationCanceledException)
         {
             // Treat cancellations distinctly; still propagate
-            SimpleLogger.Log("WebView initialization was canceled.");
+            _logger.LogInformation("WebView initialization was canceled.");
             throw;
         }
         catch (Exception ex) when (ex is AssetIntegrityException or MissingAssetException)
@@ -535,32 +819,156 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             // Log and rethrow so OnOpenedAsync observes the failure and can abort the sequence
-            SimpleLogger.LogError("WebView initialization failed", ex);
+            _logger.LogError(ex, "WebView initialization failed");
             throw;
         }
         finally
         {
             stopwatch.Stop();
-            SimpleLogger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
+            _logger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
 
             // Re-enable live preview after WebView is ready (or on failure)
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.LivePreviewEnabled = originalLivePreview;
-                SimpleLogger.Log($"Re-enabled live preview: {originalLivePreview}");
+                _logger.LogInformation("Re-enabled live preview: {OriginalLivePreview}", originalLivePreview);
             });
         }
     }
 
+    #region Clipboard methods
+
     /// <summary>
-    /// Handler for the close button click. Closes the window.
+    /// Determines the enabled state of context menu clipboard commands based on the current editor selection and
+    /// clipboard availability.
     /// </summary>
-    /// <param name="sender">Event sender (button).</param>
-    /// <param name="e">Routed event arguments.</param>
-    [SuppressMessage("ReSharper", "UnusedParameter.Local")]
-    private void OnCloseClick(object? sender, RoutedEventArgs e)
+    /// <remarks>This method is intended to be used as an event handler for context menu opening events. It
+    /// updates the clipboard-related command states to reflect whether copy and paste actions are currently
+    /// available.</remarks>
+    /// <param name="sender">The source of the event, typically the control that triggered the context menu opening.</param>
+    /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
+    private void GetContextMenuState(object? sender, CancelEventArgs e)
     {
-        SimpleLogger.Log("Close button clicked");
-        Close();
+        // Get Clipboard state
+        _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
+
+        UpdateCanPasteClipboardAsync()
+            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to update CanPasteClipboard"));
     }
+
+    /// <summary>
+    /// Asynchronously retrieves the current text content from the clipboard associated with the specified window.
+    /// </summary>
+    /// <remarks>If the clipboard is unavailable or does not contain text, the method returns null. The
+    /// operation is performed on the appropriate UI thread as required by the window's clipboard
+    /// implementation.</remarks>
+    /// <param name="window">The window whose clipboard is accessed to retrieve text. Must not be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the clipboard text if available;
+    /// otherwise, null.</returns>
+    private static async Task<string?> GetTextFromClipboardAsync(Window window)
+    {
+        // Access Window.Clipboard on the UI thread
+        IClipboard? clipboard = Dispatcher.UIThread.CheckAccess()
+            ? window.Clipboard
+            : await Dispatcher.UIThread.InvokeAsync(() => window.Clipboard, DispatcherPriority.Background);
+
+        if (clipboard is null)
+        {
+            return null;
+        }
+
+        // Perform the read without capturing the UI context (no UI touched afterward)
+        string? clipboardText = await clipboard.TryGetTextAsync()
+            .ConfigureAwait(false);
+        return clipboardText;
+    }
+
+    /// <summary>
+    /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
+    /// </summary>
+    /// <remarks>This method reads the clipboard text off the UI thread and updates the CanPasteClipboard
+    /// property on the ViewModel. If clipboard access fails or the clipboard contains only whitespace,
+    /// CanPasteClipboard is set to false. The update is marshaled back to the UI thread to ensure thread
+    /// safety.</remarks>
+    /// <returns>
+    /// A <see cref="Task"/> that represents the asynchronous operation of updating the ViewModel's
+    /// <see cref="MainViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
+    /// The task completes when the property has been updated.
+    /// </returns>
+    private async Task UpdateCanPasteClipboardAsync()
+    {
+        string? clipboardText = null;
+
+        try
+        {
+            // Perform clipboard I/O off the UI context
+            clipboardText = await GetTextFromClipboardAsync(this)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Log and treat as no pasteable text
+            _logger.LogError(ex, "Error reading clipboard text");
+        }
+
+        bool canPaste = !string.IsNullOrWhiteSpace(clipboardText);
+
+        // Marshal back to UI thread to update the ViewModel property
+        await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
+    }
+
+    #endregion Clipboard methods
+
+    #region Syntax Highlighting methods
+
+    /// <summary>
+    /// Initializes syntax highlighting for the text editor.
+    /// </summary>
+    /// <remarks>
+    /// This method initializes the syntax highlighting service and applies Mermaid syntax highlighting
+    /// to the editor. The theme is automatically selected based on the current Avalonia theme variant.
+    /// </remarks>
+    private void InitializeSyntaxHighlighting()
+    {
+        try
+        {
+            // Initialize the service (verifies grammar resources exist)
+            _syntaxHighlightingService.Initialize();
+
+            // Apply Mermaid syntax highlighting with automatic theme detection
+            _syntaxHighlightingService.ApplyTo(Editor);
+
+            _logger.LogInformation("Syntax highlighting initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize syntax highlighting");
+            // Non-fatal: Continue without syntax highlighting rather than crash the application
+        }
+    }
+
+    /// <summary>
+    /// Handles theme variant changes to update syntax highlighting theme.
+    /// </summary>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            // Get syntax highlighting service from App.Services
+            bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+
+            // Update syntax highlighting theme to match
+            _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling theme change");
+            // Non-fatal: Continue with current theme
+        }
+    }
+
+    #endregion Syntax Highlighting methods
 }

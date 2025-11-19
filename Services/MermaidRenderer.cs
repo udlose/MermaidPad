@@ -20,10 +20,17 @@
 
 using Avalonia.Threading;
 using AvaloniaWebView;
+using MermaidPad.Exceptions.Assets;
+using MermaidPad.Extensions;
+using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Net.Sockets;
+using System.Runtime.CompilerServices;
+using System.Security;
 using System.Text;
 using System.Text.Json;
 
@@ -36,35 +43,58 @@ namespace MermaidPad.Services;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
-    private const string MermaidRequestPath = $"/{AssetHelper.MermaidMinJsFilePath}";
-    private const string IndexRequestPath = $"/{AssetHelper.IndexHtmlFilePath}";
-    private const string JsYamlRequestPath = $"/{AssetHelper.JsYamlFilePath}";
-    private readonly string MermaidLayoutElkRequestPath = $"/{AssetHelper.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
-    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
-    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private readonly ILogger<MermaidRenderer> _logger;
+    private readonly AssetService _assetService;
 
+    private readonly string MermaidRequestPath;
+    private readonly string IndexRequestPath;
+    private readonly string JsYamlRequestPath;
+    private readonly string PanZoomRequestPath;
+    private readonly string MermaidLayoutElkRequestPath;
+    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath;
+    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath;
+
+    private int _isDisposeStarted; // 0 = not started, 1 = disposing/disposed
     private WebView? _webView;
-    private int _renderAttemptCount;
-    private HttpListener? _httpListener;
-    private byte[]? _htmlContent;
-    private byte[]? _mermaidJs;
-    private byte[]? _jsYamlJs;
-    private byte[]? _mermaidLayoutElkJs;
-    private byte[]? _mermaidLayoutElkChunkSP2CHFBEJs;
-    private byte[]? _mermaidLayoutElkRenderAVRWSH4DJs;
     private int _serverPort;
-    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
-    private CancellationTokenSource? _serverCancellation;
     private Task? _serverTask;
+    private bool _isWebViewReady;
+
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
+    private HttpListener? _httpListener;
+
+    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
+
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
+    private CancellationTokenSource? _serverCancellation;
 
     // Fields for centralized export-status callbacks / polling:
-    private readonly List<Action<string>> _exportProgressCallbacks = new List<Action<string>>();
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private CancellationTokenSource? _exportPollingCts;
+    private readonly List<Action<string>> _exportProgressCallbacks = [];
     private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
 
-    public bool IsWebViewReady { get; private set; }
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MermaidRenderer"/> class.
+    /// </summary>
+    /// <param name="logger">The logger instance for structured logging.</param>
+    /// <param name="assetService">The asset service for managing assets.</param>
+    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _assetService = assetService ?? throw new ArgumentNullException(nameof(assetService));
+
+        // Initialize request paths using AssetService constants and properties
+        MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";
+        IndexRequestPath = $"/{AssetService.IndexHtmlFilePath}";
+        JsYamlRequestPath = $"/{AssetService.JsYamlFilePath}";
+        PanZoomRequestPath = $"/{AssetService.PanzoomMinJsFilePath}";
+        MermaidLayoutElkRequestPath = $"/{AssetService.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
+        MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetService.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
+        MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetService.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+    }
 
     /// <summary>
     /// Initializes the MermaidRenderer with the specified WebView and assets directory.
@@ -73,11 +103,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <returns>A task representing the asynchronous operation.</returns>
     public Task InitializeAsync(WebView webView)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(webView);
 
-        SimpleLogger.Log("=== MermaidRenderer Initialization ===");
+        _logger.LogInformation("=== MermaidRenderer Initialization ===");
         _webView = webView;
-
         return InitializeCoreAsync();
     }
 
@@ -105,30 +135,30 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
     public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
+        ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         if (_webView is null)
         {
             throw new InvalidOperationException("WebView not initialized");
         }
 
-        return IsWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
+        return _isWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
     }
 
     /// <summary>
     /// Ensures that the first render of the WebView2 control is complete within the specified timeout period.
     /// </summary>
     /// <remarks>This method repeatedly checks the rendering status of the WebView2 control by executing a
-    /// script in the WebView2 environment. If the rendering is not completed within the specified timeout, a <see
-    /// cref="TimeoutException"/> is thrown.</remarks>
+    /// script in the WebView2 environment using exponential backoff for polling intervals.
+    /// This reduces WebView overhead while staying responsive. If the rendering is not completed within the specified timeout,
+    /// a <see cref="TimeoutException"/> is thrown.</remarks>
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
     private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        const int renderReadyPollingIntervalMs = 100;
-
-        while (stopwatch.Elapsed < timeout)
+        for (int attemptCount = 0; stopwatch.Elapsed < timeout; attemptCount++)
         {
             // Return only a primitive, never a Promise. WebView2 ExecuteScriptAsync doesn't support Promises.
             // WebView2 will JSON-encode strings (e.g., "\"true\"" or "\"pending\"")
@@ -139,40 +169,38 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 string trimmedReturnValue = rawReturnValue.Trim().Trim('"');
                 if (string.Equals(trimmedReturnValue, "true", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!IsWebViewReady)
+                    if (!_isWebViewReady)
                     {
-                        IsWebViewReady = true;
+                        _isWebViewReady = true;
                     }
                     return;
                 }
             }
 
-            await Task.Delay(renderReadyPollingIntervalMs);
+            // Reduces WebView script execution overhead while staying responsive for fast renders
+            int delayMs = 50 * (int)Math.Pow(2, Math.Min(attemptCount, 3));
+            await Task.Delay(delayMs);
         }
 
         throw new TimeoutException($"First render not signaled within {timeout.TotalSeconds:0.##} seconds.");
     }
 
     /// <summary>
-    /// Initializes the application by preparing content, starting an HTTP server, and navigating to the server.
+    /// Initializes the application by starting an HTTP server and navigating to it.
     /// </summary>
-    /// <remarks>This method performs the following steps: 1. Prepares the required content from disk. 2.
-    /// Starts an HTTP server to serve the content. 3. Waits for the HTTP server to be ready, with a timeout of 10
-    /// seconds. 4. Navigates to the HTTP server once it is ready.  If the HTTP server fails to start within the timeout
-    /// period, a <see cref="TimeoutException"/> is thrown.</remarks>
+    /// <remarks>This method performs the following steps: 1. Starts an HTTP server to serve assets from disk on-demand.
+    /// 2. Waits for the HTTP server to be ready, with a timeout of 10 seconds. 3. Navigates to the HTTP server once it is ready.
+    /// If the HTTP server fails to start within the timeout period, a <see cref="TimeoutException"/> is thrown.
+    /// Assets are loaded from disk on first HTTP request to minimize memory usage.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the HTTP server does not become ready within the 10-second timeout period.</exception>
     private async Task InitializeWithHttpServerAsync()
     {
-        // Step 1: Prepare content (HTML and JS separately)
-        await PrepareContentFromDiskAsync()
-            .ConfigureAwait(false);
-
-        // Step 2: Start HTTP server
+        // Step 1: Start HTTP server (assets will be loaded from disk on-demand)
         StartHttpServer();
 
-        // Step 3: Wait for server ready
-        SimpleLogger.Log("Waiting for HTTP server to be ready...");
+        // Step 2: Wait for server ready
+        _logger.LogInformation("Waiting for HTTP server to be ready...");
         bool serverReady = await _serverReadySemaphore.WaitAsync(TimeSpan.FromSeconds(10))
             .ConfigureAwait(false);
         if (!serverReady)
@@ -180,48 +208,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
             throw new TimeoutException("HTTP server failed to start within timeout");
         }
 
-        // Step 4: Navigate to server
+        // Step 3: Navigate to server
         await NavigateToServerAsync();  // Navigation needs UI context, so no ConfigureAwait(false) here
-    }
-
-    /// <summary>
-    /// Asynchronously loads and prepares content from disk, including HTML, JavaScript, and other assets, for use in
-    /// the application.
-    /// </summary>
-    /// <remarks>This method retrieves multiple assets in parallel to optimize performance. The loaded content
-    /// is stored in memory for subsequent use. The method logs the size of each asset and the total time taken to
-    /// complete the operation.</remarks>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    private async Task PrepareContentFromDiskAsync()
-    {
-        Stopwatch sw = Stopwatch.StartNew();
-
-        // Get assets in parallel
-        Task<byte[]> indexHtmlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.IndexHtmlFilePath);
-        Task<byte[]> jsTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidMinJsFilePath);
-        Task<byte[]> jsYamlTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.JsYamlFilePath);
-        Task<byte[]> mermaidLayoutElkTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkPath);
-        Task<byte[]> mermaidLayoutElkChunkSP2CHFBETask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkChunkSP2CHFBEPath);
-        Task<byte[]> mermaidLayoutElkRenderAVRWSH4DTask = AssetHelper.GetAssetFromDiskAsync(AssetHelper.MermaidLayoutElkRenderAVRWSH4DPath);
-
-        await Task.WhenAll(indexHtmlTask, jsTask, jsYamlTask, mermaidLayoutElkTask, mermaidLayoutElkChunkSP2CHFBETask, mermaidLayoutElkRenderAVRWSH4DTask)
-            .ConfigureAwait(false);
-
-        _htmlContent = await indexHtmlTask.ConfigureAwait(false);
-        _mermaidJs = await jsTask.ConfigureAwait(false);
-        _jsYamlJs = await jsYamlTask.ConfigureAwait(false);
-        _mermaidLayoutElkJs = await mermaidLayoutElkTask.ConfigureAwait(false);
-        _mermaidLayoutElkChunkSP2CHFBEJs = await mermaidLayoutElkChunkSP2CHFBETask.ConfigureAwait(false);
-        _mermaidLayoutElkRenderAVRWSH4DJs = await mermaidLayoutElkRenderAVRWSH4DTask.ConfigureAwait(false);
-
-        sw.Stop();
-        SimpleLogger.Log($"Prepared HTML: {_htmlContent.Length} bytes");
-        SimpleLogger.Log($"Prepared JS: {_mermaidJs.Length} bytes");
-        SimpleLogger.Log($"Prepared YAML: {_jsYamlJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK: {_mermaidLayoutElkJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Chunk: {_mermaidLayoutElkChunkSP2CHFBEJs.Length} bytes");
-        SimpleLogger.Log($"Prepared ELK Render: {_mermaidLayoutElkRenderAVRWSH4DJs.Length} bytes");
-        SimpleLogger.Log($"{nameof(PrepareContentFromDiskAsync)} took {sw.ElapsedMilliseconds} ms");
     }
 
     /// <summary>
@@ -229,30 +217,64 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <remarks>This method initializes an <see cref="HttpListener"/> instance, binds it to an available port
     /// on localhost, and starts a background task to handle incoming HTTP requests asynchronously. The server runs
-    /// until explicitly stopped.</remarks>
+    /// until explicitly stopped. Implements retry logic to handle the rare race condition where the OS-assigned port
+    /// becomes unavailable between assignment and binding.</remarks>
     private void StartHttpServer()
     {
-        _serverPort = GetAvailablePort();
-        _serverCancellation = new CancellationTokenSource();
-
-        _httpListener = new HttpListener();
-        _httpListener.Prefixes.Add($"http://localhost:{_serverPort}/");
-        _httpListener.Start();
-
-        // Background task - _serverTask is needed for proper cleanup
-        _serverTask = Task.Run(async () =>
+        const int maxRetries = 3;
+        for (int attempt = 0; attempt < maxRetries; attempt++)
         {
+            HttpListener? transientListener = null;
             try
             {
-                await HandleHttpRequestsAsync(_serverCancellation.Token);
-            }
-            catch (Exception ex)
-            {
-                SimpleLogger.LogError("HTTP server task error", ex);
-            }
-        });
+                _serverPort = GetAvailablePort(); // OS assigns the port
 
-        SimpleLogger.Log($"HTTP server started on port {_serverPort}");
+                transientListener = new HttpListener();
+                transientListener.Prefixes.Add($"http://localhost:{_serverPort}/");
+                transientListener.Start();
+
+                // Success - capture to field only after Start() succeeds
+                _httpListener = transientListener;
+                _serverCancellation = new CancellationTokenSource();
+
+                // Background task - _serverTask is needed for proper cleanup
+                _serverTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await HandleHttpRequestsAsync(_serverCancellation.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "HTTP server task error");
+                    }
+                });
+
+                _logger.LogInformation("HTTP server started on port {ServerPort}", _serverPort);
+                return;
+            }
+            catch (HttpListenerException ex)
+            {
+                // Port was grabbed by another process between GetAvailablePort() and Start()
+                // Clean up the failed listener
+                try
+                {
+                    transientListener?.Close();
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogWarning(cleanupEx, "Exception during best effort cleanup of transientListener");
+                }
+
+                if (attempt == maxRetries - 1)
+                {
+                    throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts.", ex);
+                }
+
+                _logger.LogWarning("Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
+                    _serverPort, attempt + 1, maxRetries);
+            }
+        }
     }
 
     /// <summary>
@@ -266,7 +288,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             // Signal server ready
             _serverReadySemaphore.Release();
-            SimpleLogger.Log("HTTP server ready");
+            _logger.LogInformation("HTTP server ready");
 
             while (_httpListener?.IsListening == true && !cancellationToken.IsCancellationRequested)
             {
@@ -296,7 +318,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Error processing HTTP request", ex);
+                    _logger.LogError(ex, "Error processing HTTP request");
                     try
                     {
                         context?.Response.Close();
@@ -310,87 +332,129 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         catch (Exception ex) when (ex is not ObjectDisposedException)
         {
-            SimpleLogger.LogError("HTTP server error", ex);
+            _logger.LogError(ex, "HTTP server error");
         }
         finally
         {
-            SimpleLogger.Log("HTTP request handler stopped");
+            _logger.LogInformation("HTTP request handler stopped");
         }
     }
 
     /// <summary>
-    /// Processes a single HTTP request and serves the requested asset.
+    /// Processes a single HTTP request and streams the requested asset from disk directly to the response.
     /// </summary>
+    /// <remarks>
+    /// Assets are streamed directly from disk to the HTTP response without loading the entire file into memory.
+    /// This approach:
+    /// <list type="bullet">
+    ///     <item><description>Minimizes memory usage - files are never fully loaded into managed memory</description></item>
+    ///     <item><description>Reduces GC pressure - no large byte[] allocations</description></item>
+    ///     <item><description>Improves performance for serving static assets over HTTP</description></item>
+    /// </list>
+    /// Each request opens a new FileStream, streams the content, and immediately disposes the stream.
+    /// </remarks>
     /// <param name="context">The HTTP request context.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task ProcessRequestAsync(HttpListenerContext context)
     {
         try
         {
-            string requestPath = context.Request.Url?.LocalPath ?? "/";
-            SimpleLogger.Log($"Processing request: {requestPath}");
+            const string javascriptContentType = "application/javascript; charset=utf-8";
+            const string htmlContentType = "text/html; charset=utf-8";
 
-            byte[]? responseBytes = null;
+            string requestPath = context.Request.Url?.LocalPath ?? "/";
+            _logger.LogDebug("Processing request: {RequestPath}", SanitizeRequestPath(requestPath));
+
+            // Map request path to asset name and content type
+            string? assetName = null;
             string? contentType = null;
 
-            // Separate file handling is needed to avoid JavaScript injection issues
-            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidJs is not null)
+            if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidJs;
-                contentType = "application/javascript; charset=utf-8";
+                assetName = AssetService.MermaidMinJsFilePath;
+                contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidRequestPath, StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                context.Response.StatusCode = 404;
+                assetName = AssetService.IndexHtmlFilePath;
+                contentType = htmlContentType;
             }
-            else if (string.Equals(requestPath, "/", StringComparison.OrdinalIgnoreCase) || string.Equals(requestPath, IndexRequestPath, StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _htmlContent ?? "<html><body>Content not ready</body></html>"u8.ToArray();
-                contentType = "text/html; charset=utf-8";
+                assetName = AssetService.JsYamlFilePath;
+                contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, JsYamlRequestPath, StringComparison.OrdinalIgnoreCase) && _jsYamlJs is not null)
+            else if (string.Equals(requestPath, PanZoomRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _jsYamlJs;
-                contentType = "application/javascript; charset=utf-8";
+                assetName = AssetService.PanzoomMinJsFilePath;
+                contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase) && _mermaidLayoutElkJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkJs;
-                contentType = "application/javascript; charset=utf-8";
+                assetName = AssetService.MermaidLayoutElkPath;
+                contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkChunkSP2CHFBEJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkChunkSP2CHFBERequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkChunkSP2CHFBEJs;
-                contentType = "application/javascript; charset=utf-8";
+                assetName = AssetService.MermaidLayoutElkChunkSP2CHFBEPath;
+                contentType = javascriptContentType;
             }
-            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase) &&
-                     _mermaidLayoutElkRenderAVRWSH4DJs is not null)
+            else if (string.Equals(requestPath, MermaidLayoutElkRenderAVRWSH4DRequestPath, StringComparison.OrdinalIgnoreCase))
             {
-                responseBytes = _mermaidLayoutElkRenderAVRWSH4DJs;
-                contentType = "application/javascript; charset=utf-8";
+                assetName = AssetService.MermaidLayoutElkRenderAVRWSH4DPath;
+                contentType = javascriptContentType;
+            }
+
+            // Stream asset from disk directly to response (no intermediate memory allocation)
+            if (assetName is not null && contentType is not null)
+            {
+                try
+                {
+                    await using FileStream assetStream = await _assetService.GetAssetStreamAsync(assetName)
+                        .ConfigureAwait(false);
+
+                    // Set response headers before streaming
+                    context.Response.StatusCode = 200;
+                    context.Response.ContentType = contentType;
+                    context.Response.ContentLength64 = assetStream.Length;
+
+                    // Stream file directly to HTTP response without loading into memory
+                    await assetStream.CopyToAsync(context.Response.OutputStream)
+                        .ConfigureAwait(false);
+
+                    _logger.LogDebug("Streamed {RequestPath}: {SizeBytes} bytes", SanitizeRequestPath(requestPath), assetStream.Length);
+                }
+                catch (AssetIntegrityException aie)
+                {
+                    context.Response.StatusCode = 403;
+                    _logger.LogError(aie, "403 for asset integrity failure: {AssetName}", assetName);
+                }
+                catch (SecurityException se)
+                {
+                    context.Response.StatusCode = 403;
+                    _logger.LogError(se, "403 for security failure: {AssetName}", assetName);
+                }
+                catch (MissingAssetException mae)
+                {
+                    context.Response.StatusCode = 404;
+                    _logger.LogError(mae, "404 for missing asset: {AssetName}", assetName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error streaming asset {AssetName}", assetName);
+                    context.Response.StatusCode = 500;
+                }
             }
             else
             {
                 context.Response.StatusCode = 404;
-                SimpleLogger.Log($"404 for: {requestPath}");
-            }
-
-            if (responseBytes?.Length > 0 && !string.IsNullOrWhiteSpace(contentType))
-            {
-                // set the response code before writing to the output stream
-                context.Response.StatusCode = 200;
-                context.Response.ContentType = contentType;
-                context.Response.ContentLength64 = responseBytes.Length;
-                await context.Response.OutputStream.WriteAsync(responseBytes)
-                    .ConfigureAwait(false);
-
-                SimpleLogger.Log($"Served {requestPath}: {responseBytes.Length} bytes");
+                _logger.LogDebug("404 for: {RequestPath}", SanitizeRequestPath(requestPath));
             }
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error processing HTTP request", ex);
+            _logger.LogError(ex, "Error processing HTTP request");
 
             // Setting the StatusCode property can throw exceptions in certain scenarios
             try
@@ -419,74 +483,128 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Navigates the embedded web view to the server URL asynchronously.
     /// </summary>
     /// <remarks>This method sets the web view's URL to the server address and waits for the navigation to
-    /// complete. If the navigation does not complete within the specified timeout,
-    /// a <see cref="InvalidOperationException"/> is thrown. The method must be called on
-    /// the UI thread as it interacts with the web view and dispatcher.</remarks>
+    /// complete using a <see cref="TaskCompletionSource{TResult}"/> to convert the event-based pattern to
+    /// async/await. If the navigation does not complete within 10 seconds, an <see cref="InvalidOperationException"/>
+    /// is thrown. The method must be called on the UI thread as it interacts with the web view and dispatcher.</remarks>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the navigation does not complete within the allowed time.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized or navigation times out.</exception>
     private async Task NavigateToServerAsync()
     {
+        if (_webView is null)
+        {
+            throw new InvalidOperationException("WebView not initialized");
+        }
+
         string serverUrl = $"http://localhost:{_serverPort}/";
-        SimpleLogger.Log($"Navigating to: {serverUrl}");
+        _logger.LogInformation("Navigating to: {ServerUrl}", serverUrl);
 
-        bool navigationCompleted = false;
+        TaskCompletionSource<bool> navigationCompletedTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _webView!.NavigationCompleted += OnNavigationCompleted;
+        _webView.NavigationCompleted += OnNavigationCompleted;
 
-        await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
-
-        // Wait for navigation
-        for (int i = 0; i < 50 && !navigationCompleted; i++)
+        try
         {
-            await Task.Delay(100);  // NO ConfigureAwait - caller needs UI context
+            await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
+
+            // Wait for navigation with 10 second timeout (more generous for slower systems)
+#if DEBUG
+            // no timeout in DEBUG builds to aid debugging
+            using CancellationTokenSource cts = new CancellationTokenSource();
+#else
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+#endif
+            await navigationCompletedTcs.Task.WaitAsync(cts.Token);
+
+            _logger.LogInformation("Navigation completed successfully");
+        }
+        catch (OperationCanceledException)
+        {
+            // Cleanup event handler if timeout occurs
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to cleanup NavigationCompleted handler after timeout");
+            }
+
+            throw new InvalidOperationException($"Navigation to {serverUrl} timed out after 10 seconds");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Navigation failed");
+
+            // Cleanup on any other error
+            try
+            {
+                _webView.NavigationCompleted -= OnNavigationCompleted;
+            }
+            catch
+            {
+                // Ignore cleanup errors during error handling
+            }
+
+            throw;
         }
 
-        if (navigationCompleted)
+        [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+        void OnNavigationCompleted(object? sender, WebViewCore.Events.WebViewUrlLoadedEventArg args)
         {
-            SimpleLogger.Log("Navigation completed successfully");
-        }
-        else
-        {
-            throw new InvalidOperationException("Navigation failed");
-        }
-
-        return;
-
-        void OnNavigationCompleted(object? sender, EventArgs e)
-        {
-            navigationCompleted = true;
-            SimpleLogger.LogWebView("navigation completed", "HTTP mode");
-            _webView!.NavigationCompleted -= OnNavigationCompleted; // Unsubscribe to avoid memory leaks
+            try
+            {
+                navigationCompletedTcs.TrySetResult(true);
+                _logger.LogWebView("navigation completed", "HTTP mode");
+            }
+            finally
+            {
+                try
+                {
+                    _webView.NavigationCompleted -= OnNavigationCompleted;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to unsubscribe from NavigationCompleted");
+                }
+            }
         }
     }
 
     /// <summary>
-    /// Finds and returns the first available port within the range 8083 to 8199.
+    /// Gets an available port by letting the OS assign one automatically using TcpListener.
     /// </summary>
-    /// <remarks>This method attempts to bind to each port in the specified range, starting from 8083, to
-    /// determine if it is available for use. If a port is in use, the method proceeds to the next port. If no available
-    /// ports are found within the range, an <see cref="InvalidOperationException"/> is thrown.</remarks>
-    /// <returns>The first available port number within the range 8083 to 8199.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if no available ports are found in the range 8083-8199.</exception>
-    private static int GetAvailablePort()
+    /// <remarks>This method uses TcpListener with port 0 to let the operating system assign an available
+    /// ephemeral port, which is faster and more reliable than sequential scanning. The assigned port is extracted
+    /// from the listener's LocalEndpoint after binding, then the listener is stopped and the port is returned.</remarks>
+    /// <returns>An available port number assigned by the OS.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if unable to get an OS-assigned port.</exception>
+    private int GetAvailablePort()
     {
-        for (int port = 8083; port < 8200; port++)
+        try
         {
-            try
-            {
-                using HttpListener listener = new HttpListener();
-                listener.Prefixes.Add($"http://localhost:{port}/");
-                listener.Start();
-                listener.Stop();
-                return port;
-            }
-            catch
-            {
-                // Port in use, try next
-                SimpleLogger.Log($"Port {port} is in use, trying next: {port + 1}");
-            }
+            // Use TcpListener with port 0 to let the OS assign an available port
+            using TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+
+            // Get the assigned port from the local endpoint
+            int assignedPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            _logger.LogDebug("OS assigned port: {AssignedPort}", assignedPort);
+            return assignedPort;
         }
-        throw new InvalidOperationException("No available ports found in range 8083-8199");
+        catch (SocketException ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port due to a socket error.", ex);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port because the listener was disposed.", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Failed to get OS-assigned port due to an unexpected error.", ex);
+        }
     }
 
     /// <summary>
@@ -497,17 +615,15 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// method logs an error and exits without performing any action.  This method must be called on the UI thread, as
     /// it interacts with the WebView control. Exceptions during rendering or clearing are logged but do not propagate
     /// to the caller.</remarks>
-    /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty, or consists only of whitespace, the output in
-    /// the WebView will be cleared instead.</param>
+    /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty,
+    /// or consists only of whitespace, the output in the WebView will be cleared instead.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task RenderAsync(string mermaidSource)
     {
-        _renderAttemptCount++;
-        SimpleLogger.Log($"Render attempt #{_renderAttemptCount}");
-
+        ThrowIfDisposed();
         if (_webView is null)
         {
-            SimpleLogger.LogError("WebView not initialized");
+            _logger.LogError("WebView not initialized");
             return;
         }
 
@@ -516,20 +632,20 @@ public sealed class MermaidRenderer : IAsyncDisposable
             try
             {
                 // Copy locals to explicit locals to make intent clear and avoid captures
-                WebView webView = _webView!;
+                WebView webView = _webView;
 
                 // Explicit call (lambda still captures webView local, but the static local function prevents
                 // implicit capture of surrounding variables inside the function body).
                 await Dispatcher.UIThread.InvokeAsync(async () => await ClearOutputAsync(webView));
 
-                SimpleLogger.Log("Cleared output");
+                _logger.LogDebug("Cleared output");
 
                 // Static local function to avoid capturing outer variables inside the function
                 static Task ClearOutputAsync(WebView webViewParam) => webViewParam.ExecuteScriptAsync("clearOutput();");
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError("Clear failed", ex);
+                _logger.LogError(ex, "Clear failed");
             }
             return;
         }
@@ -552,14 +668,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
             async Task RenderMermaidAsync()
             {
                 string? result = await _webView.ExecuteScriptAsync(script);
-                SimpleLogger.Log($"Render result: {result ?? "(null)"}");
+
+                // Don't pollute the log. A Render happens every time an un-debounced key
+                // in the TextEditor causes the WebView to need to render itself
+                Debug.WriteLine($"Render result: {result ?? "null"}");
             }
 
             await Dispatcher.UIThread.InvokeAsync(async () => await RenderMermaidAsync());
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Render failed", ex);
+            _logger.LogError(ex, "Render failed");
         }
 
         static string EscapeSource(string source)
@@ -598,6 +717,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
     public Task<string?> ExecuteScriptAsync(string script)
     {
+        ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrEmpty(script);
         if (_webView is null)
         {
@@ -624,12 +744,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
             return await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                // Re-check on the UI thread to be defensive — use the captured reference if available,
+                // Re-check on the UI thread to be defensive - use the captured reference if available,
                 // otherwise read the field on the UI thread.
                 webView ??= _webView;
                 if (webView is null)
                 {
-                    SimpleLogger.Log("ExecuteScriptCoreAsync: WebView is null at UI invocation");
+                    _logger.LogWarning("ExecuteScriptCoreAsync: WebView is null at UI invocation");
                     return null;
                 }
 
@@ -639,7 +759,153 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Script execution failed", ex);
+            _logger.LogError(ex, "Script execution failed");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Restores the view state of the WebView by applying the specified zoom level and pan offsets.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>globalThis.restoreViewState</c> within
+    /// the WebView context. The function must be defined in the WebView's loaded content for the operation to succeed.
+    /// If the WebView instance is null, the method logs a warning and exits without performing any action.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply, in pixels.</param>
+    /// <param name="panY">The vertical pan offset to apply, in pixels.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="zoomLevel"/> is less than or equal to zero.</exception>
+    public Task RestoreViewStateAsync(double zoomLevel, double panX, double panY)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(zoomLevel, 0.0);
+        if (_webView is null)
+        {
+            _logger.LogWarning("Cannot restore view state: WebView is null");
+            return Task.CompletedTask;
+        }
+
+        return RestoreViewStateCoreAsync(zoomLevel, panX, panY);
+    }
+
+    /// <summary>
+    /// Restores the view state of a web view by applying the specified zoom level and pan coordinates.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function named <c>restoreViewState</c> in the web view, if
+    /// it is defined. The function is invoked with the specified zoom level and pan coordinates. Ensure that the web
+    /// view is initialized and the <c>restoreViewState</c> function is available in the global JavaScript context
+    /// before calling this method.</remarks>
+    /// <param name="zoomLevel">The zoom level to apply. Must be a positive value.</param>
+    /// <param name="panX">The horizontal pan offset to apply.</param>
+    /// <param name="panY">The vertical pan offset to apply.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    private async Task RestoreViewStateCoreAsync(double zoomLevel, double panX, double panY)
+    {
+        // minimize script injection possibilities by using Json serialization for the parameters
+        string zoomLevelJson = JsonSerializer.Serialize(zoomLevel);
+        string panXJson = JsonSerializer.Serialize(panX);
+        string panYJson = JsonSerializer.Serialize(panY);
+        string script = $@"
+        if (typeof globalThis.restoreViewState === 'function') {{
+            globalThis.restoreViewState({zoomLevelJson}, 
+                                        {panXJson}, 
+                                        {panYJson});
+        }}
+        ";
+        try
+        {
+            await _webView!.ExecuteScriptAsync(script);
+            _logger.LogDebug("Restored view state: zoom={ZoomLevel}, pan=({PanX}, {PanY})", zoomLevel, panX, panY);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restore view state");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously retrieves the current view state, including zoom level and pan offsets, from the WebView.
+    /// </summary>
+    /// <remarks>This method executes a JavaScript function, <c>getViewState</c>, in the WebView's context to
+    /// obtain the view state. The JavaScript function must be defined globally as <c>globalThis.getViewState</c> and
+    /// return an object with the properties <c>zoom</c>, <c>panX</c>, and <c>panY</c>. If the function is not defined
+    /// or returns <c>null</c>, this method will return <c>null</c>.</remarks>
+    /// <returns>A tuple containing the zoom level, horizontal pan offset, and vertical pan offset, or <c>null</c> if the view
+    /// state cannot be retrieved.</returns>
+    public async Task<(double zoom, double panX, double panY)?> GetViewStateAsync()
+    {
+        if (_webView is null)
+        {
+            _logger.LogInformation("Cannot get view state: WebView is null");
+            return null;
+        }
+
+        // Call globalThis.getViewState() which returns JSON.stringify({zoom, panX, panY})
+        const string script = @"
+        (function() {
+            if (typeof globalThis.getViewState === 'function') {
+                return globalThis.getViewState();
+            }
+            return null;
+        })();
+        ";
+
+        try
+        {
+            string? result = await _webView.ExecuteScriptAsync(script);
+            if (string.IsNullOrEmpty(result) || result == "null" || result == "undefined")
+            {
+                _logger.LogDebug("globalThis.getViewState() returned: {Result}", result);
+                return null;
+            }
+
+            // Handle potential double-quoting by WebView bridge
+            // WebView may return: "\"{\\"zoom\\":1.5,\\"panX\\":10,\\"panY\\":20}\""
+            // We need to strip outer quotes if present before parsing
+            string jsonString = result;
+
+            // If the result starts and ends with quotes, it's double-quoted - deserialize once to unwrap
+            if (jsonString.StartsWith('\"') && jsonString.EndsWith('\"') && jsonString.Length > 2)
+            {
+                try
+                {
+                    // Deserialize to remove outer JSON encoding
+                    string? unwrapped = JsonSerializer.Deserialize<string>(jsonString);
+                    if (!string.IsNullOrEmpty(unwrapped))
+                    {
+                        jsonString = unwrapped;
+                        _logger.LogDebug("Unwrapped double-quoted JSON: {JsonString}", jsonString);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // If unwrapping fails, proceed with original string
+                    _logger.LogWarning("JSON unwrapping failed, using original result of {Result}{NewLine}{JsonString}", result, Environment.NewLine, jsonString);
+                }
+            }
+
+            using JsonDocument json = JsonDocument.Parse(jsonString);
+            JsonElement root = json.RootElement;
+            if (root.TryGetProperty("zoom", out JsonElement zoomElem) &&
+                root.TryGetProperty("panX", out JsonElement panXElem) &&
+                root.TryGetProperty("panY", out JsonElement panYElem) &&
+                zoomElem.ValueKind == JsonValueKind.Number &&
+                panXElem.ValueKind == JsonValueKind.Number &&
+                panYElem.ValueKind == JsonValueKind.Number)
+            {
+                double zoom = zoomElem.GetDouble();
+                double panX = panXElem.GetDouble();
+                double panY = panYElem.GetDouble();
+
+                _logger.LogDebug("Retrieved view state: zoom={Zoom}, panX={PanX}, panY={PanY}", zoom, panX, panY);
+                return (zoom, panX, panY);
+            }
+
+            _logger.LogError("State JSON missing required properties or invalid types. Json string: {JsonString}", jsonString);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get view state");
             return null;
         }
     }
@@ -656,6 +922,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="callback"/> is <see langword="null"/>.</exception>
     public void RegisterExportProgressCallback(Action<string> callback)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(callback);
 
         lock (_exportCallbackLock)
@@ -682,31 +949,36 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// registered, the method has no effect.</param>
     public void UnregisterExportProgressCallback(Action<string>? callback)
     {
+        ThrowIfDisposed();
         if (callback is null)
         {
             return;
         }
 
+        CancellationTokenSource? ctsToDispose = null;
         lock (_exportCallbackLock)
         {
             _exportProgressCallbacks.Remove(callback);
 
             if (_exportProgressCallbacks.Count == 0)
             {
-                try
-                {
-                    _exportPollingCts?.Cancel();
-                    _exportPollingCts?.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    SimpleLogger.LogError("Failed to stop export status polling", ex);
-                }
-                finally
-                {
-                    _exportPollingCts = null;
-                    _lastExportStatus = null;
-                }
+                ctsToDispose = _exportPollingCts;
+                _exportPollingCts = null;
+                _lastExportStatus = null;
+            }
+        }
+
+        // Dispose outside lock to prevent deadlocks
+        if (ctsToDispose is not null)
+        {
+            try
+            {
+                ctsToDispose.Cancel();
+                ctsToDispose.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to stop export status polling");
             }
         }
     }
@@ -715,17 +987,38 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// Starts a polling task that periodically queries the web page for the export status and notifies registered
     /// callbacks of any changes.
     /// </summary>
-    /// <remarks>This method runs on the UI thread and uses <see cref="ExecuteScriptAsync"/> to query the
-    /// JavaScript variable <c>globalThis.__pngExportStatus__</c> on the page. It forwards updates to registered
-    /// callbacks only when the status changes, minimizing unnecessary processing. The polling interval is 200
-    /// milliseconds by default. The task continues until the provided <see cref="CancellationToken"/> is
-    /// canceled.</remarks>
+    /// <remarks>
+    /// <para>
+    /// This method uses polling rather than event-based callbacks because of WebView bridge limitations.
+    /// The JavaScript export function in the browser sets global variables (<c>globalThis.__pngExportStatus__</c>)
+    /// that can only be read via <see cref="ExecuteScriptAsync"/>. There is no JavaScript-to-C# callback mechanism
+    /// available in AvaloniaWebView that would allow the browser to push notifications directly to C#.
+    /// </para>
+    /// <para>
+    /// The polling pattern used here is appropriate for cross-boundary communication (JavaScript from/to C#) where:
+    ///     <list type="bullet">
+    ///         <item><description>The external system (JavaScript) only supports query-based access</description></item>
+    ///         <item><description>No event/callback mechanism exists for the external system to notify C#</description></item>
+    ///         <item><description>The overhead of polling (200ms intervals) is acceptable for user-facing export operations</description></item>
+    ///     </list>
+    /// </para>
+    /// <para>
+    /// Higher-level code converts this callback pattern to <see cref="Task"/>-based async using <see cref="TaskCompletionSource{TResult}"/>
+    /// (see <see cref="ExportService.WaitForExportCompletionAsync"/>), providing the best of both patterns:
+    /// polling where necessary at the boundary, and clean async/await for consumers.
+    /// </para>
+    /// <para>
+    /// This method forwards updates to registered callbacks only when the status changes, minimizing unnecessary
+    /// processing. The polling interval is 200 milliseconds by default. All access to shared state (<c>_lastExportStatus</c>)
+    /// is synchronized via <c>_exportCallbackLock</c> to prevent race conditions.
+    /// </para>
+    /// </remarks>
     /// <param name="token">A <see cref="CancellationToken"/> used to cancel the polling task. The task will stop gracefully when
     /// cancellation is requested.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous operation of the polling task.</returns>
     private async Task StartExportStatusPollingAsync(CancellationToken token)
     {
-        SimpleLogger.Log("Starting export status polling");
+        _logger.LogInformation("Starting export status polling");
         try
         {
             const int pollingIntervalMs = 200;
@@ -745,35 +1038,26 @@ public sealed class MermaidRenderer : IAsyncDisposable
                             statusJson = JsonSerializer.Deserialize<string>(statusJson) ?? statusJson;
                         }
 
-                        // Forward only when it changes to reduce churn
-                        if (statusJson != _lastExportStatus)
+                        // Check for changes and get callbacks atomically under lock
+                        Action<string>[]? callbacksToInvoke = null;
+                        lock (_exportCallbackLock)
                         {
-                            _lastExportStatus = statusJson;
-
-                            Action<string>[] callbacks;
-                            lock (_exportCallbackLock)
+                            // Forward only when it changes to reduce churn
+                            if (statusJson != _lastExportStatus)
                             {
-                                callbacks = _exportProgressCallbacks.ToArray();
-                            }
-
-                            foreach (Action<string> callback in callbacks)
-                            {
-                                try
-                                {
-                                    callback(statusJson);
-                                }
-                                catch (Exception ex)
-                                {
-                                    SimpleLogger.LogError("Export progress callback threw", ex);
-                                }
+                                _lastExportStatus = statusJson;
+                                callbacksToInvoke = _exportProgressCallbacks.ToArray();
                             }
                         }
+
+                        // Invoke callbacks outside lock to prevent deadlock
+                        InvokeExportProgressCallbacks(callbacksToInvoke, statusJson);
                     }
                 }
                 catch (Exception ex)
                 {
                     // Ignore transient script errors but log for diagnostics
-                    SimpleLogger.LogError("Export status polling script error", ex);
+                    _logger.LogError(ex, "Export status polling script error");
                 }
 
                 try
@@ -788,7 +1072,120 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
         finally
         {
-            SimpleLogger.Log("Export status polling stopped");
+            _logger.LogInformation("Export status polling stopped");
+        }
+    }
+
+    /// <summary>
+    /// Invokes each export progress callback in the specified array, passing the provided status information as a JSON string.
+    /// </summary>
+    /// <remarks>Exceptions thrown by individual callbacks are caught and logged; invocation continues for remaining callbacks.</remarks>
+    /// <param name="callbacksToInvoke">An array of callback delegates to be invoked with the export progress status. If null or empty, no callbacks are
+    /// invoked.</param>
+    /// <param name="statusJson">A JSON-formatted string containing the current export progress status to be supplied to each callback.</param>
+    private void InvokeExportProgressCallbacks(Action<string>[]? callbacksToInvoke, string statusJson)
+    {
+        if (callbacksToInvoke?.Length > 0)
+        {
+            foreach (Action<string> callback in callbacksToInvoke)
+            {
+                try
+                {
+                    callback(statusJson);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Export progress callback threw");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Normalizes and sanitizes a request path string by removing control characters, trimming whitespace, converting
+    /// backslashes to forward slashes, and collapsing consecutive slashes.
+    /// </summary>
+    /// <remarks>This method ensures the returned path is safe for use in routing or logging scenarios by
+    /// removing potentially problematic characters and normalizing the format. The output will always begin with a
+    /// forward slash, and all backslashes are replaced with forward slashes.</remarks>
+    /// <param name="path">The request path to sanitize. May be null, empty, or contain whitespace, control characters, or backslashes.</param>
+    /// <returns>A sanitized path string that starts with a single forward slash and contains no control characters or
+    /// consecutive slashes. Returns "/" if the input is null, empty, or consists only of whitespace.</returns>
+    private static string SanitizeRequestPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "/";
+        }
+
+        // Trim surrounding whitespace first (fixes inputs like " /foo")
+        string trimmed = path.Trim();
+
+        // Normalize and scrub control characters efficiently:
+        // - convert backslashes to forward slashes
+        // - remove CR/LF, NUL, TAB and other control chars (< 0x20)
+        // - collapse consecutive slashes to a single '/'
+        StringBuilder sb = new StringBuilder(trimmed.Length);
+        char prev = '\0';
+
+        // Map backslashes to forward slashes in the sequence
+        IEnumerable<char> normalizedChars = trimmed.Select(static ch0 => ch0 == '\\' ? '/' : ch0);
+        foreach (char ch in normalizedChars)
+        {
+            if (ch <= '\u001F') // control characters (incl. \r, \n, \t, \0)
+            {
+                continue;
+            }
+
+            // collapse repeated slashes
+            if (ch == '/' && prev == '/')
+            {
+                continue;
+            }
+
+            sb.Append(ch);
+            prev = ch;
+        }
+
+        string result = sb.Length == 0 ? "/" : sb.ToString();
+
+        // Ensure leading slash
+        if (!result.StartsWith('/'))
+        {
+            result = "/" + result;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Throws an exception if the current instance has been disposed.
+    /// </summary>
+    /// <remarks>Call this method at the beginning of public members to ensure that operations are not
+    /// performed on a disposed object. This helps prevent undefined behavior and enforces correct object lifecycle
+    /// management.</remarks>
+    private void ThrowIfDisposed(
+        [CallerMemberName] string? caller = null,
+        [CallerFilePath] string? callerFile = null,
+        [CallerLineNumber] int callerLine = 0)
+    {
+        if (Interlocked.CompareExchange(ref _isDisposeStarted, 0, 0) != 0)
+        {
+            const string unknown = "unknown";
+
+            // Shorten file path for readability
+            string fileName;
+            if (callerFile is null)
+            {
+                fileName = unknown;
+            }
+            else
+            {
+                fileName = Path.GetFileName(callerFile) ?? unknown;
+            }
+
+            string callerInfo = caller is null ? $"(at {fileName}:{callerLine})" : $"{caller} (at {fileName}:{callerLine})";
+            throw new ObjectDisposedException($"{nameof(MermaidRenderer)} instance has been disposed. Caller: {callerInfo}");
         }
     }
 
@@ -801,53 +1198,67 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// properly to prevent resource leaks. Exceptions encountered during
     /// disposal are logged but do not propagate.</remarks>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous disposal operation.</returns>
+    [SuppressMessage("ReSharper", "MethodSupportsCancellation")]
     public async ValueTask DisposeAsync()
     {
+        // One-shot, thread-safe gate
+        if (Interlocked.Exchange(ref _isDisposeStarted, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
+            // Capture and null references to avoid races with re-entrancy
+            CancellationTokenSource? serverCts = Interlocked.Exchange(ref _serverCancellation, null);
+            HttpListener? httpListener = Interlocked.Exchange(ref _httpListener, null);
+            CancellationTokenSource? pollingCts = Interlocked.Exchange(ref _exportPollingCts, null);
+            Task? pollingTask = Interlocked.Exchange(ref _exportPollingTask, null);
+            Task? serverTask = Interlocked.Exchange(ref _serverTask, null);
+
             // Cancel server ops
-            if (_serverCancellation is not null)
+            if (serverCts is not null)
             {
-                await _serverCancellation.CancelAsync()
+                await serverCts.CancelAsync()
                     .ConfigureAwait(false);
             }
 
             // Stop and close HTTP listener
-            if (_httpListener?.IsListening == true)
+            if (httpListener?.IsListening == true)
             {
-                _httpListener.Stop();
+                httpListener.Stop();
             }
-            _httpListener?.Close();
+            httpListener?.Close();
 
             // Stop and cleanup export polling if running
             try
             {
                 // Cancel polling
-                if (_exportPollingCts is not null)
+                if (pollingCts is not null)
                 {
                     try
                     {
-                        await _exportPollingCts.CancelAsync()
+                        await pollingCts.CancelAsync()
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
-                        SimpleLogger.LogError("Failed to cancel export polling CTS", ex);
+                        _logger.LogError(ex, "Failed to cancel export polling CTS");
                     }
                 }
 
                 // Await polling task for a short timeout to ensure clean shutdown
-                if (_exportPollingTask is not null)
+                if (pollingTask is not null)
                 {
                     try
                     {
-                        await _exportPollingTask.WaitAsync(TimeSpan.FromSeconds(2))
+                        await pollingTask.WaitAsync(TimeSpan.FromSeconds(2))
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
                     {
                         // Log but do not rethrow during dispose
-                        SimpleLogger.LogError("Export polling did not stop cleanly", ex);
+                        _logger.LogError(ex, "Export polling did not stop cleanly");
                     }
                 }
             }
@@ -862,40 +1273,86 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
                 try
                 {
-                    _exportPollingCts?.Dispose();
+                    pollingCts?.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Failed to dispose export polling CTS", ex);
+                    _logger.LogError(ex, "Failed to dispose export polling CTS");
                 }
-                _exportPollingCts = null;
-                _exportPollingTask = null;
             }
 
             // Wait for server task to complete (with timeout)
-            if (_serverTask is not null)
+            if (serverTask is not null)
             {
                 try
                 {
                     const int maxWaitSeconds = 5;
-                    await _serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
+                    await serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
                         .ConfigureAwait(false);
+                    serverTask.Dispose();
+                }
+                catch (TimeoutException)
+                {
+                    _logger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
+                    // No concern about capturing _logger here as DisposeAsync cannot be re-entered
+                    ILogger<MermaidRenderer> logger = _logger; // Capture for continuation
+                    _ = serverTask.ContinueWith(
+                        t =>
+                        {
+                            try
+                            {
+                                // Handle different completion states
+                                if (t.IsFaulted)
+                                {
+                                    // Exception already observed and logged by StartHttpServer's try-catch
+                                    logger.LogInformation("Abandoned server task faulted (exception already logged in {MethodName})", nameof(StartHttpServer));
+                                }
+                                else if (t.IsCanceled)
+                                {
+                                    logger.LogInformation("Abandoned server task was canceled");
+                                }
+                                else
+                                {
+                                    logger.LogInformation("Abandoned server task completed successfully");
+                                }
+
+                                // Dispose in all cases
+                                t.Dispose();
+                                logger.LogInformation("Abandoned server task completed and disposed");
+                            }
+                            catch (Exception ex)
+                            {
+                                // This catch ensures the continuation itself doesn't have unobserved exceptions
+                                logger.LogError(ex, "Error in abandoned server task continuation");
+                            }
+                        },
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
                 }
                 catch (Exception ex)
                 {
-                    SimpleLogger.LogError("Error waiting for server task", ex);
+                    // Task threw exception, but we observed it
+                    _logger.LogError(ex, "Error waiting for server task");
+                    try
+                    {
+                        serverTask.Dispose();
+                    }
+                    catch (Exception disposeEx)
+                    {
+                        _logger.LogError(disposeEx, "Error disposing server task");
+                    }
                 }
             }
 
-            _serverCancellation?.Dispose();
+            serverCts?.Dispose();
             _serverReadySemaphore.Dispose();
-            _serverTask?.Dispose();
 
-            SimpleLogger.Log("MermaidRenderer disposed");
+            _logger.LogInformation("MermaidRenderer disposed");
         }
         catch (Exception ex)
         {
-            SimpleLogger.LogError("Error during disposal", ex);
+            _logger.LogError(ex, "Error during disposal");
         }
     }
 }

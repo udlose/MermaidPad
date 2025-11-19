@@ -67,35 +67,12 @@ namespace MermaidPad.Views.Dialogs;
 
 public sealed partial class MessageDialog : Window
 {
-    //public MessageDialog()
-    //{
-    //    InitializeComponent();
-
-    //    // Make dialog non-resizable
-    //    CanResize = false;
-
-    //    // Center the dialog on the parent window
-    //    WindowStartupLocation = WindowStartupLocation.CenterOwner;
-    //    Debug.Assert(Owner is not null);
-    //}
-
     public MessageDialog()
     {
         InitializeComponent();
 
         // Make dialog non-resizable
         CanResize = false;
-    }
-
-    protected override void OnOpened(EventArgs e)
-    {
-        base.OnOpened(e);
-
-        // Center the dialog on the parent window
-        if (Owner is not null)
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        }
     }
 
     private void OnOkClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)

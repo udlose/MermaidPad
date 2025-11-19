@@ -19,13 +19,15 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MermaidPad.Services;
+using MermaidPad.Infrastructure;
 using MermaidPad.Services.Export;
+using MermaidPad.Views.Dialogs;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -49,9 +51,10 @@ namespace MermaidPad.ViewModels.Dialogs;
 public sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
+    private readonly ILogger<ExportDialogViewModel> _logger;
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
-    internal IStorageProvider? StorageProvider { get; private set; }
+    private readonly IDialogFactory _dialogFactory;
 
     // Cached SVG dimensions
     private float _actualSvgWidth;
@@ -140,12 +143,16 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// </summary>
     /// <remarks>The constructor initializes the available export formats and DPI values for the export
     /// dialog. If either service is null, related functionality may be limited.</remarks>
+    /// <param name="logger">The logger for this view model.</param>
     /// <param name="imageConversionService">The service used to perform image format conversions. Can be null if image conversion is not required.</param>
     /// <param name="exportService">The service responsible for handling export operations. Can be null if export functionality is not needed.</param>
-    public ExportDialogViewModel(IImageConversionService? imageConversionService, ExportService? exportService)
+    /// <param name="dialogFactory">The factory for creating dialog view models.</param>
+    public ExportDialogViewModel(ILogger<ExportDialogViewModel> logger, IImageConversionService imageConversionService, ExportService exportService, IDialogFactory dialogFactory)
     {
+        _logger = logger;
         _imageConversionService = imageConversionService;
         _exportService = exportService;
+        _dialogFactory = dialogFactory;
         AvailableFormats = new ObservableCollection<ExportFormatItem>
         {
             new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
@@ -161,16 +168,6 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 
         // Load actual SVG dimensions asynchronously
         _ = LoadActualSvgDimensionsAsync();
-    }
-
-    /// <summary>
-    /// Sets the storage provider to be used for subsequent storage operations.
-    /// </summary>
-    /// <param name="storageProvider">The storage provider to use for data storage operations. Specify <see langword="null"/> to remove the current
-    /// storage provider.</param>
-    public void SetStorageProvider(IStorageProvider? storageProvider)
-    {
-        StorageProvider = storageProvider;
     }
 
     /// <summary>
@@ -244,7 +241,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         //catch (Exception ex)
         //{
         //    Debug.WriteLine($"Failed to load SVG dimensions: {ex}");
-        //    SimpleLogger.LogError($"Failed to load SVG dimensions: {ex}");
+        //    _logger.LogError(ex, "Failed to load SVG dimensions");
         //}
 
         // Fallback to default dimensions if loading fails
@@ -282,28 +279,39 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     partial void OnUseWhiteBackgroundChanged(bool value) => UpdateEstimates();
 
     /// <summary>
-    /// Opens a folder picker dialog to allow the user to select a directory.
+    /// Prompts the user to select a directory using the provided storage provider and updates the directory path if a
+    /// selection is made.
     /// </summary>
-    /// <remarks>This method uses the configured <see cref="StorageProvider"/> to display a folder picker
-    /// dialog.  If the user selects a folder, the <see cref="Directory"/> property is updated with the path of the
-    /// selected folder. If no folder is selected or the <see cref="StorageProvider"/> is <see langword="null"/>, the
-    /// method does nothing.</remarks>
-    /// <returns>A task that represents the asynchronous operation.</returns>
+    /// <remarks>If the user selects a directory, the directory path is updated to the selected folder's local
+    /// path. If no selection is made, the directory path remains unchanged.</remarks>
+    /// <param name="storageProvider">The storage provider used to display the folder picker dialog. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the directory selection process
+    /// finishes.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
-    private async Task BrowseForDirectoryAsync()
+    private Task BrowseForDirectoryAsync(IStorageProvider storageProvider)
     {
-        if (StorageProvider is null)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(storageProvider);
 
+        return BrowseForDirectoryCoreAsync(storageProvider);
+    }
+
+    /// <summary>
+    /// Displays a folder picker dialog using the specified storage provider and updates the directory path if a folder
+    /// is selected.
+    /// </summary>
+    /// <param name="storageProvider">The storage provider used to present the folder picker dialog. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation of displaying the folder picker and updating the directory
+    /// path.</returns>
+    private async Task BrowseForDirectoryCoreAsync(IStorageProvider storageProvider)
+    {
         FolderPickerOpenOptions options = new FolderPickerOpenOptions
         {
             Title = "Select Export Directory",
             AllowMultiple = false
         };
 
-        IReadOnlyList<IStorageFolder> result = await StorageProvider.OpenFolderPickerAsync(options);
+        IReadOnlyList<IStorageFolder> result = await storageProvider.OpenFolderPickerAsync(options);
         if (result.Count > 0)
         {
             Directory = result[0].Path.LocalPath;
@@ -371,7 +379,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// <param name="title">The title to display in the error dialog window. Cannot be null.</param>
     /// <param name="message">The error message to display in the dialog. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation of displaying the error dialog.</returns>
-    private static async Task ShowErrorMessageAsync(string title, string message)
+    private async Task ShowErrorMessageAsync(string title, string message)
     {
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
@@ -406,7 +414,8 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     Width = 100
                 };
 
-                okButton.Click += (_, _) => errorWindow.Close();
+                // Store event handler for cleanup
+                okButton.Click += OkClickHandler;
                 stackPanel.Children.Add(okButton);
 
                 errorWindow.Content = stackPanel;
@@ -417,11 +426,19 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 {
                     await errorWindow.ShowDialog(parentWindow);
                 }
+
+                void OkClickHandler(object? sender, RoutedEventArgs routedEventArgs)
+                {
+                    // Unsubscribe before closing to prevent memory leak
+                    okButton.Click -= OkClickHandler;
+
+                    errorWindow.Close();
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Failed to show error message: {ex}");
-                SimpleLogger.LogError($"Failed to show error message: {ex}");
+                _logger.LogError(ex, "Failed to show error message");
             }
         });
     }
@@ -435,111 +452,46 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation. The task result is <see langword="true"/> if the user
     /// confirms to overwrite; otherwise, <see langword="false"/>.</returns>
-    private static async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
+    private async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
     {
-        return await Dispatcher.UIThread.InvokeAsync(async () =>
+        return await Dispatcher.UIThread.InvokeAsync<bool>(async () =>
         {
             try
             {
-                // Create confirmation window
-                Window confirmWindow = new Window
+                Window? window = GetParentWindow();
+                if (window is null)
                 {
-                    Title = "Confirm Overwrite",
-                    Width = 450,
-                    Height = 220,
-                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    CanResize = false
-                };
-
-                StackPanel stackPanel = new StackPanel
-                {
-                    Margin = new Avalonia.Thickness(20),
-                    Spacing = 15
-                };
-
-                stackPanel.Children.Add(new TextBlock
-                {
-                    Text = "File Already Exists",
-                    FontSize = 16,
-                    FontWeight = Avalonia.Media.FontWeight.Bold
-                });
-
-                stackPanel.Children.Add(new TextBlock
-                {
-                    Text = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFileName(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?",
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap
-                });
-
-                StackPanel buttonPanel = new StackPanel
-                {
-                    Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    Spacing = 10
-                };
-
-                bool result = false;
-
-                Button yesButton = new Button
-                {
-                    Content = "Yes, Overwrite",
-                    Width = 120
-                };
-                yesButton.Click += (_, _) =>
-                {
-                    result = true;
-                    confirmWindow.Close();
-                };
-
-                Button noButton = new Button
-                {
-                    Content = "No, Cancel",
-                    Width = 120
-                };
-                noButton.Click += (_, _) =>
-                {
-                    result = false;
-                    confirmWindow.Close();
-                };
-
-                buttonPanel.Children.Add(yesButton);
-                buttonPanel.Children.Add(noButton);
-                stackPanel.Children.Add(buttonPanel);
-
-                confirmWindow.Content = stackPanel;
-
-                // Get parent window
-                Window? parentWindow = GetParentWindow();
-                if (parentWindow is not null)
-                {
-                    await confirmWindow.ShowDialog(parentWindow);
+                    // TODO LastError = "Unable to access window for confirmation dialog";
+                    _logger.LogError("Unable to access window for confirmation dialog");
+                    return false;
                 }
 
-                return result;
+                // Create confirmation window
+                ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+                confirmViewModel.Title = "Confirm Overwrite";
+
+                confirmViewModel.Message = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFullPath(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?";
+                confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
+                confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
+
+                ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+
+                ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(window);
+                return result switch
+                {
+                    ConfirmationResult.Yes => true,
+                    ConfirmationResult.No => false,
+                    ConfirmationResult.Cancel => false,
+                    _ => false
+                };
             }
             catch (Exception ex)
             {
-                SimpleLogger.LogError($"Failed to show overwrite confirmation: {ex}");
+                _logger.LogError(ex, "Failed to show overwrite confirmation");
                 Debug.WriteLine($"Failed to show overwrite confirmation: {ex.Message}");
                 return false; // Default to not overwriting on error
             }
         });
-    }
-
-    /// <summary>
-    /// Retrieves the main window of the current Avalonia desktop application, if available.
-    /// </summary>
-    /// <remarks>This method returns <see langword="null"/> if the application is not running or does not use
-    /// a classic desktop lifetime. Use this method to access the main window in scenarios where the application
-    /// lifetime is known to be desktop-based.</remarks>
-    /// <returns>The main <see cref="Window"/> instance if the application is running with a classic desktop lifetime; otherwise,
-    /// <see langword="null"/>.</returns>
-    private static Window? GetParentWindow()
-    {
-        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-        {
-            return desktop.MainWindow;
-        }
-        return null;
     }
 
     /// <summary>
@@ -652,18 +604,16 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                 _ => 0.15f       // Minimum quality
             };
         }
-        else
+
+        // Opaque PNGs compress better
+        return quality switch
         {
-            // Opaque PNGs compress better
-            return quality switch
-            {
-                >= 95 => 0.25f,  // High quality
-                >= 85 => 0.20f,  // Good quality
-                >= 70 => 0.15f,  // Medium quality
-                >= 50 => 0.12f,  // Lower quality
-                _ => 0.10f       // Minimum quality
-            };
-        }
+            >= 95 => 0.25f,  // High quality
+            >= 85 => 0.20f,  // Good quality
+            >= 70 => 0.15f,  // Medium quality
+            >= 50 => 0.12f,  // Lower quality
+            _ => 0.10f       // Minimum quality
+        };
     }
 
     /// <summary>
@@ -701,6 +651,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     private static string GetValidDocumentsPath()
     {
         string myDocuments = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
         // If MyDocuments is empty or doesn't exist, fallback to the user's home directory.
         if (string.IsNullOrWhiteSpace(myDocuments) || !System.IO.Directory.Exists(myDocuments))
         {
