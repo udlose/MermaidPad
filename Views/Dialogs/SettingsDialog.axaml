@@ -107,13 +107,13 @@
                 <TextBlock Classes="OptionLabel" Text="API Key:" />
                 <TextBox
                   Width="280"
-                  PasswordChar="{Binding ShowApiKey, Converter={StaticResource InverseBoolToObjectConverter}, ConverterParameter='•'}"
+                  PasswordChar="{ReflectionBinding ShowApiKey, Converter={StaticResource InverseBoolToObjectConverter}, ConverterParameter='•'}"
                   Text="{Binding ApiKey}"
                   Watermark="Enter your API key" />
                 <Button
                   Width="60"
                   Command="{Binding ToggleApiKeyVisibilityCommand}"
-                  Content="{Binding ShowApiKey, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Hide|Show'}" />
+                  Content="{ReflectionBinding ShowApiKey, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Hide|Show'}" />
               </StackPanel>
 
               <!--  Model Selection  -->
@@ -131,7 +131,7 @@
                 <Button
                   Width="150"
                   Command="{Binding TestConnectionCommand}"
-                  Content="{Binding IsTestingConnection, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Testing...|Test Connection'}"
+                  Content="{ReflectionBinding IsTestingConnection, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Testing...|Test Connection'}"
                   IsEnabled="{Binding !IsTestingConnection}" />
               </StackPanel>
 
