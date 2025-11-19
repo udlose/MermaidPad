@@ -93,6 +93,38 @@ public sealed partial class WindowsPlatformServices : IPlatformServices
     /// <summary>
     /// Encrypts a plaintext string using Windows DPAPI (Data Protection API).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// DPAPI is used on Windows instead of AES-GCM (which is used on Linux/macOS) because it provides
+    /// significantly stronger security through deep integration with the Windows security infrastructure.
+    /// </para>
+    /// <para><strong>Key advantages of DPAPI over AES-GCM on Windows:</strong></para>
+    /// <list type="bullet">
+    /// <item><description><strong>Hardware Security:</strong> On systems with TPM (Trusted Platform Module),
+    /// encryption keys can be hardware-backed and never exposed to application memory, providing protection
+    /// against memory dumps and debugging attacks.</description></item>
+    /// <item><description><strong>True Machine Binding:</strong> Keys are derived from the Windows machine SID
+    /// (Security Identifier) and hardware characteristics, not just hostname (which can be spoofed). Data
+    /// encrypted on one machine cannot be decrypted on another, even by the same user.</description></item>
+    /// <item><description><strong>User Credential Integration:</strong> Encryption is tied to the user's Windows
+    /// login credentials. When a user changes their password, Windows automatically re-encrypts master keys.</description></item>
+    /// <item><description><strong>Kernel-Level Protection:</strong> DPAPI operates through the LSA (Local Security
+    /// Authority) in kernel space, providing protection from user-mode attacks like process memory scraping.</description></item>
+    /// <item><description><strong>Enterprise Features:</strong> Supports Active Directory integration, credential
+    /// roaming across domain machines, centralized key escrow, and auditing through Windows Security logs.</description></item>
+    /// <item><description><strong>Automatic Key Management:</strong> Windows handles key rotation, master key
+    /// encryption, and backup automatically without requiring application-level code.</description></item>
+    /// </list>
+    /// <para>
+    /// In contrast, AES-GCM (used on Linux/macOS) derives keys from environment variables (machine name, username)
+    /// which are less secure and easier to spoof. While AES-GCM provides excellent authenticated encryption, it
+    /// operates in user space and cannot leverage hardware security modules or OS-level credential management.
+    /// </para>
+    /// <para>
+    /// For desktop applications storing sensitive data like API keys, DPAPI remains the industry-standard best
+    /// practice on Windows, as recommended by Microsoft security guidelines.
+    /// </para>
+    /// </remarks>
     /// <param name="plaintext">The plaintext string to encrypt</param>
     /// <returns>Base64-encoded encrypted string</returns>
     /// <exception cref="InvalidOperationException">Thrown if encryption fails</exception>
