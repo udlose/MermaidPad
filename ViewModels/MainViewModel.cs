@@ -617,11 +617,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            SettingsDialogViewModel settingsViewModel = new SettingsDialogViewModel(
-                _settingsService,
-                _secureStorage,
-                _aiServiceFactory);
-
+            SettingsDialogViewModel settingsViewModel = _dialogFactory.CreateViewModel<SettingsDialogViewModel>();
             SettingsDialog settingsDialog = new SettingsDialog(settingsViewModel);
             bool? result = await settingsDialog.ShowDialog<bool?>(mainWindow);
 

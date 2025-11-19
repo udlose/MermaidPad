@@ -87,14 +87,15 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     };
 
     public SettingsDialogViewModel(
+        SettingsService settingsService,
         ISecureStorageService secureStorage,
-        AIServiceFactory aiServiceFactory,
-        AISettings currentSettings)
+        AIServiceFactory aiServiceFactory)
     {
         _secureStorage = secureStorage;
         _aiServiceFactory = aiServiceFactory;
 
         // Load current settings
+        AISettings currentSettings = settingsService.Settings.AI;
         EnableAIFeatures = currentSettings.EnableAIFeatures;
         SelectedProvider = currentSettings.Provider;
         Model = currentSettings.Model;
