@@ -81,7 +81,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets or sets the version of the bundled Mermaid.js.
     /// </summary>
     [ObservableProperty]
-    public partial string BundledMermaidVersion { get; set; }
+    public partial string BundledMermaidVersion { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the latest Mermaid.js version available.
