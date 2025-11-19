@@ -19,19 +19,23 @@
 // SOFTWARE.
 
 using MermaidPad.Models.AI;
+using System.Net.Http;
 
 namespace MermaidPad.Services.AI;
 
 /// <summary>
 /// Factory for creating AI service instances based on configuration.
+/// Uses IHttpClientFactory for proper HTTP client lifecycle management.
 /// </summary>
 public sealed class AIServiceFactory
 {
     private readonly ISecureStorageService _secureStorage;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public AIServiceFactory(ISecureStorageService secureStorage)
+    public AIServiceFactory(ISecureStorageService secureStorage, IHttpClientFactory httpClientFactory)
     {
         _secureStorage = secureStorage;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -66,7 +70,10 @@ public sealed class AIServiceFactory
 
         return settings.Provider switch
         {
-            AIProvider.Anthropic => new AnthropicAIService(apiKey, settings.Model),
+            AIProvider.Anthropic => new AnthropicAIService(
+                _httpClientFactory.CreateClient("Anthropic"),
+                apiKey,
+                settings.Model),
             AIProvider.OpenAI => throw new System.NotImplementedException("OpenAI support coming soon"),
             _ => new NullAIService()
         };

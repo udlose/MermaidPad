@@ -58,6 +58,12 @@ public static class ServiceConfiguration
         // Add HTTP Client Factory
         services.AddHttpClient();
 
+        // Configure named HttpClient for Anthropic API
+        services.AddHttpClient("Anthropic", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(120); // 2 minute timeout for AI requests
+        });
+
         // Core singletons
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();

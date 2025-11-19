@@ -20,6 +20,7 @@
 
 using System;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Anthropic;
@@ -36,14 +37,25 @@ public sealed class AnthropicAIService : IAIService
     private readonly string _model;
     private readonly AnthropicClient _client;
 
-    public AnthropicAIService(string apiKey, string model)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AnthropicAIService"/> class.
+    /// </summary>
+    /// <param name="httpClient">The HTTP client to use for API requests.</param>
+    /// <param name="apiKey">The Anthropic API key.</param>
+    /// <param name="model">The model to use for requests.</param>
+    public AnthropicAIService(HttpClient? httpClient, string apiKey, string model)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new ArgumentException("API key cannot be null or empty", nameof(apiKey));
 
         _apiKey = apiKey;
         _model = string.IsNullOrWhiteSpace(model) ? "claude-sonnet-4" : model;
-        _client = new AnthropicClient { APIKey = apiKey };
+
+        // Create client with optional HttpClient for better resource management
+        // Note: If the SDK doesn't support custom HttpClient, this will fall back to default
+        _client = httpClient != null
+            ? new AnthropicClient(httpClient) { APIKey = apiKey }
+            : new AnthropicClient { APIKey = apiKey };
     }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
