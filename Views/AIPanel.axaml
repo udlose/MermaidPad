@@ -91,7 +91,7 @@
           <Button
             HorizontalAlignment="Stretch"
             Command="{Binding GenerateDiagramCommand}"
-            Content="{ReflectionBinding IsProcessing, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Generating...|Generate Diagram'}"
+            Content="{Binding IsProcessing, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Generating...|Generate Diagram'}"
             IsEnabled="{Binding !IsProcessing}" />
         </StackPanel>
 
