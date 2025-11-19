@@ -124,13 +124,14 @@ public sealed partial class MainWindow : Window
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
 
+        // Note: Panel positioning logic removed - panels are now in fixed positions
         // Get panel border references for dynamic positioning
-        _editorBorder = this.FindControl<Border>("EditorBorder");
-        _previewBorder = this.FindControl<Border>("PreviewBorder");
-        _aiBorder = this.FindControl<Border>("AIBorder");
+        // _editorBorder = this.FindControl<Border>("EditorBorder");
+        // _previewBorder = this.FindControl<Border>("PreviewBorder");
+        // _aiBorder = this.FindControl<Border>("AIBorder");
 
         // Set initial panel positions
-        UpdatePanelPositions();
+        // UpdatePanelPositions();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
@@ -344,11 +345,12 @@ public sealed partial class MainWindow : Window
                 DispatcherPriority.Background);
                 break;
 
-            case nameof(_vm.Column1Panel):
-            case nameof(_vm.Column2Panel):
-            case nameof(_vm.Column3Panel):
-                UpdatePanelPositions();
-                break;
+            // Note: Panel positioning removed - panels are now in fixed positions
+            // case nameof(_vm.Column1Panel):
+            // case nameof(_vm.Column2Panel):
+            // case nameof(_vm.Column3Panel):
+            //     UpdatePanelPositions();
+            //     break;
         }
     }
 

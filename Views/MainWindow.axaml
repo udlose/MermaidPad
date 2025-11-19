@@ -141,22 +141,9 @@
         BorderThickness="1"
         CornerRadius="4">
         <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+          <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
             <TextBlock FontWeight="Bold" Text="Editor" VerticalAlignment="Center" />
-            <Button
-              Content="←"
-              Margin="8,0,2,0"
-              Padding="4,2"
-              ToolTip.Tip="Move panel left"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="Editor:-1" />
-            <Button
-              Content="→"
-              Padding="4,2"
-              ToolTip.Tip="Move panel right"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="Editor:1" />
-          </StackPanel>
+          </Border>
           <edit:TextEditor
             x:Name="Editor"
             FontFamily="Consolas"
@@ -187,22 +174,9 @@
         BorderThickness="1"
         CornerRadius="4">
         <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+          <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
             <TextBlock FontWeight="Bold" Text="Preview" VerticalAlignment="Center" />
-            <Button
-              Content="←"
-              Margin="8,0,2,0"
-              Padding="4,2"
-              ToolTip.Tip="Move panel left"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="Preview:-1" />
-            <Button
-              Content="→"
-              Padding="4,2"
-              ToolTip.Tip="Move panel right"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="Preview:1" />
-          </StackPanel>
+          </Border>
           <Grid>
             <wv:WebView Name="Preview" />
             <TextBlock
@@ -227,22 +201,6 @@
         BorderThickness="1"
         CornerRadius="4">
         <DockPanel>
-          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
-            <TextBlock FontWeight="Bold" Text="AI Assistant" VerticalAlignment="Center" />
-            <Button
-              Content="←"
-              Margin="8,0,2,0"
-              Padding="4,2"
-              ToolTip.Tip="Move panel left"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="AI:-1" />
-            <Button
-              Content="→"
-              Padding="4,2"
-              ToolTip.Tip="Move panel right"
-              Command="{Binding MovePanelCommand}"
-              CommandParameter="AI:1" />
-          </StackPanel>
           <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
         </DockPanel>
       </Border>
