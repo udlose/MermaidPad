@@ -126,14 +126,14 @@
           <Button
             HorizontalAlignment="Stretch"
             Command="{Binding ExplainDiagramCommand}"
-            CommandParameter="{Binding $parent[Window].DataContext.DiagramText}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
             Content="Explain Diagram"
             IsEnabled="{Binding !IsProcessing}" />
 
           <Button
             HorizontalAlignment="Stretch"
             Command="{Binding SuggestImprovementsCommand}"
-            CommandParameter="{Binding $parent[Window].DataContext.DiagramText}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
             Content="Suggest Improvements"
             IsEnabled="{Binding !IsProcessing}" />
         </StackPanel>
