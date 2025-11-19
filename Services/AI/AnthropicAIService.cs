@@ -25,6 +25,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Anthropic;
 using Anthropic.Models.Messages;
+using Anthropic.Models.Content;
 
 namespace MermaidPad.Services.AI;
 
@@ -79,7 +80,7 @@ public sealed class AnthropicAIService : IAIService
             };
 
             var response = await _client.Messages.Create(parameters, cancellationToken);
-            return response?.Content?.Any() == true;
+            return response?.Content?.Any(c => c.Value is TextBlock) == true;
         }
         catch (Exception)
         {
@@ -122,7 +123,12 @@ flowchart TD
         };
 
         var response = await _client.Messages.Create(parameters, cancellationToken);
-        var content = response?.Content?.FirstOrDefault()?.Text ?? string.Empty;
+        var content = string.Join(
+            "",
+            response?.Content?
+                .Where(c => c.Value is TextBlock)
+                .Select(c => c.Value as TextBlock)
+                .Select(tb => tb?.Text ?? string.Empty) ?? Enumerable.Empty<string>());
 
         // Clean up response in case AI included markdown fences
         content = content.Trim();
@@ -165,7 +171,14 @@ flowchart TD
         };
 
         var response = await _client.Messages.Create(parameters, cancellationToken);
-        return response?.Content?.FirstOrDefault()?.Text ?? "Unable to generate explanation.";
+        var explanation = string.Join(
+            "",
+            response?.Content?
+                .Where(c => c.Value is TextBlock)
+                .Select(c => c.Value as TextBlock)
+                .Select(tb => tb?.Text ?? string.Empty) ?? Enumerable.Empty<string>());
+
+        return string.IsNullOrWhiteSpace(explanation) ? "Unable to generate explanation." : explanation;
     }
 
     public async Task<string> SuggestImprovementsAsync(string mermaidCode, CancellationToken cancellationToken = default)
@@ -191,6 +204,13 @@ flowchart TD
         };
 
         var response = await _client.Messages.Create(parameters, cancellationToken);
-        return response?.Content?.FirstOrDefault()?.Text ?? "Unable to generate suggestions.";
+        var suggestions = string.Join(
+            "",
+            response?.Content?
+                .Where(c => c.Value is TextBlock)
+                .Select(c => c.Value as TextBlock)
+                .Select(tb => tb?.Text ?? string.Empty) ?? Enumerable.Empty<string>());
+
+        return string.IsNullOrWhiteSpace(suggestions) ? "Unable to generate suggestions." : suggestions;
     }
 }

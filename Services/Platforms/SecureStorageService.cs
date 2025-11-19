@@ -23,7 +23,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MermaidPad.Services;
+namespace MermaidPad.Services.Platforms;
 
 /// <summary>
 /// Provides secure storage for sensitive data like API keys using platform-specific encryption.
@@ -62,15 +62,14 @@ public sealed class SecureStorageService : ISecureStorageService
 
         try
         {
+#if WINDOWS
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 return EncryptWindows(plaintext);
             }
-            else
-            {
-                // Linux and macOS: Use AES encryption with machine-specific key
-                return EncryptCrossPlatform(plaintext);
-            }
+#endif
+            // Linux and macOS: Use AES encryption with machine-specific key
+            return EncryptCrossPlatform(plaintext);
         }
         catch (Exception ex)
         {
@@ -85,14 +84,13 @@ public sealed class SecureStorageService : ISecureStorageService
 
         try
         {
+#if WINDOWS
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 return DecryptWindows(encrypted);
             }
-            else
-            {
-                return DecryptCrossPlatform(encrypted);
-            }
+#endif
+            return DecryptCrossPlatform(encrypted);
         }
         catch (Exception ex)
         {
@@ -116,6 +114,7 @@ public sealed class SecureStorageService : ISecureStorageService
         }
     }
 
+#if WINDOWS
     private static string EncryptWindows(string plaintext)
     {
         byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
@@ -135,6 +134,7 @@ public sealed class SecureStorageService : ISecureStorageService
             DataProtectionScope.CurrentUser);
         return Encoding.UTF8.GetString(plaintextBytes);
     }
+#endif
 
     private static string EncryptCrossPlatform(string plaintext)
     {
@@ -189,7 +189,6 @@ public sealed class SecureStorageService : ISecureStorageService
         var entropyBytes = Encoding.UTF8.GetBytes(entropy);
 
         // Derive a 256-bit key using SHA256
-        using var sha256 = SHA256.Create();
-        return sha256.ComputeHash(entropyBytes);
+        return SHA256.HashData(entropyBytes);
     }
 }

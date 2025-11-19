@@ -28,6 +28,7 @@ using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
+using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,7 +59,6 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
     private readonly ILogger<MainViewModel> _logger;
-    private readonly ISecureStorageService _secureStorage;
     private readonly AIServiceFactory _aiServiceFactory;
     private readonly IServiceProvider _services;
 
@@ -224,7 +224,6 @@ public sealed partial class MainViewModel : ViewModelBase
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
         _logger = logger;
-        _secureStorage = services.GetRequiredService<ISecureStorageService>();
         _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
         _services = services;
 
@@ -639,16 +638,22 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Moves a panel from one column to another.
     /// </summary>
-    /// <param name="panelName">The name of the panel to move ("Editor", "Preview", "AI")</param>
-    /// <param name="direction">The direction to move (-1 for left, 1 for right)</param>
+    /// <param name="parameter">Parameter in format "PanelName:Direction" (e.g., "Editor:-1" or "Preview:1")</param>
     [RelayCommand]
     private void MovePanel(object? parameter)
     {
-        if (parameter is not object[] parameters || parameters.Length != 2)
+        string? paramStr = parameter?.ToString();
+        if (string.IsNullOrEmpty(paramStr))
             return;
 
-        string panelName = parameters[0]?.ToString() ?? string.Empty;
-        int direction = Convert.ToInt32(parameters[1]);
+        // Parse parameter string in format "PanelName:Direction"
+        string[] parts = paramStr.Split(':');
+        if (parts.Length != 2)
+            return;
+
+        string panelName = parts[0];
+        if (!int.TryParse(parts[1], out int direction))
+            return;
 
         // Find which column currently contains this panel
         int currentColumn = GetColumnForPanel(panelName);

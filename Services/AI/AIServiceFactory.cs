@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Models.AI;
+using MermaidPad.Services.Platforms;
 using System.Net.Http;
 
 namespace MermaidPad.Services.AI;

@@ -23,6 +23,7 @@ using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Models.AI;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
+using MermaidPad.Services.Platforms;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;

@@ -72,14 +72,6 @@ public sealed partial class MainWindow : Window
     private Border? _previewBorder;
     private Border? _aiBorder;
 
-    // References to move buttons
-    private Button? _editorMoveLeftButton;
-    private Button? _editorMoveRightButton;
-    private Button? _previewMoveLeftButton;
-    private Button? _previewMoveRightButton;
-    private Button? _aiMoveLeftButton;
-    private Button? _aiMoveRightButton;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
     /// </summary>
@@ -136,22 +128,6 @@ public sealed partial class MainWindow : Window
         _editorBorder = this.FindControl<Border>("EditorBorder");
         _previewBorder = this.FindControl<Border>("PreviewBorder");
         _aiBorder = this.FindControl<Border>("AIBorder");
-
-        // Get move button references
-        _editorMoveLeftButton = this.FindControl<Button>("EditorMoveLeftButton");
-        _editorMoveRightButton = this.FindControl<Button>("EditorMoveRightButton");
-        _previewMoveLeftButton = this.FindControl<Button>("PreviewMoveLeftButton");
-        _previewMoveRightButton = this.FindControl<Button>("PreviewMoveRightButton");
-        _aiMoveLeftButton = this.FindControl<Button>("AIMoveLeftButton");
-        _aiMoveRightButton = this.FindControl<Button>("AIMoveRightButton");
-
-        // Wire up move button click handlers
-        if (_editorMoveLeftButton != null) _editorMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Editor", -1 });
-        if (_editorMoveRightButton != null) _editorMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Editor", 1 });
-        if (_previewMoveLeftButton != null) _previewMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Preview", -1 });
-        if (_previewMoveRightButton != null) _previewMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "Preview", 1 });
-        if (_aiMoveLeftButton != null) _aiMoveLeftButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "AI", -1 });
-        if (_aiMoveRightButton != null) _aiMoveRightButton.Click += (s, e) => _vm.MovePanelCommand.Execute(new object[] { "AI", 1 });
 
         // Set initial panel positions
         UpdatePanelPositions();
@@ -401,9 +377,6 @@ public sealed partial class MainWindow : Window
         PositionPanelInColumn(_vm.Column2Panel, 2, panelBorders);
         PositionPanelInColumn(_vm.Column3Panel, 4, panelBorders);
 
-        // Update button enabled states
-        UpdateMoveButtonStates();
-
         _logger.LogInformation("Panel positions updated: Column1={Column1}, Column2={Column2}, Column3={Column3}",
             _vm.Column1Panel, _vm.Column2Panel, _vm.Column3Panel);
     }
@@ -418,38 +391,6 @@ public sealed partial class MainWindow : Window
             Grid.SetColumn(border, gridColumn);
             border.IsVisible = true;
         }
-    }
-
-    /// <summary>
-    /// Updates the enabled state of move buttons based on panel positions.
-    /// </summary>
-    private void UpdateMoveButtonStates()
-    {
-        // Editor buttons
-        int editorColumn = GetColumnNumberForPanel("Editor");
-        if (_editorMoveLeftButton != null) _editorMoveLeftButton.IsEnabled = editorColumn > 1;
-        if (_editorMoveRightButton != null) _editorMoveRightButton.IsEnabled = editorColumn < 3;
-
-        // Preview buttons
-        int previewColumn = GetColumnNumberForPanel("Preview");
-        if (_previewMoveLeftButton != null) _previewMoveLeftButton.IsEnabled = previewColumn > 1;
-        if (_previewMoveRightButton != null) _previewMoveRightButton.IsEnabled = previewColumn < 3;
-
-        // AI buttons
-        int aiColumn = GetColumnNumberForPanel("AI");
-        if (_aiMoveLeftButton != null) _aiMoveLeftButton.IsEnabled = aiColumn > 1;
-        if (_aiMoveRightButton != null) _aiMoveRightButton.IsEnabled = aiColumn < 3;
-    }
-
-    /// <summary>
-    /// Gets the column number (1-3) for the specified panel.
-    /// </summary>
-    private int GetColumnNumberForPanel(string panelName)
-    {
-        if (_vm.Column1Panel == panelName) return 1;
-        if (_vm.Column2Panel == panelName) return 2;
-        if (_vm.Column3Panel == panelName) return 3;
-        return -1;
     }
 
     /// <summary>
