@@ -18,28 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using MermaidPad.Models.AI;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using MermaidPad.ViewModels.Dialogs;
 
-namespace MermaidPad.Models;
+namespace MermaidPad.Views.Dialogs;
 
-public sealed class AppSettings
+public partial class SettingsDialog : Window
 {
-    public string? LastDiagramText { get; set; }
-    public string BundledMermaidVersion { get; set; } = "11.12.0";
-    public string? LatestCheckedMermaidVersion { get; set; }
-    public bool AutoUpdateMermaid { get; set; }
-    public bool LivePreviewEnabled { get; set; } = true;
-    public int EditorSelectionStart { get; set; }
-    public int EditorSelectionLength { get; set; }
-    public int EditorCaretOffset { get; set; }
+    public SettingsDialog()
+    {
+        InitializeComponent();
+    }
 
-    /// <summary>
-    /// AI configuration settings.
-    /// </summary>
-    public AISettings AI { get; set; } = new();
+    public SettingsDialog(SettingsDialogViewModel viewModel) : this()
+    {
+        DataContext = viewModel;
+    }
 
-    /// <summary>
-    /// Dock layout persistence settings.
-    /// </summary>
-    public DockLayoutSettings DockLayout { get; set; } = new();
+    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    {
+        Close(true);
+    }
+
+    private void OnCancelClick(object? sender, RoutedEventArgs e)
+    {
+        Close(false);
+    }
 }

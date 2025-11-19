@@ -4,10 +4,11 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:views="clr-namespace:MermaidPad.Views"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="MermaidPad - The Cross-Platform Mermaid Chart Editor"
-  Width="1200"
+  Width="1400"
   Height="800"
   x:DataType="vm:MainViewModel"
   Icon="/Assets/AppIcon.ico">
@@ -27,6 +28,7 @@
   </Window.Styles>
 
   <DockPanel>
+    <!--  Toolbar  -->
     <StackPanel
       Margin="6"
       DockPanel.Dock="Top"
@@ -45,6 +47,20 @@
         Command="{Binding ExportCommand}"
         Content="Export"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+      <Separator Margin="6,0" />
+      <Button
+        Command="{Binding ToggleAIPanelCommand}"
+        Content="{Binding IsAIPanelVisible, Converter={x:Static ObjectConverters.TrueToObject}, ConverterParameter='Hide AI', FalseValue='Show AI'}"
+        ToolTip.Tip="Show or hide the AI Assistant panel" />
+      <Button
+        Command="{Binding SwapEditorPreviewCommand}"
+        Content="Swap Panels"
+        ToolTip.Tip="Swap the positions of editor and preview" />
+      <Separator Margin="6,0" />
+      <Button
+        Command="{Binding OpenSettingsCommand}"
+        Content="Settings"
+        ToolTip.Tip="Configure AI and other settings" />
       <Button
         Click="OnCloseClick"
         Content="Close" />
@@ -55,10 +71,6 @@
         IsChecked="{Binding LivePreviewEnabled}"
         IsEnabled="{Binding IsWebViewReady}"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
-      <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
-      <TextBlock Text="{Binding BundledMermaidVersion}" />
-      <TextBlock Margin="12,0,4,0" Text="Latest:" />
-      <TextBlock Text="{Binding LatestMermaidVersion}" />-->
       <TextBlock
         Margin="12,0,0,0"
         HorizontalAlignment="Right"
@@ -69,21 +81,87 @@
         VerticalAlignment="Center"
         Text="{Binding CurrentMermaidPadVersion}" />
     </StackPanel>
-    <Grid ColumnDefinitions="*,4,*">
-      <edit:TextEditor
-        x:Name="Editor"
+
+    <!--  Main Content Area with Dynamic Layout  -->
+    <Grid x:Name="MainContentGrid" ColumnDefinitions="300,4,*">
+      <!--  Left Panel (AI Panel when visible)  -->
+      <Grid
+        x:Name="LeftPanelGrid"
         Grid.Column="0"
-        FontFamily="Consolas"
-        HorizontalScrollBarVisibility="Auto"
-        LineNumbersForeground="Lime"
-        ShowLineNumbers="True"
-        SyntaxHighlighting="Mermaid"
-        VerticalScrollBarVisibility="Auto" />
+        IsVisible="{Binding IsAIPanelVisible}">
+        <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
+      </Grid>
+
+      <!--  Left Splitter  -->
       <GridSplitter
+        x:Name="LeftSplitter"
         Grid.Column="1"
         Width="4"
-        Background="Gray" />
-      <wv:WebView x:Name="Preview" Grid.Column="2" />
+        Background="Gray"
+        IsVisible="{Binding IsAIPanelVisible}" />
+
+      <!--  Center Content (Editor and Preview)  -->
+      <Grid
+        x:Name="CenterGrid"
+        Grid.Column="2"
+        ColumnDefinitions="*,4,*">
+        <!--  Editor Panel  -->
+        <Border
+          x:Name="EditorPanel"
+          Grid.Column="0"
+          BorderBrush="#E0E0E0"
+          BorderThickness="0">
+          <DockPanel>
+            <Border
+              DockPanel.Dock="Top"
+              Background="#F5F5F5"
+              BorderBrush="#E0E0E0"
+              BorderThickness="0,0,0,1"
+              Padding="8,4">
+              <TextBlock
+                FontSize="12"
+                FontWeight="SemiBold"
+                Text="Editor" />
+            </Border>
+            <edit:TextEditor
+              x:Name="Editor"
+              FontFamily="Consolas"
+              HorizontalScrollBarVisibility="Auto"
+              LineNumbersForeground="Lime"
+              ShowLineNumbers="True"
+              SyntaxHighlighting="Mermaid"
+              VerticalScrollBarVisibility="Auto" />
+          </DockPanel>
+        </Border>
+
+        <!--  Center Splitter  -->
+        <GridSplitter
+          Grid.Column="1"
+          Width="4"
+          Background="Gray" />
+
+        <!--  Preview Panel  -->
+        <Border
+          x:Name="PreviewPanel"
+          Grid.Column="2"
+          BorderBrush="#E0E0E0"
+          BorderThickness="0">
+          <DockPanel>
+            <Border
+              DockPanel.Dock="Top"
+              Background="#F5F5F5"
+              BorderBrush="#E0E0E0"
+              BorderThickness="0,0,0,1"
+              Padding="8,4">
+              <TextBlock
+                FontSize="12"
+                FontWeight="SemiBold"
+                Text="Preview" />
+            </Border>
+            <wv:WebView x:Name="Preview" />
+          </DockPanel>
+        </Border>
+      </Grid>
     </Grid>
   </DockPanel>
 </Window>

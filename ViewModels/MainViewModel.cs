@@ -27,6 +27,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
+using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
@@ -53,6 +54,9 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
+    private readonly ISecureStorageService _secureStorage;
+    private readonly AIServiceFactory _aiServiceFactory;
+    private readonly IServiceProvider _services;
 
     private const string DebounceRenderKey = "render";
 
@@ -117,17 +121,37 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial bool IsWebViewReady { get; set; }
 
     /// <summary>
+    /// Gets the AI panel view model.
+    /// </summary>
+    public AIPanelViewModel AIPanelViewModel { get; private set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the AI panel is visible.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsAIPanelVisible { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the editor and preview panels are swapped.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsPanelsSwapped { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
     public MainViewModel(IServiceProvider services)
     {
+        _services = services;
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
+        _secureStorage = services.GetRequiredService<ISecureStorageService>();
+        _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
 
         InitializeCurrentMermaidPadVersion();
 
@@ -139,6 +163,21 @@ public sealed partial class MainViewModel : ViewModelBase
         EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
         EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
         EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
+
+        // Initialize AI panel
+        var aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
+        AIPanelViewModel = new AIPanelViewModel(aiService);
+        AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
+
+        // Load dock layout settings
+        IsAIPanelVisible = _settingsService.Settings.DockLayout.AIsPanelVisible;
+        IsPanelsSwapped = _settingsService.Settings.DockLayout.EditorPosition == "Right";
+    }
+
+    private void OnDiagramGenerated(object? sender, string diagram)
+    {
+        // Insert generated diagram into editor
+        DiagramText = diagram;
     }
 
     /// <summary>
@@ -611,6 +650,73 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Toggles the visibility of the AI assistant panel.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleAIPanel()
+    {
+        IsAIPanelVisible = !IsAIPanelVisible;
+    }
+
+    /// <summary>
+    /// Swaps the positions of the editor and preview panels.
+    /// </summary>
+    [RelayCommand]
+    private void SwapEditorPreview()
+    {
+        IsPanelsSwapped = !IsPanelsSwapped;
+        // The UI will handle the actual swapping through bindings
+    }
+
+    /// <summary>
+    /// Opens the settings dialog.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        try
+        {
+            Window? window = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (window is null)
+            {
+                LastError = "Unable to access main window for settings dialog";
+                return;
+            }
+
+            // Create the settings dialog view model
+            var settingsViewModel = new SettingsDialogViewModel(
+                _secureStorage,
+                _aiServiceFactory,
+                _settingsService.Settings.AI);
+
+            // Create and show the dialog
+            var settingsDialog = new SettingsDialog(settingsViewModel);
+            var result = await settingsDialog.ShowDialog<bool?>(window);
+
+            // If user saved settings, update the AI service
+            if (result == true)
+            {
+                var updatedSettings = settingsViewModel.GetUpdatedSettings();
+                _settingsService.Settings.AI = updatedSettings;
+                _settingsService.Save();
+
+                // Recreate AI service with new settings
+                var newAIService = _aiServiceFactory.CreateService(updatedSettings);
+                AIPanelViewModel.UpdateAIService(newAIService);
+            }
+        }
+        catch (Exception ex)
+        {
+            SimpleLogger.LogError("Failed to open settings dialog", ex);
+            LastError = $"Failed to open settings: {ex.Message}";
+            Debug.WriteLine($"Settings error: {ex}");
+        }
+    }
+
+    /// <summary>
     /// Persists the current application settings to storage.
     /// </summary>
     /// <remarks>This method updates the settings service with the current state of the application,
@@ -626,6 +732,12 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
         _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
+
+        // Persist dock layout settings
+        _settingsService.Settings.DockLayout.AIsPanelVisible = IsAIPanelVisible;
+        _settingsService.Settings.DockLayout.EditorPosition = IsPanelsSwapped ? "Right" : "Left";
+        _settingsService.Settings.DockLayout.PreviewPosition = IsPanelsSwapped ? "Left" : "Right";
+
         _settingsService.Save();
     }
 

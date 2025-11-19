@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Services;
+using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
@@ -61,6 +62,10 @@ public static class ServiceConfiguration
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
         services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
         services.AddSingleton<IDialogFactory, DialogFactory>();
+
+        // AI Services
+        services.AddSingleton<ISecureStorageService, SecureStorageService>();
+        services.AddSingleton<AIServiceFactory>();
 
         // Main ViewModel: transient (one per window)
         services.AddTransient<MainViewModel>();

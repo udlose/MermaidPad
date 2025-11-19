@@ -18,28 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using MermaidPad.Models.AI;
+namespace MermaidPad.Models.AI;
 
-namespace MermaidPad.Models;
-
-public sealed class AppSettings
+/// <summary>
+/// Supported AI providers for diagram generation and assistance.
+/// </summary>
+public enum AIProvider
 {
-    public string? LastDiagramText { get; set; }
-    public string BundledMermaidVersion { get; set; } = "11.12.0";
-    public string? LatestCheckedMermaidVersion { get; set; }
-    public bool AutoUpdateMermaid { get; set; }
-    public bool LivePreviewEnabled { get; set; } = true;
-    public int EditorSelectionStart { get; set; }
-    public int EditorSelectionLength { get; set; }
-    public int EditorCaretOffset { get; set; }
+    /// <summary>
+    /// No AI provider configured - AI features disabled.
+    /// </summary>
+    None = 0,
 
     /// <summary>
-    /// AI configuration settings.
+    /// Anthropic Claude API (claude-sonnet, claude-opus, etc.).
     /// </summary>
-    public AISettings AI { get; set; } = new();
+    Anthropic = 1,
 
     /// <summary>
-    /// Dock layout persistence settings.
+    /// OpenAI API (GPT-4, GPT-3.5, etc.) - Future support.
     /// </summary>
-    public DockLayoutSettings DockLayout { get; set; } = new();
+    OpenAI = 2
 }

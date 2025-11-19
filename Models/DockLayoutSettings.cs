@@ -18,28 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using MermaidPad.Models.AI;
-
 namespace MermaidPad.Models;
 
-public sealed class AppSettings
+/// <summary>
+/// Persisted layout configuration for the docking system.
+/// </summary>
+public sealed class DockLayoutSettings
 {
-    public string? LastDiagramText { get; set; }
-    public string BundledMermaidVersion { get; set; } = "11.12.0";
-    public string? LatestCheckedMermaidVersion { get; set; }
-    public bool AutoUpdateMermaid { get; set; }
-    public bool LivePreviewEnabled { get; set; } = true;
-    public int EditorSelectionStart { get; set; }
-    public int EditorSelectionLength { get; set; }
-    public int EditorCaretOffset { get; set; }
+    /// <summary>
+    /// Whether the AI panel is visible.
+    /// </summary>
+    public bool AIsPanelVisible { get; set; } = false;
 
     /// <summary>
-    /// AI configuration settings.
+    /// Position of the AI panel (Left, Right).
     /// </summary>
-    public AISettings AI { get; set; } = new();
+    public string AIPanelPosition { get; set; } = "Right";
 
     /// <summary>
-    /// Dock layout persistence settings.
+    /// Width of the AI panel in pixels.
     /// </summary>
-    public DockLayoutSettings DockLayout { get; set; } = new();
+    public double AIPanelWidth { get; set; } = 300;
+
+    /// <summary>
+    /// Position of the editor panel (Left, Right, Center).
+    /// </summary>
+    public string EditorPosition { get; set; } = "Left";
+
+    /// <summary>
+    /// Position of the preview panel (Left, Right, Center).
+    /// </summary>
+    public string PreviewPosition { get; set; } = "Right";
+
+    /// <summary>
+    /// Width of the editor panel as proportion (0-1).
+    /// </summary>
+    public double EditorProportionalWidth { get; set; } = 0.5;
 }

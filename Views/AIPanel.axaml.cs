@@ -18,28 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using MermaidPad.Models.AI;
+using Avalonia.Controls;
 
-namespace MermaidPad.Models;
+namespace MermaidPad.Views;
 
-public sealed class AppSettings
+public partial class AIPanel : UserControl
 {
-    public string? LastDiagramText { get; set; }
-    public string BundledMermaidVersion { get; set; } = "11.12.0";
-    public string? LatestCheckedMermaidVersion { get; set; }
-    public bool AutoUpdateMermaid { get; set; }
-    public bool LivePreviewEnabled { get; set; } = true;
-    public int EditorSelectionStart { get; set; }
-    public int EditorSelectionLength { get; set; }
-    public int EditorCaretOffset { get; set; }
-
-    /// <summary>
-    /// AI configuration settings.
-    /// </summary>
-    public AISettings AI { get; set; } = new();
-
-    /// <summary>
-    /// Dock layout persistence settings.
-    /// </summary>
-    public DockLayoutSettings DockLayout { get; set; } = new();
+    public AIPanel()
+    {
+        InitializeComponent();
+    }
 }
