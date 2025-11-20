@@ -32,6 +32,12 @@
 		<PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
 		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
+		<PackageReference Include="Dock.Avalonia" Version="11.3.8" />
+		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.8" />
+		<PackageReference Include="Dock.Avalonia.Themes.Simple" Version="11.3.8" />
+		<PackageReference Include="Dock.Model.Avalonia" Version="11.3.8" />
+		<PackageReference Include="Dock.Model.Mvvm" Version="11.3.8" />
+		<PackageReference Include="Dock.Serializer.SystemTextJson" Version="11.3.8" />
 		<PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
 		<!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
 		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.307" />
@@ -149,6 +155,8 @@
 	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
       <AdditionalFiles Remove="Views/AIPanel.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/SettingsDialog.axaml" />
+	  <AdditionalFiles Remove="Views/Panels/EditorPanel.axaml" />
+	  <AdditionalFiles Remove="Views/Panels/PreviewPanel.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -186,6 +194,12 @@
 			<SubType>Designer</SubType>
 		</AvaloniaXaml>
 		<AvaloniaXaml Update="Views/Dialogs/SettingsDialog.axaml">
+		  <SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Panels/EditorPanel.axaml">
+		  <SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Panels/PreviewPanel.axaml">
 		  <SubType>Designer</SubType>
 		</AvaloniaXaml>
 	</ItemGroup>

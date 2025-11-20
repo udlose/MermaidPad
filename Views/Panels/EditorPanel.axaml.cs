@@ -20,11 +20,18 @@
 
 using Avalonia.Controls;
 
-namespace MermaidPad.Views;
+namespace MermaidPad.Views.Panels;
 
-public sealed partial class AIPanel : UserControl
+/// <summary>
+/// UserControl wrapper for the Editor panel.
+/// The TextEditor control is accessible via the Editor field generated from x:Name.
+/// </summary>
+public sealed partial class EditorPanel : UserControl
 {
-    public AIPanel()
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EditorPanel"/> class.
+    /// </summary>
+    public EditorPanel()
     {
         InitializeComponent();
     }

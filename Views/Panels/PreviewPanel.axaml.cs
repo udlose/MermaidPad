@@ -1,3 +1,4 @@
+
 // MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,11 +21,17 @@
 
 using Avalonia.Controls;
 
-namespace MermaidPad.Views;
+namespace MermaidPad.Views.Panels;
 
-public sealed partial class AIPanel : UserControl
+/// <summary>
+/// UserControl wrapper for the Preview panel that exposes the WebView control.
+/// </summary>
+public sealed partial class PreviewPanel : UserControl
 {
-    public AIPanel()
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PreviewPanel"/> class.
+    /// </summary>
+    public PreviewPanel()
     {
         InitializeComponent();
     }

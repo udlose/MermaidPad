@@ -1,0 +1,42 @@
+<UserControl
+  x:Class="MermaidPad.Views.Panels.PreviewPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  d:DesignHeight="600"
+  d:DesignWidth="600"
+  x:DataType="vm:MainViewModel"
+  mc:Ignorable="d">
+
+  <DockPanel>
+    <!-- Panel Header -->
+    <Border
+      DockPanel.Dock="Top"
+      Background="#F5F5F5"
+      BorderBrush="#E0E0E0"
+      BorderThickness="0,0,0,1"
+      Padding="8,6">
+      <TextBlock
+        FontWeight="Bold"
+        Text="Preview"
+        VerticalAlignment="Center" />
+    </Border>
+
+    <!-- WebView with Error Overlay -->
+    <Grid>
+      <wv:WebView x:Name="Preview" />
+      <TextBlock
+        Margin="10"
+        HorizontalAlignment="Left"
+        VerticalAlignment="Top"
+        FontSize="11"
+        Foreground="Red"
+        IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+        Text="{Binding LastError}"
+        TextWrapping="Wrap" />
+    </Grid>
+  </DockPanel>
+</UserControl>

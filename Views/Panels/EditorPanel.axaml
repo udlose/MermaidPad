@@ -1,0 +1,49 @@
+
+<UserControl
+  x:Class="MermaidPad.Views.Panels.EditorPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  d:DesignHeight="600"
+  d:DesignWidth="400"
+  x:DataType="vm:MainViewModel"
+  mc:Ignorable="d">
+
+  <DockPanel>
+    <!-- Panel Header -->
+    <Border
+      DockPanel.Dock="Top"
+      Background="#F5F5F5"
+      BorderBrush="#E0E0E0"
+      BorderThickness="0,0,0,1"
+      Padding="8,6">
+      <TextBlock
+        FontWeight="Bold"
+        Text="Editor"
+        VerticalAlignment="Center" />
+    </Border>
+
+    <!-- Text Editor -->
+    <edit:TextEditor
+      x:Name="Editor"
+      FontFamily="Consolas"
+      HorizontalScrollBarVisibility="Auto"
+      LineNumbersForeground="Lime"
+      ShowLineNumbers="True"
+      VerticalScrollBarVisibility="Auto">
+      <edit:TextEditor.ContextMenu>
+        <ContextMenu>
+          <MenuItem
+            Header="Copy"
+            IsEnabled="{Binding CanCopyClipboard}"/>
+          <MenuItem
+            Header="Paste"
+            IsEnabled="{Binding CanPasteClipboard}"/>
+        </ContextMenu>
+      </edit:TextEditor.ContextMenu>
+    </edit:TextEditor>
+  </DockPanel>
+</UserControl>
