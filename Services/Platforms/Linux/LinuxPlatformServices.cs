@@ -21,9 +21,12 @@
 // ReSharper disable CheckNamespace
 
 using MermaidPad.Services.Platforms;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
 
 #pragma warning disable IDE0130 // Namespace does not match folder structure
 namespace MermaidPad.Services;
@@ -41,13 +44,32 @@ namespace MermaidPad.Services;
 [SupportedOSPlatform("linux")]
 public sealed class LinuxPlatformServices : IPlatformServices
 {
+    private const int KeyLength = 32; // 256 bits
+    private readonly ILogger<LinuxPlatformServices> _logger;
+
+    /// <summary>
+    /// Additional entropy for encryption to ensure application-specific encryption.
+    /// </summary>
+    private static readonly byte[] _additionalEntropy = "MermaidPad.AI.Encryption.v1"u8.ToArray();
+
+    /// <summary>
+    /// Initializes a new instance of the LinuxPlatformServices class using the specified logger.
+    /// </summary>
+    /// <param name="logger">The logger instance used to record diagnostic and operational messages for Linux platform services. Cannot be
+    /// null.</param>
+    public LinuxPlatformServices(ILogger<LinuxPlatformServices> logger)
+    {
+        _logger = logger;
+    }
+
+    #region Native Dialogs
+
     /// <summary>
     /// Shows a native Linux dialog using zenity, kdialog, yad, Xdialog, or gxmessage if available, otherwise falls back to console output.
     /// </summary>
     /// <param name="title">The title of the dialog.</param>
     /// <param name="message">The message to display in the dialog.</param>
     /// <exception cref="ArgumentException">Thrown if <paramref name="title"/> or <paramref name="message"/> is null or empty.</exception>
-    [SuppressMessage("Style", "IDE0011:Add braces", Justification = "<Pending>")]
     public void ShowNativeDialog(string title, string message)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
@@ -109,7 +131,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
     /// </returns>
-    private static bool TryShowZenityDialog(string title, string message)
+    private bool TryShowZenityDialog(string title, string message)
     {
         if (!IsToolAvailable("zenity"))
         {
@@ -132,8 +154,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to show zenity dialog");
             return false;
         }
     }
@@ -146,7 +169,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
     /// </returns>
-    private static bool TryShowKDialogDialog(string title, string message)
+    private bool TryShowKDialogDialog(string title, string message)
     {
         if (!IsToolAvailable("kdialog"))
         {
@@ -170,8 +193,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to show kdialog dialog");
             return false;
         }
     }
@@ -184,7 +208,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
     /// </returns>
-    private static bool TryShowYadDialog(string title, string message)
+    private bool TryShowYadDialog(string title, string message)
     {
         if (!IsToolAvailable("yad"))
         {
@@ -207,8 +231,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to show yad dialog");
             return false;
         }
     }
@@ -221,7 +246,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
     /// </returns>
-    private static bool TryShowXDialogDialog(string title, string message)
+    private bool TryShowXDialogDialog(string title, string message)
     {
         if (!IsToolAvailable("Xdialog"))
         {
@@ -249,8 +274,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to show Xdialog dialog");
             return false;
         }
     }
@@ -263,7 +289,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the dialog was shown successfully; otherwise, <c>false</c>.
     /// </returns>
-    private static bool TryShowGxmessageDialog(string title, string message)
+    private bool TryShowGxmessageDialog(string title, string message)
     {
         if (!IsToolAvailable("gxmessage"))
         {
@@ -286,8 +312,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to show gxmessage dialog");
             return false;
         }
     }
@@ -299,7 +326,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// <returns>
     /// <c>true</c> if the tool is available; otherwise, <c>false</c>.
     /// </returns>
-    private static bool IsToolAvailable(string toolName)
+    private bool IsToolAvailable(string toolName)
     {
         try
         {
@@ -316,8 +343,9 @@ public sealed class LinuxPlatformServices : IPlatformServices
             process?.WaitForExit();
             return process?.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to check tool availability");
             return false;
         }
     }
@@ -327,7 +355,7 @@ public sealed class LinuxPlatformServices : IPlatformServices
     /// </summary>
     /// <param name="title">The title of the dialog.</param>
     /// <param name="message">The message to display in the dialog.</param>
-    private static void ShowConsoleDialog(string title, string message)
+    private void ShowConsoleDialog(string title, string message)
     {
         Console.WriteLine();
         Console.WriteLine($"={new string('=', title.Length + 2)}=");
@@ -342,10 +370,267 @@ public sealed class LinuxPlatformServices : IPlatformServices
         {
             Console.ReadKey(true);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to read console input for dialog");
+
             // In case console input is not available
             Thread.Sleep(3_000);
         }
     }
+
+    #endregion Native Dialogs
+
+    #region AES-GCM Encryption/Decryption
+
+    /// <summary>
+    /// Encrypts the specified plaintext string using AES-GCM and returns the encrypted data as a Base64-encoded string.
+    /// </summary>
+    /// <remarks>The encryption uses a machine-specific key and generates a unique nonce for each operation.
+    /// The output combines the nonce, authentication tag, and ciphertext, all encoded in Base64. The method is not
+    /// intended for cross-machine decryption, as the key is specific to the current machine.</remarks>
+    /// <param name="plaintext">The plaintext string to encrypt. If null or empty, the method throws an exception.</param>
+    /// <returns>A Base64-encoded string containing the encrypted representation of the input plaintext
+    /// or throws an exception if encryption fails.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the encryption operation fails due to an internal error.</exception>
+    /// <exception cref="ArgumentException">Thrown when the input plaintext is null or empty.</exception>
+    [SuppressMessage("Style", "IDE0011:Add braces", Justification = "Compact style for single-line statements")]
+    public string EncryptString(string plaintext)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(plaintext);
+
+        byte[]? key = null;
+        byte[]? nonce = null;
+        byte[]? tag = null;
+        byte[]? plaintextBytes = null;
+        byte[]? ciphertext = null;
+        byte[]? result = null;
+        try
+        {
+            key = GetMachineSpecificKey();
+            nonce = new byte[AesGcm.NonceByteSizes.MaxSize];
+            tag = new byte[AesGcm.TagByteSizes.MaxSize];
+            plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+            ciphertext = new byte[plaintextBytes.Length];
+
+            RandomNumberGenerator.Fill(nonce);
+
+            using AesGcm aesGcm = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
+            aesGcm.Encrypt(nonce, plaintextBytes, ciphertext, tag);
+
+            // Combine nonce + tag + ciphertext
+            result = new byte[nonce.Length + tag.Length + ciphertext.Length];
+            Buffer.BlockCopy(nonce, 0, result, 0, nonce.Length);
+            Buffer.BlockCopy(tag, 0, result, nonce.Length, tag.Length);
+            Buffer.BlockCopy(ciphertext, 0, result, nonce.Length + tag.Length, ciphertext.Length);
+
+            return Convert.ToBase64String(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Encryption failed");
+            throw new InvalidOperationException("Failed to encrypt data using AES-GCM", ex);
+        }
+        finally
+        {
+            // Zero out sensitive data
+            if (key is not null) CryptographicOperations.ZeroMemory(key);
+            if (plaintextBytes is not null) CryptographicOperations.ZeroMemory(plaintextBytes);
+            if (ciphertext is not null) CryptographicOperations.ZeroMemory(ciphertext);
+            if (result is not null) CryptographicOperations.ZeroMemory(result);
+            if (nonce is not null) CryptographicOperations.ZeroMemory(nonce);
+            if (tag is not null) CryptographicOperations.ZeroMemory(tag);
+        }
+    }
+
+    /// <summary>
+    /// Decrypts a Base64-encoded string that was encrypted using AES-GCM with a machine-specific key.
+    /// </summary>
+    /// <remarks>The decryption uses a key derived from the current machine. Only data encrypted on the same
+    /// machine with the corresponding method can be successfully decrypted. This method is not suitable for
+    /// cross-machine decryption scenarios.</remarks>
+    /// <param name="encrypted">A Base64-encoded string containing the encrypted data, including nonce and authentication tag.
+    /// Cannot be null or empty.</param>
+    /// <returns>The decrypted plaintext string, or throws an exception if decryption fails.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the input cannot be decrypted using AES-GCM,
+    /// such as if the data is corrupted or the key is invalid.</exception>
+    /// <exception cref="ArgumentException">Thrown when the input is null or empty.</exception>
+    [SuppressMessage("Style", "IDE0011:Add braces", Justification = "Compact style for single-line statements")]
+    public string DecryptString(string encrypted)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(encrypted);
+
+        byte[]? combined = null;
+        byte[]? key = null;
+        byte[]? nonce = null;
+        byte[]? tag = null;
+        byte[]? ciphertext = null;
+        byte[]? plaintext = null;
+        try
+        {
+            combined = Convert.FromBase64String(encrypted);
+            key = GetMachineSpecificKey();
+
+            int nonceSize = AesGcm.NonceByteSizes.MaxSize;
+            int tagSize = AesGcm.TagByteSizes.MaxSize;
+
+            // Extract nonce, tag, and ciphertext
+            nonce = new byte[nonceSize];
+            tag = new byte[tagSize];
+
+            if (combined.Length < nonceSize + tagSize)
+            {
+                throw new InvalidOperationException("Invalid encrypted data format");
+            }
+
+            ciphertext = new byte[combined.Length - nonceSize - tagSize];
+
+            Buffer.BlockCopy(combined, 0, nonce, 0, nonceSize);
+            Buffer.BlockCopy(combined, nonceSize, tag, 0, tagSize);
+            Buffer.BlockCopy(combined, nonceSize + tagSize, ciphertext, 0, ciphertext.Length);
+
+            plaintext = new byte[ciphertext.Length];
+
+            using AesGcm aesGcm = new AesGcm(key, tagSize);
+            aesGcm.Decrypt(nonce, ciphertext, tag, plaintext);
+
+            return Encoding.UTF8.GetString(plaintext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Decryption failed");
+            throw new InvalidOperationException("Failed to decrypt data using AES-GCM", ex);
+        }
+        finally
+        {
+            // Zero out sensitive data
+            if (combined is not null) CryptographicOperations.ZeroMemory(combined);
+            if (key is not null) CryptographicOperations.ZeroMemory(key);
+            if (ciphertext is not null) CryptographicOperations.ZeroMemory(ciphertext);
+            if (plaintext is not null) CryptographicOperations.ZeroMemory(plaintext);
+            if (nonce is not null) CryptographicOperations.ZeroMemory(nonce);
+            if (tag is not null) CryptographicOperations.ZeroMemory(tag);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves a 256-bit machine-specific cryptographic key, persisting it securely to disk if necessary. If secure
+    /// storage is unavailable, derives a fallback key based on machine and user information.
+    /// </summary>
+    /// <remarks>The key is stored in the user's application data directory and is intended to be unique and
+    /// stable for the current machine and user. If the persisted key file is missing or invalid, a new key is generated
+    /// and saved. If file operations fail, a deterministic key is derived from machine and user identifiers, which may
+    /// be less secure. Callers are responsible for zeroing the returned key when it is no longer needed to prevent
+    /// sensitive data from remaining in memory.</remarks>
+    /// <returns>A byte array containing the 32-byte (256-bit) machine-specific key. The same key is returned on subsequent calls
+    /// unless the key file is deleted or corrupted.</returns>
+    [SuppressMessage("Style", "IDE0059:Unnecessary assignment of a value", Justification = "Purposely zeroed in finally block for security")]
+    private byte[] GetMachineSpecificKey()
+    {
+        string configDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
+        string keyPath = Path.Combine(configDir, "machine_key.bin");
+
+        // 1) Try read existing persisted key
+        if (TryGetKeyFromFile(keyPath, out byte[]? existing) && existing is not null)
+        {
+            return existing; // caller must zero
+        }
+
+        // 2) Generate new key and attempt to persist
+        byte[] newKey = new byte[KeyLength];
+        RandomNumberGenerator.Fill(newKey);
+
+        if (TryStoreKeyToFile(keyPath, newKey))
+        {
+            return newKey; // caller must zero
+        }
+
+        // 3) Persistence failed — zero generated key and fall back to deterministic derivation
+        CryptographicOperations.ZeroMemory(newKey);
+
+        string entropy = $"{Environment.MachineName}:{Environment.UserName}:{Convert.ToBase64String(_additionalEntropy)}";
+        byte[] entropyBytes = Encoding.UTF8.GetBytes(entropy);
+        try
+        {
+            return SHA256.HashData(entropyBytes);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(entropyBytes);
+        }
+    }
+
+    private bool TryGetKeyFromFile(string keyPath, out byte[]? key)
+    {
+        key = null;
+        try
+        {
+            if (!File.Exists(keyPath))
+            {
+                return false;
+            }
+
+            byte[] existing = File.ReadAllBytes(keyPath);
+            if (existing.Length == KeyLength)
+            {
+                key = existing;
+                return true;
+            }
+
+            CryptographicOperations.ZeroMemory(existing);
+        }
+        catch (Exception ex)
+        {
+            // Ignore and allow fallback
+            _logger.LogError(ex, "Failed to read machine-specific key file");
+        }
+        return false;
+    }
+
+    private bool TryStoreKeyToFile(string keyPath, byte[] key)
+    {
+        try
+        {
+            string? configDir = Path.GetDirectoryName(keyPath);
+            if (!string.IsNullOrEmpty(configDir))
+            {
+                Directory.CreateDirectory(configDir);
+            }
+
+            string tempPath = keyPath + ".tmp";
+            File.WriteAllBytes(tempPath, key);
+
+            try
+            {
+                // Attempt to restrict permissions to user read/write only (POSIX).
+                File.SetUnixFileMode(tempPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch
+            {
+                // ignore on unsupported platforms
+            }
+
+            File.Move(tempPath, keyPath, overwrite: true);
+
+            try
+            {
+                // Ensure final file has safe permissions where supported.
+                File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch
+            {
+                // Ignore on platforms that don't support Unix file modes.
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // Log at caller site if desired; return false to trigger fallback
+            _logger.LogError(ex, "Failed to create or read machine-specific key file");
+            return false;
+        }
+    }
+
+    #endregion AES-GCM Encryption/Decryption
 }

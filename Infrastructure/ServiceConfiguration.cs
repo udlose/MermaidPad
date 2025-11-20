@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Services;
+using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
@@ -57,7 +58,14 @@ public static class ServiceConfiguration
         // Add HTTP Client Factory
         services.AddHttpClient();
 
+        // Configure named HttpClient for Anthropic API
+        services.AddHttpClient("Anthropic", static client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(AnthropicAIService.ApiTimeoutInSeconds); // timeout for AI requests
+        });
+
         // Core singletons
+        services.AddSingleton<IPlatformServices>(static _ => PlatformServiceFactory.Instance);
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
@@ -103,6 +111,10 @@ public static class ServiceConfiguration
         services.AddSingleton<IDialogFactory, DialogFactory>();
         services.AddSingleton<IFileService, FileService>();
 
+        // AI Services
+        services.AddSingleton<ISecureStorageService, SecureStorageService>();
+        services.AddSingleton<AIServiceFactory>();
+
         // Main ViewModel: transient (one per window)
         services.AddTransient<MainViewModel>();
 
@@ -126,7 +138,7 @@ public static class ServiceConfiguration
     /// Configures Serilog-based logging for the application.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
-    private static void ConfigureLogging(ServiceCollection services)
+    private static void ConfigureLogging(IServiceCollection services)
     {
         // Load logging settings directly without creating a full SettingsService instance
         // This avoids circular dependency since SettingsService needs ILogger, but we're configuring logging here
