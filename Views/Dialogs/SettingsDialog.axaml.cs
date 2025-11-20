@@ -19,13 +19,17 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using MermaidPad.ViewModels.Dialogs;
+using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
-public partial class SettingsDialog : Window
+[SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+public sealed partial class SettingsDialog : Window
 {
+    private SettingsDialogViewModel? _viewModel;
+
     public SettingsDialog()
     {
         InitializeComponent();
@@ -33,20 +37,31 @@ public partial class SettingsDialog : Window
 
     public SettingsDialog(SettingsDialogViewModel viewModel) : this()
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+
+        _viewModel = viewModel;
         DataContext = viewModel;
+
+        // Observe DialogResult changes and close window accordingly
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        // Unsubscribe when dialog closes to prevent memory leak
+        Closed += (sender, e) =>
+        {
+            if (_viewModel is not null)
+            {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+                _viewModel = null;
+            }
+        };
     }
 
-    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        //TODO implement this or move to MVVM RelayCommand
-        Close(true);
-        throw new NotImplementedException("TODO");
-    }
-
-    private void OnCancelClick(object? sender, RoutedEventArgs e)
-    {
-        //TODO implement this or move to MVVM RelayCommand
-        Close(false);
-        throw new NotImplementedException("TODO");
+        if (_viewModel is not null && e.PropertyName == nameof(_viewModel.DialogResult) &&
+            _viewModel.DialogResult.HasValue)
+        {
+            Close(_viewModel.DialogResult.Value);
+        }
     }
 }

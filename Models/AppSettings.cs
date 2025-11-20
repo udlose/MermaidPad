@@ -108,13 +108,6 @@ public sealed class AppSettings
     /// Gets or sets the configuration settings for AI-related features.
     /// </summary>
     public AISettings AI { get; set; } = new AISettings();
-
-    /// <summary>
-    /// Gets or sets the layout settings for docked panels within the container.
-    /// </summary>
-    /// <remarks>Use this property to configure the arrangement, behavior, and persistence of docked panels.
-    /// Changes to these settings affect how panels are displayed and managed in the user interface.</remarks>
-    public DockLayoutSettings DockLayout { get; set; } = new DockLayoutSettings();
 }
 
 /// <summary>

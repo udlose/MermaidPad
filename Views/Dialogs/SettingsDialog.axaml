@@ -192,12 +192,12 @@
       Spacing="10">
       <Button
         Width="100"
-        Click="OnSaveClick"
+        Command="{Binding SaveCommand}"
         Content="Save"
         IsDefault="True" />
       <Button
         Width="100"
-        Click="OnCancelClick"
+        Command="{Binding CancelCommand}"
         Content="Cancel"
         IsCancel="True" />
     </StackPanel>

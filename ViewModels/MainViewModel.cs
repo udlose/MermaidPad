@@ -170,27 +170,15 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial ObservableCollection<string> RecentFiles { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets which panel is in column 1 (left).
-    /// </summary>
-    [ObservableProperty]
-    public partial string Column1Panel { get; set; } = "Editor";
-
-    /// <summary>
-    /// Gets or sets which panel is in column 2 (center).
-    /// </summary>
-    [ObservableProperty]
-    public partial string Column2Panel { get; set; } = "Preview";
-
-    /// <summary>
-    /// Gets or sets which panel is in column 3 (right).
-    /// </summary>
-    [ObservableProperty]
-    public partial string Column3Panel { get; set; } = "AI";
-
-    /// <summary>
     /// Gets the AI panel view model.
     /// </summary>
     public AIPanelViewModel AIPanelViewModel { get; private set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the docking layout.
+    /// </summary>
+    [ObservableProperty]
+    public partial Dock.Model.Core.IDock? Layout { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the Save command can execute.
@@ -242,9 +230,10 @@ public sealed partial class MainViewModel : ViewModelBase
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
 
         // Initialize docking layout
-        Column1Panel = _settingsService.Settings.DockLayout.Column1Panel;
-        Column2Panel = _settingsService.Settings.DockLayout.Column2Panel;
-        Column3Panel = _settingsService.Settings.DockLayout.Column3Panel;
+        //TODO is this where this initialization should happen? Doing this in the constructor feels too early!
+        DockFactory dockFactory = new DockFactory(this);
+        Layout = dockFactory.CreateLayout();
+        dockFactory.InitLayout(Layout);
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -714,110 +703,6 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Moves a panel from one column to another.
-    /// </summary>
-    /// <param name="parameter">Parameter in format "PanelName:Direction" (e.g., "Editor:-1" or "Preview:1")</param>
-    [RelayCommand]
-    private void MovePanel(object? parameter)
-    {
-        string? paramStr = parameter?.ToString();
-        if (string.IsNullOrEmpty(paramStr))
-        {
-            return;
-        }
-
-        // Parse parameter string in format "PanelName:Direction"
-        string[] parts = paramStr.Split(':');
-        if (parts.Length != 2)
-        {
-            return;
-        }
-
-        string panelName = parts[0];
-        if (!int.TryParse(parts[1], out int direction))
-        {
-            return;
-        }
-
-        // Find which column currently contains this panel
-        int currentColumn = GetColumnForPanel(panelName);
-        if (currentColumn == -1)
-        {
-            return;
-        }
-
-        int targetColumn = currentColumn + direction;
-        if (targetColumn is < 1 or > 3)
-        {
-            return; // Can't move beyond boundaries
-        }
-
-        // Swap the panels in current and target columns
-        string targetPanel = GetPanelInColumn(targetColumn);
-        SetPanelInColumn(currentColumn, targetPanel);
-        SetPanelInColumn(targetColumn, panelName);
-
-        _logger.LogInformation("Moved panel {PanelName} from column {CurrentColumn} to column {TargetColumn}",
-            panelName, currentColumn, targetColumn);
-    }
-
-    /// <summary>
-    /// Gets the column number (1-3) that contains the specified panel.
-    /// </summary>
-    private int GetColumnForPanel(string panelName)
-    {
-        if (Column1Panel == panelName)
-        {
-            return 1;
-        }
-
-        if (Column2Panel == panelName)
-        {
-            return 2;
-        }
-
-        if (Column3Panel == panelName)
-        {
-            return 3;
-        }
-
-        return -1;
-    }
-
-    /// <summary>
-    /// Gets the panel name in the specified column.
-    /// </summary>
-    private string GetPanelInColumn(int column)
-    {
-        return column switch
-        {
-            1 => Column1Panel,
-            2 => Column2Panel,
-            3 => Column3Panel,
-            _ => "None"
-        };
-    }
-
-    /// <summary>
-    /// Sets which panel is in the specified column.
-    /// </summary>
-    private void SetPanelInColumn(int column, string panelName)
-    {
-        switch (column)
-        {
-            case 1:
-                Column1Panel = panelName;
-                break;
-            case 2:
-                Column2Panel = panelName;
-                break;
-            case 3:
-                Column3Panel = panelName;
-                break;
-        }
-    }
-
-    /// <summary>
     /// Handles the DiagramGenerated event from the AI panel.
     /// </summary>
     private void OnDiagramGenerated(object? sender, string generatedDiagram)
@@ -835,33 +720,6 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Failed to handle generated diagram");
         }
-    }
-
-    /// <summary>
-    /// Handles changes to column 1 panel assignment.
-    /// </summary>
-    partial void OnColumn1PanelChanged(string value)
-    {
-        _settingsService.Settings.DockLayout.Column1Panel = value;
-        _settingsService.Save();
-    }
-
-    /// <summary>
-    /// Handles changes to column 2 panel assignment.
-    /// </summary>
-    partial void OnColumn2PanelChanged(string value)
-    {
-        _settingsService.Settings.DockLayout.Column2Panel = value;
-        _settingsService.Save();
-    }
-
-    /// <summary>
-    /// Handles changes to column 3 panel assignment.
-    /// </summary>
-    partial void OnColumn3PanelChanged(string value)
-    {
-        _settingsService.Settings.DockLayout.Column3Panel = value;
-        _settingsService.Save();
     }
 
     #endregion AI Features and Panel Docking
@@ -1399,11 +1257,6 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
         _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
-
-        // Persist dock layout settings
-        _settingsService.Settings.DockLayout.Column1Panel = Column1Panel;
-        _settingsService.Settings.DockLayout.Column2Panel = Column2Panel;
-        _settingsService.Settings.DockLayout.Column3Panel = Column3Panel;
         _settingsService.Save();
     }
 

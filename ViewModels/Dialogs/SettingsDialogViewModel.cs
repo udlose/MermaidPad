@@ -289,6 +289,8 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     private void Save()
     {
         DialogResult = true;
+        //TODO is this where this should go?
+        //_secureStorage.Encrypt(ApiKey);
     }
 
     /// <summary>

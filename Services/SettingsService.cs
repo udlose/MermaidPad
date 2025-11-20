@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Models;
+using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text.Json;
@@ -52,6 +53,11 @@ public sealed class SettingsService
     private readonly ILogger<SettingsService>? _logger;
 
     /// <summary>
+    /// Optional secure storage service for sensitive data.
+    /// </summary>
+    private readonly ISecureStorageService? _secureStorage;
+
+    /// <summary>
     /// The expected file name for persisted settings.
     /// </summary>
     private const string SettingsFileName = "settings.json";
@@ -69,9 +75,11 @@ public sealed class SettingsService
     /// <param name="logger">
     /// Optional <see cref="ILogger{SettingsService}"/> for diagnostic messages. May be <see langword="null"/>.
     /// </param>
-    public SettingsService(ILogger<SettingsService>? logger = null)
+    /// <param name="secureStorage">Optional <see cref="ISecureStorageService"/> for sensitive data.</param>
+    public SettingsService(ILogger<SettingsService>? logger = null, ISecureStorageService? secureStorage = null)
     {
         _logger = logger;
+        _secureStorage = secureStorage;
         string baseDir = GetConfigDirectory();
         Directory.CreateDirectory(baseDir);
         _settingsPath = Path.Combine(baseDir, SettingsFileName);
@@ -244,6 +252,65 @@ public sealed class SettingsService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Settings save failed");
+        }
+    }
+
+    //TODO revisit these methods to finish this implementation
+
+    /// <summary>
+    /// Encrypts the specified API key using the configured secure storage service.
+    /// </summary>
+    /// <remarks>If the secure storage service is not available, the method returns an empty string and logs a
+    /// warning. Any exceptions thrown during encryption are logged and rethrown.</remarks>
+    /// <param name="plainKey">The plain text API key to encrypt. Cannot be null or empty.</param>
+    /// <returns>A string containing the encrypted API key if encryption succeeds; otherwise, an empty string if the secure
+    /// storage service is not configured.</returns>
+    /// <exception cref="ArgumentException">Thrown when the <paramref name="plainKey"/> is null or empty.</exception>
+    public string EncryptApiKey(string plainKey)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(plainKey);
+        if (_secureStorage is null)
+        {
+            _logger?.LogWarning("Secure storage service is not configured yet; cannot encrypt API key.");
+            return string.Empty;
+        }
+
+        try
+        {
+            return _secureStorage.Encrypt(plainKey);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to encrypt API key");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Decrypts the specified encrypted API key using the configured secure storage service.
+    /// </summary>
+    /// <remarks>If the secure storage service is not available, the method logs a warning and returns an
+    /// empty string. Any exceptions encountered during decryption are logged and rethrown.</remarks>
+    /// <param name="encryptedKey">The API key to decrypt. Must be a non-empty, encrypted string.</param>
+    /// <returns>The decrypted API key as a string. Returns an empty string if the secure storage service is not configured.</returns>
+    /// <exception cref="ArgumentException">Thrown when the <paramref name="encryptedKey"/> is null or empty.</exception>"
+    public string DecryptApiKey(string encryptedKey)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(encryptedKey);
+        if (_secureStorage is null)
+        {
+            _logger?.LogWarning("Secure storage service is not configured yet; cannot decrypt API key.");
+            return string.Empty;
+        }
+
+        try
+        {
+            return _secureStorage.Decrypt(encryptedKey);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to decrypt API key");
+            throw;
         }
     }
 }
