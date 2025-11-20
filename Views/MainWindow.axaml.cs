@@ -19,16 +19,22 @@
 // SOFTWARE.
 
 using AsyncAwaitBestPractices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using AvaloniaEdit;
+using AvaloniaWebView;
+using Dock.Avalonia.Controls;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using MermaidPad.Services;
 using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
+using MermaidPad.Views.Panels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
@@ -42,7 +48,7 @@ namespace MermaidPad.Views;
 /// Manages synchronization between the editor control and the <see cref="MainViewModel"/>,
 /// initializes and manages the <see cref="MermaidRenderer"/>, and handles window lifecycle events.
 /// </summary>
-public sealed partial class MainWindow : Window
+public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
     private readonly MermaidRenderer _renderer;
@@ -57,10 +63,18 @@ public sealed partial class MainWindow : Window
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
+    // Controls accessed from Dock panels
+    private TextEditor? _editor;
+    private WebView? _preview;
+
+    // Properties to access controls (for code that expects them as properties)
+    private TextEditor Editor => _editor ?? throw new InvalidOperationException("Editor not initialized yet");
+    private WebView Preview => _preview ?? throw new InvalidOperationException("Preview not initialized yet");
+
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
-    private EventHandler? _openedHandler;
-    private EventHandler<WindowClosingEventArgs>? _closingHandler;
+    //    private EventHandler? _openedHandler;
+    //    private EventHandler<WindowClosingEventArgs>? _closingHandler;
     private EventHandler? _editorTextChangedHandler;
     private EventHandler? _editorSelectionChangedHandler;
     private EventHandler? _editorCaretPositionChangedHandler;
@@ -90,15 +104,16 @@ public sealed partial class MainWindow : Window
 
         _logger.LogInformation("=== MainWindow Initialization Started ===");
 
+        //TODO review this for correctness
         // Initialize syntax highlighting before wiring up OnThemeChanged
-        InitializeSyntaxHighlighting();
+        //        InitializeSyntaxHighlighting();
 
         // Store event handlers for proper cleanup
-        _openedHandler = OnOpened;
-        Opened += _openedHandler;
+        //_openedHandler = OnOpened;
+        //Opened += _openedHandler;
 
-        _closingHandler = OnClosing;
-        Closing += _closingHandler;
+        //_closingHandler = OnClosing;
+        //Closing += _closingHandler;
 
         _themeChangedHandler = OnThemeChanged;
         ActualThemeVariantChanged += _themeChangedHandler;
@@ -106,20 +121,72 @@ public sealed partial class MainWindow : Window
         _activatedHandler = (_, _) => BringFocusToEditor();
         Activated += _activatedHandler;
 
-        // Initialize editor with ViewModel data using validation
-        SetEditorStateWithValidation(
-            _vm.DiagramText,
-            _vm.EditorSelectionStart,
-            _vm.EditorSelectionLength,
-            _vm.EditorCaretOffset
-        );
-
-        _logger.LogInformation("Editor initialized with {CharacterCount} characters", _vm.DiagramText.Length);
-
-        // Set up two-way synchronization between Editor and ViewModel
-        SetupEditorViewModelSync();
+        // Defer Editor/Preview initialization until DockControl loads
+        Loaded += OnWindowLoaded;
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
+    }
+
+    /// <summary>
+    /// Handles the window Loaded event to initialize controls from the DockControl.
+    /// </summary>
+    private void OnWindowLoaded(object? sender, RoutedEventArgs e)
+    {
+        _logger.LogInformation("Window loaded, finding controls in DockControl");
+
+        // Find the DockControl
+        DockControl? dockControl = this.FindControl<DockControl>("MainDock");
+        if (dockControl is null)
+        {
+            _logger.LogError("DockControl not found");
+            return;
+        }
+
+        // Find EditorPanel and PreviewPanel in the visual tree
+        EditorPanel? editorPanel = dockControl.GetVisualDescendants().OfType<EditorPanel>().FirstOrDefault();
+        PreviewPanel? previewPanel = dockControl.GetVisualDescendants().OfType<PreviewPanel>().FirstOrDefault();
+
+        if (editorPanel is not null)
+        {
+            _editor = editorPanel.Editor;
+            _logger.LogInformation("Editor control found in EditorPanel");
+
+            // Subscribe to context menu opening event
+            if (_editor.ContextMenu is not null)
+            {
+                _editor.ContextMenu.Opening += GetContextMenuState;
+            }
+
+            // Initialize syntax highlighting before wiring up OnThemeChanged
+            InitializeSyntaxHighlighting();
+
+            // Initialize editor with ViewModel data
+            SetEditorStateWithValidation(
+                _vm.DiagramText,
+                _vm.EditorSelectionStart,
+                _vm.EditorSelectionLength,
+                _vm.EditorCaretOffset
+            );
+
+            _logger.LogInformation("Editor initialized with {CharacterCount} characters", _vm.DiagramText.Length);
+
+            // Set up two-way synchronization between Editor and ViewModel
+            SetupEditorViewModelSync();
+        }
+        else
+        {
+            _logger.LogWarning("EditorPanel not found in DockControl");
+        }
+
+        if (previewPanel is not null)
+        {
+            _preview = previewPanel.Preview;
+            _logger.LogInformation("Preview WebView found in PreviewPanel");
+        }
+        else
+        {
+            _logger.LogWarning("PreviewPanel not found in DockControl");
+        }
     }
 
     /// <summary>
@@ -234,6 +301,12 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void ScheduleEditorStateSyncIfNeeded()
     {
+        //TODO review this for correctness
+        if (_editor is null)
+        {
+            return;
+        }
+
         int selectionStart = Editor.SelectionStart;
         int selectionLength = Editor.SelectionLength;
         int caretOffset = Editor.CaretOffset;
@@ -270,7 +343,8 @@ public sealed partial class MainWindow : Window
     /// <param name="e">Property changed event arguments describing which property changed.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressEditorStateSync)
+        //TODO review this for correctness
+        if (_suppressEditorStateSync || _editor is null)
         {
             return;
         }
@@ -333,51 +407,30 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Brings focus to the editor control and adjusts visuals for caret and selection.
-    /// </summary>
-    /// <remarks>
-    /// This method executes on the UI thread via the dispatcher and temporarily suppresses
-    /// editor <see cref="_suppressEditorStateSync"/> to avoid generating spurious model updates.
-    /// </remarks>
-    private void BringFocusToEditor()
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            // Suppress event reactions during programmatic focus/caret adjustments
-            _suppressEditorStateSync = true;
-            try
-            {
-                // Make sure caret is visible:
-                Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+    #region Overidden methods
 
-                // Ensure selection is visible
-                Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
-                if (!Editor.IsFocused)
-                {
-                    Editor.Focus();
-                }
-                Editor.TextArea.Caret.BringCaretToView();
-            }
-            finally
-            {
-                _suppressEditorStateSync = false;
-            }
-        }, DispatcherPriority.Background);
+    //TODO review these for correctness
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
     }
 
-    /// <summary>
-    /// Handles the window <see cref="OnOpened"/> event and starts the asynchronous open sequence.
-    /// </summary>
-    /// <param name="sender">Event sender (window).</param>
-    /// <param name="e">Event arguments (unused).</param>
-    /// <remarks>
-    /// This method delegates to <see cref="OnOpenedCoreAsync"/> to perform asynchronous initialization,
-    /// subscribe to renderer events, and start a failsafe timeout to enable UI if the WebView never becomes ready.
-    /// Uses SafeFireAndForget to handle the async operation without blocking the event handler.
-    /// </remarks>
-    private void OnOpened(object? sender, EventArgs e)
+    protected override void OnLoaded(RoutedEventArgs e)
     {
+        base.OnLoaded(e);
+    }
+
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
         OnOpenedCoreAsync()
             .SafeFireAndForget(onException: ex =>
             {
@@ -392,6 +445,136 @@ public sealed partial class MainWindow : Window
             //continueOnCapturedContext: true  // Needed for UI operations and event subscriptions
             );
     }
+
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "Base method guarantees non-null e")]
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        // Check for unsaved changes (only if not already approved)
+        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        {
+            e.Cancel = true;
+            PromptAndCloseAsync()
+                .SafeFireAndForget(onException: ex =>
+                {
+                    _logger.LogError(ex, "Failed during close prompt");
+                    _isClosingApproved = false; // Reset on error
+                });
+            return; // Don't clean up - close was cancelled
+        }
+
+        // Reset approval flag if it was set
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+        }
+
+        // Check if close was cancelled by another handler or the system
+        if (e.Cancel)
+        {
+            return; // Don't clean up - window is not actually closing
+        }
+
+        try
+        {
+            // Only unsubscribe when we're actually closing (e.Cancel is still false)
+            UnsubscribeAllEventHandlers();
+
+            // Save state
+            _vm.Persist();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during window closing cleanup");
+
+            // I don't want silent failures here - rethrow to let higher-level handlers know
+            throw;
+        }
+
+        // Perform async cleanup
+        // Capture logger for use in lambda in case 'this' is disposed before the async work completes
+        ILogger<MainWindow> logger = _logger;
+        OnClosingAsync()
+            .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
+    }
+
+    #endregion Overidden methods
+
+    //protected override void OnActualThemeVariantChanged(ActualThemeVariantChangedEventArgs e)
+    //    {
+    //    base.OnActualThemeVariantChanged(e);
+    //    OnThemeChanged(this, EventArgs.Empty);
+    //}
+
+    /// <summary>
+    /// Brings focus to the editor control and adjusts visuals for caret and selection.
+    /// </summary>
+    /// <remarks>
+    /// This method executes on the UI thread via the dispatcher and temporarily suppresses
+    /// editor <see cref="_suppressEditorStateSync"/> to avoid generating spurious model updates.
+    /// </remarks>
+    private void BringFocusToEditor()
+    {
+        //TODO review this for correctness - If this is null, then this method was called before the DockControl loaded!!
+        if (_editor is null)
+        {
+            return; // Editor not initialized yet
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            //TODO review this for correctness - If this is null, then this method was called before the DockControl loaded!!
+            if (_editor is null) return; // Double-check after async dispatch
+
+            // Suppress event reactions during programmatic focus/caret adjustments
+            _suppressEditorStateSync = true;
+            try
+            {
+                // Make sure caret is visible:
+                _editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+
+                // Ensure selection is visible
+                _editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+                if (!_editor.IsFocused)
+                {
+                    _editor.Focus();
+                }
+                _editor.TextArea.Caret.BringCaretToView();
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    ///// <summary>
+    ///// Handles the window <see cref="OnOpened"/> event and starts the asynchronous open sequence.
+    ///// </summary>
+    ///// <param name="sender">Event sender (window).</param>
+    ///// <param name="e">Event arguments (unused).</param>
+    ///// <remarks>
+    ///// This method delegates to <see cref="OnOpenedCoreAsync"/> to perform asynchronous initialization,
+    ///// subscribe to renderer events, and start a failsafe timeout to enable UI if the WebView never becomes ready.
+    ///// Uses SafeFireAndForget to handle the async operation without blocking the event handler.
+    ///// </remarks>
+    //private void OnOpened(object? sender, EventArgs e)
+    //{
+    //    OnOpenedCoreAsync()
+    //        .SafeFireAndForget(onException: ex =>
+    //        {
+    //            _logger.LogError(ex, "Unhandled exception in OnOpened");
+    //            //TODO - show a message to the user (this would need UI thread!)
+    //            //Dispatcher.UIThread.Post(async () =>
+    //            //{
+    //            //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
+    //            //});
+    //        }
+    //        //TODO - re-enable this if I add UI operations in the future
+    //        //continueOnCapturedContext: true  // Needed for UI operations and event subscriptions
+    //        );
+    //}
 
     /// <summary>
     /// Handles the core logic to be executed when the window is opened asynchronously.
@@ -479,65 +662,65 @@ public sealed partial class MainWindow : Window
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
 
-    /// <summary>
-    /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
-    /// before the window closes.
-    /// </summary>
-    /// <remarks>If there are unsaved changes, the method prompts the user before allowing the window to
-    /// close. Cleanup and state persistence are only performed if the close operation is not cancelled by this or other
-    /// event handlers.</remarks>
-    /// <param name="sender">The source of the event, typically the window that is being closed.</param>
-    /// <param name="e">A <see cref="CancelEventArgs"/> that contains the event data, including a flag
-    /// to cancel the closing operation.</param>
-    private void OnClosing(object? sender, CancelEventArgs e)
-    {
-        // Check for unsaved changes (only if not already approved)
-        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
-        {
-            e.Cancel = true;
-            PromptAndCloseAsync()
-                .SafeFireAndForget(onException: ex =>
-                {
-                    _logger.LogError(ex, "Failed during close prompt");
-                    _isClosingApproved = false; // Reset on error
-                });
-            return; // Don't clean up - close was cancelled
-        }
+    ///// <summary>
+    ///// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
+    ///// before the window closes.
+    ///// </summary>
+    ///// <remarks>If there are unsaved changes, the method prompts the user before allowing the window to
+    ///// close. Cleanup and state persistence are only performed if the close operation is not cancelled by this or other
+    ///// event handlers.</remarks>
+    ///// <param name="sender">The source of the event, typically the window that is being closed.</param>
+    ///// <param name="e">A <see cref="CancelEventArgs"/> that contains the event data, including a flag
+    ///// to cancel the closing operation.</param>
+    //private void OnClosing(object? sender, CancelEventArgs e)
+    //{
+    //    // Check for unsaved changes (only if not already approved)
+    //    if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+    //    {
+    //        e.Cancel = true;
+    //        PromptAndCloseAsync()
+    //            .SafeFireAndForget(onException: ex =>
+    //            {
+    //                _logger.LogError(ex, "Failed during close prompt");
+    //                _isClosingApproved = false; // Reset on error
+    //            });
+    //        return; // Don't clean up - close was cancelled
+    //    }
 
-        // Reset approval flag if it was set
-        if (_isClosingApproved)
-        {
-            _isClosingApproved = false;
-        }
+    //    // Reset approval flag if it was set
+    //    if (_isClosingApproved)
+    //    {
+    //        _isClosingApproved = false;
+    //    }
 
-        // Check if close was cancelled by another handler or the system
-        if (e.Cancel)
-        {
-            return; // Don't clean up - window is not actually closing
-        }
+    //    // Check if close was cancelled by another handler or the system
+    //    if (e.Cancel)
+    //    {
+    //        return; // Don't clean up - window is not actually closing
+    //    }
 
-        try
-        {
-            // Only unsubscribe when we're actually closing (e.Cancel is still false)
-            UnsubscribeAllEventHandlers();
+    //    try
+    //    {
+    //        // Only unsubscribe when we're actually closing (e.Cancel is still false)
+    //        UnsubscribeAllEventHandlers();
 
-            // Save state
-            _vm.Persist();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during window closing cleanup");
+    //        // Save state
+    //        _vm.Persist();
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        _logger.LogError(ex, "Error during window closing cleanup");
 
-            // I don't want silent failures here - rethrow to let higher-level handlers know
-            throw;
-        }
+    //        // I don't want silent failures here - rethrow to let higher-level handlers know
+    //        throw;
+    //    }
 
-        // Perform async cleanup
-        // Capture logger for use in lambda in case 'this' is disposed before the async work completes
-        ILogger<MainWindow> logger = _logger;
-        OnClosingAsync()
-            .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
-    }
+    //    // Perform async cleanup
+    //    // Capture logger for use in lambda in case 'this' is disposed before the async work completes
+    //    ILogger<MainWindow> logger = _logger;
+    //    OnClosingAsync()
+    //        .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
+    //}
 
     /// <summary>
     /// Unsubscribes all event handlers that were previously attached to window and editor events.
@@ -547,17 +730,17 @@ public sealed partial class MainWindow : Window
     /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
     private void UnsubscribeAllEventHandlers()
     {
-        if (_openedHandler is not null)
-        {
-            Opened -= _openedHandler;
-            _openedHandler = null;
-        }
+        //if (_openedHandler is not null)
+        //{
+        //    Opened -= _openedHandler;
+        //    _openedHandler = null;
+        //}
 
-        if (_closingHandler is not null)
-        {
-            Closing -= _closingHandler;
-            _closingHandler = null;
-        }
+        //if (_closingHandler is not null)
+        //{
+        //    Closing -= _closingHandler;
+        //    _closingHandler = null;
+        //}
 
         if (_activatedHandler is not null)
         {
@@ -598,7 +781,13 @@ public sealed partial class MainWindow : Window
         _logger.LogInformation("All event handlers unsubscribed successfully");
     }
 
-
+    /// <summary>
+    /// Performs asynchronous cleanup operations when the window is closing.
+    /// </summary>
+    /// <remarks>This method disposes of resources associated with the window, including any asynchronous
+    /// disposable renderer. It should be called during the window closing sequence to ensure proper resource
+    /// management.</remarks>
+    /// <returns>A task that represents the asynchronous cleanup operation.</returns>
     private async Task OnClosingAsync()
     {
         _logger.LogInformation("Window closing, cleaning up...");
@@ -738,6 +927,7 @@ public sealed partial class MainWindow : Window
     /// available.</remarks>
     /// <param name="sender">The source of the event, typically the control that triggered the context menu opening.</param>
     /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void GetContextMenuState(object? sender, CancelEventArgs e)
     {
         // Get Clipboard state
