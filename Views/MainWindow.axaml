@@ -94,8 +94,9 @@
         Command="{Binding ExportCommand}"
         Content="Export"
         ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+      <Separator Margin="6,0" />
       <CheckBox
-        Margin="12,0,0,0"
+        Margin="6,0,0,0"
         Content="Live Preview:"
         FlowDirection="RightToLeft"
         IsChecked="{Binding LivePreviewEnabled}"
@@ -121,67 +122,146 @@
         Text="{Binding StatusText}" />
     </StackPanel>
 
-    <!-- Main Content (your existing GridSplitter, Editor, WebView) -->
-    <Grid DockPanel.Dock="Top">
+    <!-- Main Content with 3 flexible columns for dockable panels -->
+    <Grid DockPanel.Dock="Top" x:Name="MainContentGrid">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
+        <!-- Column 1 -->
+        <ColumnDefinition Width="*" MinWidth="250" />
         <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="2*" />
+        <!-- Column 2 -->
+        <ColumnDefinition Width="2*" MinWidth="250" />
+        <ColumnDefinition Width="Auto" />
+        <!-- Column 3 -->
+        <ColumnDefinition Width="*" MinWidth="250" />
       </Grid.ColumnDefinitions>
 
-      <!-- Text Editor Panel -->
-      <Border
-        Grid.Column="0"
-        Margin="6,0,0,6"
-        BorderBrush="LightGray"
-        BorderThickness="1"
-        CornerRadius="4">
-        <edit:TextEditor
-          x:Name="Editor"
-          FontFamily="Consolas"
-          HorizontalScrollBarVisibility="Auto"
-          LineNumbersForeground="Lime"
-          ShowLineNumbers="True"
-          VerticalScrollBarVisibility="Auto">
-          <edit:TextEditor.ContextMenu>
-            <ContextMenu Opening="GetContextMenuState">
-            <MenuItem 
-              Header="Copy" 
-              IsEnabled="{Binding CanCopyClipboard}"/>
-            <MenuItem 
-              Header="Paste" 
-              IsEnabled="{Binding CanPasteClipboard}"/>
-            </ContextMenu>
-          </edit:TextEditor.ContextMenu>
-        </edit:TextEditor>
-      </Border>
-
-      <!-- GridSplitter -->
+      <!-- Column 1 Splitter -->
       <GridSplitter
         Grid.Column="1"
         Width="6"
         Background="Transparent"
         ResizeDirection="Columns" />
 
-      <!-- WebView Panel -->
+      <!-- Column 2 Splitter -->
+      <GridSplitter
+        Grid.Column="3"
+        Width="6"
+        Background="Transparent"
+        ResizeDirection="Columns" />
+
+      <!-- Editor Panel (positioned dynamically by code-behind) -->
       <Border
+        x:Name="EditorBorder"
+        Grid.Column="0"
+        Margin="6,0,0,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="Editor" VerticalAlignment="Center" />
+            <Button
+              Content="&lt;"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="Editor:-1" />
+            <Button
+              Content="&gt;"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="Editor:1" />
+          </StackPanel>
+          <edit:TextEditor
+            x:Name="Editor"
+            FontFamily="Consolas"
+            HorizontalScrollBarVisibility="Auto"
+            LineNumbersForeground="Lime"
+            ShowLineNumbers="True"
+            VerticalScrollBarVisibility="Auto">
+            <edit:TextEditor.ContextMenu>
+              <ContextMenu Opening="GetContextMenuState">
+                <MenuItem
+                  Header="Copy"
+                  IsEnabled="{Binding CanCopyClipboard}"/>
+                <MenuItem
+                  Header="Paste"
+                  IsEnabled="{Binding CanPasteClipboard}"/>
+              </ContextMenu>
+            </edit:TextEditor.ContextMenu>
+          </edit:TextEditor>
+        </DockPanel>
+      </Border>
+
+      <!-- Preview Panel (positioned dynamically by code-behind) -->
+      <Border
+        x:Name="PreviewBorder"
         Grid.Column="2"
+        Margin="0,0,0,6"
+        BorderBrush="LightGray"
+        BorderThickness="1"
+        CornerRadius="4">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="Preview" VerticalAlignment="Center" />
+            <Button
+              Content="&lt;"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="Preview:-1" />
+            <Button
+              Content="&gt;"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="Preview:1" />
+          </StackPanel>
+          <Grid>
+            <wv:WebView Name="Preview" />
+            <TextBlock
+              Margin="10"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
+              FontSize="11"
+              Foreground="Red"
+              IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+              Text="{Binding LastError}"
+              TextWrapping="Wrap" />
+          </Grid>
+        </DockPanel>
+      </Border>
+
+      <!-- AI Assistant Panel (positioned dynamically by code-behind) -->
+      <Border
+        x:Name="AiBorder"
+        Grid.Column="4"
         Margin="0,0,6,6"
         BorderBrush="LightGray"
         BorderThickness="1"
         CornerRadius="4">
-        <Grid>
-          <wv:WebView Name="Preview" />
-          <TextBlock
-            Margin="10"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Top"
-            FontSize="11"
-            Foreground="Red"
-            IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="{Binding LastError}"
-            TextWrapping="Wrap" />
-        </Grid>
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,6">
+            <TextBlock FontWeight="Bold" Text="AI Assistant" VerticalAlignment="Center" />
+            <Button
+              Content="&lt;"
+              Margin="8,0,2,0"
+              Padding="4,2"
+              ToolTip.Tip="Move panel left"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="AI:-1" />
+            <Button
+              Content="&gt;"
+              Padding="4,2"
+              ToolTip.Tip="Move panel right"
+              Command="{Binding MovePanelCommand}"
+              CommandParameter="AI:1" />
+          </StackPanel>
+          <views:AIPanel DataContext="{Binding AIPanelViewModel}" />
+        </DockPanel>
       </Border>
     </Grid>
   </DockPanel>

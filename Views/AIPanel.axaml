@@ -1,0 +1,142 @@
+<UserControl
+  x:Class="MermaidPad.Views.AIPanel"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  d:DesignHeight="800"
+  d:DesignWidth="300"
+  x:DataType="vm:AIPanelViewModel"
+  mc:Ignorable="d">
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.SectionHeader">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,10,0,5" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style Selector="Border.ResultBorder">
+      <Setter Property="BorderBrush" Value="#E0E0E0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10" />
+      <Setter Property="Background" Value="#FAFAFA" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <!--  Header  -->
+    <Border
+      DockPanel.Dock="Top"
+      Background="#F5F5F5"
+      BorderBrush="#E0E0E0"
+      BorderThickness="0,0,0,1"
+      Padding="12">
+      <TextBlock
+        FontSize="14"
+        FontWeight="Bold"
+        Text="AI Assistant" />
+    </Border>
+
+    <!--  Status Bar  -->
+    <Border
+      DockPanel.Dock="Bottom"
+      Background="#F0F0F0"
+      BorderBrush="#E0E0E0"
+      BorderThickness="0,1,0,0"
+      Padding="8,6">
+      <TextBlock
+        FontSize="11"
+        Foreground="#666666"
+        Text="{Binding StatusMessage}"
+        TextTrimming="CharacterEllipsis" />
+    </Border>
+
+    <!--  Main Content  -->
+    <ScrollViewer
+      HorizontalScrollBarVisibility="Disabled"
+      VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="12" Spacing="12">
+
+        <!--  Not Configured Warning  -->
+        <Border
+          Background="#FFF3E0"
+          BorderBrush="#FF9800"
+          BorderThickness="1"
+          CornerRadius="4"
+          IsVisible="{Binding !IsConfigured}"
+          Padding="10">
+          <StackPanel Spacing="8">
+            <TextBlock FontWeight="SemiBold" Text="AI Not Configured" />
+            <TextBlock
+              Foreground="#555555"
+              Text="Configure your API key in Settings to use AI features."
+              TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <!--  Generate Diagram Section  -->
+        <StackPanel IsEnabled="{Binding IsConfigured}" Spacing="8">
+          <TextBlock Classes="SectionHeader" Text="Generate Diagram" />
+
+          <TextBox
+            Height="100"
+            AcceptsReturn="True"
+            Text="{Binding PromptText}"
+            TextWrapping="Wrap"
+            Watermark="Describe the diagram you want to create...&#x0a;Example: Create a flowchart showing user registration process" />
+
+          <Button
+            HorizontalAlignment="Stretch"
+            Command="{Binding GenerateDiagramCommand}"
+            Content="{ReflectionBinding IsProcessing, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Generating...'}"
+            IsEnabled="{Binding !IsProcessing}" />
+        </StackPanel>
+
+        <!--  Result Section  -->
+        <StackPanel IsVisible="{Binding ResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Spacing="8">
+          <TextBlock Classes="SectionHeader" Text="Result" />
+
+          <Border Classes="ResultBorder">
+            <SelectableTextBlock
+              FontFamily="Consolas,Monaco,monospace"
+              FontSize="12"
+              Text="{Binding ResultText}"
+              TextWrapping="Wrap" />
+          </Border>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button
+              Command="{Binding InsertResultToEditorCommand}"
+              Content="Insert to Editor" />
+            <Button
+              Command="{Binding ClearResultCommand}"
+              Content="Clear" />
+          </StackPanel>
+        </StackPanel>
+
+        <!--  Actions Section (for current diagram)  -->
+        <Separator Margin="0,10" />
+
+        <StackPanel IsEnabled="{Binding IsConfigured}" Spacing="8">
+          <TextBlock Classes="SectionHeader" Text="Analyze Current Diagram" />
+
+          <Button
+            HorizontalAlignment="Stretch"
+            Command="{Binding ExplainDiagramCommand}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
+            Content="Explain Diagram"
+            IsEnabled="{Binding !IsProcessing}" />
+          <Button
+            HorizontalAlignment="Stretch"
+            Command="{Binding SuggestImprovementsCommand}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
+            Content="Suggest Improvements"
+            IsEnabled="{Binding !IsProcessing}" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>
