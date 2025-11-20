@@ -123,6 +123,7 @@ public static class ServiceConfiguration
         services.AddTransient<ProgressDialogViewModel>();
         services.AddTransient<MessageDialogViewModel>();
         services.AddTransient<ConfirmationDialogViewModel>();
+        services.AddTransient<SettingsDialogViewModel>();
 
         // Note: Dialog Views (Windows) are not registered in DI
         // They are created directly with 'new' since they need special initialization

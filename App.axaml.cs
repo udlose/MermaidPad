@@ -776,9 +776,9 @@ public sealed partial class App : Application, IDisposable
 
                 Log.Information("App disposed successfully");
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.Error(e, "Exception during Dispose");
+                Log.Error(ex, "Exception during Dispose");
                 // Don't rethrow - we're in shutdown - best effort cleanup
             }
             finally

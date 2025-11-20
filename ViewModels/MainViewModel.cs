@@ -26,6 +26,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
+using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
@@ -57,6 +58,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly AIServiceFactory _aiServiceFactory;
 
     private const string DebounceRenderKey = "render";
 
@@ -197,6 +199,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
         _logger = logger;
+        _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
 
         InitializeCurrentMermaidPadVersion();
 
@@ -637,6 +640,44 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     #endregion File Open/Save
+
+    #region AI Features and Panel Docking
+
+    /// <summary>
+    /// Opens the settings dialog for AI configuration.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        try
+        {
+            Window? mainWindow = GetParentWindow();
+            if (mainWindow is null)
+            {
+                _logger.LogWarning("Cannot open settings: main window not found");
+                return;
+            }
+
+            SettingsDialogViewModel settingsViewModel = _dialogFactory.CreateViewModel<SettingsDialogViewModel>();
+            SettingsDialog settingsDialog = new SettingsDialog(settingsViewModel);
+            bool? result = await settingsDialog.ShowDialog<bool?>(mainWindow);
+
+            if (result == true)
+            {
+                // Settings were saved, recreate AI service with updated settings
+                IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
+                AIPanelViewModel.UpdateAIService(aiService);
+                _logger.LogInformation("Settings saved and AI service updated");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open settings dialog");
+            await ShowErrorMessageAsync("Failed to open settings. " + ex.Message);
+        }
+    }
+
+    #endregion AI Features and Panel Docking
 
     /// <summary>
     /// Asynchronously renders the diagram text using the configured renderer.

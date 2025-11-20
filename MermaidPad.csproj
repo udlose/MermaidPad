@@ -145,6 +145,7 @@
 	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
+	  <AdditionalFiles Remove="Views/Dialogs/SettingsDialog.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -177,6 +178,9 @@
 	  </AvaloniaXaml>
 		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
 			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Dialogs/SettingsDialog.axaml">
+		  <SubType>Designer</SubType>
 		</AvaloniaXaml>
 	</ItemGroup>
 

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Models.AI;
+
 namespace MermaidPad.Models;
 
 /// <summary>
@@ -100,7 +102,12 @@ public sealed class AppSettings
     /// <summary>
     /// Logging configuration settings.
     /// </summary>
-    public LoggingSettings Logging { get; set; } = new();
+    public LoggingSettings Logging { get; set; } = new LoggingSettings();
+
+    /// <summary>
+    /// Gets or sets the configuration settings for AI-related features.
+    /// </summary>
+    public AISettings AI { get; set; } = new AISettings();
 }
 
 /// <summary>

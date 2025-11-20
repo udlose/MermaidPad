@@ -4,6 +4,7 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:views="clr-namespace:MermaidPad.Views"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="{Binding WindowTitle}"
@@ -62,6 +63,11 @@
           Header="Clear Recent Files"
           IsEnabled="{Binding HasRecentFiles}" />
         <Separator />-->
+        <MenuItem
+          Command="{Binding OpenSettingsCommand}"
+          Header="Se_ttings..."
+          InputGesture="Ctrl+T" />
+        <Separator />
         <MenuItem
           Click="OnExitClick"
           Header="E_xit"

@@ -117,7 +117,7 @@ public sealed class SettingsService
             {
                 // Use SecurityService for comprehensive validation
                 // Note: Passing null logger to avoid circular dependency and timing issues during initialization
-                var securityService = new SecurityService(logger: null);
+                SecurityService securityService = new SecurityService(logger: null);
                 (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
                 if (!isSecure && !string.IsNullOrEmpty(reason))
                 {
@@ -237,7 +237,7 @@ public sealed class SettingsService
 
             // Use File.Create to ensure we create a new file, or overwrite the existing one. This is safer than FileStream
             using FileStream fs = File.Create(fullSettingsPath);
-            using StreamWriter writer = new(fs);
+            using StreamWriter writer = new StreamWriter(fs);
             writer.Write(json);
             writer.Flush();
         }
