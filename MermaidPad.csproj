@@ -32,12 +32,14 @@
 		<PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
 		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
-		<PackageReference Include="Dock.Avalonia" Version="11.3.8" />
-		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.8" />
-		<PackageReference Include="Dock.Avalonia.Themes.Simple" Version="11.3.8" />
-		<PackageReference Include="Dock.Model.Avalonia" Version="11.3.8" />
-		<PackageReference Include="Dock.Model.Mvvm" Version="11.3.8" />
-		<PackageReference Include="Dock.Serializer.SystemTextJson" Version="11.3.8" />
+		<PackageReference Include="Dock.Avalonia" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Avalonia.Themes.Simple" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Model.Avalonia" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Model.Extensions.DependencyInjection" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Model.Mvvm" Version="11.3.6.5" />
+		<PackageReference Include="Dock.Serializer.SystemTextJson" Version="11.3.6.5" />
 		<PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
 		<!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
 		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.307" />
