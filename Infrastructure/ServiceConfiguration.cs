@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Dock.Model.Extensions.DependencyInjection;
+using Dock.Serializer.SystemTextJson;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
@@ -67,8 +69,12 @@ public static class ServiceConfiguration
         // Core singletons
         services.AddSingleton<IPlatformServices>(static _ => PlatformServiceFactory.Instance);
         services.AddSingleton<SettingsService>();
+        services.AddSingleton<UISettingsService>();
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
+
+        // Docking-related services - registers Factory, Serializer, and DockState as singletons internally
+        services.AddDock<DockFactory, DockSerializer>();
 
         // Extract assets early without building a temporary service provider
         // Create minimal dependencies manually to avoid complexity and resource leaks
@@ -110,13 +116,13 @@ public static class ServiceConfiguration
         services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
         services.AddSingleton<IDialogFactory, DialogFactory>();
         services.AddSingleton<IFileService, FileService>();
+        services.AddSingleton<ISecureStorageService, SecureStorageService>();
 
         // AI Services
-        services.AddSingleton<ISecureStorageService, SecureStorageService>();
         services.AddSingleton<AIServiceFactory>();
 
-        // Main ViewModel: transient (one per window)
-        services.AddTransient<MainViewModel>();
+        // Main ViewModel: Singleton (Single Page Application)
+        services.AddSingleton<MainViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();
