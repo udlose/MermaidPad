@@ -24,6 +24,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dock.Model.Core;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
@@ -52,6 +53,7 @@ public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
+    private readonly UISettingsService _uiSettingsService;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly ExportService _exportService;
@@ -59,6 +61,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IFileService _fileService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly AIServiceFactory _aiServiceFactory;
+    private readonly DockFactory _dockFactory;
 
     private const string DebounceRenderKey = "render";
 
@@ -178,7 +181,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets or sets the docking layout.
     /// </summary>
     [ObservableProperty]
-    public partial Dock.Model.Core.IDock? Layout { get; set; }
+    public partial IDock? Layout { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the Save command can execute.
@@ -200,10 +203,13 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
-    public MainViewModel(IServiceProvider services, ILogger<MainViewModel> logger)
+    public MainViewModel(
+        IServiceProvider services,
+        ILogger<MainViewModel> logger)
     {
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
+        _uiSettingsService = services.GetRequiredService<UISettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
         _exportService = services.GetRequiredService<ExportService>();
@@ -211,6 +217,9 @@ public sealed partial class MainViewModel : ViewModelBase
         _fileService = services.GetRequiredService<IFileService>();
         _logger = logger;
         _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
+
+        // Get DockFactory from DI (registered via AddDock)
+        _dockFactory = (DockFactory)services.GetRequiredService<IFactory>();
 
         InitializeCurrentMermaidPadVersion();
 
@@ -230,10 +239,39 @@ public sealed partial class MainViewModel : ViewModelBase
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
 
         // Initialize docking layout
-        //TODO is this where this initialization should happen? Doing this in the constructor feels too early!
-        DockFactory dockFactory = new DockFactory(this);
-        Layout = dockFactory.CreateLayout();
-        dockFactory.InitLayout(Layout);
+        // Set up ContextLocator to map panel IDs to ViewModels
+        _dockFactory.ContextLocator = new Dictionary<string, Func<object?>>
+        {
+            ["Editor"] = () => this,
+            ["Preview"] = () => this,
+            ["AIAssistant"] = () => AIPanelViewModel
+        };
+
+        // Try to load saved layout from UI settings, or create default if none exists
+        if (!string.IsNullOrWhiteSpace(_uiSettingsService.Settings.DockLayout))
+        {
+            IDock? deserializedLayout = _dockFactory.DeserializeLayout(_uiSettingsService.Settings.DockLayout);
+            if (deserializedLayout is not null)
+            {
+                Layout = deserializedLayout;
+                _dockFactory.InitLayout(Layout);
+                _logger.LogInformation("Loaded saved dock layout from UI settings");
+            }
+            else
+            {
+                // Deserialization failed, create default layout
+                Layout = _dockFactory.CreateLayout();
+                _dockFactory.InitLayout(Layout);
+                _logger.LogWarning("Failed to load saved dock layout, using default");
+            }
+        }
+        else
+        {
+            // No saved layout, create default
+            Layout = _dockFactory.CreateLayout();
+            _dockFactory.InitLayout(Layout);
+            _logger.LogInformation("No saved dock layout found in UI settings, using default");
+        }
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -1244,11 +1282,13 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Persists the current application settings to storage.
     /// </summary>
     /// <remarks>This method updates the settings service with the current state of the application,
-    /// including diagram text, live preview settings, Mermaid version information, and editor  selection details. After
-    /// updating the settings, the method saves them to ensure they  are persisted across application
+    /// including diagram text, live preview settings, Mermaid version information, and editor selection details.
+    /// It also persists UI-specific settings like dock layout to a separate UI settings file.
+    /// After updating the settings, both settings files are saved to ensure they are persisted across application
     /// sessions.</remarks>
     public void Persist()
     {
+        // Save application settings
         _settingsService.Settings.LastDiagramText = DiagramText;
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
@@ -1258,6 +1298,22 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
+
+        // Save UI settings (dock layout)
+        if (Layout is not null)
+        {
+            string? serializedLayout = _dockFactory.SerializeLayout(Layout);
+            if (serializedLayout is not null)
+            {
+                _uiSettingsService.Settings.DockLayout = serializedLayout;
+                _logger.LogInformation("Dock layout saved to UI settings");
+            }
+            else
+            {
+                _logger.LogWarning("Failed to serialize dock layout");
+            }
+        }
+        _uiSettingsService.Save();
     }
 
     /// <summary>
