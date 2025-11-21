@@ -30,7 +30,7 @@ namespace MermaidPad.Services;
 /// Provides loading and saving of application settings to a per-user configuration directory.
 /// Handles secure file access and validates the settings file path and name prior to I/O operations.
 /// </summary>
-public sealed class SettingsService
+public sealed class SettingsService : SettingsBase
 {
     /// <summary>
     /// <see cref="JsonSerializerOptions"/> used for (de)serializing <see cref="AppSettings"/>.
@@ -48,14 +48,14 @@ public sealed class SettingsService
     private readonly string _settingsPath;
 
     /// <summary>
-    /// Optional logger instance; may be <see langword="null"/> during early initialization.
-    /// </summary>
-    private readonly ILogger<SettingsService>? _logger;
-
-    /// <summary>
     /// Optional secure storage service for sensitive data.
     /// </summary>
     private readonly ISecureStorageService? _secureStorage;
+
+    /// <summary>
+    /// Security service for validating file paths and creating secure file streams.
+    /// </summary>
+    private readonly SecurityService _securityService;
 
     /// <summary>
     /// The expected file name for persisted settings.
@@ -72,29 +72,21 @@ public sealed class SettingsService
     /// Initializes a new instance of the <see cref="SettingsService"/> class.
     /// Ensures the configuration directory exists and loads persisted settings if available.
     /// </summary>
+    /// <param name="securityService"><see cref="SecurityService"/> for file access validation.</param>
     /// <param name="logger">
     /// Optional <see cref="ILogger{SettingsService}"/> for diagnostic messages. May be <see langword="null"/>.
     /// </param>
     /// <param name="secureStorage">Optional <see cref="ISecureStorageService"/> for sensitive data.</param>
-    public SettingsService(ILogger<SettingsService>? logger = null, ISecureStorageService? secureStorage = null)
+    public SettingsService(SecurityService securityService, ILogger<SettingsService>? logger = null, ISecureStorageService? secureStorage = null)
+        : base(logger)
     {
-        _logger = logger;
+        _securityService = securityService;
         _secureStorage = secureStorage;
+
         string baseDir = GetConfigDirectory();
         Directory.CreateDirectory(baseDir);
         _settingsPath = Path.Combine(baseDir, SettingsFileName);
         Settings = Load();
-    }
-
-    /// <summary>
-    /// Returns the per-user configuration directory path used by the application.
-    /// Typically resolves to "%APPDATA%\MermaidPad" on Windows.
-    /// </summary>
-    /// <returns>The full path to the application's config directory for the current user.</returns>
-    private static string GetConfigDirectory()
-    {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return Path.Combine(appData, "MermaidPad");
     }
 
     /// <summary>
@@ -117,7 +109,7 @@ public sealed class SettingsService
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
-                Debug.WriteLine("Settings file name validation failed on load.");
+                LogError(exception: null, $"{nameof(AppSettings)} file name validation failed on load.");
                 return new AppSettings();
             }
 
@@ -125,17 +117,16 @@ public sealed class SettingsService
             {
                 // Use SecurityService for comprehensive validation
                 // Note: Passing null logger to avoid circular dependency and timing issues during initialization
-                SecurityService securityService = new SecurityService(logger: null);
-                (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
+                (bool isSecure, string? reason) = _securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
                 if (!isSecure && !string.IsNullOrEmpty(reason))
                 {
-                    _logger?.LogError("Settings file validation failed: {Reason}", reason);
+                    LogError(exception: null, $"{nameof(AppSettings)} file validation failed: {reason}");
                     return new AppSettings();
                 }
 
                 // Use SecurityService for secure file stream creation
                 string json;
-                using (FileStream fs = securityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
+                using (FileStream fs = _securityService.CreateSecureFileStream(fullSettingsPath, FileMode.Open, FileAccess.Read))
                 using (StreamReader reader = new StreamReader(fs))
                 {
                     json = reader.ReadToEnd();
@@ -146,7 +137,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Settings load failed");
+            LogError(ex, $"{nameof(AppSettings)} load failed");
         }
         return new AppSettings();
     }
@@ -178,6 +169,7 @@ public sealed class SettingsService
             if (File.Exists(fullSettingsPath))
             {
                 // Use SecurityService for full validation even during bootstrap (null logger is acceptable)
+                // This method is called during bootstrapping where DI is not yet available, so we have to create a SecurityService here
                 SecurityService securityService = new SecurityService(logger: null);
                 (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
                 if (!isSecure && !string.IsNullOrEmpty(reason))
@@ -225,16 +217,16 @@ public sealed class SettingsService
             string fullSettingsPath = Path.GetFullPath(_settingsPath);
             string fullConfigDir = Path.GetFullPath(configDir);
 
-            if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
+            if (!fullSettingsPath.AsSpan().StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
             {
-                Debug.WriteLine("Settings path validation failed on save.");
+                LogError(exception: null, $"{nameof(AppSettings)} path validation failed on save.");
                 return;
             }
 
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
-                Debug.WriteLine("Settings file name validation failed on save.");
+                LogError(exception: null, $"{nameof(AppSettings)} file name validation failed on save.");
                 return;
             }
 
@@ -251,7 +243,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Settings save failed");
+            LogError(ex, $"{nameof(AppSettings)} save failed");
         }
     }
 
@@ -271,7 +263,7 @@ public sealed class SettingsService
         ArgumentException.ThrowIfNullOrEmpty(plainKey);
         if (_secureStorage is null)
         {
-            _logger?.LogWarning("Secure storage service is not configured yet; cannot encrypt API key.");
+            LogWarning(exception: null, "Secure storage service is not configured yet; cannot encrypt API key.");
             return string.Empty;
         }
 
@@ -281,7 +273,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to encrypt API key");
+            LogError(ex, "Failed to encrypt API key");
             throw;
         }
     }
@@ -299,7 +291,7 @@ public sealed class SettingsService
         ArgumentException.ThrowIfNullOrEmpty(encryptedKey);
         if (_secureStorage is null)
         {
-            _logger?.LogWarning("Secure storage service is not configured yet; cannot decrypt API key.");
+            LogWarning(exception: null, "Secure storage service is not configured yet; cannot decrypt API key.");
             return string.Empty;
         }
 
@@ -309,7 +301,7 @@ public sealed class SettingsService
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to decrypt API key");
+            LogError(ex, "Failed to decrypt API key");
             throw;
         }
     }
