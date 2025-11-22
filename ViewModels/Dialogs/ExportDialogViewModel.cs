@@ -180,6 +180,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// options.</returns>
     public ExportOptions GetExportOptions()
     {
+        string? backgroundColor = UseWhiteBackground ? "#FFFFFF" : null;
         return new ExportOptions
         {
             FilePath = FullFilePath,
@@ -188,7 +189,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
             {
                 Dpi = SelectedDpi,
                 ScaleFactor = ScaleFactor,
-                BackgroundColor = UseWhiteBackground ? "#FFFFFF" : null,
+                BackgroundColor = backgroundColor,
                 Quality = Quality,
                 AntiAlias = AntiAlias,
                 MaxWidth = MaxWidth,

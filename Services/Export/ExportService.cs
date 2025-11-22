@@ -449,9 +449,9 @@ public sealed class ExportService
             // Already on UI thread - run the UI-bound implementation directly.
             await ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            _logger.LogInformation("PNG export cancelled by user");
+            _logger.LogInformation(oce, "PNG export cancelled by user");
             throw;
         }
         catch (Exception ex)
@@ -502,9 +502,9 @@ public sealed class ExportService
 
             _logger.LogInformation("PNG exported successfully: {ByteCount:N0} bytes", bytesWritten);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            _logger.LogInformation("PNG export cancelled or timed out");
+            _logger.LogInformation(oce, "PNG export cancelled or timed out");
             throw;
         }
         catch (Exception ex)

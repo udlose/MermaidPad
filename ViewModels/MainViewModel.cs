@@ -60,7 +60,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ILogger<MainViewModel> _logger;
     private readonly AIServiceFactory _aiServiceFactory;
     private readonly DockFactory _dockFactory;
-    private readonly EventHandler<string>? _diagramTextChangedHandler;
+    private readonly EventHandler<string> _diagramTextChangedHandler;
 
     /// <summary>
     /// A value tracking if there is currently a file being loaded.

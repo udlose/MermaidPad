@@ -271,7 +271,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts.", ex);
                 }
 
-                _logger.LogWarning("Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
+                _logger.LogWarning(ex, "Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
                     _serverPort, attempt + 1, maxRetries);
             }
         }
@@ -1140,9 +1140,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
                         .ConfigureAwait(false);
                     serverTask.Dispose();
                 }
-                catch (TimeoutException)
+                catch (TimeoutException te)
                 {
-                    _logger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
+                    _logger.LogError(te, "Server task did not complete within timeout - will dispose when background completion finishes");
                     // No concern about capturing _logger here as DisposeAsync cannot be re-entered
                     ILogger<MermaidRenderer> logger = _logger; // Capture for continuation
                     _ = serverTask.ContinueWith(

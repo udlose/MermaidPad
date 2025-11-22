@@ -25,7 +25,6 @@ using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Platforms;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.Dialogs;
@@ -113,7 +112,6 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     /// Gets or sets a value indicating whether smart suggestions are enabled.
     /// </summary>
     [ObservableProperty]
-    [DefaultValue(true)]
     public partial bool EnableSmartSuggestions { get; set; }
 
     /// <summary>

@@ -79,10 +79,10 @@ public sealed class AIServiceFactory
             {
                 apiKey = _secureStorage.Decrypt(settings.EncryptedApiKey);
             }
-            catch
+            catch (Exception ex)
             {
                 // If decryption fails, treat as unconfigured
-                _logger.LogWarning($"Failed to decrypt AI API key; returning {nameof(NullAIService)}.");
+                _logger.LogWarning(ex, "Failed to decrypt AI API key; returning {AIServiceName}.", nameof(NullAIService));
                 return new NullAIService();
             }
         }

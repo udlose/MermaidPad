@@ -573,8 +573,7 @@ public sealed partial class App : Application, IDisposable
         logEntry.AppendLine(BuildExceptionDetails(exception));
         logEntry.AppendLine("---------------------------------------------------------------");
 
-        Log.Error(exception, "EXCEPTION: {Message} | Time: {Time} | Thread Context: {ThreadContext} | Thread ID: {ThreadId}",
-            message, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), threadContext, Environment.CurrentManagedThreadId);
+        Log.Error(exception, "EXCEPTION: {Message} log", logEntry.ToString());
     }
 
     /// <summary>

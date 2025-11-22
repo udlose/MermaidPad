@@ -332,9 +332,9 @@ public sealed partial class SkiaSharpImageConversionService : IImageConversionSe
 
             return result;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            _logger.LogInformation("PNG conversion cancelled by user");
+            _logger.LogInformation(oce, "PNG conversion cancelled by user");
             throw;
         }
         catch (Exception ex)
