@@ -30,10 +30,12 @@
 		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
 		<PackageReference Include="Avalonia" Version="11.3.9" />
 		<PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
+		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.9" />
 		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
 		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="Dock.Avalonia" Version="11.3.6.5" />
-		<PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Avalonia.Themes.Simple" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Model.Avalonia" Version="11.3.6.5" />
@@ -42,7 +44,8 @@
 		<PackageReference Include="Dock.Serializer.SystemTextJson" Version="11.3.6.5" />
 		<PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
 		<!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
-		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.307" />
+		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.308" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.11" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
@@ -64,16 +67,17 @@
 		<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
 		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
 		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+		<PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
 		<PackageReference Include="SkiaSharp" Version="3.119.1" />
+		<PackageReference Include="SonarAnalyzer.CSharp" Version="10.15.0.120848">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Svg.Skia" Version="3.2.1" />
 		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.11" />
 		<PackageReference Include="TextMateSharp" Version="1.0.70" />
 		<PackageReference Include="TextMateSharp.Grammars" Version="1.0.70" />
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
-		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" Version="8.0.0" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
@@ -83,6 +87,7 @@
 	<!-- Only include Avalonia.Diagnostics in Debug builds -->
 	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
 		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+		<PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.6.5" />
 	</ItemGroup>
 
 	<ItemGroup>
