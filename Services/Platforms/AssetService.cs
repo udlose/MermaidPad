@@ -423,7 +423,6 @@ public sealed class AssetService
                 try
                 {
                     await stream.DisposeAsync();
-                    stream = null!;
                 }
                 catch (Exception disposeEx)
                 {

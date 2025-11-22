@@ -38,8 +38,11 @@ namespace MermaidPad.Services.Platforms;
 /// integrity of assets during runtime. It also provides basic validation for JavaScript and HTML content to detect
 /// potential issues. The methods are designed for internal use and assume that inputs are pre-validated where
 /// applicable.</remarks>
+[SuppressMessage("ReSharper", "ConvertToStaticClass", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("Major Code Smell", "S1118:Utility classes should not have public constructors", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "Class is a singleton by design with lifetime controlled by DI")]
+[SuppressMessage("Minor Code Smell", "S2325:Methods and properties that don't access instance data should be static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 public sealed class AssetIntegrityService
 {
     private readonly ILogger<AssetIntegrityService> _logger;

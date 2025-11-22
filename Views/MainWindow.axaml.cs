@@ -36,6 +36,7 @@ using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
 using MermaidPad.ViewModels.Panels;
 using MermaidPad.Views.Panels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -87,6 +88,28 @@ public sealed partial class MainWindow : Window
     public required MainViewModel ViewModel { get; init; }
 
     /// <summary>
+    /// Initializes a new instance of the MainWindow class using application-level services.
+    /// </summary>
+    /// <remarks>
+    /// <para>This constructor retrieves required services from the application's dependency injection
+    /// container to configure the main window. It is typically used when creating the main window at application
+    /// startup.</para>
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/MainWindow.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
+    /// </remarks>
+    public MainWindow()
+    : this(
+        App.Services.GetRequiredService<ILogger<MainWindow>>(),
+        App.Services.GetRequiredService<MermaidRenderer>(),
+        App.Services.GetRequiredService<MermaidUpdateService>(),
+        App.Services.GetRequiredService<SyntaxHighlightingService>(),
+        App.Services.GetRequiredService<IDebounceDispatcher>())
+    {
+    }
+
+    /// <summary>
     /// Initializes a new instance of the MainWindow class, configuring logging, diagram rendering, update services,
     /// syntax highlighting, and editor input debouncing for the application's main window.
     /// </summary>
@@ -133,8 +156,8 @@ public sealed partial class MainWindow : Window
         DockControl? dockControl = this.FindControl<DockControl>("MainDock");
         if (dockControl is not null)
         {
-            dockControl.LayoutUpdated += _dockControlLayoutUpdatedHandler;
             _dockControlLayoutUpdatedHandler = OnDockControlLayoutUpdated;
+            dockControl.LayoutUpdated += _dockControlLayoutUpdatedHandler;
             _logger.LogInformation("DockControl.LayoutUpdated event handler wired");
         }
         else
@@ -533,15 +556,15 @@ public sealed partial class MainWindow : Window
         _logger.LogInformation("MainWindow attached to visual tree - wiring event handlers");
 
         // Wire window-level event handlers (store in fields for consistent cleanup)
-        ActualThemeVariantChanged += _themeChangedHandler;
         _themeChangedHandler = OnThemeChanged;
+        ActualThemeVariantChanged += _themeChangedHandler;
 
-        Activated += _activatedHandler;
         _activatedHandler = OnActivated;
+        Activated += _activatedHandler;
 
         // Wire ViewModel property changed (for two-way sync with EditorViewModel)
-        ViewModel.EditorViewModel.PropertyChanged += _viewModelPropertyChangedHandler;
         _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
+        ViewModel.EditorViewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
         // Note: Editor/Preview event handlers will be wired when panels are found
         // This happens in WireEditorEventHandlers() called from OnDockControlLoaded()

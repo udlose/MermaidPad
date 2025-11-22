@@ -152,10 +152,12 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
+    [SuppressMessage("Roslynator", "RCS1239:Use 'for' statement instead of 'while' statement", Justification = "For loop not suitable for exponential backoff with unknown iteration count")]
     private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        for (int attemptCount = 0; stopwatch.Elapsed < timeout; attemptCount++)
+        int attemptCount = 0;
+        while (stopwatch.Elapsed < timeout)
         {
             // Return only a primitive, never a Promise. WebView2 ExecuteScriptAsync doesn't support Promises.
             // WebView2 will JSON-encode strings (e.g., "\"true\"" or "\"pending\"")
@@ -177,6 +179,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Reduces WebView script execution overhead while staying responsive for fast renders
             int delayMs = 50 * (int)Math.Pow(2, Math.Min(attemptCount, 3));
             await Task.Delay(delayMs);
+            attemptCount++;
         }
 
         throw new TimeoutException($"First render not signaled within {timeout.TotalSeconds:0.##} seconds.");

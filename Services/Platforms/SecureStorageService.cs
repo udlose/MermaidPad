@@ -47,14 +47,6 @@ public interface ISecureStorageService
     /// <returns>The decrypted plaintext string corresponding to the input.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="encrypted"/> is null or empty.</exception>
     string Decrypt(string encrypted);
-
-    /// <summary>
-    /// Determines whether the specified encrypted string is valid according to the expected format or criteria.
-    /// </summary>
-    /// <param name="encrypted">The encrypted string to validate. Cannot be null or empty.</param>
-    /// <returns>true if the encrypted string is valid; otherwise, false.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="encrypted"/> is null or empty.</exception>
-    bool IsValid(string encrypted);
 }
 
 /// <summary>
@@ -117,28 +109,6 @@ public sealed class SecureStorageService : ISecureStorageService
         {
             _logger.LogError(ex, "Error decrypting string.");
             throw;
-        }
-    }
-
-    /// <summary>
-    /// Determines whether the specified encrypted string can be successfully decrypted and is not empty.
-    /// </summary>
-    /// <param name="encrypted">The encrypted string to validate. Cannot be null or empty.</param>
-    /// <returns>true if the encrypted string can be decrypted to a non-empty value; otherwise, false.</returns>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="encrypted"/> is null or empty.</exception>
-    public bool IsValid(string encrypted)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(encrypted);
-
-        try
-        {
-            string decrypted = Decrypt(encrypted);
-            return !string.IsNullOrEmpty(decrypted);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating encrypted string.");
-            return false;
         }
     }
 }

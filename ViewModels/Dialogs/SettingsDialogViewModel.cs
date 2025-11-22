@@ -25,6 +25,7 @@ using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Platforms;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.Dialogs;
@@ -94,25 +95,26 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     /// Defaults to "claude-sonnet-4". The list of valid models for Anthropic is provided by <see cref="AnthropicModels"/>.
     /// </remarks>
     [ObservableProperty]
-    public partial string Model { get; set; } = "claude-sonnet-4";
+    public partial string Model { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether natural language generation features are enabled.
     /// </summary>
     [ObservableProperty]
-    public partial bool EnableNaturalLanguageGeneration { get; set; } = true;
+    public partial bool EnableNaturalLanguageGeneration { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether diagram explanation features are enabled.
     /// </summary>
     [ObservableProperty]
-    public partial bool EnableDiagramExplanation { get; set; } = true;
+    public partial bool EnableDiagramExplanation { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether smart suggestions are enabled.
     /// </summary>
     [ObservableProperty]
-    public partial bool EnableSmartSuggestions { get; set; } = true;
+    [DefaultValue(true)]
+    public partial bool EnableSmartSuggestions { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether a connection test is currently running.

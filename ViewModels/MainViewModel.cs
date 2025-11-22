@@ -60,6 +60,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ILogger<MainViewModel> _logger;
     private readonly AIServiceFactory _aiServiceFactory;
     private readonly DockFactory _dockFactory;
+    private readonly EventHandler<string>? _diagramTextChangedHandler;
 
     /// <summary>
     /// A value tracking if there is currently a file being loaded.
@@ -69,12 +70,12 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Gets the editor view model.
     /// </summary>
-    public EditorViewModel EditorViewModel { get; private set; } = null!;
+    public EditorViewModel EditorViewModel { get; private set; }
 
     /// <summary>
     /// Gets the preview view model.
     /// </summary>
-    public PreviewViewModel PreviewViewModel { get; private set; } = null!;
+    public PreviewViewModel PreviewViewModel { get; private set; }
 
     /// <summary>
     /// Gets or sets the version of the bundled Mermaid.js.
@@ -127,7 +128,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Gets the AI panel view model.
     /// </summary>
-    public AIPanelViewModel AIPanelViewModel { get; private set; } = null!;
+    public AIPanelViewModel AIPanelViewModel { get; private set; }
 
     /// <summary>
     /// Gets or sets the docking layout.
@@ -177,8 +178,10 @@ public sealed partial class MainViewModel : ViewModelBase
         EditorViewModel = services.GetRequiredService<EditorViewModel>();
         PreviewViewModel = services.GetRequiredService<PreviewViewModel>();
 
+        //TODO where should this be wired up? why is the MainViewModel responsible for this?
+
         // Wire up communication: Editor -> Preview
-        EditorViewModel.DiagramTextChanged += (_, diagramText) =>
+        _diagramTextChangedHandler = (_, diagramText) =>
         {
             PreviewViewModel.OnDiagramTextChanged(diagramText);
 
@@ -188,6 +191,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 IsDirty = true;
             }
         };
+        EditorViewModel.DiagramTextChanged += _diagramTextChangedHandler;
 
         InitializeCurrentMermaidPadVersion();
 
@@ -209,6 +213,8 @@ public sealed partial class MainViewModel : ViewModelBase
         PreviewViewModel.LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
 
         // Initialize AI panel
+        //TODO why is the AIPanelViewModel created here and not injected like the others?
+        //TODO why is the MainViewModel responsible for creating the AI service?
         IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
         AIPanelViewModel = new AIPanelViewModel(aiService);
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
