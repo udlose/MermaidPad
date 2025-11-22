@@ -5,10 +5,10 @@
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
-  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:panelsViewModels="clr-namespace:MermaidPad.ViewModels.Panels"
   d:DesignHeight="600"
   d:DesignWidth="600"
-  x:DataType="vm:MainViewModel"
+  x:DataType="panelsViewModels:PreviewViewModel"
   mc:Ignorable="d">
 
   <DockPanel>

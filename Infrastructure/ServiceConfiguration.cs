@@ -27,6 +27,7 @@ using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Panels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -73,9 +74,6 @@ public static class ServiceConfiguration
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
 
-        // Docking-related services - registers Factory, Serializer, and DockState as singletons internally
-        services.AddDock<DockFactory, DockSerializer>();
-
         // Extract assets early without building a temporary service provider
         // Create minimal dependencies manually to avoid complexity and resource leaks
         string assetsDirectory;
@@ -118,10 +116,17 @@ public static class ServiceConfiguration
         services.AddSingleton<IFileService, FileService>();
         services.AddSingleton<ISecureStorageService, SecureStorageService>();
 
+        // Docking-related services - registers Factory, Serializer, and DockState as singletons internally
+        services.AddDock<DockFactory, DockSerializer>();
+
         // AI Services
         services.AddSingleton<AIServiceFactory>();
 
-        // Main ViewModel: Singleton (Single Page Application)
+        // Panel ViewModels: singleton for single-window desktop app
+        services.AddSingleton<EditorViewModel>();
+        services.AddSingleton<PreviewViewModel>();
+
+        // Main ViewModel: singleton for single-window desktop app
         services.AddSingleton<MainViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)

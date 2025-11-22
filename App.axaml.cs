@@ -23,18 +23,25 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using Dock.Avalonia.Diagnostics;
+using Dock.Avalonia.Diagnostics.Controls;
 using MermaidPad.Infrastructure;
+using MermaidPad.Services;
+using MermaidPad.Services.Highlighting;
+using MermaidPad.ViewModels;
 using MermaidPad.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace MermaidPad;
-
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>
@@ -106,19 +113,46 @@ public sealed partial class App : Application, IDisposable
         SetupGlobalExceptionHandlers();
 
         Services = ServiceConfiguration.BuildServiceProvider();
+        IDebounceDispatcher debouncer = Services.GetRequiredService<IDebounceDispatcher>();
+        MermaidRenderer renderer = Services.GetRequiredService<MermaidRenderer>();
+        MermaidUpdateService updateService = Services.GetRequiredService<MermaidUpdateService>();
+        SyntaxHighlightingService syntaxHighlightingService = Services.GetRequiredService<SyntaxHighlightingService>();
+        ILogger<MainWindow> logger = Services.GetRequiredService<ILogger<MainWindow>>();
+        MainViewModel mainViewModel = Services.GetRequiredService<MainViewModel>();
+
+        MainWindow mainWindow = new MainWindow(
+            logger,
+            renderer,
+            updateService,
+            syntaxHighlightingService,
+            debouncer)
+        {
+            DataContext = mainViewModel,
+            ViewModel = mainViewModel
+        };
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Avoid duplicate validations from both Avalonia and the CommunityToolkit.
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
-            desktop.MainWindow = new MainWindow();      // Set the main window for desktop applications
+
+            // Set the main window for desktop applications
+            desktop.MainWindow = mainWindow;
+
+#if DEBUG
+            // Attach Dock.Avalonia debug tools in debug builds
+            mainWindow.AttachDockDebug(() => mainViewModel.Layout, new KeyGesture(Key.F11));
+            mainWindow.AttachDockDebugOverlay(new KeyGesture(Key.F9));
+#endif
 
             // Hook up cleanup on application exit
             desktop.ShutdownRequested += OnShutdownRequested;
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
-            singleViewPlatform.MainView = new MainWindow(); // Set the main view for single view applications
+            // Set the main view for single view applications
+            singleViewPlatform.MainView = mainWindow;
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -214,12 +248,15 @@ public sealed partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Handles task exceptions that were not observed (no await, no .Result, no .Wait()).
+    /// Handles the UnobservedTaskException event by logging the exception, notifying the user, and marking the
+    /// exception as observed to prevent default exception handling.
     /// </summary>
-    /// <remarks>
-    /// This handler catches exceptions from Tasks that complete with an exception but are never observed.
-    /// In .NET 4.5+, these don't crash the app by default, but we should still log them.
-    /// </remarks>
+    /// <remarks>This method ensures that unobserved exceptions from asynchronous tasks are properly logged
+    /// and communicated to the user, preventing the application from terminating unexpectedly due to unhandled
+    /// exceptions in the task thread pool.</remarks>
+    /// <param name="sender">The source of the event, typically the task scheduler that raised the exception.</param>
+    /// <param name="e">An UnobservedTaskExceptionEventArgs instance containing the exception information and methods to mark the
+    /// exception as observed.</param>
     private void OnTaskSchedulerUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
         LogExceptionWithContext("Unobserved task exception", e.Exception, "Task Thread Pool");

@@ -20,7 +20,7 @@
 
 using Avalonia.Controls;
 
-namespace MermaidPad.Views;
+namespace MermaidPad.Views.Panels;
 
 public sealed partial class AIPanel : UserControl
 {

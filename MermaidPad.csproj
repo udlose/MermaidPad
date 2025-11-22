@@ -191,7 +191,7 @@
 		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
 			<SubType>Designer</SubType>
 		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/AIPanel.axaml">
+		<AvaloniaXaml Update="Views/Panels/AIPanel.axaml">
 			<SubType>Designer</SubType>
 		</AvaloniaXaml>
 		<AvaloniaXaml Update="Views/Dialogs/SettingsDialog.axaml">

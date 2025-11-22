@@ -1,13 +1,13 @@
 <UserControl
-  x:Class="MermaidPad.Views.AIPanel"
+  x:Class="MermaidPad.Views.Panels.AIPanel"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-  xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  xmlns:panelsViewModels="clr-namespace:MermaidPad.ViewModels.Panels"
   d:DesignHeight="800"
   d:DesignWidth="300"
-  x:DataType="vm:AIPanelViewModel"
+  x:DataType="panelsViewModels:AIPanelViewModel"
   mc:Ignorable="d">
 
   <UserControl.Styles>
@@ -126,13 +126,13 @@
           <Button
             HorizontalAlignment="Stretch"
             Command="{Binding ExplainDiagramCommand}"
-            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.(panelsViewModels:EditorViewModel.DiagramText), FallbackValue={x:Null}}"
             Content="Explain Diagram"
             IsEnabled="{Binding !IsProcessing}" />
           <Button
             HorizontalAlignment="Stretch"
             Command="{Binding SuggestImprovementsCommand}"
-            CommandParameter="{ReflectionBinding $parent[Window].DataContext.DiagramText}"
+            CommandParameter="{ReflectionBinding $parent[Window].DataContext.(panelsViewModels:EditorViewModel.DiagramText), FallbackValue={x:Null}}"
             Content="Suggest Improvements"
             IsEnabled="{Binding !IsProcessing}" />
         </StackPanel>

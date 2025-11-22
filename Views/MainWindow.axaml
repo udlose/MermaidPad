@@ -88,23 +88,23 @@
         Width="90"
         Command="{Binding RenderCommand}"
         Content="Render"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="{Binding !PreviewViewModel.IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Button
         Command="{Binding ClearCommand}"
         Content="Clear"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="{Binding !PreviewViewModel.IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Button
         Command="{Binding ExportCommand}"
         Content="Export"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="{Binding !PreviewViewModel.IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <Separator Margin="6,0" />
       <CheckBox
         Margin="6,0,0,0"
         Content="Live Preview:"
         FlowDirection="RightToLeft"
-        IsChecked="{Binding LivePreviewEnabled}"
-        IsEnabled="{Binding IsWebViewReady}"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        IsChecked="{Binding PreviewViewModel.LivePreviewEnabled}"
+        IsEnabled="{Binding PreviewViewModel.IsWebViewReady}"
+        ToolTip.Tip="{Binding !PreviewViewModel.IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
       <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
       <TextBlock Text="{Binding BundledMermaidVersion}" />
       <TextBlock Margin="12,0,4,0" Text="Latest:" />
@@ -126,43 +126,10 @@
     </StackPanel>
 
     <!-- Dockable Panel System -->
+    <!-- DataTemplates are registered in App.axaml (application-level requirement for Dock) -->
     <dock:DockControl
       x:Name="MainDock"
       Margin="6,0,6,6"
-      Layout="{Binding Layout}">
-      <dock:DockControl.DataTemplates>
-
-        <!-- Editor Panel Template -->
-        <DataTemplate DataType="dockModel:Tool">
-          <Panel>
-            <Panel.IsVisible>
-              <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="Editor" />
-            </Panel.IsVisible>
-            <panels:EditorPanel x:Name="EditorPanel" DataContext="{Binding Context}" />
-          </Panel>
-        </DataTemplate>
-
-        <!-- Preview Panel Template -->
-        <DataTemplate DataType="dockModel:Tool">
-          <Panel>
-            <Panel.IsVisible>
-              <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="Preview" />
-            </Panel.IsVisible>
-            <panels:PreviewPanel x:Name="PreviewPanel" DataContext="{Binding Context}" />
-          </Panel>
-        </DataTemplate>
-
-        <!-- AI Assistant Panel Template -->
-        <DataTemplate DataType="dockModel:Tool">
-          <Panel>
-            <Panel.IsVisible>
-              <Binding Path="Id" Converter="{x:Static ObjectConverters.Equal}" ConverterParameter="AIAssistant" />
-            </Panel.IsVisible>
-            <views:AIPanel DataContext="{Binding Context}" />
-          </Panel>
-        </DataTemplate>
-
-      </dock:DockControl.DataTemplates>
-    </dock:DockControl>
+      Layout="{Binding Layout}" />
   </DockPanel>
 </Window>
