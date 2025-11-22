@@ -288,13 +288,33 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// <param name="storageProvider">The storage provider used to display the folder picker dialog. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation. The task completes when the directory selection process
     /// finishes.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="storageProvider"/> is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. Even when code executes on the main thread, the absence of SynchronizationContext
+    /// causes pickers to silently fail or hang indefinitely without showing dialogs.
+    /// </para>
+    /// <para>
+    /// References:
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/13484
+    ///   (IStorageProvider.OpenFilePickerAsync randomly not showing the dialog)
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/15775
+    ///   (StorageProvider.OpenFolderPickerAsync blocks UI)
+    /// - https://github.com/AvaloniaUI/Avalonia/issues/15806
+    ///   (Async Main() causes picker failures - STA thread requirement)
+    /// </para>
+    /// <para>
+    /// Solution: Wrap all picker calls in Dispatcher.UIThread.InvokeAsync() to ensure proper context.
+    /// This is defensive programming against ConfigureAwait(false) in the call chain removing the context.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
     private Task BrowseForDirectoryAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return BrowseForDirectoryCoreAsync(storageProvider);
+        return Dispatcher.UIThread.InvokeAsync(async () => await BrowseForDirectoryCoreAsync(storageProvider));
     }
 
     /// <summary>

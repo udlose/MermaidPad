@@ -265,13 +265,33 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     /// <param name="storageProvider">The storage provider used to select and access the file. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous file open operation.</returns>
+    /// <remarks>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. Even when code executes on the main thread, the absence of SynchronizationContext
+    /// causes pickers to silently fail or hang indefinitely without showing dialogs.
+    /// </para>
+    /// <para>
+    /// References:
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/13484
+    ///   (IStorageProvider.OpenFilePickerAsync randomly not showing the dialog)
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/15775
+    ///   (StorageProvider.OpenFolderPickerAsync blocks UI)
+    /// - https://github.com/AvaloniaUI/Avalonia/issues/15806
+    ///   (Async Main() causes picker failures - STA thread requirement)
+    /// </para>
+    /// <para>
+    /// Solution: Wrap all picker calls in Dispatcher.UIThread.InvokeAsync() to ensure proper context.
+    /// This is defensive programming against ConfigureAwait(false) in the call chain removing the context.
+    /// </para>
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
     private Task OpenFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return OpenFileCoreAsync(storageProvider);
+        return Dispatcher.UIThread.InvokeAsync(async () => await OpenFileCoreAsync(storageProvider));
     }
 
     /// <summary>
@@ -335,13 +355,33 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     /// <param name="storageProvider">The storage provider used to select the destination and perform the file save operation. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation.</returns>
+    /// <remarks>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. Even when code executes on the main thread, the absence of SynchronizationContext
+    /// causes pickers to silently fail or hang indefinitely without showing dialogs.
+    /// </para>
+    /// <para>
+    /// References:
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/13484
+    ///   (IStorageProvider.OpenFilePickerAsync randomly not showing the dialog)
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/15775
+    ///   (StorageProvider.OpenFolderPickerAsync blocks UI)
+    /// - https://github.com/AvaloniaUI/Avalonia/issues/15806
+    ///   (Async Main() causes picker failures - STA thread requirement)
+    /// </para>
+    /// <para>
+    /// Solution: Wrap all picker calls in Dispatcher.UIThread.InvokeAsync() to ensure proper context.
+    /// This is defensive programming against ConfigureAwait(false) in the call chain removing the context.
+    /// </para>
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
     private Task SaveFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return SaveFileCoreAsync(storageProvider);
+        return Dispatcher.UIThread.InvokeAsync(async () => await SaveFileCoreAsync(storageProvider));
     }
 
     /// <summary>
@@ -378,13 +418,33 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <param name="storageProvider">The storage provider used to present the file save dialog and handle file system access. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous save operation. The task completes when the file has been saved or the
     /// operation is canceled.</returns>
+    /// <remarks>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. Even when code executes on the main thread, the absence of SynchronizationContext
+    /// causes pickers to silently fail or hang indefinitely without showing dialogs.
+    /// </para>
+    /// <para>
+    /// References:
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/13484
+    ///   (IStorageProvider.OpenFilePickerAsync randomly not showing the dialog)
+    /// - https://github.com/AvaloniaUI/Avalonia/discussions/15775
+    ///   (StorageProvider.OpenFolderPickerAsync blocks UI)
+    /// - https://github.com/AvaloniaUI/Avalonia/issues/15806
+    ///   (Async Main() causes picker failures - STA thread requirement)
+    /// </para>
+    /// <para>
+    /// Solution: Wrap all picker calls in Dispatcher.UIThread.InvokeAsync() to ensure proper context.
+    /// This is defensive programming against ConfigureAwait(false) in the call chain removing the context.
+    /// </para>
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     [RelayCommand]
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return SaveFileAsCoreAsync(storageProvider);
+        return Dispatcher.UIThread.InvokeAsync(async () => await SaveFileAsCoreAsync(storageProvider));
     }
 
     /// <summary>
