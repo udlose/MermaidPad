@@ -125,6 +125,7 @@ public static class ServiceConfiguration
         // Panel ViewModels: singleton for single-window desktop app
         services.AddSingleton<EditorViewModel>();
         services.AddSingleton<PreviewViewModel>();
+        services.AddSingleton<AIPanelViewModel>();
 
         // Main ViewModel: singleton for single-window desktop app
         services.AddSingleton<MainViewModel>();
