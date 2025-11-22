@@ -21,6 +21,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Services.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.Panels;
@@ -42,6 +44,11 @@ namespace MermaidPad.ViewModels.Panels;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class AIPanelViewModel : ViewModelBase
 {
+    /// <summary>
+    /// Provides logging capabilities for the <see cref="AIPanelViewModel"/> class.
+    /// </summary>
+    private readonly ILogger<AIPanelViewModel> _logger;
+
     /// <summary>
     /// Backing reference to the currently configured AI service implementation.
     /// </summary>
@@ -101,14 +108,35 @@ public sealed partial class AIPanelViewModel : ViewModelBase
     public partial string StatusMessage { get; set; } = string.Empty;
 
     /// <summary>
+    /// Initializes a new instance of the MainWindow class using application-level services.
+    /// </summary>
+    /// <remarks>
+    /// <para>This constructor retrieves required services from the application's dependency injection
+    /// container to configure the main window. It is typically used when creating the main window at application
+    /// startup.</para>
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/AIPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
+    /// </remarks>
+    public AIPanelViewModel()
+        : this(
+            App.Services.GetRequiredService<ILogger<AIPanelViewModel>>(),
+            App.Services.GetRequiredService<IAIService>())
+    {
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AIPanelViewModel"/> class with the specified AI service.
     /// </summary>
+    /// <param name="logger">The logger instance for this view model.</param>
     /// <param name="aiService">The AI service implementation to use for generating, explaining, and improving diagrams.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="aiService"/> is <see langword="null"/>.</exception>
-    public AIPanelViewModel(IAIService aiService)
+    public AIPanelViewModel(ILogger<AIPanelViewModel> logger, IAIService aiService)
     {
         ArgumentNullException.ThrowIfNull(aiService);
 
+        _logger = logger;
         _aiService = aiService;
         IsConfigured = _aiService.IsConfigured;
 

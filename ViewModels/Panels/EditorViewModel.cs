@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
@@ -85,6 +86,23 @@ public sealed partial class EditorViewModel : ViewModelBase
     /// Gets a value indicating whether there is text in the editor.
     /// </summary>
     public bool HasText => !string.IsNullOrWhiteSpace(DiagramText);
+
+    /// <summary>
+    /// Initializes a new instance of the MainWindow class using application-level services.
+    /// </summary>
+    /// <remarks>
+    /// <para>This constructor retrieves required services from the application's dependency injection
+    /// container to configure the main window. It is typically used when creating the main window at application
+    /// startup.</para>
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/EditorPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
+    /// </remarks>
+    public EditorViewModel()
+        : this(App.Services.GetRequiredService<ILogger<EditorViewModel>>())
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EditorViewModel"/> class.
