@@ -21,6 +21,8 @@
 using Avalonia;
 using Avalonia.WebView.Desktop;
 using MermaidPad.Services.Platforms;
+using Projektanker.Icons.Avalonia;
+using Projektanker.Icons.Avalonia.FontAwesome;
 
 namespace MermaidPad;
 
@@ -45,9 +47,17 @@ internal static class Program
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
-    private static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure(static () => new App())
+    private static AppBuilder BuildAvaloniaApp()
+    {
+        // Register FontAwesome icon provider before building the app
+        IconProvider.Current
+            .Register<FontAwesomeIconProvider>();
+
+        return AppBuilder.Configure(static () => new App())
             .UsePlatformDetect()
             .UseDesktopWebView() // this handles cross-platform WebView support
+                                 //TODO should i add this?            .UseFloatingDockAdorner()
+            .WithInterFont()
             .LogToTrace();
+    }
 }
