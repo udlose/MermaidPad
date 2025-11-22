@@ -69,14 +69,14 @@ public sealed partial class PreviewViewModel : ViewModelBase
     public bool CanRender => IsWebViewReady;
 
     /// <summary>
-    /// Initializes a new instance of the MainWindow class using application-level services.
+    /// Initializes a new instance of the <see cref="PreviewViewModel"/> class using application-level services.
     /// </summary>
     /// <remarks>
     /// <para>This constructor retrieves required services from the application's dependency injection
-    /// container to configure the main window. It is typically used when creating the main window at application
+    /// container to configure the preview panel's view model. It is typically used when creating the preview panel at application
     /// startup.</para>
     /// <para>
-    /// This constructor lives specifically for the purpose of avoiding this warning:
+    /// This constructor exists specifically to avoid the following warning:
     ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/PreviewPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
     /// </para>
     /// </remarks>

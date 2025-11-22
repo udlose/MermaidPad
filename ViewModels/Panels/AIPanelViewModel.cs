@@ -108,7 +108,7 @@ public sealed partial class AIPanelViewModel : ViewModelBase
     public partial string StatusMessage { get; set; } = string.Empty;
 
     /// <summary>
-    /// Initializes a new instance of the MainWindow class using application-level services.
+    /// Initializes a new instance of the <see cref="AIPanelViewModel"/> class using application-level services.
     /// </summary>
     /// <remarks>
     /// <para>This constructor retrieves required services from the application's dependency injection
