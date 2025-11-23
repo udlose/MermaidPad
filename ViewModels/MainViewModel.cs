@@ -54,7 +54,6 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class MainViewModel : ViewModelBase
 {
-    private const string LayoutFileName = "layout.json";
     private readonly DockSerializer _dockSerializer;
     private readonly IDockState _dockState;
     private readonly IFactory _dockFactory;
@@ -256,8 +255,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string dockLayoutPath = Path.Combine(appData, LayoutFileName);
+            string dockLayoutPath = GetDockLayoutPath();
             if (File.Exists(dockLayoutPath))
             {
                 using FileStream stream = File.OpenRead(dockLayoutPath);
@@ -303,8 +301,7 @@ public sealed partial class MainViewModel : ViewModelBase
             // save DockState (e.g., focused panel, panel sizes/positions) before saving layout
             _dockState.Save(Layout);
 
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string dockLayoutPath = Path.Combine(appData, LayoutFileName);
+            string dockLayoutPath = GetDockLayoutPath();
             using FileStream stream = File.Create(dockLayoutPath);
             _dockSerializer.Save(stream, Layout);
         }
@@ -312,6 +309,25 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Failed to save layout");
         }
+    }
+
+    /// <summary>
+    /// Gets the full file system path to the dock layout configuration file for the current user.
+    /// </summary>
+    /// <remarks>The returned path is based on the user's application data folder and is suitable for storing
+    /// per-user layout settings. The file may not exist until created by the application.</remarks>
+    /// <returns>A string containing the absolute path to the 'layout.json' file located in the application's data directory.</returns>
+    private static string GetDockLayoutPath()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string directoryPath = Path.Combine(appData, "MermaidPad");
+
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        return Path.Combine(directoryPath, "layout.json");
     }
 
     /// <summary>
