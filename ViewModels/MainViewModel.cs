@@ -242,18 +242,14 @@ public sealed partial class MainViewModel : ViewModelBase
         // Initialize PreviewViewModel from settings
         PreviewViewModel.LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
 
-        // Initialize AI panel
-        //TODO why is the AIPanelViewModel created here and not injected like the others?
-        //TODO why is the MainViewModel responsible for creating the AI service?
-        IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
-        AIPanelViewModel = new AIPanelViewModel(
-            services.GetRequiredService<ILogger<AIPanelViewModel>>(),
-            aiService);
+        // Wire up AI panel event handler
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
 
         // Initialize docking layout and state
         InitializeContextLocator();
-        InitializeDockState();
+        // NOTE: InitializeDockState() is NOT called here because the MainWindow doesn't exist yet
+        // at this point in the lifecycle. The dock state is managed automatically by the DockState
+        // service and is saved when the layout changes or the application closes.
         LoadLayout();
 
         UpdateRecentFiles();
@@ -273,30 +269,63 @@ public sealed partial class MainViewModel : ViewModelBase
         try
         {
             string dockLayoutPath = GetDockLayoutPath();
+            bool layoutLoaded = false;
+
             if (File.Exists(dockLayoutPath))
             {
-                using FileStream stream = File.OpenRead(dockLayoutPath);
-                IRootDock? rootDockLayout = _dockSerializer.Load<IRootDock?>(stream);
-                if (rootDockLayout is not null)
+                try
                 {
-                    _dockFactory.InitLayout(rootDockLayout);
-                    _dockState.Restore(rootDockLayout);
-                    Layout = rootDockLayout;
-                    return;
+                    // Check if file has content before attempting deserialization
+                    FileInfo fileInfo = new FileInfo(dockLayoutPath);
+                    if (fileInfo.Length > 0)
+                    {
+                        using FileStream stream = File.OpenRead(dockLayoutPath);
+                        IRootDock? rootDockLayout = _dockSerializer.Load<IRootDock?>(stream);
+                        if (rootDockLayout is not null)
+                        {
+                            _dockFactory.InitLayout(rootDockLayout);
+                            _dockState.Restore(rootDockLayout);
+                            Layout = rootDockLayout;
+                            layoutLoaded = true;
+                            _logger.LogInformation("Layout loaded successfully from {Path}", dockLayoutPath);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Layout file is empty, will create default layout");
+                    }
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+                {
+                    // Corrupt or invalid layout file - delete it
+                    _logger.LogWarning(ex, "Layout file '{DockLayoutPath}' is corrupt or invalid, deleting layout file", dockLayoutPath);
+                    try
+                    {
+                        File.Delete(dockLayoutPath);
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        _logger.LogWarning(deleteEx, "Failed to delete corrupt layout file '{DockLayoutPath}'", dockLayoutPath);
+                    }
                 }
             }
 
-            IRootDock? layout = _dockFactory.CreateLayout();
-            if (layout is not null)
+            // If layout wasn't loaded, create default
+            if (!layoutLoaded)
             {
-                _dockFactory.InitLayout(layout);
-            }
+                _logger.LogInformation("Creating default layout");
+                IRootDock? layout = _dockFactory.CreateLayout();
+                if (layout is not null)
+                {
+                    _dockFactory.InitLayout(layout);
+                }
 
-            Layout = layout;
+                Layout = layout;
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load layout");
+            _logger.LogError(ex, "Failed to load or create layout");
         }
     }
 
@@ -313,18 +342,28 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
+        string dockLayoutPath = GetDockLayoutPath();
         try
         {
             // save DockState (e.g., focused panel, panel sizes/positions) before saving layout
             _dockState.Save(Layout);
 
-            string dockLayoutPath = GetDockLayoutPath();
             using FileStream stream = File.Create(dockLayoutPath);
             _dockSerializer.Save(stream, Layout);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to save layout");
+            // Possibly corrupt or invalid layout file - delete it
+            _logger.LogError(ex, "Failed to save layout. Assuming layout file '{DockLayoutPath}' is corrupt or invalid, deleting layout file", dockLayoutPath);
+            try
+            {
+                File.Delete(dockLayoutPath);
+            }
+            catch (Exception deleteEx)
+            {
+                _logger.LogWarning(deleteEx, "Failed to delete corrupt layout file '{DockLayoutPath}'", dockLayoutPath);
+            }
+
         }
     }
 
@@ -336,15 +375,8 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <returns>A string containing the absolute path to the 'layout.json' file located in the application's data directory.</returns>
     private static string GetDockLayoutPath()
     {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string directoryPath = Path.Combine(appData, "MermaidPad");
-
-        if (!Directory.Exists(directoryPath))
-        {
-            Directory.CreateDirectory(directoryPath);
-        }
-
-        return Path.Combine(directoryPath, "layout.json");
+        string configDirectory = SettingsBase.GetConfigDirectory();
+        return Path.Combine(configDirectory, "layout.json");
     }
 
     /// <summary>

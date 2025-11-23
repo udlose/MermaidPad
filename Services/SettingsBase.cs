@@ -65,12 +65,17 @@ public abstract class SettingsBase
     /// </remarks>
     /// <returns>
     /// The full path to the application's configuration directory for the current user.
-    /// The directory may not exist; callers are responsible for creating it if required.
+    /// If the directory does not exist; it is created.
     /// </returns>
-    protected static string GetConfigDirectory()
+    public static string GetConfigDirectory()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return Path.Combine(appData, "MermaidPad");
+        string configDirectory = Path.Combine(appData, "MermaidPad");
+        if (!Directory.Exists(configDirectory))
+        {
+            Directory.CreateDirectory(configDirectory);
+        }
+        return configDirectory;
     }
 
     /// <summary>
