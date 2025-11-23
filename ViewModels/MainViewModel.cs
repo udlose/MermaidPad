@@ -35,7 +35,6 @@ using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.ViewModels.Panels;
 using MermaidPad.Views;
 using MermaidPad.Views.Dialogs;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -43,6 +42,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 
 namespace MermaidPad.ViewModels;
 /// <summary>
@@ -166,33 +166,50 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
-    /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <param name="dockSerializer">The <see cref="DockSerializer"/> instance for this view model.</param>
     /// <param name="dockState">The <see cref="DockState"/> instance for this view model.</param>
     /// <param name="dockFactory">The <see cref="IFactory"/> instance for this view model.</param>
+    /// <param name="settingsService">The settings service for loading/saving application settings.</param>
+    /// <param name="updateService">The Mermaid update service for checking and downloading new versions.</param>
+    /// <param name="exportService">The export service for exporting diagrams to various formats.</param>
+    /// <param name="dialogFactory">The dialog factory for creating dialog ViewModels.</param>
+    /// <param name="fileService">The file service for file operations.</param>
+    /// <param name="aiServiceFactory">The AI service factory for creating AI service implementations.</param>
+    /// <param name="editorViewModel">The editor panel view model.</param>
+    /// <param name="previewViewModel">The preview panel view model.</param>
+    /// <param name="aiPanelViewModel">The AI assistant panel view model.</param>
     public MainViewModel(
-        IServiceProvider services,
-        ILogger<MainViewModel> logger, DockSerializer dockSerializer, IDockState dockState, IFactory dockFactory)
+        ILogger<MainViewModel> logger,
+        DockSerializer dockSerializer,
+        IDockState dockState,
+        IFactory dockFactory,
+        SettingsService settingsService,
+        MermaidUpdateService updateService,
+        ExportService exportService,
+        IDialogFactory dialogFactory,
+        IFileService fileService,
+        AIServiceFactory aiServiceFactory,
+        EditorViewModel editorViewModel,
+        PreviewViewModel previewViewModel,
+        AIPanelViewModel aiPanelViewModel)
     {
-        // TODO inject these services via constructor, not service locator
-
         _logger = logger;
         _dockSerializer = dockSerializer;
         _dockState = dockState;
         _dockFactory = dockFactory;
-        _settingsService = services.GetRequiredService<SettingsService>();
-        _updateService = services.GetRequiredService<MermaidUpdateService>();
-        _exportService = services.GetRequiredService<ExportService>();
-        _dialogFactory = services.GetRequiredService<IDialogFactory>();
-        _fileService = services.GetRequiredService<IFileService>();
-        _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
+        _settingsService = settingsService;
+        _updateService = updateService;
+        _exportService = exportService;
+        _dialogFactory = dialogFactory;
+        _fileService = fileService;
+        _aiServiceFactory = aiServiceFactory;
 
-        // Create child ViewModels
-        EditorViewModel = services.GetRequiredService<EditorViewModel>();
-        PreviewViewModel = services.GetRequiredService<PreviewViewModel>();
+        EditorViewModel = editorViewModel;
+        PreviewViewModel = previewViewModel;
+        AIPanelViewModel = aiPanelViewModel;
 
-        //TODO where should this be wired up? why is the MainViewModel responsible for this?
+        //TODO - DaveBlack: where should this be wired up? why is the MainViewModel responsible for this?
         // Wire up communication: Editor -> Preview
         _diagramTextChangedHandler = (_, diagramText) =>
         {
@@ -635,7 +652,9 @@ public sealed partial class MainViewModel : ViewModelBase
                 return true;
             }
 
-            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+            ConfirmationDialog confirmDialog = _dialogFactory.CreateDialog<ConfirmationDialog>();
+            ConfirmationDialogViewModel confirmViewModel = (ConfirmationDialogViewModel)confirmDialog.DataContext!;
+
             confirmViewModel.Title = "Unsaved Changes";
 
             string fileName = !string.IsNullOrEmpty(CurrentFilePath)
@@ -646,7 +665,6 @@ public sealed partial class MainViewModel : ViewModelBase
             confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
             confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
 
-            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
             ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
             switch (result)
             {
@@ -835,16 +853,13 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
+            MessageDialog messageDialog = _dialogFactory.CreateDialog<MessageDialog>();
+            MessageDialogViewModel messageViewModel = (MessageDialogViewModel)messageDialog.DataContext!;
+
             messageViewModel.Title = "Error";
             messageViewModel.Message = message;
             messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16"; // Error icon
             messageViewModel.IconColor = Avalonia.Media.Brushes.Red;
-
-            MessageDialog messageDialog = new MessageDialog
-            {
-                DataContext = messageViewModel
-            };
 
             await messageDialog.ShowDialog(mainWindow);
         }
@@ -873,19 +888,15 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            SettingsDialogViewModel settingsViewModel = _dialogFactory.CreateViewModel<SettingsDialogViewModel>();
-            SettingsDialog settingsDialog = new SettingsDialog(settingsViewModel);
+            SettingsDialog settingsDialog = _dialogFactory.CreateDialog<SettingsDialog>();
             bool? result = await settingsDialog.ShowDialog<bool?>(mainWindow);
 
             if (result == true)
             {
-                // Settings were saved, update and persist settings, then recreate AI service
-                _settingsService.Settings.AI = settingsViewModel.GetUpdatedSettings();
-                _settingsService.Save();
-
+                // Settings were saved by the dialog, recreate AI service with new settings
                 IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
                 AIPanelViewModel.UpdateAIService(aiService);
-                _logger.LogInformation("Settings saved and AI service updated");
+                _logger.LogInformation("AI service updated with new settings");
             }
         }
         catch (Exception ex)
@@ -985,14 +996,9 @@ public sealed partial class MainViewModel : ViewModelBase
                 return;
             }
 
-            // Create the export dialog and its view model using DI
-            ExportDialogViewModel exportViewModel = _dialogFactory.CreateViewModel<ExportDialogViewModel>();
-
-            // Create the dialog with the storage provider
-            ExportDialog exportDialog = new ExportDialog
-            {
-                DataContext = exportViewModel
-            };
+            // Create the export dialog with its view model injected via DI
+            ExportDialog exportDialog = _dialogFactory.CreateDialog<ExportDialog>();
+            ExportDialogViewModel exportViewModel = (ExportDialogViewModel)exportDialog.DataContext!;
 
             // NO ConfigureAwait(false) - ShowDialog must run on UI thread
             await exportDialog.ShowDialog(window);
@@ -1044,15 +1050,12 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             if (options is { ShowProgress: true, Format: ExportFormat.PNG })
             {
-                // Create progress dialog using DI
-                ProgressDialogViewModel progressViewModel = _dialogFactory.CreateViewModel<ProgressDialogViewModel>();
+                // Create progress dialog with its view model injected via DI
+                ProgressDialog progressDialog = _dialogFactory.CreateDialog<ProgressDialog>();
+                ProgressDialogViewModel progressViewModel = (ProgressDialogViewModel)progressDialog.DataContext!;
+
                 progressViewModel.Title = "Exporting PNG";
                 progressViewModel.StatusMessage = "Preparing export...";
-
-                ProgressDialog progressDialog = new ProgressDialog
-                {
-                    DataContext = progressViewModel
-                };
 
                 // Set up cancellation
                 using CancellationTokenSource cts = new CancellationTokenSource();
@@ -1233,16 +1236,13 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
-            MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
+            MessageDialog messageDialog = _dialogFactory.CreateDialog<MessageDialog>();
+            MessageDialogViewModel messageViewModel = (MessageDialogViewModel)messageDialog.DataContext!;
+
             messageViewModel.Title = "Export Complete";
             messageViewModel.Message = message;
             messageViewModel.IconData = "M9 12l2 2 4-4"; // Checkmark icon path
             messageViewModel.IconColor = Avalonia.Media.Brushes.Green;
-
-            MessageDialog messageDialog = new MessageDialog
-            {
-                DataContext = messageViewModel
-            };
 
             // NO ConfigureAwait(false) - ShowDialog needs UI thread
             await messageDialog.ShowDialog(window);

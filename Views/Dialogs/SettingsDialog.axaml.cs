@@ -43,7 +43,13 @@ public sealed partial class SettingsDialog : Window
     /// Initializes a new instance of the SettingsDialog class.
     /// </summary>
     /// <remarks>This constructor sets up the dialog's user interface and prepares it for display. Use this
-    /// constructor when you need to present the settings dialog to the user.</remarks>
+    /// constructor when you need to present the settings dialog to the user.
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Dialogs/SettingsDialog.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "Needed for XAML runtime.")]
     public SettingsDialog()
     {
         InitializeComponent();

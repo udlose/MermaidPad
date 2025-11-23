@@ -149,21 +149,9 @@ public sealed partial class MainWindow : Window
             _logger.LogWarning(ex, "Failed to initialize syntax highlighting service - will continue without highlighting");
         }
 
-        // TODO - is this needed? Wire DockControl.LayoutUpdated event to find panels after layout calculations complete
-        // LayoutUpdated fires after the layout system has positioned all controls
-        //TODO where should this event handler be wired? Constructor seems early, OnLoaded seems late...
-        //TODO why does this need to do FindControl? This MainWindow view should already have a 'MainDock' DockPanel control
-        //DockControl? dockControl = this.FindControl<DockControl>("MainDock");
-        if (MainDock?.IsInitialized == true)
-        {
-            _dockControlLayoutUpdatedHandler = OnDockControlLayoutUpdated;
-            MainDock.LayoutUpdated += _dockControlLayoutUpdatedHandler;
-            _logger.LogInformation($"{nameof(MainDock)}.{nameof(MainDock.LayoutUpdated)} event handler wired");
-        }
-        else
-        {
-            _logger.LogError($"DockControl '{nameof(MainDock)}' not found - cannot wire {nameof(MainDock.LayoutUpdated)} event");
-        }
+        // NOTE: DockControl.LayoutUpdated event handler is wired in OnLoaded,
+        // not here in the constructor, because MainDock is not yet initialized
+        // at this point in the lifecycle.
 
         _logger.LogInformation("MainWindow constructor completed");
     }
@@ -306,10 +294,6 @@ public sealed partial class MainWindow : Window
             ScheduleEditorStateSyncIfNeeded();
         };
         _editor!.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
-
-        // ViewModel -> Editor synchronization
-        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
-        ViewModel.PropertyChanged += _viewModelPropertyChangedHandler;
     }
 
     /// <summary>
@@ -476,12 +460,19 @@ public sealed partial class MainWindow : Window
         }
 
         // Find EditorPanel and PreviewPanel from DataTemplates
+        // Note: We need EditorPanel and PreviewPanel for initialization, but AIPanel doesn't require
+        // special initialization - it's purely data-bound to its ViewModel
         EditorPanel? editorPanel = dockControl.GetVisualDescendants().OfType<EditorPanel>().FirstOrDefault();
         PreviewPanel? previewPanel = dockControl.GetVisualDescendants().OfType<PreviewPanel>().FirstOrDefault();
+        AIPanel? aiPanel = dockControl.GetVisualDescendants().OfType<AIPanel>().FirstOrDefault();
+
+        // Log what we found for diagnostics
+        _logger.LogDebug("DockControl LayoutUpdated - Panel discovery: EditorPanel={EditorFound}, PreviewPanel={PreviewFound}, AIPanel={AIFound}",
+            editorPanel is not null, previewPanel is not null, aiPanel is not null);
 
         if (editorPanel is null || previewPanel is null)
         {
-            // Panels not in visual tree yet, wait for next LayoutUpdated
+            // Required panels not in visual tree yet, wait for next LayoutUpdated
             _logger.LogDebug("DockControl LayoutUpdated - EditorPanel or PreviewPanel not found yet, waiting for next LayoutUpdated. Layout: {DockControlLayout}, EditorPanel.IsLoaded: {EditorPanel}, PreviewPanel.IsLoaded: {PreviewPanel}", dockControl.Layout, editorPanel?.IsLoaded, previewPanel?.IsLoaded);
             return;
         }
@@ -579,9 +570,9 @@ public sealed partial class MainWindow : Window
     /// It can be overridden to perform custom initialization logic after the window is loaded.
     /// The base implementation should be called to ensure standard event handling.</para>
     /// <para>
-    /// NOTE: Panel initialization happens in OnDockControlLoaded, which is triggered
-    /// by DockControl's Loaded event (wired in constructor). This ensures DataTemplates
-    /// have been applied before we try to find the panels.
+    /// Panel initialization happens in OnDockControlLayoutUpdated, which is triggered
+    /// by DockControl's LayoutUpdated event. This ensures DataTemplates have been applied
+    /// and the layout binding has been processed before we try to find the panels.
     /// </para>
     /// </remarks>
     /// <param name="e">The event data associated with the Loaded event.</param>
@@ -589,7 +580,20 @@ public sealed partial class MainWindow : Window
     {
         base.OnLoaded(e);
 
-        _logger.LogInformation("MainWindow loaded - DockControl will trigger panel initialization when ready");
+        _logger.LogInformation("MainWindow loaded - wiring DockControl LayoutUpdated event");
+
+        // Wire DockControl.LayoutUpdated event to find panels after layout calculations complete
+        // This is done here (not in constructor) because MainDock must be initialized first
+        if (MainDock is not null)
+        {
+            _dockControlLayoutUpdatedHandler = OnDockControlLayoutUpdated;
+            MainDock.LayoutUpdated += _dockControlLayoutUpdatedHandler;
+            _logger.LogInformation($"{nameof(MainDock)}.{nameof(MainDock.LayoutUpdated)} event handler wired successfully");
+        }
+        else
+        {
+            _logger.LogError($"DockControl '{nameof(MainDock)}' not found - cannot wire {nameof(MainDock.LayoutUpdated)} event");
+        }
     }
 
     /// <summary>

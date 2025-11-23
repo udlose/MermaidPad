@@ -21,6 +21,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MermaidPad.ViewModels.Dialogs;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
@@ -42,11 +43,27 @@ public sealed partial class ConfirmationDialog : Window
     /// <remarks>
     /// Calls <see cref="InitializeComponent"/> to load the XAML-defined UI and
     /// disables window resizing by setting <see cref="Window.CanResize"/> to false.
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Dialogs/ConfirmationDialog.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
     /// </remarks>
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "Needed for XAML runtime.")]
     public ConfirmationDialog()
     {
         InitializeComponent();
         CanResize = false;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the ConfirmationDialog class with the specified view model.
+    /// </summary>
+    /// <param name="viewModel">The view model for this dialog.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="viewModel"/> is <c>null</c>.</exception>
+    public ConfirmationDialog(ConfirmationDialogViewModel viewModel) : this()
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        DataContext = viewModel;
     }
 
     /// <summary>

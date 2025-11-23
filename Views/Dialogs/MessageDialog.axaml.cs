@@ -19,12 +19,14 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
+using MermaidPad.ViewModels.Dialogs;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
 //public partial class MessageDialog : Window
 //{
-//    public MessageDialog()
+//    private MessageDialog()
 //    {
 //        InitializeComponent();
 //    }
@@ -65,8 +67,26 @@ namespace MermaidPad.Views.Dialogs;
 //    }
 //}
 
+/// <summary>
+/// Represents a modal dialog window for displaying messages to the user, such as error or success notifications.
+/// </summary>
+/// <remarks>Use MessageDialog to present important information or feedback that requires user acknowledgment. The
+/// dialog is non-resizable and can be initialized with a specific view model to customize its content and appearance.
+/// This class is typically shown as a modal window and is intended for scenarios where user attention is required
+/// before proceeding.</remarks>
 public sealed partial class MessageDialog : Window
 {
+    /// <summary>
+    /// Initializes a new instance of the MessageDialog class.
+    /// </summary>
+    /// <remarks>This constructor creates a non-resizable dialog window. Use this constructor when you need a
+    /// standard message dialog that cannot be resized by the user.
+    /// <para>
+    /// This constructor lives specifically for the purpose of avoiding this warning:
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Dialogs/MessageDialog.axaml" won't be reachable via runtime loader, as no public constructor was found
+    /// </para>
+    /// </remarks>
+    [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "Needed for XAML runtime.")]
     public MessageDialog()
     {
         InitializeComponent();
@@ -75,6 +95,22 @@ public sealed partial class MessageDialog : Window
         CanResize = false;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the MessageDialog class with the specified view model.
+    /// </summary>
+    /// <param name="viewModel">The view model for this dialog.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="viewModel"/> is <c>null</c>.</exception>
+    public MessageDialog(MessageDialogViewModel viewModel) : this()
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        DataContext = viewModel;
+    }
+
+    /// <summary>
+    /// Handles the OK button click event and closes the dialog, indicating a successful result.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the OK button that was clicked.</param>
+    /// <param name="e">An object that contains the event data for the routed event.</param>
     private void OnOkClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         Close(true);

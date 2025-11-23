@@ -19,30 +19,40 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
-using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace MermaidPad.Infrastructure;
 
 /// <summary>
-/// Factory for creating dialogs with proper dependency injection
+/// Factory for creating dialog windows with their ViewModels properly injected via dependency injection.
 /// </summary>
+/// <remarks>
+/// This factory creates complete dialog instances (Window + ViewModel together) using the service provider.
+/// Dialog ViewModels are registered as Transient services, so each dialog gets a fresh ViewModel instance.
+/// The factory uses ActivatorUtilities to automatically resolve ViewModel constructor dependencies.
+/// </remarks>
 public interface IDialogFactory
 {
     /// <summary>
-    /// Creates a dialog window with DI support
+    /// Creates a dialog window with its ViewModel injected via dependency injection.
     /// </summary>
+    /// <typeparam name="T">The dialog window type to create.</typeparam>
+    /// <returns>A fully initialized dialog window with its ViewModel set.</returns>
+    /// <remarks>
+    /// This method uses ActivatorUtilities to create the dialog, which automatically resolves
+    /// constructor parameters from the DI container. For example, calling CreateDialog&lt;SettingsDialog&gt;()
+    /// will automatically create a SettingsDialogViewModel (registered as Transient) and pass it to
+    /// the SettingsDialog constructor.
+    /// </remarks>
     T CreateDialog<T>() where T : Window;
-
-    /// <summary>
-    /// Creates a view model with DI support
-    /// </summary>
-    TViewModel CreateViewModel<TViewModel>() where TViewModel : ViewModelBase;
 }
 
 /// <summary>
-/// Implementation of dialog factory using the service provider
+/// Provides a factory for creating dialog window instances using dependency injection.
 /// </summary>
+/// <remarks>Use this class to instantiate dialog windows that require constructor injection of services. The
+/// factory resolves dependencies from the provided service container, ensuring dialogs are created with all required
+/// services. This class is sealed and cannot be inherited.</remarks>
 public sealed class DialogFactory : IDialogFactory
 {
     private readonly IServiceProvider _serviceProvider;
@@ -52,13 +62,9 @@ public sealed class DialogFactory : IDialogFactory
         _serviceProvider = serviceProvider;
     }
 
+    /// <inheritdoc/>
     public T CreateDialog<T>() where T : Window
     {
         return ActivatorUtilities.CreateInstance<T>(_serviceProvider);
-    }
-
-    public TViewModel CreateViewModel<TViewModel>() where TViewModel : ViewModelBase
-    {
-        return _serviceProvider.GetRequiredService<TViewModel>();
     }
 }

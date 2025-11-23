@@ -24,6 +24,7 @@ using MermaidPad.Models.AI;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Platforms;
+using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
@@ -45,6 +46,8 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class SettingsDialogViewModel : ViewModelBase
 {
+    private readonly ILogger<SettingsDialogViewModel> _logger;
+    private readonly SettingsService _settingsService;
     private readonly ISecureStorageService _secureStorage;
     private readonly AIServiceFactory _aiServiceFactory;
 
@@ -72,7 +75,7 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     /// Gets or sets the unencrypted API key entered by the user.
     /// </summary>
     /// <remarks>
-    /// This value is stored temporarily in memory for editing. When settings are saved via <see cref="GetUpdatedSettings"/>,
+    /// This value is stored temporarily in memory for editing. When settings are saved via <see cref="EncryptKeyAndGetUpdatedSettings"/>,
     /// the API key will be encrypted using the configured <see cref="ISecureStorageService"/>.
     /// </remarks>
     [ObservableProperty]
@@ -171,18 +174,23 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsDialogViewModel"/> class using the provided services.
     /// </summary>
+    /// <param name="logger">Logger for diagnostic messages. Cannot be <c>null</c>.</param>
     /// <param name="settingsService">The settings service used to read current persisted settings. Cannot be <c>null</c>.</param>
     /// <param name="secureStorage">Platform-specific secure storage service for encrypting/decrypting API keys. Cannot be <c>null</c>.</param>
     /// <param name="aiServiceFactory">Factory used to create AI service instances for connection testing. Cannot be <c>null</c>.</param>
-    /// <exception cref="ArgumentNullException">Thrown when any of the parameters are <c>null</c>.</exception>
-    public SettingsDialogViewModel(SettingsService settingsService, ISecureStorageService secureStorage, AIServiceFactory aiServiceFactory)
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "Dependencies are injected by the DI container and guaranteed non-null.")]
+    public SettingsDialogViewModel(
+        ILogger<SettingsDialogViewModel> logger,
+        SettingsService settingsService,
+        ISecureStorageService secureStorage,
+        AIServiceFactory aiServiceFactory)
     {
-        ArgumentNullException.ThrowIfNull(settingsService);
-        ArgumentNullException.ThrowIfNull(secureStorage);
-        ArgumentNullException.ThrowIfNull(aiServiceFactory);
-
+        _logger = logger;
+        _settingsService = settingsService;
         _secureStorage = secureStorage;
         _aiServiceFactory = aiServiceFactory;
+
+        _logger.LogInformation("SettingsDialogViewModel initializing - loading current settings");
 
         // Load current settings
         AISettings currentSettings = settingsService.Settings.AI;
@@ -193,17 +201,30 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
         EnableDiagramExplanation = currentSettings.EnableDiagramExplanation;
         EnableSmartSuggestions = currentSettings.EnableSmartSuggestions;
 
+        _logger.LogInformation(
+            "Settings loaded: EnableAI={EnableAI}, Provider={Provider}, Model={Model}, HasApiKey={HasKey}",
+            EnableAIFeatures,
+            SelectedProvider,
+            Model,
+            !string.IsNullOrEmpty(currentSettings.EncryptedApiKey));
+
         // Decrypt API key if present
         if (!string.IsNullOrEmpty(currentSettings.EncryptedApiKey))
         {
             try
             {
                 ApiKey = _secureStorage.Decrypt(currentSettings.EncryptedApiKey);
+                _logger.LogInformation("API key decrypted successfully (length: {Length} characters)", ApiKey.Length);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to decrypt API key");
                 ApiKey = string.Empty;
             }
+        }
+        else
+        {
+            _logger.LogInformation("No encrypted API key found in settings");
         }
     }
 
@@ -279,18 +300,44 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Cancels the current dialog operation and closes the dialog with a negative result.
+    /// </summary>
+    /// <remarks>Use this method to indicate that the user has chosen to cancel or dismiss the dialog without
+    /// confirming any changes. This sets the dialog's result to <see langword="false"/>, which can be checked by the
+    /// calling code to determine that the operation was not accepted.</remarks>
     [RelayCommand]
     private void Cancel()
     {
         DialogResult = false;
     }
 
+    /// <summary>
+    /// Applies the current AI settings and persists them to disk.
+    /// </summary>
+    /// <remarks>This command updates the AI settings in the underlying service and saves them. After
+    /// successful completion, the dialog is closed with a positive result. This method is intended to be invoked via UI
+    /// command binding and does not accept parameters.</remarks>
     [RelayCommand]
     private void Save()
     {
+        _logger.LogInformation("Save command executed - applying settings and persisting to disk");
+        _logger.LogInformation(
+            "Settings to be saved: EnableAI={EnableAI}, Provider={Provider}, Model={Model}, ApiKeyLength={KeyLength}",
+            EnableAIFeatures,
+            SelectedProvider,
+            Model,
+            ApiKey?.Length ?? 0);
+
+        // Apply the updated settings to the service
+        AISettings updatedSettings = EncryptKeyAndGetUpdatedSettings();
+        _settingsService.Settings.AI = updatedSettings;
+
+        // Persist settings to disk
+        _settingsService.Save();
+
+        _logger.LogInformation("Settings saved successfully - closing dialog with result=true");
         DialogResult = true;
-        //TODO is this where this should go?
-        //_secureStorage.Encrypt(ApiKey);
     }
 
     /// <summary>
@@ -301,15 +348,22 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
     /// is encrypted via the configured <see cref="ISecureStorageService"/> and placed into <see cref="AISettings.EncryptedApiKey"/>.
     /// If the <see cref="ApiKey"/> is empty or whitespace, <see cref="AISettings.EncryptedApiKey"/> will be an empty string.
     /// </returns>
-    public AISettings GetUpdatedSettings()
+    public AISettings EncryptKeyAndGetUpdatedSettings()
     {
+        _logger.LogInformation("GetUpdatedSettings called - creating AISettings from current ViewModel state");
+
         string encryptedApiKey = string.Empty;
         if (!string.IsNullOrWhiteSpace(ApiKey))
         {
             encryptedApiKey = _secureStorage.Encrypt(ApiKey);
+            _logger.LogInformation("API key encrypted (original length: {Length} characters)", ApiKey.Length);
+        }
+        else
+        {
+            _logger.LogInformation("No API key to encrypt (empty or whitespace)");
         }
 
-        return new AISettings
+        AISettings settings = new AISettings
         {
             Provider = SelectedProvider,
             EncryptedApiKey = encryptedApiKey,
@@ -319,5 +373,14 @@ public sealed partial class SettingsDialogViewModel : ViewModelBase
             EnableDiagramExplanation = EnableDiagramExplanation,
             EnableSmartSuggestions = EnableSmartSuggestions
         };
+
+        _logger.LogInformation(
+            "AISettings created: Provider={Provider}, Model={Model}, EnableAI={EnableAI}, HasEncryptedKey={HasKey}",
+            settings.Provider,
+            settings.Model,
+            settings.EnableAIFeatures,
+            !string.IsNullOrEmpty(settings.EncryptedApiKey));
+
+        return settings;
     }
 }

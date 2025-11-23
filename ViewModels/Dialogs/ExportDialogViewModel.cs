@@ -475,7 +475,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// confirms to overwrite; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
     {
-        return await Dispatcher.UIThread.InvokeAsync<bool>(async () =>
+        return await Dispatcher.UIThread.InvokeAsync(async () =>
         {
             try
             {
@@ -487,15 +487,14 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
                     return false;
                 }
 
-                // Create confirmation window
-                ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
-                confirmViewModel.Title = "Confirm Overwrite";
+                // Create confirmation dialog with its view model injected via DI
+                ConfirmationDialog confirmDialog = _dialogFactory.CreateDialog<ConfirmationDialog>();
+                ConfirmationDialogViewModel confirmViewModel = (ConfirmationDialogViewModel)confirmDialog.DataContext!;
 
+                confirmViewModel.Title = "Confirm Overwrite";
                 confirmViewModel.Message = $"The file already exists:{Environment.NewLine}{Environment.NewLine}{Path.GetFullPath(filePath)}{Environment.NewLine}{Environment.NewLine}Do you want to overwrite it?";
                 confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
                 confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
-
-                ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
 
                 ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(window);
                 return result switch
