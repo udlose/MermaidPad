@@ -21,10 +21,9 @@
 using MermaidPad.Models.AI;
 using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
-using Serilog;
-using Serilog.Extensions.Logging;
 
 namespace MermaidPad.Services.AI;
+
 /// <summary>
 /// Provides a factory for creating AI service instances based on specified settings and provider configuration.
 /// </summary>
@@ -34,19 +33,21 @@ namespace MermaidPad.Services.AI;
 /// thread-safe and intended for use in application-level dependency injection scenarios.</remarks>
 public sealed class AIServiceFactory
 {
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<AIServiceFactory> _logger;
     private readonly ISecureStorageService _secureStorage;
     private readonly IHttpClientFactory _httpClientFactory;
 
     /// <summary>
-    /// Initializes a new instance of the AIServiceFactory class using the specified secure storage and HTTP client
-    /// factory services.
+    /// Initializes a new instance of the AIServiceFactory class using the specified secure storage and HTTP client factory services.
     /// </summary>
+    /// <param name="loggerFactory">The factory for creating loggers. Cannot be null.</param>
     /// <param name="logger">The logger instance for logging factory operations. Cannot be null.</param>
     /// <param name="secureStorage">The secure storage service used to manage sensitive data required by AI service instances. Cannot be null.</param>
     /// <param name="httpClientFactory">The HTTP client factory used to create HTTP clients for AI service communication. Cannot be null.</param>
-    public AIServiceFactory(ILogger<AIServiceFactory> logger, ISecureStorageService secureStorage, IHttpClientFactory httpClientFactory)
+    public AIServiceFactory(ILoggerFactory loggerFactory, ILogger<AIServiceFactory> logger, ISecureStorageService secureStorage, IHttpClientFactory httpClientFactory)
     {
+        _loggerFactory = loggerFactory;
         _logger = logger;
         _secureStorage = secureStorage;
         _httpClientFactory = httpClientFactory;
@@ -68,6 +69,7 @@ public sealed class AIServiceFactory
         ArgumentNullException.ThrowIfNull(settings);
         if (!settings.EnableAIFeatures || settings.Provider == AIProvider.None)
         {
+            // AI features are disabled or no provider is set, so return a null implementation
             return new NullAIService();
         }
 
@@ -92,11 +94,10 @@ public sealed class AIServiceFactory
             return new NullAIService();
         }
 
-        using SerilogLoggerFactory loggerFactory = new SerilogLoggerFactory(Log.Logger);
         return settings.Provider switch
         {
             AIProvider.Anthropic => new AnthropicAIService(
-                loggerFactory.CreateLogger<AnthropicAIService>(),
+                _loggerFactory.CreateLogger<AnthropicAIService>(),
                 _httpClientFactory.CreateClient("Anthropic"),
                 apiKey,
                 settings.Model),

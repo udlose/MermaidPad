@@ -20,6 +20,7 @@
 
 using Dock.Model.Extensions.DependencyInjection;
 using Dock.Serializer.SystemTextJson;
+using MermaidPad.Factories;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
@@ -69,6 +70,7 @@ public static class ServiceConfiguration
         });
 
         // Core singletons
+        services.AddSingleton<ILoggerFactory>(static _ => new SerilogLoggerFactory(Log.Logger));
         services.AddSingleton<IPlatformServices>(static _ => PlatformServiceFactory.Instance);
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();
@@ -78,7 +80,7 @@ public static class ServiceConfiguration
         // Create minimal dependencies manually to avoid complexity and resource leaks
         string assetsDirectory;
         {
-            // Create a single logger factory from the global logger already configured
+            // Create a temporary logger factory from the global logger already configured
             // This avoids creating a second logging pipeline
             using SerilogLoggerFactory loggerFactory = new SerilogLoggerFactory(Log.Logger);
             ILogger<AssetService> assetLogger = loggerFactory.CreateLogger<AssetService>();
@@ -121,11 +123,12 @@ public static class ServiceConfiguration
 
         // AI Services
         services.AddSingleton<AIServiceFactory>();
+        services.AddSingleton<AIPanelViewModelFactory>();
 
         // Panel ViewModels: singleton for single-window desktop app
         services.AddSingleton<EditorViewModel>();
         services.AddSingleton<PreviewViewModel>();
-        services.AddSingleton<AIPanelViewModel>();
+        services.AddSingleton<AIPanelViewModel>(static sp => sp.GetRequiredService<AIPanelViewModelFactory>().Create());
 
         // Main ViewModel: singleton for single-window desktop app
         services.AddSingleton<MainViewModel>();
