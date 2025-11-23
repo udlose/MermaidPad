@@ -4,9 +4,6 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
-  xmlns:views="clr-namespace:MermaidPad.Views"
-  xmlns:panels="clr-namespace:MermaidPad.Views.Panels"
-  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
   xmlns:dockModel="clr-namespace:Dock.Model.Mvvm.Controls;assembly=Dock.Model.Mvvm"
@@ -129,6 +126,7 @@
     <!-- DataTemplates are registered in App.axaml (application-level requirement for Dock) -->
     <dock:DockControl
       x:Name="MainDock"
+      IsVisible="true"
       Margin="6,0,6,6"
       Layout="{Binding Layout}" />
   </DockPanel>
