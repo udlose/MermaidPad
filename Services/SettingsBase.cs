@@ -120,4 +120,22 @@ public abstract class SettingsBase
         }
         Log.Information("{Category} {Message}", Category, message);
     }
+
+    /// <summary>
+    /// Writes a debug-level log entry with the specified message and category information.
+    /// </summary>
+    /// <remarks>This method logs the message using the configured logger if available; otherwise, it falls
+    /// back to a default logging mechanism. Debug-level logs are typically used for diagnostic purposes and may not be
+    /// recorded in production environments depending on log settings.</remarks>
+    /// <param name="message">The message to include in the debug log entry. This value can be any string describing the event or state to be
+    /// logged.</param>
+    protected void LogDebug(string message)
+    {
+        if (_logger is not null)
+        {
+            _logger.LogDebug("{Category} {Message}", Category, message);
+            return;
+        }
+        Log.Debug("{Category} {Message}", Category, message);
+    }
 }

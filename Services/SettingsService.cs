@@ -22,10 +22,10 @@ using MermaidPad.Models;
 using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
-
 /// <summary>
 /// Provides loading and saving of application settings to a per-user configuration directory.
 /// Handles secure file access and validates the settings file path and name prior to I/O operations.
@@ -232,14 +232,17 @@ public sealed class SettingsService : SettingsBase
 
             // Serialize and save the settings
             string json = JsonSerializer.Serialize(Settings, _jsonOptions);
-            Debug.WriteLine($"Saving settings to: {fullSettingsPath}");
-            Debug.WriteLine($"Settings JSON: {json}");
+            LogInformation($"Saving settings to: {fullSettingsPath}");
+            LogDebug($"Settings JSON being saved:{Environment.NewLine}{json}");
 
             // Use File.Create to ensure we create a new file, or overwrite the existing one. This is safer than FileStream
             using FileStream fs = File.Create(fullSettingsPath);
             using StreamWriter writer = new StreamWriter(fs);
             writer.Write(json);
             writer.Flush();
+
+            LogInformation($"{nameof(AppSettings)} saved successfully ({Encoding.UTF8.GetByteCount(json)} bytes written)");
+
         }
         catch (Exception ex)
         {
