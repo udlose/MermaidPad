@@ -314,7 +314,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return Dispatcher.UIThread.InvokeAsync(async () => await BrowseForDirectoryCoreAsync(storageProvider));
+        return Dispatcher.UIThread.InvokeAsync(() => BrowseForDirectoryCoreAsync(storageProvider));
     }
 
     /// <summary>

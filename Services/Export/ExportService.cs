@@ -442,7 +442,7 @@ public sealed class ExportService
             // marshal only the UI-bound implementation to the UI thread.
             if (!Dispatcher.UIThread.CheckAccess())
             {
-                await Dispatcher.UIThread.InvokeAsync(async () => await ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken));
+                await Dispatcher.UIThread.InvokeAsync(() => ExportPngOnUiThreadAsync(targetPath, options, progress, cancellationToken));
                 return;
             }
 

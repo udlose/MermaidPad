@@ -291,7 +291,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return Dispatcher.UIThread.InvokeAsync(async () => await OpenFileCoreAsync(storageProvider));
+        return Dispatcher.UIThread.InvokeAsync(() => OpenFileCoreAsync(storageProvider));
     }
 
     /// <summary>
@@ -381,7 +381,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return Dispatcher.UIThread.InvokeAsync(async () => await SaveFileCoreAsync(storageProvider));
+        return Dispatcher.UIThread.InvokeAsync(() => SaveFileCoreAsync(storageProvider));
     }
 
     /// <summary>
@@ -444,7 +444,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        return Dispatcher.UIThread.InvokeAsync(async () => await SaveFileAsCoreAsync(storageProvider));
+        return Dispatcher.UIThread.InvokeAsync(() => SaveFileAsCoreAsync(storageProvider));
     }
 
     /// <summary>
