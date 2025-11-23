@@ -23,13 +23,17 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dock.Model;
+using Dock.Model.Controls;
 using Dock.Model.Core;
+using Dock.Serializer.SystemTextJson;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.ViewModels.Panels;
+using MermaidPad.Views;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -41,7 +45,6 @@ using System.Reflection;
 using System.Text;
 
 namespace MermaidPad.ViewModels;
-
 /// <summary>
 /// Main window state container with commands and (optional) live preview.
 /// </summary>
@@ -51,16 +54,20 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class MainViewModel : ViewModelBase
 {
+    private const string LayoutFileName = "layout.json";
+    private readonly DockSerializer _dockSerializer;
+    private readonly IDockState _dockState;
+    private readonly IFactory _dockFactory;
     private readonly SettingsService _settingsService;
-    private readonly UISettingsService _uiSettingsService;
     private readonly MermaidUpdateService _updateService;
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly AIServiceFactory _aiServiceFactory;
-    private readonly DockFactory _dockFactory;
     private readonly EventHandler<string> _diagramTextChangedHandler;
+
+    #region Properties (non-MVVM)
 
     /// <summary>
     /// A value tracking if there is currently a file being loaded.
@@ -76,6 +83,15 @@ public sealed partial class MainViewModel : ViewModelBase
     /// Gets the preview view model.
     /// </summary>
     public PreviewViewModel PreviewViewModel { get; private set; }
+
+    /// <summary>
+    /// Gets the AI panel view model.
+    /// </summary>
+    public AIPanelViewModel AIPanelViewModel { get; private set; }
+
+    #endregion Properties (non-MVVM)
+
+    #region MVVM properties
 
     /// <summary>
     /// Gets or sets the version of the bundled Mermaid.js.
@@ -126,11 +142,6 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial ObservableCollection<string> RecentFiles { get; set; } = [];
 
     /// <summary>
-    /// Gets the AI panel view model.
-    /// </summary>
-    public AIPanelViewModel AIPanelViewModel { get; private set; }
-
-    /// <summary>
     /// Gets or sets the docking layout.
     /// </summary>
     [ObservableProperty]
@@ -151,35 +162,38 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     public bool HasRecentFiles => RecentFiles.Count > 0;
 
+    #endregion MVVM properties
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MainViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
+    /// <param name="dockSerializer">The <see cref="DockSerializer"/> instance for this view model.</param>
+    /// <param name="dockState">The <see cref="DockState"/> instance for this view model.</param>
+    /// <param name="dockFactory">The <see cref="IFactory"/> instance for this view model.</param>
     public MainViewModel(
         IServiceProvider services,
-        ILogger<MainViewModel> logger)
+        ILogger<MainViewModel> logger, DockSerializer dockSerializer, IDockState dockState, IFactory dockFactory)
     {
         // TODO inject these services via constructor, not service locator
 
+        _logger = logger;
+        _dockSerializer = dockSerializer;
+        _dockState = dockState;
+        _dockFactory = dockFactory;
         _settingsService = services.GetRequiredService<SettingsService>();
-        _uiSettingsService = services.GetRequiredService<UISettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
-        _logger = logger;
         _aiServiceFactory = services.GetRequiredService<AIServiceFactory>();
-
-        // Get DockFactory from DI (registered via AddDock)
-        _dockFactory = (DockFactory)services.GetRequiredService<IFactory>();
 
         // Create child ViewModels
         EditorViewModel = services.GetRequiredService<EditorViewModel>();
         PreviewViewModel = services.GetRequiredService<PreviewViewModel>();
 
         //TODO where should this be wired up? why is the MainViewModel responsible for this?
-
         // Wire up communication: Editor -> Preview
         _diagramTextChangedHandler = (_, diagramText) =>
         {
@@ -216,47 +230,130 @@ public sealed partial class MainViewModel : ViewModelBase
         //TODO why is the AIPanelViewModel created here and not injected like the others?
         //TODO why is the MainViewModel responsible for creating the AI service?
         IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
-        AIPanelViewModel = new AIPanelViewModel(aiService);
+        AIPanelViewModel = new AIPanelViewModel(
+            services.GetRequiredService<ILogger<AIPanelViewModel>>(),
+            aiService);
         AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
 
-        // Initialize docking layout
-        // Set up ContextLocator to map panel IDs to ViewModels
+        // Initialize docking layout and state
+        InitializeContextLocator();
+        InitializeDockState();
+        LoadLayout();
+
+        UpdateRecentFiles();
+        UpdateWindowTitle();
+    }
+
+    #region Docking Layout
+
+    /// <summary>
+    /// Loads the docking layout from the persisted layout file if available; otherwise, initializes a default layout.
+    /// </summary>
+    /// <remarks>If the layout file exists and is valid, the method restores the docking state from the file.
+    /// If the file is missing or invalid, a new default layout is created and initialized. Errors encountered during
+    /// loading are logged, and the method does not throw exceptions.</remarks>
+    public void LoadLayout()
+    {
+        try
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string dockLayoutPath = Path.Combine(appData, LayoutFileName);
+            if (File.Exists(dockLayoutPath))
+            {
+                using FileStream stream = File.OpenRead(dockLayoutPath);
+                IRootDock? rootDockLayout = _dockSerializer.Load<IRootDock?>(stream);
+                if (rootDockLayout is not null)
+                {
+                    _dockFactory.InitLayout(rootDockLayout);
+                    _dockState.Restore(rootDockLayout);
+                    Layout = rootDockLayout;
+                    return;
+                }
+            }
+
+            IRootDock? layout = _dockFactory.CreateLayout();
+            if (layout is not null)
+            {
+                _dockFactory.InitLayout(layout);
+            }
+
+            Layout = layout;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load layout");
+        }
+    }
+
+    /// <summary>
+    /// Saves the current layout configuration to a file on disk, including panel positions and states.
+    /// </summary>
+    /// <remarks>If no layout is available, the method does nothing. Errors encountered during the save
+    /// operation are logged but do not throw exceptions to the caller. The layout is saved to a file in the
+    /// application's base directory, using the specified layout file name.</remarks>
+    public void SaveLayout()
+    {
+        if (Layout is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // save DockState (e.g., focused panel, panel sizes/positions) before saving layout
+            _dockState.Save(Layout);
+
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string dockLayoutPath = Path.Combine(appData, LayoutFileName);
+            using FileStream stream = File.Create(dockLayoutPath);
+            _dockSerializer.Save(stream, Layout);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save layout");
+        }
+    }
+
+    /// <summary>
+    /// Initializes the context locator mappings for the dock factory, associating panel identifiers with their
+    /// corresponding view models.
+    /// </summary>
+    /// <remarks>This method configures the dock factory to resolve view models for specific panels, enabling
+    /// dynamic retrieval of context objects based on panel IDs. It should be called before any operations that depend
+    /// on context resolution for docked panels.</remarks>
+    private void InitializeContextLocator()
+    {
+        // Set up DefaultContextLocator and ContextLocator to map panel IDs to ViewModels
+        _dockFactory.DefaultContextLocator = () => this;
         _dockFactory.ContextLocator = new Dictionary<string, Func<object?>>
         {
             ["Editor"] = () => EditorViewModel,
             ["Preview"] = () => PreviewViewModel,
             ["AIAssistant"] = () => AIPanelViewModel
         };
-
-        // Try to load saved layout from UI settings, or create default if none exists
-        if (!string.IsNullOrWhiteSpace(_uiSettingsService.Settings.DockLayout))
-        {
-            IDock? deserializedLayout = _dockFactory.DeserializeLayout(_uiSettingsService.Settings.DockLayout);
-            if (deserializedLayout is not null)
-            {
-                Layout = deserializedLayout;
-                _dockFactory.InitLayout(Layout);
-                _logger.LogInformation("Loaded saved dock layout from UI settings");
-            }
-            else
-            {
-                // Deserialization failed, create default layout
-                Layout = _dockFactory.CreateLayout();
-                _dockFactory.InitLayout(Layout);
-                _logger.LogWarning("Failed to load saved dock layout, using default");
-            }
-        }
-        else
-        {
-            // No saved layout, create default
-            Layout = _dockFactory.CreateLayout();
-            _dockFactory.InitLayout(Layout);
-            _logger.LogInformation("No saved dock layout found in UI settings, using default");
-        }
-
-        UpdateRecentFiles();
-        UpdateWindowTitle();
     }
+
+    /// <summary>
+    /// Initializes the dock state by saving the current layout of the main dock, if available.
+    /// </summary>
+    /// <remarks>This method attempts to retrieve the main window and its dock layout. If both are present,
+    /// the current layout is saved to the dock state. This operation has no effect if the main window or its layout is
+    /// unavailable.</remarks>
+    private void InitializeDockState()
+    {
+        Window? parentWindow = GetParentWindow();
+        if (parentWindow is MainWindow mainWindow)
+        {
+            IDock? layout = mainWindow.MainDock.Layout;
+            if (layout is not null)
+            {
+                _dockState.Save(layout);
+                _logger.LogDebug("Dock state initialized from main window layout");
+            }
+        }
+    }
+
+    #endregion Docking Layout
 
     #region File Open/Save
 
@@ -1242,20 +1339,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService.Save();
 
         // Save UI settings (dock layout)
-        if (Layout is not null)
-        {
-            string? serializedLayout = _dockFactory.SerializeLayout(Layout);
-            if (serializedLayout is not null)
-            {
-                _uiSettingsService.Settings.DockLayout = serializedLayout;
-                _logger.LogInformation("Dock layout saved to UI settings");
-            }
-            else
-            {
-                _logger.LogWarning("Failed to serialize dock layout");
-            }
-        }
-        _uiSettingsService.Save();
+        SaveLayout();
     }
 
     /// <summary>

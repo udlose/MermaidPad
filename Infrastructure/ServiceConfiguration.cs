@@ -49,6 +49,7 @@ public static class ServiceConfiguration
     /// </summary>
     /// <returns>A fully configured <see cref="ServiceProvider"/> instance.</returns>
     [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "We don't have async Main in WPF apps, so this is necessary during startup.")]
+    [SuppressMessage("Minor Code Smell", "S1199:Nested code blocks should not be used", Justification = "Local params are used in the method for clarity.")]
     public static ServiceProvider BuildServiceProvider()
     {
         ServiceCollection services = new ServiceCollection();
@@ -70,7 +71,6 @@ public static class ServiceConfiguration
         // Core singletons
         services.AddSingleton<IPlatformServices>(static _ => PlatformServiceFactory.Instance);
         services.AddSingleton<SettingsService>();
-        services.AddSingleton<UISettingsService>();
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
 

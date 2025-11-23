@@ -100,12 +100,12 @@ public sealed partial class MainWindow : Window
     /// </para>
     /// </remarks>
     public MainWindow()
-    : this(
-        App.Services.GetRequiredService<ILogger<MainWindow>>(),
-        App.Services.GetRequiredService<MermaidRenderer>(),
-        App.Services.GetRequiredService<MermaidUpdateService>(),
-        App.Services.GetRequiredService<SyntaxHighlightingService>(),
-        App.Services.GetRequiredService<IDebounceDispatcher>())
+        : this(
+            App.Services.GetRequiredService<ILogger<MainWindow>>(),
+            App.Services.GetRequiredService<MermaidRenderer>(),
+            App.Services.GetRequiredService<MermaidUpdateService>(),
+            App.Services.GetRequiredService<SyntaxHighlightingService>(),
+            App.Services.GetRequiredService<IDebounceDispatcher>())
     {
     }
 
@@ -149,20 +149,20 @@ public sealed partial class MainWindow : Window
             _logger.LogWarning(ex, "Failed to initialize syntax highlighting service - will continue without highlighting");
         }
 
-        // Wire DockControl.LayoutUpdated event to find panels after layout calculations complete
+        // TODO - is this needed? Wire DockControl.LayoutUpdated event to find panels after layout calculations complete
         // LayoutUpdated fires after the layout system has positioned all controls
-
         //TODO where should this event handler be wired? Constructor seems early, OnLoaded seems late...
-        DockControl? dockControl = this.FindControl<DockControl>("MainDock");
-        if (dockControl is not null)
+        //TODO why does this need to do FindControl? This MainWindow view should already have a 'MainDock' DockPanel control
+        //DockControl? dockControl = this.FindControl<DockControl>("MainDock");
+        if (MainDock?.IsInitialized == true)
         {
             _dockControlLayoutUpdatedHandler = OnDockControlLayoutUpdated;
-            dockControl.LayoutUpdated += _dockControlLayoutUpdatedHandler;
-            _logger.LogInformation("DockControl.LayoutUpdated event handler wired");
+            MainDock.LayoutUpdated += _dockControlLayoutUpdatedHandler;
+            _logger.LogInformation($"{nameof(MainDock)}.{nameof(MainDock.LayoutUpdated)} event handler wired");
         }
         else
         {
-            _logger.LogError("DockControl 'MainDock' not found - cannot wire LayoutUpdated event");
+            _logger.LogError($"DockControl '{nameof(MainDock)}' not found - cannot wire {nameof(MainDock.LayoutUpdated)} event");
         }
 
         _logger.LogInformation("MainWindow constructor completed");
