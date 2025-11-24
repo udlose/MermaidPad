@@ -48,16 +48,8 @@
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.11" />
-		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
 		<PackageReference Include="Projektanker.Icons.Avalonia" Version="9.6.2" />
 		<PackageReference Include="Projektanker.Icons.Avalonia.FontAwesome" Version="9.6.2" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
 		<PackageReference Include="Serilog" Version="4.3.0" />
 		<PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
 		<PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
@@ -68,11 +60,8 @@
 		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
 		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
 		<PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
+		<!-- TODO: DaveBlack deprecate SkiaSharp and Svg.Skia -->
 		<PackageReference Include="SkiaSharp" Version="3.119.1" />
-		<PackageReference Include="SonarAnalyzer.CSharp" Version="10.15.0.120848">
-		  <PrivateAssets>all</PrivateAssets>
-		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
 		<PackageReference Include="Svg.Skia" Version="3.2.1" />
 		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.11" />
 		<PackageReference Include="TextMateSharp" Version="1.0.70" />
@@ -84,10 +73,27 @@
 		<PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
 	</ItemGroup>
 
-	<!-- Only include Avalonia.Diagnostics in Debug builds -->
+	<!-- Only include Analyzers and Diagnostics-related packages in Debug builds -->
 	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<!-- Avalonia.Diagnostics is a legacy tool. Use AvaloniaUI.DiagnosticsSupport instead -->
 		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+		<PackageReference Include="Community.VisualStudio.Toolkit.Analyzers" Version="1.0.545">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.6.5" />
+		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="SonarAnalyzer.CSharp" Version="10.15.0.120848">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
 
 	<ItemGroup>

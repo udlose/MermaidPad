@@ -27,8 +27,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Dock.Avalonia.Diagnostics;
-using Dock.Avalonia.Diagnostics.Controls;
 using MermaidPad.Infrastructure;
 using MermaidPad.Services;
 using MermaidPad.Services.Highlighting;
@@ -41,7 +39,13 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
+#if DEBUG
+using Dock.Avalonia.Diagnostics;
+using Dock.Avalonia.Diagnostics.Controls;
+#endif
+
 namespace MermaidPad;
+
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>
@@ -141,7 +145,7 @@ public sealed partial class App : Application, IDisposable
             desktop.MainWindow = mainWindow;
 
 #if DEBUG
-            // Attach Dock.Avalonia debug tools in debug builds
+            // Attach Dock.Avalonia.Diagnostics debug tools in debug builds
             mainWindow.AttachDockDebug(() => mainViewModel.Layout, new KeyGesture(Key.F11));
             mainWindow.AttachDockDebugOverlay(new KeyGesture(Key.F9));
 #endif
