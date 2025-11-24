@@ -2,9 +2,7 @@
   x:Class="MermaidPad.App"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:converters="clr-namespace:MermaidPad.Converters"
-  xmlns:panelsViews="clr-namespace:MermaidPad.Views.Panels"
-  xmlns:panelsViewModels="clr-namespace:MermaidPad.ViewModels.Panels">
+  xmlns:converters="clr-namespace:MermaidPad.Converters">
 
   <Application.Resources>
     <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
@@ -33,7 +31,8 @@
   </Application.DataTemplates>
 
   <Application.Styles>
-    <!--<StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->
+    <!-- Include Dock.Avalonia theme (required for DockControl to render panels) -->
+    <DockFluentTheme />
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
