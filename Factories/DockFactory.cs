@@ -27,7 +27,7 @@ using Dock.Model.Mvvm.Controls;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
-namespace MermaidPad.Infrastructure;
+namespace MermaidPad.Factories;
 
 /// <summary>
 /// Factory for creating and configuring the docking layout for MermaidPad.
@@ -82,7 +82,7 @@ public sealed class DockFactory : Factory
         Tool editorTool = new Tool
         {
             Id = EditorDockId,
-            Title = EditorDockId,
+            Title = "Editor",
             CanClose = false,
             CanFloat = true,
             CanPin = true
@@ -91,7 +91,7 @@ public sealed class DockFactory : Factory
         Tool previewTool = new Tool
         {
             Id = PreviewDockId,
-            Title = PreviewDockId,
+            Title = "Preview",
             CanClose = false,
             CanFloat = true,
             CanPin = true
@@ -106,6 +106,34 @@ public sealed class DockFactory : Factory
             CanPin = true
         };
 
+        // Wrap each Tool in a ToolDock - this is required for proper rendering
+        ToolDock editorToolDock = new ToolDock
+        {
+            Id = "EditorToolDock",
+            Title = "EditorToolDock",
+            Proportion = double.NaN,
+            ActiveDockable = editorTool,
+            VisibleDockables = CreateList<IDockable>(editorTool)
+        };
+
+        ToolDock previewToolDock = new ToolDock
+        {
+            Id = "PreviewToolDock",
+            Title = "PreviewToolDock",
+            Proportion = double.NaN,
+            ActiveDockable = previewTool,
+            VisibleDockables = CreateList<IDockable>(previewTool)
+        };
+
+        ToolDock aiToolDock = new ToolDock
+        {
+            Id = "AIToolDock",
+            Title = "AIToolDock",
+            Proportion = double.NaN,
+            ActiveDockable = aiTool,
+            VisibleDockables = CreateList<IDockable>(aiTool)
+        };
+
         // Create proportional dock splitter for horizontal layout (Editor | Preview | AI)
         ProportionalDock proportionalDock = new ProportionalDock
         {
@@ -115,19 +143,19 @@ public sealed class DockFactory : Factory
             Proportion = double.NaN,
             VisibleDockables = CreateList<IDockable>
             (
-                editorTool,
+                editorToolDock,
                 new ProportionalDockSplitter
                 {
                     Id = "Splitter1",
                     Title = "Splitter1"
                 },
-                previewTool,
+                previewToolDock,
                 new ProportionalDockSplitter
                 {
                     Id = "Splitter2",
                     Title = "Splitter2"
                 },
-                aiTool
+                aiToolDock
             )
         };
 

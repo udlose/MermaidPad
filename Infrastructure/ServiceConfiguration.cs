@@ -171,7 +171,12 @@ public static class ServiceConfiguration
             .Enrich.FromLogContext()
             .Enrich.WithDemystifiedStackTraces()
             .Enrich.WithThreadId()
-            .MinimumLevel.Is(minimumLevel);
+            .MinimumLevel.Is(minimumLevel)
+            // Override specific namespaces to reduce log verbosity from framework components
+            // HttpClientFactory logs handler rotation/cleanup cycles every 10s at DEBUG level - filter to Information
+            .MinimumLevel.Override("Microsoft.Extensions.Http", LogEventLevel.Information)
+            // System.Net.Http logs low-level HTTP operations - filter to Information to reduce noise
+            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Information);
 
         const string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} (ThreadId:{ThreadId}) - {Message:lj}{NewLine}{Exception}";
 

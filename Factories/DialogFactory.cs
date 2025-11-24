@@ -21,7 +21,7 @@
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace MermaidPad.Infrastructure;
+namespace MermaidPad.Factories;
 
 /// <summary>
 /// Factory for creating dialog windows with their ViewModels properly injected via dependency injection.
@@ -39,10 +39,17 @@ public interface IDialogFactory
     /// <typeparam name="T">The dialog window type to create.</typeparam>
     /// <returns>A fully initialized dialog window with its ViewModel set.</returns>
     /// <remarks>
+    /// <para>
     /// This method uses ActivatorUtilities to create the dialog, which automatically resolves
-    /// constructor parameters from the DI container. For example, calling CreateDialog&lt;SettingsDialog&gt;()
+    /// constructor parameters from the DI container. For example, calling:
+    /// </para>
+    /// <para>
+    ///     <![CDATA[CreateDialog<SettingsDialog>()]]>
+    /// </para>
+    /// <para>
     /// will automatically create a SettingsDialogViewModel (registered as Transient) and pass it to
     /// the SettingsDialog constructor.
+    /// </para>
     /// </remarks>
     T CreateDialog<T>() where T : Window;
 }

@@ -27,7 +27,7 @@ using Dock.Model;
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Serializer.SystemTextJson;
-using MermaidPad.Infrastructure;
+using MermaidPad.Factories;
 using MermaidPad.Services;
 using MermaidPad.Services.AI;
 using MermaidPad.Services.Export;

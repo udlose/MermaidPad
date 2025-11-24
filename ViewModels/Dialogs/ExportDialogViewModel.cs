@@ -24,7 +24,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MermaidPad.Infrastructure;
+using MermaidPad.Factories;
 using MermaidPad.Services.Export;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.Logging;
