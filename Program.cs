@@ -57,7 +57,17 @@ internal static class Program
             .UsePlatformDetect()
             .UseDesktopWebView() // this handles cross-platform WebView support
                                  //TODO should i add this?            .UseFloatingDockAdorner()
-            .WithInterFont()
-            .LogToTrace();
+#if DEBUG
+            // see https://docs.avaloniaui.net/docs/guides/implementation-guides/logging-errors-and-warnings#log-area
+            // for the list of Avalonia.Logging.LogArea properties
+            .LogToTrace(
+                Avalonia.Logging.LogEventLevel.Verbose,
+                Avalonia.Logging.LogArea.Binding,
+                Avalonia.Logging.LogArea.Control,
+                Avalonia.Logging.LogArea.Layout,
+                Avalonia.Logging.LogArea.Property,
+                Avalonia.Logging.LogArea.Visual)
+#endif
+            .WithInterFont();
     }
 }
