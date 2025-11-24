@@ -8,7 +8,7 @@ on:
   pull_request:
     branches: [ "main", "develop" ]
   schedule:
-    - cron: '43 4 * * 3'    # 4:43 AM, every Wednesday, on any day of the month, and in any month
+    - cron: '43 4 * * 3'    # 4:43 AM UTC, every Wednesday, on any day of the month, and in any month
 
 jobs:
   analyze:
