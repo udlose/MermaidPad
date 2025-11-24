@@ -8,6 +8,7 @@
 
   <Application.Resources>
     <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
+    <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
     <converters:InverseBoolToObjectConverter x:Key="InverseBoolToObjectConverter" />
   </Application.Resources>
 
@@ -34,6 +35,7 @@
   <Application.Styles>
     <!--<StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->
     <FluentTheme />
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
   </Application.Styles>
 </Application>
