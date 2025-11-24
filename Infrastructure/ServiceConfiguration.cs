@@ -169,9 +169,8 @@ public static class ServiceConfiguration
         // Build Serilog configuration
         LoggerConfiguration loggerConfig = new LoggerConfiguration()
             .Enrich.FromLogContext()
+            .Enrich.WithDemystifiedStackTraces()
             .Enrich.WithThreadId()
-            .Enrich.WithThreadName()
-            .Enrich.WithProcessId()
             .MinimumLevel.Is(minimumLevel);
 
         const string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} (ThreadId:{ThreadId}) - {Message:lj}{NewLine}{Exception}";
