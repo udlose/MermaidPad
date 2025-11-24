@@ -174,7 +174,7 @@ public static class ServiceConfiguration
             .Enrich.WithProcessId()
             .MinimumLevel.Is(minimumLevel);
 
-        const string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} (ThreadId:{ThreadId}, ThreadName:{ThreadName}, ProcessId:{ProcessId}) - {Message:lj}{NewLine}{Exception}";
+        const string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext} (ThreadId:{ThreadId}) - {Message:lj}{NewLine}{Exception}";
 
         // Add async file sink if enabled
         if (loggingSettings.EnableFileLogging)
