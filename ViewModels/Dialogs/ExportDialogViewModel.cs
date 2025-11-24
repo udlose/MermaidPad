@@ -52,6 +52,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly ILogger<ExportDialogViewModel> _logger;
+    //TODO - DaveBlack: revisit what to do with these services
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
     private readonly IDialogFactory _dialogFactory;
