@@ -9,7 +9,7 @@
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
-  x:DataType="vm:MainViewModel"
+  x:DataType="vm:MainWindowViewModel"
   Icon="/Assets/AppIcon.ico">
 
   <Window.Resources>
@@ -52,7 +52,7 @@
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
               <MenuItem Header="{Binding}"
-                        Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
+                        Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainWindowViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
                         CommandParameter="{Binding}" />
             </DataTemplate>
           </MenuItem.ItemTemplate>

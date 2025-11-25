@@ -109,12 +109,12 @@ public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<E
     /// </summary>
     /// <remarks>This method sets the <see cref="CloseRequested"/> property to <see langword="true"/>,
     /// indicating that the user has requested to close the dialog. The actual closing of the window is managed
-    /// externally, typically by a handler in the <c>MainViewModel</c>.</remarks>
+    /// externally, typically by a handler in the <see cref="MainWindowViewModel"/>.</remarks>
     [RelayCommand]
     private void Close()
     {
         // Signal that the user clicked the Close button and wants to dismiss the dialog
-        // The actual window closing is handled by MainViewModel's PropertyChanged handler
+        // The actual window closing is handled by MainWindowViewModel's PropertyChanged handler
         CloseRequested = true;
     }
 

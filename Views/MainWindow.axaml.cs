@@ -39,12 +39,12 @@ namespace MermaidPad.Views;
 
 /// <summary>
 /// Main application window that contains the editor and preview WebView.
-/// Manages synchronization between the editor control and the <see cref="MainViewModel"/>,
+/// Manages synchronization between the editor control and the <see cref="MainWindowViewModel"/>,
 /// initializes and manages the <see cref="MermaidRenderer"/>, and handles window lifecycle events.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    private readonly MainViewModel _vm;
+    private readonly MainWindowViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
     private readonly SyntaxHighlightingService _syntaxHighlightingService;
@@ -82,7 +82,7 @@ public sealed partial class MainWindow : Window
         IServiceProvider sp = App.Services;
         _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
-        _vm = sp.GetRequiredService<MainViewModel>();
+        _vm = sp.GetRequiredService<MainWindowViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
         _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
@@ -419,7 +419,7 @@ public sealed partial class MainWindow : Window
     /// <returns>A task representing the asynchronous open sequence.</returns>
     /// <exception cref="InvalidOperationException">Thrown if required update assets cannot be resolved.</exception>
     /// <remarks>
-    /// This method logs timing information, performs an update check by calling <see cref="MainViewModel.CheckForMermaidUpdatesAsync"/>,
+    /// This method logs timing information, performs an update check by calling <see cref="MainWindowViewModel.CheckForMermaidUpdatesAsync"/>,
     /// initializes the renderer via <see cref="InitializeWebViewAsync"/>, and notifies commands to refresh their CanExecute state.
     /// Exceptions are propagated for higher-level handling.
     /// </remarks>
@@ -783,7 +783,7 @@ public sealed partial class MainWindow : Window
     /// safety.</remarks>
     /// <returns>
     /// A <see cref="Task"/> that represents the asynchronous operation of updating the ViewModel's
-    /// <see cref="MainViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
+    /// <see cref="MainWindowViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
     /// The task completes when the property has been updated.
     /// </returns>
     private async Task UpdateCanPasteClipboardAsync()
