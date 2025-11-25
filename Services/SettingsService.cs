@@ -19,13 +19,13 @@
 // SOFTWARE.
 
 using MermaidPad.Models;
-using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
+
 /// <summary>
 /// Provides loading and saving of application settings to a per-user configuration directory.
 /// Handles secure file access and validates the settings file path and name prior to I/O operations.
@@ -46,11 +46,6 @@ public sealed class SettingsService : SettingsBase
     /// Full path to the settings file used by this instance.
     /// </summary>
     private readonly string _settingsPath;
-
-    /// <summary>
-    /// Optional secure storage service for sensitive data.
-    /// </summary>
-    private readonly ISecureStorageService? _secureStorage;
 
     /// <summary>
     /// Security service for validating file paths and creating secure file streams.
@@ -76,12 +71,10 @@ public sealed class SettingsService : SettingsBase
     /// <param name="logger">
     /// Optional <see cref="ILogger{SettingsService}"/> for diagnostic messages. May be <see langword="null"/>.
     /// </param>
-    /// <param name="secureStorage">Optional <see cref="ISecureStorageService"/> for sensitive data.</param>
-    public SettingsService(SecurityService securityService, ILogger<SettingsService>? logger = null, ISecureStorageService? secureStorage = null)
+    public SettingsService(SecurityService securityService, ILogger<SettingsService>? logger = null)
         : base(logger)
     {
         _securityService = securityService;
-        _secureStorage = secureStorage;
 
         string baseDir = GetConfigDirectory();
         Directory.CreateDirectory(baseDir);
