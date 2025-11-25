@@ -2,35 +2,23 @@
   x:Class="MermaidPad.App"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:converters="clr-namespace:MermaidPad.Converters">
+  xmlns:converters="clr-namespace:MermaidPad.Converters"
+  xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia">
 
   <Application.Resources>
+    <ControlRecycling x:Key="ControlRecyclingKey" TryToUseIdAsKey="True" />
+    <Color x:Key="RegionColor">Transparent</Color>
     <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
     <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
     <converters:InverseBoolToObjectConverter x:Key="InverseBoolToObjectConverter" />
   </Application.Resources>
 
-  <!-- DataTemplates for Dock panels must be registered at application level -->
-  <Application.DataTemplates>
-
-    <!-- Editor Panel Template - keyed by EditorViewModel -->
-    <DataTemplate DataType="panelsViewModels:EditorViewModel">
-      <panelsViews:EditorPanel />
-    </DataTemplate>
-
-    <!-- Preview Panel Template - keyed by PreviewViewModel -->
-    <DataTemplate DataType="panelsViewModels:PreviewViewModel">
-      <panelsViews:PreviewPanel />
-    </DataTemplate>
-
-    <!-- AI Assistant Panel Template - keyed by AIPanelViewModel -->
-    <DataTemplate DataType="panelsViewModels:AIPanelViewModel">
-      <panelsViews:AIPanel />
-    </DataTemplate>
-
-  </Application.DataTemplates>
-
   <Application.Styles>
+    <Style Selector="DockControl">
+      <Setter Property="(ControlRecyclingDataTemplate.ControlRecycling)"
+              Value="{StaticResource ControlRecyclingKey}" />
+    </Style>
+
     <!-- Include Dock.Avalonia theme (required for DockControl to render panels) -->
     <DockFluentTheme />
     <FluentTheme />
