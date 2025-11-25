@@ -104,7 +104,7 @@ public static class ServiceConfiguration
         services.AddSingleton<IFileService, FileService>();
 
         // Main ViewModel: transient (one per window)
-        services.AddTransient<MainViewModel>();
+        services.AddTransient<MainWindowViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();

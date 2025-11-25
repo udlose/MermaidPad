@@ -41,13 +41,19 @@ using System.Text;
 namespace MermaidPad.ViewModels;
 
 /// <summary>
-/// Main window state container with commands and (optional) live preview.
+/// Represents the main view model for the application's main window, providing properties, commands, and logic for
+/// editing, rendering, exporting, and managing Mermaid diagrams.
 /// </summary>
+/// <remarks>This view model exposes state and command properties for data binding in the main window, including
+/// file operations, diagram rendering, clipboard actions, and export functionality. It coordinates interactions between
+/// the user interface and underlying services such as file management, rendering, and settings persistence. All
+/// properties and commands are designed for use with MVVM frameworks and are intended to be accessed by the view for UI
+/// updates and user interactions.</remarks>
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class MainViewModel : ViewModelBase
+public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
@@ -56,7 +62,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
-    private readonly ILogger<MainViewModel> _logger;
+    private readonly ILogger<MainWindowViewModel> _logger;
 
     private const string DebounceRenderKey = "render";
 
@@ -183,11 +189,11 @@ public sealed partial class MainViewModel : ViewModelBase
     public bool HasRecentFiles => RecentFiles.Count > 0;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MainViewModel"/> class.
+    /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
-    public MainViewModel(IServiceProvider services, ILogger<MainViewModel> logger)
+    public MainWindowViewModel(IServiceProvider services, ILogger<MainWindowViewModel> logger)
     {
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
