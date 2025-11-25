@@ -1,0 +1,133 @@
+---
+title: Avalonia UI Control Lifecycle - MermaidPad Dock Panel Initialization
+---
+flowchart TD
+    Start([Application Startup]) --> AppInit[App.OnFrameworkInitializationCompleted]
+
+    AppInit --> VMCreate[Create MainViewModel via DI]
+
+    VMCreate --> VM1[EditorViewModel created]
+    VMCreate --> VM2[PreviewViewModel created]
+    VMCreate --> VM3[AIPanelViewModel created]
+
+    VM1 --> VMInit[MainViewModel Constructor]
+    VM2 --> VMInit
+    VM3 --> VMInit
+
+    VMInit --> InitContext[InitializeContextLocator<br/>Maps IDs → ViewModels]
+    InitContext --> LoadLayout[LoadLayout<br/>Creates default IRootDock]
+
+    LoadLayout --> WinCreate[Create MainWindow]
+
+    WinCreate --> WinCtor[MainWindow Constructor]
+    WinCtor --> InitComp[InitializeComponent<br/>Loads XAML]
+    InitComp --> MainDockCreated{MainDock created<br/>IsInitialized?}
+    MainDockCreated -->|false ❌| SyntaxInit[Initialize Syntax Highlighting]
+    SyntaxInit --> CtorDone[Constructor Complete<br/>❌ DON'T wire events yet!]
+
+    CtorDone --> SetMainWin[desktop.MainWindow = mainWindow]
+
+    SetMainWin --> Attached[OnAttachedToVisualTree]
+    Attached --> WireTheme[Wire Theme Changed Event]
+    WireTheme --> WireActivated[Wire Window Activated Event]
+    WireActivated --> WireVM[Wire EditorViewModel.PropertyChanged]
+
+    WireVM --> Loaded[OnLoaded Event]
+    Loaded --> MainDockCheck{MainDock exists<br/>and IsInitialized?}
+    MainDockCheck -->|true ✓| WireLayoutUpdated[Wire MainDock.LayoutUpdated Event]
+    MainDockCheck -->|false ❌| LoadError[Log Error: MainDock not found]
+
+    WireLayoutUpdated --> BindingStart[Data Binding Processing ASYNC]
+
+    BindingStart --> BindLayout[Layout Binding Evaluates]
+    BindLayout --> SetLayout[DockControl.Layout = IRootDock]
+    SetLayout --> ProcessLayout[DockControl Processes Layout Structure]
+
+    ProcessLayout --> FindEditor[Find Tool Id=Editor]
+    FindEditor --> ContextEditor[ContextLocator-Editor → EditorViewModel]
+    ContextEditor --> TemplateEditor[DataTemplate → Create EditorPanel]
+
+    ProcessLayout --> FindPreview[Find Tool Id=Preview]
+    FindPreview --> ContextPreview[ContextLocator-Preview → PreviewViewModel]
+    ContextPreview --> TemplatePreview[DataTemplate → Create PreviewPanel]
+
+    ProcessLayout --> FindAI[Find Tool Id=AIAssistant]
+    FindAI --> ContextAI[ContextLocator-AIAssistant → AIPanelViewModel]
+    ContextAI --> TemplateAI[DataTemplate → Create AIPanel]
+
+    TemplateEditor --> LayoutCalc[Layout Calculations Complete]
+    TemplatePreview --> LayoutCalc
+    TemplateAI --> LayoutCalc
+
+    LayoutCalc --> LayoutUpdatedFire[LayoutUpdated Event Fires]
+
+    LayoutUpdatedFire --> OnLayoutUpdated[OnDockControlLayoutUpdated Handler]
+
+    OnLayoutUpdated --> CheckLayout{dockControl.Layout<br/>not null?}
+    CheckLayout -->|false| WaitNextLayout[Wait for Next LayoutUpdated]
+    WaitNextLayout -.->|fires again| LayoutUpdatedFire
+
+    CheckLayout -->|true ✓| SearchPanels[Search Visual Tree for Panels]
+
+    SearchPanels --> FindEditorPanel{EditorPanel<br/>found?}
+    SearchPanels --> FindPreviewPanel{PreviewPanel<br/>found?}
+
+    FindEditorPanel -->|false| WaitNextLayout
+    FindPreviewPanel -->|false| WaitNextLayout
+
+    FindEditorPanel -->|true ✓| PanelsFound[All Required Panels Found!]
+    FindPreviewPanel -->|true ✓| PanelsFound
+
+    PanelsFound --> Unsubscribe[Unsubscribe LayoutUpdated<br/>Prevent Re-entry]
+
+    Unsubscribe --> InitEditor[Initialize EditorPanel]
+    InitEditor --> GetEditor[_editor = editorPanel.Editor]
+    GetEditor --> ApplySyntax[Apply Syntax Highlighting]
+    ApplySyntax --> SetEditorText[Set Editor Text from ViewModel]
+    SetEditorText --> WireEditorEvents[Wire Editor Events<br/>TextChanged, SelectionChanged]
+
+    Unsubscribe --> InitPreview[Initialize PreviewPanel]
+    InitPreview --> GetPreview[_preview = previewPanel.Preview]
+    GetPreview --> InitWebView[InitializeWebViewAsync]
+    InitWebView --> RendererInit[_renderer.InitializeAsync-preview]
+    RendererInit --> FirstRender[First Render]
+    FirstRender --> SetReady[IsWebViewReady = true]
+
+    Unsubscribe --> InitAI[AIPanel: No Init Needed<br/>Already Data-Bound]
+
+    WireEditorEvents --> PanelsReady[All Panels Initialized ✓]
+    SetReady --> PanelsReady
+    InitAI --> PanelsReady
+
+    PanelsReady --> WindowOpened[OnOpened Event]
+    WindowOpened --> OpenedAsync[OnOpenedCoreAsync]
+    OpenedAsync --> UpdateCommands[Update Command States]
+
+    UpdateCommands --> Running([Application Running<br/>✓ Panels Visible!])
+
+    Running -->|User closes window| Closing[OnClosing Event]
+    Closing --> SaveState[Persist ViewModel State<br/>Save Layout]
+    SaveState --> CloseApproved{Closing<br/>Approved?}
+
+    CloseApproved -->|false| Running
+    CloseApproved -->|true ✓| Unloaded[OnUnloaded Event]
+
+    Unloaded --> UnsubAll[UnsubscribeAllEventHandlers]
+    UnsubAll --> Detached[OnDetachedFromVisualTree]
+    Detached --> DisposeResources[Dispose WebView & Resources]
+    DisposeResources --> Disposed([Application Disposed])
+
+    style Start fill:#e1f5e1
+    style Running fill:#e1f5e1
+    style Disposed fill:#ffe1e1
+    style PanelsReady fill:#90EE90
+    style MainDockCreated fill:#FFE4B5
+    style MainDockCheck fill:#FFE4B5
+    style CheckLayout fill:#FFE4B5
+    style FindEditorPanel fill:#FFE4B5
+    style FindPreviewPanel fill:#FFE4B5
+    style CloseApproved fill:#FFE4B5
+    style WireLayoutUpdated fill:#90EE90
+    style Unsubscribe fill:#90EE90
+    style CtorDone fill:#FF6B6B
+    style WaitNextLayout fill:#FFB347

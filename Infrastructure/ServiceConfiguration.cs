@@ -123,12 +123,12 @@ public static class ServiceConfiguration
 
         // AI Services
         services.AddSingleton<AIServiceFactory>();
-        services.AddSingleton<AIPanelViewModelFactory>();
+        services.AddSingleton<AIViewModelFactory>();
 
         // Panel ViewModels: singleton for single-window desktop app
         services.AddSingleton<EditorViewModel>();
         services.AddSingleton<PreviewViewModel>();
-        services.AddSingleton<AIPanelViewModel>(static sp => sp.GetRequiredService<AIPanelViewModelFactory>().Create());
+        services.AddSingleton<AIViewModel>(static sp => sp.GetRequiredService<AIViewModelFactory>().Create());
 
         // Main ViewModel: singleton for single-window desktop app
         services.AddSingleton<MainViewModel>();

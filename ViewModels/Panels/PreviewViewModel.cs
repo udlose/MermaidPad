@@ -77,7 +77,7 @@ public sealed partial class PreviewViewModel : ViewModelBase
     /// startup.</para>
     /// <para>
     /// This constructor exists specifically to avoid the following warning:
-    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/PreviewPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/PreviewView.axaml" won't be reachable via runtime loader, as no public constructor was found
     /// </para>
     /// </remarks>
     public PreviewViewModel()

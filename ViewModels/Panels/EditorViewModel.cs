@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using Dock.Model.Mvvm.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
@@ -32,7 +33,7 @@ namespace MermaidPad.ViewModels.Panels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class EditorViewModel : ViewModelBase
+public sealed partial class EditorViewModel : DocumentDock
 {
     private readonly ILogger<EditorViewModel> _logger;
 
@@ -96,7 +97,7 @@ public sealed partial class EditorViewModel : ViewModelBase
     /// startup.</para>
     /// <para>
     /// This constructor exists specifically to avoid the following warning:
-    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/EditorPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/EditorView.axaml" won't be reachable via runtime loader, as no public constructor was found
     /// </para>
     /// </remarks>
     public EditorViewModel()

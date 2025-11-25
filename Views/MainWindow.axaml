@@ -7,6 +7,8 @@
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
   xmlns:dockModel="clr-namespace:Dock.Model.Mvvm.Controls;assembly=Dock.Model.Mvvm"
+  xmlns:panelsViewModels="clr-namespace:MermaidPad.ViewModels.Panels"
+  xmlns:panelsViews="clr-namespace:MermaidPad.Views.Panels"
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
@@ -123,11 +125,49 @@
     </StackPanel>
 
     <!-- Dockable Panel System -->
-    <!-- DataTemplates are registered in App.axaml (application-level requirement for Dock) -->
+    <!-- DataTemplates must be in DockControl.DataTemplates for Dock to use them -->
+
+<!--        <dock:DockControl
+      x:Name="MainDock"
+      IsVisible="true"
+      Factory="{Binding DockFactory}"
+      Margin="6,0,6,6"
+      Layout="{Binding Layout}">
+      -->
+
     <dock:DockControl
       x:Name="MainDock"
       IsVisible="true"
       Margin="6,0,6,6"
-      Layout="{Binding Layout}" />
+      Factory="{Binding DockFactory}"
+      InitializeFactory="True"
+      Layout="{Binding Layout}"
+      InitializeLayout="True"
+      >
+
+
+<!--      <dock:DockControl.DataTemplates> -->
+        <!-- Editor Panel Template - keyed by EditorViewModel -->
+<!--
+        <DataTemplate DataType="panelsViewModels:EditorViewModel">
+          <panelsViews:EditorView />
+        </DataTemplate>
+        -->
+        <!-- Preview Panel Template - keyed by PreviewViewModel -->
+<!--
+        <DataTemplate DataType="panelsViewModels:PreviewViewModel">
+          <panelsViews:PreviewView />
+        </DataTemplate>
+
+        -->
+        <!-- AI Assistant Panel Template - keyed by AIViewModel -->
+<!--
+        <DataTemplate DataType="panelsViewModels:AIViewModel">
+          <panelsViews:AIView />
+        </DataTemplate>
+      </dock:DockControl.DataTemplates>
+-->
+    </dock:DockControl>
+
   </DockPanel>
 </Window>

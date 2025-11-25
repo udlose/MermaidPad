@@ -1,5 +1,5 @@
 <UserControl
-  x:Class="MermaidPad.Views.Panels.AIPanel"
+  x:Class="MermaidPad.Views.Panels.AIView"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,7 +7,7 @@
   xmlns:panelsViewModels="clr-namespace:MermaidPad.ViewModels.Panels"
   d:DesignHeight="800"
   d:DesignWidth="300"
-  x:DataType="panelsViewModels:AIPanelViewModel"
+  x:DataType="panelsViewModels:AIViewModel"
   mc:Ignorable="d">
 
   <UserControl.Styles>
@@ -96,7 +96,7 @@
         </StackPanel>
 
         <!--  Result Section  -->
-        <StackPanel IsVisible="{Binding ResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Spacing="8">
+<!--        <StackPanel IsVisible="{Binding ResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Spacing="8">
           <TextBlock Classes="SectionHeader" Text="Result" />
 
           <Border Classes="ResultBorder">
@@ -116,9 +116,9 @@
               Content="Clear" />
           </StackPanel>
         </StackPanel>
-
+-->
         <!--  Actions Section (for current diagram)  -->
-        <Separator Margin="0,10" />
+<!--        <Separator Margin="0,10" />
 
         <StackPanel IsEnabled="{Binding IsConfigured}" Spacing="8">
           <TextBlock Classes="SectionHeader" Text="Analyze Current Diagram" />
@@ -136,7 +136,7 @@
             Content="Suggest Improvements"
             IsEnabled="{Binding !IsProcessing}" />
         </StackPanel>
-      </StackPanel>
+-->      </StackPanel>
     </ScrollViewer>
   </DockPanel>
 </UserControl>

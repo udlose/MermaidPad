@@ -37,7 +37,6 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="Dock.Avalonia" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.6.5" />
-		<PackageReference Include="Dock.Avalonia.Themes.Simple" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Model.Avalonia" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Model.Extensions.DependencyInjection" Version="11.3.6.5" />
 		<PackageReference Include="Dock.Model.Mvvm" Version="11.3.6.5" />
@@ -63,6 +62,10 @@
 		<PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
 		<!-- TODO: DaveBlack deprecate SkiaSharp and Svg.Skia -->
 		<PackageReference Include="SkiaSharp" Version="3.119.1" />
+		<PackageReference Include="StaticViewLocator" Version="0.1.0">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Svg.Skia" Version="3.2.1" />
 		<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.11" />
 		<PackageReference Include="TextMateSharp" Version="1.0.70" />
@@ -162,14 +165,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
-	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
+	  <AdditionalFiles Remove="Views/Dialogs/MessageDialog.axaml" />
+	  <AdditionalFiles Remove="Views/Dialogs/ExportDialog.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
-      <AdditionalFiles Remove="Views/AIPanel.axaml" />
 	  <AdditionalFiles Remove="Views/Dialogs/SettingsDialog.axaml" />
-	  <AdditionalFiles Remove="Views/Panels/EditorPanel.axaml" />
-	  <AdditionalFiles Remove="Views/Panels/PreviewPanel.axaml" />
+	  <AdditionalFiles Remove="Views/Panels/AIView.axaml" />
+	  <AdditionalFiles Remove="Views/Panels/EditorView.axaml" />
+	  <AdditionalFiles Remove="Views/Panels/PreviewView.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -205,16 +208,16 @@
 		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
 			<SubType>Designer</SubType>
 		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/Panels/AIPanel.axaml">
+		<AvaloniaXaml Update="Views/Dialogs/SettingsDialog.axaml">
 			<SubType>Designer</SubType>
 		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/Dialogs/SettingsDialog.axaml">
+		<AvaloniaXaml Update="Views/Panels/AIView.axaml">
 		  <SubType>Designer</SubType>
 		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/Panels/EditorPanel.axaml">
+		<AvaloniaXaml Update="Views/Panels/EditorView.axaml">
 		  <SubType>Designer</SubType>
 		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/Panels/PreviewPanel.axaml">
+		<AvaloniaXaml Update="Views/Panels/PreviewView.axaml">
 		  <SubType>Designer</SubType>
 		</AvaloniaXaml>
 	</ItemGroup>

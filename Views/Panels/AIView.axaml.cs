@@ -22,9 +22,20 @@ using Avalonia.Controls;
 
 namespace MermaidPad.Views.Panels;
 
-public sealed partial class AIPanel : UserControl
+/// <summary>
+/// Represents a user interface control for displaying AI-related content or functionality within an application.
+/// </summary>
+/// <remarks>This control is intended to be used as part of a Windows Forms application. It is a sealed partial
+/// class, which means it cannot be inherited and may be extended in other partial class definitions. The control should
+/// be added to a form or container to present AI features to users.</remarks>
+public sealed partial class AIView : UserControl
 {
-    public AIPanel()
+    /// <summary>
+    /// Initializes a new instance of the AIView class and sets up the user interface components.
+    /// </summary>
+    /// <remarks>Call this constructor to create and display a new AIView. The user interface elements are
+    /// initialized and ready for interaction after construction.</remarks>
+    public AIView()
     {
         InitializeComponent();
     }

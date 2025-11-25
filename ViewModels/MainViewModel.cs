@@ -84,9 +84,14 @@ public sealed partial class MainViewModel : ViewModelBase
     public PreviewViewModel PreviewViewModel { get; private set; }
 
     /// <summary>
-    /// Gets the AI panel view model.
+    /// Gets the AI view model.
     /// </summary>
-    public AIPanelViewModel AIPanelViewModel { get; private set; }
+    public AIViewModel AIViewModel { get; private set; }
+
+    /// <summary>
+    /// Gets the dock factory used for creating and managing dockable panels.
+    /// </summary>
+    public IFactory DockFactory => _dockFactory;
 
     #endregion Properties (non-MVVM)
 
@@ -147,6 +152,32 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial IDock? Layout { get; set; }
 
     /// <summary>
+    /// Diagnostic partial method called when Layout property changes.
+    /// </summary>
+    partial void OnLayoutChanged(IDock? oldValue, IDock? newValue)
+    {
+        var stackTrace = new System.Diagnostics.StackTrace(true);
+        _logger.LogWarning("=== LAYOUT PROPERTY CHANGED ===");
+        _logger.LogWarning("Old Value: {OldType}, New Value: {NewType}",
+            oldValue?.GetType().Name ?? "null",
+            newValue?.GetType().Name ?? "null");
+        _logger.LogWarning("Stack Trace:");
+        foreach (var frame in stackTrace.GetFrames().Take(10))
+        {
+            var method = frame.GetMethod();
+            if (method != null)
+            {
+                _logger.LogWarning("  at {Type}.{Method} in {File}:line {Line}",
+                    method.DeclaringType?.FullName ?? "unknown",
+                    method.Name,
+                    frame.GetFileName() ?? "unknown",
+                    frame.GetFileLineNumber());
+            }
+        }
+        _logger.LogWarning("=== END LAYOUT PROPERTY CHANGED ===");
+    }
+
+    /// <summary>
     /// Gets a value indicating whether the Save command can execute.
     /// </summary>
     public bool CanSave => EditorViewModel.HasText && IsDirty;
@@ -178,7 +209,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <param name="aiServiceFactory">The AI service factory for creating AI service implementations.</param>
     /// <param name="editorViewModel">The editor panel view model.</param>
     /// <param name="previewViewModel">The preview panel view model.</param>
-    /// <param name="aiPanelViewModel">The AI assistant panel view model.</param>
+    /// <param name="aiViewModel">The AI assistant panel view model.</param>
     public MainViewModel(
         ILogger<MainViewModel> logger,
         DockSerializer dockSerializer,
@@ -192,7 +223,7 @@ public sealed partial class MainViewModel : ViewModelBase
         AIServiceFactory aiServiceFactory,
         EditorViewModel editorViewModel,
         PreviewViewModel previewViewModel,
-        AIPanelViewModel aiPanelViewModel)
+        AIViewModel aiViewModel)
     {
         _logger = logger;
         _dockSerializer = dockSerializer;
@@ -207,7 +238,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
         EditorViewModel = editorViewModel;
         PreviewViewModel = previewViewModel;
-        AIPanelViewModel = aiPanelViewModel;
+        AIViewModel = aiViewModel;
 
         //TODO - DaveBlack: where should this be wired up? why is the MainViewModel responsible for this?
         // Wire up communication: Editor -> Preview
@@ -242,11 +273,11 @@ public sealed partial class MainViewModel : ViewModelBase
         // Initialize PreviewViewModel from settings
         PreviewViewModel.LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
 
-        // Wire up AI panel event handler
-        AIPanelViewModel.DiagramGenerated += OnDiagramGenerated;
+        // Wire up AI view model event handler
+        AIViewModel.DiagramGenerated += OnDiagramGenerated;
 
         // Initialize docking layout and state
-        InitializeContextLocator();
+        //TODO do i need this anymore?        InitializeContextLocator();
         // NOTE: InitializeDockState() is NOT called here because the MainWindow doesn't exist yet
         // at this point in the lifecycle. The dock state is managed automatically by the DockState
         // service and is saved when the layout changes or the application closes.
@@ -268,6 +299,51 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         try
         {
+            //TODO what should i do here?
+            //    // TEMPORARY DEBUG: Always create default layout (skip loading from file)
+            //    // This isolates the visibility problem from JSON serialization issues
+            //    _logger.LogInformation("=== LoadLayout START (persistence disabled for debugging) ===");
+
+            //    IRootDock? layout = _dockFactory.CreateLayout();
+            //    if (layout is not null)
+            //    {
+            //        _dockFactory.InitLayout(layout);
+            //        _logger.LogInformation("Default layout created and initialized");
+
+            //        // DEBUG: Check if Context is set on tools
+            //        if (layout.VisibleDockables?.Count > 0)
+            //        {
+            //            var proportionalDock = layout.VisibleDockables[0] as ProportionalDock;
+            //            if (proportionalDock?.VisibleDockables != null)
+            //            {
+            //                _logger.LogInformation("=== INSPECTING LAYOUT STRUCTURE ===");
+            //                foreach (var dockable in proportionalDock.VisibleDockables)
+            //                {
+            //                    if (dockable is Tool tool)
+            //                    {
+            //                        _logger.LogInformation("Tool: Id={Id}, Title={Title}, Context={Context}, ContextType={ContextType}",
+            //                            tool.Id, tool.Title,
+            //                            tool.Context != null ? "SET" : "NULL",
+            //                            tool.Context?.GetType().Name ?? "null");
+            //                    }
+            //                }
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        _logger.LogError("DockFactory.CreateLayout() returned null!");
+            //    }
+
+            //    Layout = layout;
+            //    _logger.LogInformation("=== LoadLayout END - Layout assigned. Type={LayoutType}, IsNull={IsNull} ===",
+            //        Layout?.GetType().Name ?? "null",
+            //        Layout == null);
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.LogError(ex, "Failed to create default layout");
+            //}
             string dockLayoutPath = GetDockLayoutPath();
             bool layoutLoaded = false;
 
@@ -388,14 +464,22 @@ public sealed partial class MainViewModel : ViewModelBase
     /// on context resolution for docked panels.</remarks>
     private void InitializeContextLocator()
     {
+        _logger.LogInformation("=== INITIALIZING CONTEXTLOCATOR ===");
+
         // Set up DefaultContextLocator and ContextLocator to map panel IDs to ViewModels
         _dockFactory.DefaultContextLocator = () => this;
         _dockFactory.ContextLocator = new Dictionary<string, Func<object?>>
         {
-            ["Editor"] = () => EditorViewModel,
-            ["Preview"] = () => PreviewViewModel,
-            ["AIAssistant"] = () => AIPanelViewModel
+            ["EditorView"] = () => EditorViewModel,
+            ["PreviewView"] = () => PreviewViewModel,
+            ["AIView"] = () => AIViewModel
         };
+
+        _logger.LogInformation("ContextLocator configured with 3 mappings: Editor, Preview, AI");
+        _logger.LogInformation("EditorViewModel: {EditorType}, PreviewViewModel: {PreviewType}, AIViewModel: {AIType}",
+            EditorViewModel.GetType().Name,
+            PreviewViewModel.GetType().Name,
+            AIViewModel.GetType().Name);
     }
 
     /// <summary>
@@ -927,7 +1011,7 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 // Settings were saved by the dialog, recreate AI service with new settings
                 IAIService aiService = _aiServiceFactory.CreateService(_settingsService.Settings.AI);
-                AIPanelViewModel.UpdateAIService(aiService);
+                AIViewModel.UpdateAIService(aiService);
                 _logger.LogInformation("AI service updated with new settings");
             }
         }

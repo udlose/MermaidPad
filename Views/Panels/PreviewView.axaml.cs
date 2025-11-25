@@ -26,12 +26,12 @@ namespace MermaidPad.Views.Panels;
 /// <summary>
 /// UserControl wrapper for the Preview panel that exposes the WebView control.
 /// </summary>
-public sealed partial class PreviewPanel : UserControl
+public sealed partial class PreviewView : UserControl
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="PreviewPanel"/> class.
+    /// Initializes a new instance of the <see cref="PreviewView"/> class.
     /// </summary>
-    public PreviewPanel()
+    public PreviewView()
     {
         InitializeComponent();
     }

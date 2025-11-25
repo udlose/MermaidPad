@@ -42,12 +42,12 @@ namespace MermaidPad.ViewModels.Panels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class AIPanelViewModel : ViewModelBase
+public sealed partial class AIViewModel : ViewModelBase
 {
     /// <summary>
-    /// Provides logging capabilities for the <see cref="AIPanelViewModel"/> class.
+    /// Provides logging capabilities for the <see cref="AIViewModel"/> class.
     /// </summary>
-    private readonly ILogger<AIPanelViewModel> _logger;
+    private readonly ILogger<AIViewModel> _logger;
 
     /// <summary>
     /// Backing reference to the currently configured AI service implementation.
@@ -108,7 +108,7 @@ public sealed partial class AIPanelViewModel : ViewModelBase
     public partial string StatusMessage { get; set; } = string.Empty;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AIPanelViewModel"/> class using application-level services.
+    /// Initializes a new instance of the <see cref="AIViewModel"/> class using application-level services.
     /// </summary>
     /// <remarks>
     /// <para>This constructor retrieves required services from the application's dependency injection
@@ -116,23 +116,23 @@ public sealed partial class AIPanelViewModel : ViewModelBase
     /// startup.</para>
     /// <para>
     /// This constructor lives specifically for the purpose of avoiding this warning:
-    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/AIPanel.axaml" won't be reachable via runtime loader, as no public constructor was found
+    ///     AVLN3001: XAML resource "avares://MermaidPad/Views/Panels/AIView.axaml" won't be reachable via runtime loader, as no public constructor was found
     /// </para>
     /// </remarks>
-    public AIPanelViewModel()
+    public AIViewModel()
         : this(
-            App.Services.GetRequiredService<ILogger<AIPanelViewModel>>(),
+            App.Services.GetRequiredService<ILogger<AIViewModel>>(),
             App.Services.GetRequiredService<IAIService>())
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AIPanelViewModel"/> class with the specified AI service.
+    /// Initializes a new instance of the <see cref="AIViewModel"/> class with the specified AI service.
     /// </summary>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <param name="aiService">The AI service implementation to use for generating, explaining, and improving diagrams.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="aiService"/> is <see langword="null"/>.</exception>
-    public AIPanelViewModel(ILogger<AIPanelViewModel> logger, IAIService aiService)
+    public AIViewModel(ILogger<AIViewModel> logger, IAIService aiService)
     {
         ArgumentNullException.ThrowIfNull(aiService);
 

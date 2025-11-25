@@ -19,20 +19,40 @@
 // SOFTWARE.
 
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Dock.Model.Core;
+using StaticViewLocator;
 
-namespace MermaidPad.Views.Panels;
+namespace MermaidPad;
 
-/// <summary>
-/// UserControl wrapper for the Editor panel.
-/// The TextEditor control is accessible via the Editor field generated from x:Name.
-/// </summary>
-public sealed partial class EditorPanel : UserControl
+[StaticViewLocator]
+public partial class ViewLocator : IDataTemplate
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EditorPanel"/> class.
-    /// </summary>
-    public EditorPanel()
+    public Control? Build(object? data)
     {
-        InitializeComponent();
+        if (data is null)
+        {
+            return null;
+        }
+
+        var type = data.GetType();
+
+        if (s_views.TryGetValue(type, out var func))
+        {
+            return func.Invoke();
+        }
+
+        throw new Exception($"Unable to create view for type: {type}");
+    }
+
+    public bool Match(object? data)
+    {
+        if (data is null)
+        {
+            return false;
+        }
+
+        var type = data.GetType();
+        return data is IDockable || s_views.ContainsKey(type);
     }
 }

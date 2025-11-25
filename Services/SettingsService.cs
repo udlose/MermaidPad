@@ -21,7 +21,6 @@
 using MermaidPad.Models;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 
 namespace MermaidPad.Services;
@@ -225,8 +224,8 @@ public sealed class SettingsService : SettingsBase
 
             // Serialize and save the settings
             string json = JsonSerializer.Serialize(Settings, _jsonOptions);
-            LogInformation($"Saving settings to: {fullSettingsPath}");
-            LogDebug($"Settings JSON being saved:{Environment.NewLine}{json}");
+            //           LogInformation($"Saving settings to: {fullSettingsPath}");
+            //           LogDebug($"Settings JSON being saved:{Environment.NewLine}{json}");
 
             // Use File.Create to ensure we create a new file, or overwrite the existing one. This is safer than FileStream
             using FileStream fs = File.Create(fullSettingsPath);
@@ -234,7 +233,7 @@ public sealed class SettingsService : SettingsBase
             writer.Write(json);
             writer.Flush();
 
-            LogInformation($"{nameof(AppSettings)} saved successfully ({Encoding.UTF8.GetByteCount(json)} bytes written)");
+            //            LogInformation($"{nameof(AppSettings)} saved successfully ({Encoding.UTF8.GetByteCount(json)} bytes written)");
 
         }
         catch (Exception ex)

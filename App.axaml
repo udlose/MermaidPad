@@ -3,22 +3,43 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
-  xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia">
+  xmlns:dock="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
+  xmlns:panelViews="clr-namespace:MermaidPad.Views.Panels"
+  xmlns:panelModelViews="clr-namespace:MermaidPad.ViewModels.Panels"
+  xmlns:mermaidPad="clr-namespace:MermaidPad">
 
   <Application.Resources>
-    <ControlRecycling x:Key="ControlRecyclingKey" TryToUseIdAsKey="True" />
-    <Color x:Key="RegionColor">Transparent</Color>
+<!--    <ControlRecycling x:Key="ControlRecyclingKey" TryToUseIdAsKey="True" />-->
+<!--    <Color x:Key="RegionColor">Transparent</Color>-->
     <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
     <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
     <converters:InverseBoolToObjectConverter x:Key="InverseBoolToObjectConverter" />
   </Application.Resources>
-
+  
+  <!-- DataTemplates for Dock panels - maps ViewModels to Views -->
+ <Application.DataTemplates>
+    <DataTemplate DataType="panelModelViews:EditorViewModel">
+      <panelViews:EditorView />
+    </DataTemplate>
+    <DataTemplate DataType="panelModelViews:PreviewViewModel">
+      <panelViews:PreviewView />
+    </DataTemplate>
+    <DataTemplate DataType="panelModelViews:AIViewModel">
+      <panelViews:AIView />
+    </DataTemplate>
+  </Application.DataTemplates>
+<!-- 
+  <Application.DataTemplates>
+    <mermaidPad:ViewLocator />
+  </Application.DataTemplates>
+-->
   <Application.Styles>
-    <Style Selector="DockControl">
+    <!-- ControlRecycling disabled - it can interfere with DataTemplate rendering in DockControl -->
+<!--    <Style Selector="DockControl">
       <Setter Property="(ControlRecyclingDataTemplate.ControlRecycling)"
               Value="{StaticResource ControlRecyclingKey}" />
     </Style>
-
+-->
     <!-- Include Dock.Avalonia theme (required for DockControl to render panels) -->
     <DockFluentTheme />
     <FluentTheme />

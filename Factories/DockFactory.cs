@@ -24,6 +24,7 @@ using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
+using MermaidPad.ViewModels.Panels;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
@@ -44,9 +45,9 @@ namespace MermaidPad.Factories;
 public sealed class DockFactory : Factory
 {
     private const string RootDockId = "Root";
-    private const string EditorDockId = "Editor";
-    private const string PreviewDockId = "Preview";
-    private const string AIDockId = "AIAssistant";
+    private const string EditorDockId = "EditorView";
+    private const string PreviewDockId = "PreviewView";
+    private const string AIDockId = "AIView";
 
     private IRootDock? _rootDock;
     private IDockable? _editorTool;
@@ -54,15 +55,29 @@ public sealed class DockFactory : Factory
     private IDockable? _aiTool;
 
     private readonly ILogger<DockFactory>? _logger;
+    private readonly EditorViewModel _editorViewModel;
+    private readonly PreviewViewModel _previewViewModel;
+    private readonly AIViewModel _aiViewModel;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DockFactory"/> class.
-    /// </summary>
-    /// <param name="logger">Optional logger for diagnostic output. May be null during bootstrapping.</param>
-    public DockFactory(ILogger<DockFactory>? logger = null)
+    ///// <summary>
+    ///// Initializes a new instance of the <see cref="DockFactory"/> class.
+    ///// </summary>
+    ///// <param name="editorViewModel">The editor panel view model.</param>
+    ///// <param name="previewViewModel">The preview panel view model.</param>
+    ///// <param name="aiViewModel">The AI view model.</param>
+    ///// <param name="logger">Optional logger for diagnostic output. May be null during bootstrapping.</param>
+    public DockFactory(
+        //EditorViewModel editorViewModel,
+        //PreviewViewModel previewViewModel,
+        //AIViewModel aiViewModel,
+        ILogger<DockFactory>? logger = null)
     {
+        //_editorViewModel = editorViewModel;
+        //_previewViewModel = previewViewModel;
+        //_aiViewModel = aiViewModel;
         _logger = logger;
     }
+
 
     /// <summary>
     /// Creates and configures the root dock layout for the application, including editor, preview, and AI assistant
@@ -156,21 +171,20 @@ public sealed class DockFactory : Factory
                     Title = "Splitter2"
                 },
                 aiToolDock
-            )
+            ),
+            ActiveDockable = editorToolDock
         };
 
         // Create root dock
-        RootDock rootDock = new RootDock
-        {
-            Id = RootDockId,
-            Title = RootDockId,
-            IsCollapsable = false,
-            VisibleDockables = CreateList<IDockable>(proportionalDock),
-            ActiveDockable = proportionalDock,
-            DefaultDockable = proportionalDock
-        };
-        _rootDock = rootDock;
+        IRootDock rootDock = CreateRootDock();
+        rootDock.Id = RootDockId;
+        rootDock.Title = RootDockId;
+        rootDock.IsCollapsable = false;
+        rootDock.VisibleDockables = CreateList<IDockable>(proportionalDock);
+        rootDock.ActiveDockable = proportionalDock;
+        rootDock.DefaultDockable = proportionalDock;
 
+        _rootDock = rootDock;
         _editorTool = editorTool;
         _previewTool = previewTool;
         _aiTool = aiTool;
@@ -198,10 +212,15 @@ public sealed class DockFactory : Factory
     public override void InitLayout(IDockable layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        if (DefaultContextLocator is null || ContextLocator is null)
-        {
-            throw new InvalidOperationException($"Both {nameof(ContextLocator)} and {nameof(DefaultContextLocator)} must be set before calling {nameof(InitLayout)}.");
-        }
+
+        // ContextLocator maps Tool IDs to ViewModels - DataTemplates will render them as Views
+        //ContextLocator = new Dictionary<string, Func<object?>>
+        //{
+        //    [EditorDockId] = () => _editorViewModel,
+        //    [PreviewDockId] = () => _previewViewModel,
+        //    [AIDockId] = () => _aiViewModel
+        //};
+        DefaultContextLocator = () => this;
 
         // Provide a DefaultHostWindowLocator implementation
         DefaultHostWindowLocator = static () => new HostWindow();
@@ -212,7 +231,7 @@ public sealed class DockFactory : Factory
             [nameof(IDockWindow)] = static () => new HostWindow()
         };
 
-        // Now set up the DockableLocator
+        // Set up the DockableLocator for layout deserialization
         DockableLocator = new Dictionary<string, Func<IDockable?>>
         {
             [RootDockId] = () => _rootDock,
