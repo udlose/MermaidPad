@@ -179,10 +179,12 @@
 	<ItemGroup>
 		<None Include=".github/workflows/build-and-release.yml" />
 		<None Include=".github/workflows/codeql.yml" />
+		<None Include=".github/workflows/devskim.yml" />
 		<None Include=".github/workflows/first-interaction.yml" />
 		<None Include=".github/workflows/macos-universal-dmg.yml" />
 		<None Include=".github/workflows/macos-bundle.yml" />
 		<None Include=".github/workflows/README.md" />
+		<None Include=".github/workflows/scorecard.yml" />
 	</ItemGroup>
 
 	<!-- macOS app bundle support -->
