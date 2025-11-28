@@ -628,7 +628,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
                 // Explicit call (lambda still captures webView local, but the static local function prevents
                 // implicit capture of surrounding variables inside the function body).
-                await Dispatcher.UIThread.InvokeAsync(async () => await ClearOutputAsync(webView));
+                await Dispatcher.UIThread.InvokeAsync(() => ClearOutputAsync(webView));
 
                 _logger.LogDebug("Cleared output");
 
@@ -666,7 +666,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 Debug.WriteLine($"Render result: {result ?? "null"}");
             }
 
-            await Dispatcher.UIThread.InvokeAsync(async () => await RenderMermaidAsync());
+            await Dispatcher.UIThread.InvokeAsync(RenderMermaidAsync);
         }
         catch (Exception ex)
         {
@@ -1089,7 +1089,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to cancel export polling CTS");
+                        _logger.LogError(ex, "Failed to cancel export polling CancellationTokenSource");
                     }
                 }
 
@@ -1123,7 +1123,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to dispose export polling CTS");
+                    _logger.LogError(ex, "Failed to dispose export polling CancellationTokenSource");
                 }
             }
 

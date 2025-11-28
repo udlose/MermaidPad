@@ -79,7 +79,7 @@ public static class ServiceConfiguration
             // Create AssetService and extract assets asynchronously
             // Use Task.Run to explicitly offload file I/O to thread pool during app startup
             AssetService assetService = new AssetService(assetLogger, securityService, assetIntegrityService);
-            assetsDirectory = Task.Run(async () => await assetService.ExtractAssetsAsync())
+            assetsDirectory = Task.Run(() => assetService.ExtractAssetsAsync())
                 .GetAwaiter()
                 .GetResult();
 
