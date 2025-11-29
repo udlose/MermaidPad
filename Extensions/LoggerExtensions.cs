@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -30,6 +31,52 @@ namespace MermaidPad.Extensions;
 /// </summary>
 public static class LoggerExtensions
 {
+    /// <summary>
+    /// Logs detailed information about the current thread, synchronization context, and dispatcher access for
+    /// diagnostic purposes.
+    /// </summary>
+    /// <remarks>This method is intended for debugging and diagnostic scenarios where understanding the
+    /// execution context is important. It logs the physical thread ID, background status, thread name, current
+    /// synchronization context, and dispatcher access status. The log entry is written at the debug level.</remarks>
+    /// <param name="logger">The logger instance used to record the thread context information.</param>
+    /// <param name="exception">An optional exception to include in the log entry. If specified, the exception details are logged alongside the
+    /// thread context.</param>
+    /// <param name="callerName">The name of the calling member. This is automatically supplied by the compiler and identifies the source of the
+    /// log entry.</param>
+    public static void LogThreadContext(
+        this ILogger logger,
+        Exception? exception = null,
+        [CallerMemberName] string? callerName = null)
+    {
+        // Get Physical Thread Info
+        Thread thread = Thread.CurrentThread;
+        int threadId = Environment.CurrentManagedThreadId;
+        bool isBackground = thread.IsBackground;
+
+        // Get the Sync Context
+        SynchronizationContext? context = SynchronizationContext.Current;
+        string contextName = context?.GetType().Name ?? "NULL";
+
+        // Get the Avalonia Dispatcher Status
+        // CheckAccess() returns true if we are technically on the thread
+        // that the Dispatcher "owns", regardless of Context state.
+        bool hasDispatcherAccess = Dispatcher.UIThread.CheckAccess();
+
+        logger.LogDebug(exception,
+            """
+            --- Caller: {CallerName} ---
+            [Physical Thread]
+            ID          : {ThreadId}
+            IsBackground: {IsBackground}
+            Name        : {ThreadName}
+
+            [Logical Context]
+            SyncContext        : {ContextName}
+            HasDispatcherAccess: {HasDispatcherAccess}
+            -----------------------------------------
+            """, callerName, threadId, isBackground, thread.Name ?? "Unassigned", contextName, hasDispatcherAccess);
+    }
+
     /// <summary>
     /// Logs a WebView event with optional details.
     /// </summary>
