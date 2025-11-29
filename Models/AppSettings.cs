@@ -100,7 +100,17 @@ public sealed class AppSettings
     /// <summary>
     /// Logging configuration settings.
     /// </summary>
-    public LoggingSettings Logging { get; set; } = new();
+    public LoggingSettings Logging { get; set; } = new LoggingSettings();
+
+    /// <summary>
+    /// Gets or sets the name of the currently selected application theme.
+    /// </summary>
+    public string? SelectedApplicationTheme { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the currently selected editor theme.
+    /// </summary>
+    public string? SelectedEditorTheme { get; set; }
 }
 
 /// <summary>

@@ -23,6 +23,7 @@ using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
+using MermaidPad.Services.Theming;
 using MermaidPad.ViewModels;
 using MermaidPad.ViewModels.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +106,7 @@ public static class ServiceConfiguration
         services.AddSingleton<IFileService, FileService>();
         services.AddSingleton<DocumentAnalyzer>();
         services.AddSingleton<CommentingStrategy>();
+        services.AddSingleton<IThemeService, ThemeService>();
 
         // Main ViewModel: transient (one per window)
         services.AddTransient<MainWindowViewModel>();
