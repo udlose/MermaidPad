@@ -75,8 +75,9 @@ public static class LoggerExtensions
             [Logical Context]
             SyncContext        : {ContextTypeName}
             HasDispatcherAccess: {HasDispatcherAccess}
+            Exception          : {Exception}
             -----------------------------------------
-            """, callerName, threadId, isBackground, isThreadPoolThread, thread.Name ?? "Unassigned", contextTypeName, hasDispatcherAccess);
+            """, callerName, threadId, isBackground, isThreadPoolThread, thread.Name ?? "Unassigned", contextTypeName, hasDispatcherAccess, exception);
     }
 
     /// <summary>
