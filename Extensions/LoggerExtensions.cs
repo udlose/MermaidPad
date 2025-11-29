@@ -50,12 +50,13 @@ public static class LoggerExtensions
     {
         // Get Physical Thread Info
         Thread thread = Thread.CurrentThread;
-        int threadId = Environment.CurrentManagedThreadId;
+        int threadId = thread.ManagedThreadId;
         bool isBackground = thread.IsBackground;
+        bool isThreadPoolThread = thread.IsThreadPoolThread;
 
         // Get the Sync Context
         SynchronizationContext? context = SynchronizationContext.Current;
-        string contextName = context?.GetType().Name ?? "NULL";
+        string contextTypeName = context?.GetType().Name ?? "NULL";
 
         // Get the Avalonia Dispatcher Status
         // CheckAccess() returns true if we are technically on the thread
@@ -68,13 +69,14 @@ public static class LoggerExtensions
             [Physical Thread]
             ID          : {ThreadId}
             IsBackground: {IsBackground}
+            IsThreadPool: {IsThreadPoolThread}
             Name        : {ThreadName}
 
             [Logical Context]
-            SyncContext        : {ContextName}
+            SyncContext        : {ContextTypeName}
             HasDispatcherAccess: {HasDispatcherAccess}
             -----------------------------------------
-            """, callerName, threadId, isBackground, thread.Name ?? "Unassigned", contextName, hasDispatcherAccess);
+            """, callerName, threadId, isBackground, isThreadPoolThread, thread.Name ?? "Unassigned", contextTypeName, hasDispatcherAccess);
     }
 
     /// <summary>
