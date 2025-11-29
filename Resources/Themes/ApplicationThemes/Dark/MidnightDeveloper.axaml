@@ -1,0 +1,81 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
+  <!--
+    Midnight Developer Theme - dark theme with blue undertones
+    Accent Color: Orange (#F48024)
+  -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="#0D1117" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background" Value="#161B22" />
+  </Style>
+
+<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
+    <Setter Property="Background" Value="#F48024" />
+  </Style>
+
+  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="White" />
+  </Style>-->
+
+  <Style Selector="avaloniaEdit|TextEditor">
+    <Setter Property="Background" Value="#0D1117" />
+    <Setter Property="Foreground" Value="#E1E4E8" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="#30363D" />
+  </Style>
+
+  <Style Selector="Border">
+    <Setter Property="BorderBrush" Value="#30363D" />
+  </Style>
+
+  <!--  Default Button Style  -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="#383E47" />
+    <Setter Property="Foreground" Value="#E1E4E8" />
+    <Setter Property="BorderBrush" Value="#30363D" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MinWidth" Value="80" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="#454D58" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="#525A66" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.6" />
+  </Style>
+
+  <!--  Accent Button Style  -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="#F48024" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderBrush" Value="#E06F15" />
+  </Style>
+
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Background" Value="#FF9133" />
+  </Style>
+
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Background" Value="#E06F15" />
+  </Style>
+
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="Background" Value="#F4A76A" />
+  </Style>
+</Styles>

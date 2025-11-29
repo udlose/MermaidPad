@@ -1,0 +1,198 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
+  <!--
+    Charcoal Pro 3D Theme - Skeuomorphic version of Charcoal Pro
+    Accent Color: Green (#16C60C)
+    Design: Moderate skeuomorphism with gradients, shadows, and depth
+  -->
+
+  <Style Selector="Window">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#262626" Offset="0" />
+        <GradientStop Color="#1A1A1A" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#353535" Offset="0" />
+        <GradientStop Color="#2B2B2B" Offset="0.5" />
+        <GradientStop Color="#222222" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#1EDE15" Offset="0" />
+        <GradientStop Color="#129E0B" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="White" />
+  </Style>-->
+
+  <Style Selector="avaloniaEdit|TextEditor">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#1F1F1F" Offset="0" />
+        <GradientStop Color="#1A1A1A" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Foreground" Value="#CCCCCC" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+        <GradientStop Color="#4A4A4E" Offset="0" />
+        <GradientStop Color="#3E3E42" Offset="0.5" />
+        <GradientStop Color="#4A4A4E" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border">
+    <Setter Property="BorderBrush">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#4A4A4E" Offset="0" />
+        <GradientStop Color="#3E3E42" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <!--  Default Button Style (Skeuomorphic)  -->
+  <Style Selector="Button">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#4E4E52" Offset="0" />
+        <GradientStop Color="#3E3E42" Offset="0.5" />
+        <GradientStop Color="#323236" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Foreground" Value="#CCCCCC" />
+    <Setter Property="BorderBrush">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#5A5A5E" Offset="0" />
+        <GradientStop Color="#323236" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="14,7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MinWidth" Value="80" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#60000000" OffsetX="0" OffsetY="2" BlurRadius="4" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#606066" Offset="0" />
+        <GradientStop Color="#505053" Offset="0.5" />
+        <GradientStop Color="#424247" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="BorderBrush">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#1EDE15" Offset="0" />
+        <GradientStop Color="#16C60C" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#8016C60C" OffsetX="0" OffsetY="2" BlurRadius="6" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#2B2B2B" Offset="0" />
+        <GradientStop Color="#323236" Offset="0.5" />
+        <GradientStop Color="#3E3E42" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#A0000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
+    </Setter>
+    <Setter Property="RenderTransform">
+      <TranslateTransform Y="1" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.4" />
+    <Setter Property="Effect" Value="{x:Null}" />
+  </Style>
+
+  <!--  Accent Button Style (Skeuomorphic)  -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#1EDE15" Offset="0" />
+        <GradientStop Color="#16C60C" Offset="0.5" />
+        <GradientStop Color="#129E0B" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderBrush">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#33F52A" Offset="0" />
+        <GradientStop Color="#0E7B07" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#7016C60C" OffsetX="0" OffsetY="2" BlurRadius="4" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#33F52A" Offset="0" />
+        <GradientStop Color="#1EDE15" Offset="0.5" />
+        <GradientStop Color="#16C60C" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#9016C60C" OffsetX="0" OffsetY="2" BlurRadius="6" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#0E7B07" Offset="0" />
+        <GradientStop Color="#129E0B" Offset="0.5" />
+        <GradientStop Color="#16C60C" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#B0000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
+    </Setter>
+    <Setter Property="RenderTransform">
+      <TranslateTransform Y="1" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#9FEA99" Offset="0" />
+        <GradientStop Color="#6FDB67" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Opacity" Value="0.4" />
+    <Setter Property="Effect" Value="{x:Null}" />
+  </Style>
+</Styles>
