@@ -179,10 +179,8 @@ public sealed class ThemeService : IThemeService
             _logger.LogInformation("No saved editor theme found. Using default: {EditorTheme}", editorTheme);
         }
 
-        // Apply themes
+        // Apply themes (Editor theme is applied from MainWindow when editor is available)
         ApplyApplicationTheme(appTheme);
-        //TODO DaveBlack: re-attach this from the MainWindowViewModel
-        ApplyEditorTheme(editor, editorTheme);
 
         _logger.LogInformation("ThemeService initialized successfully.");
     }
@@ -251,27 +249,27 @@ public sealed class ThemeService : IThemeService
     }
 
     /// <summary>
-    /// Retrieves all available application themes supported by the current version.
+    /// Retrieves all available application themes supported by the current version, sorted alphabetically by display name.
     /// </summary>
     /// <remarks>The returned array reflects the themes defined in the <see cref="ApplicationTheme"/>
     /// enumeration. This method is useful for populating theme selection controls or for enumerating supported themes
     /// at runtime.</remarks>
-    /// <returns>An array of <see cref="ApplicationTheme"/> values representing the available themes. The array will contain all
+    /// <returns>An array of <see cref="ApplicationTheme"/> values representing the available themes, sorted alphabetically. The array will contain all
     /// defined themes; it will be empty only if no themes are defined.</returns>
-    public ApplicationTheme[] GetAvailableApplicationThemes()
-    {
-        return Enum.GetValues<ApplicationTheme>();
-    }
+    public ApplicationTheme[] GetAvailableApplicationThemes() =>
+        Enum.GetValues<ApplicationTheme>()
+            .OrderBy(GetApplicationThemeDisplayName)
+            .ToArray();
 
     /// <summary>
-    /// Retrieves all available editor themes supported by the application.
+    /// Retrieves all available editor themes supported by the application, sorted alphabetically by display name.
     /// </summary>
-    /// <returns>An array of <see cref="ThemeName"/> values representing the available editor themes. The array will be empty if
+    /// <returns>An array of <see cref="ThemeName"/> values representing the available editor themes, sorted alphabetically. The array will be empty if
     /// no themes are defined.</returns>
-    public ThemeName[] GetAvailableEditorThemes()
-    {
-        return Enum.GetValues<ThemeName>();
-    }
+    public ThemeName[] GetAvailableEditorThemes() =>
+        Enum.GetValues<ThemeName>()
+            .OrderBy(GetEditorThemeDisplayName)
+            .ToArray();
 
     /// <summary>
     /// Returns the display name associated with the specified application theme.
@@ -279,27 +277,24 @@ public sealed class ThemeService : IThemeService
     /// <param name="theme">The application theme for which to retrieve the display name.</param>
     /// <returns>A string containing the display name of the specified theme. If the theme is not recognized, returns the string
     /// representation of the theme value.</returns>
-    public string GetApplicationThemeDisplayName(ApplicationTheme theme)
+    public string GetApplicationThemeDisplayName(ApplicationTheme theme) => theme switch
     {
-        return theme switch
-        {
-            ApplicationTheme.StudioLight => "Studio Light",
-            ApplicationTheme.ProfessionalGray => "Professional Gray",
-            ApplicationTheme.SoftContrast => "Soft Contrast",
-            ApplicationTheme.VSDark => "VS Dark",
-            ApplicationTheme.MidnightDeveloper => "Midnight Developer",
-            ApplicationTheme.CharcoalPro => "Charcoal Pro",
-            ApplicationTheme.VS2022Dark => "VS 2022 Dark",
-            ApplicationTheme.StudioLight3D => "Studio Light 3D",
-            ApplicationTheme.ProfessionalGray3D => "Professional Gray 3D",
-            ApplicationTheme.SoftContrast3D => "Soft Contrast 3D",
-            ApplicationTheme.VSDark3D => "VS Dark 3D",
-            ApplicationTheme.MidnightDeveloper3D => "Midnight Developer 3D",
-            ApplicationTheme.CharcoalPro3D => "Charcoal Pro 3D",
-            ApplicationTheme.VS2022Dark3D => "VS 2022 Dark 3D",
-            _ => theme.ToString()
-        };
-    }
+        ApplicationTheme.StudioLight => "Studio Light",
+        ApplicationTheme.ProfessionalGray => "Professional Gray",
+        ApplicationTheme.SoftContrast => "Soft Contrast",
+        ApplicationTheme.VSDark => "VS Dark",
+        ApplicationTheme.MidnightDeveloper => "Midnight Developer",
+        ApplicationTheme.CharcoalPro => "Charcoal Pro",
+        ApplicationTheme.VS2022Dark => "VS 2022 Dark",
+        ApplicationTheme.StudioLight3D => "Studio Light 3D",
+        ApplicationTheme.ProfessionalGray3D => "Professional Gray 3D",
+        ApplicationTheme.SoftContrast3D => "Soft Contrast 3D",
+        ApplicationTheme.VSDark3D => "VS Dark 3D",
+        ApplicationTheme.MidnightDeveloper3D => "Midnight Developer 3D",
+        ApplicationTheme.CharcoalPro3D => "Charcoal Pro 3D",
+        ApplicationTheme.VS2022Dark3D => "VS 2022 Dark 3D",
+        _ => theme.ToString()
+    };
 
     /// <summary>
     /// Returns the display name associated with the specified editor theme.
@@ -307,30 +302,27 @@ public sealed class ThemeService : IThemeService
     /// <param name="theme">The theme for which to retrieve the display name.</param>
     /// <returns>A string containing the display name of the specified theme. If the theme is not recognized, returns the string
     /// representation of the theme value.</returns>
-    public string GetEditorThemeDisplayName(ThemeName theme)
+    public string GetEditorThemeDisplayName(ThemeName theme) => theme switch
     {
-        return theme switch
-        {
-            ThemeName.DarkPlus => "Dark+",
-            ThemeName.KimbieDark => "Kimbie Dark",
-            ThemeName.Light => "Light",
-            ThemeName.LightPlus => "Light+",
-            ThemeName.Monokai => "Monokai",
-            ThemeName.DimmedMonokai => "Monokai Dimmed",
-            ThemeName.OneDark => "One Dark",
-            ThemeName.QuietLight => "Quiet Light",
-            ThemeName.SolarizedDark => "Solarized Dark",
-            ThemeName.SolarizedLight => "Solarized Light",
-            ThemeName.TomorrowNightBlue => "Tomorrow Night Blue",
-            ThemeName.HighContrastLight => "High Contrast Light",
-            ThemeName.HighContrastDark => "High Contrast Dark",
-            ThemeName.AtomOneLight => "Atom One Light",
-            ThemeName.AtomOneDark => "Atom One Dark",
-            ThemeName.VisualStudioLight => "Visual Studio Light",
-            ThemeName.VisualStudioDark => "Visual Studio Dark",
-            _ => theme.ToString()
-        };
-    }
+        ThemeName.DarkPlus => "Dark+",
+        ThemeName.KimbieDark => "Kimbie Dark",
+        ThemeName.Light => "Light",
+        ThemeName.LightPlus => "Light+",
+        ThemeName.Monokai => "Monokai",
+        ThemeName.DimmedMonokai => "Monokai Dimmed",
+        ThemeName.OneDark => "One Dark",
+        ThemeName.QuietLight => "Quiet Light",
+        ThemeName.SolarizedDark => "Solarized Dark",
+        ThemeName.SolarizedLight => "Solarized Light",
+        ThemeName.TomorrowNightBlue => "Tomorrow Night Blue",
+        ThemeName.HighContrastLight => "High Contrast Light",
+        ThemeName.HighContrastDark => "High Contrast Dark",
+        ThemeName.AtomOneLight => "Atom One Light",
+        ThemeName.AtomOneDark => "Atom One Dark",
+        ThemeName.VisualStudioLight => "Visual Studio Light",
+        ThemeName.VisualStudioDark => "Visual Studio Dark",
+        _ => theme.ToString()
+    };
 
     /// <summary>
     /// Determines whether the specified application theme is considered a dark theme.
@@ -340,21 +332,18 @@ public sealed class ThemeService : IThemeService
     /// user-defined themes.</remarks>
     /// <param name="theme">The application theme to evaluate.</param>
     /// <returns>true if the specified theme is classified as a dark theme; otherwise, false.</returns>
-    public bool IsDarkTheme(ApplicationTheme theme)
+    public bool IsDarkTheme(ApplicationTheme theme) => theme switch
     {
-        return theme switch
-        {
-            ApplicationTheme.VSDark => true,
-            ApplicationTheme.MidnightDeveloper => true,
-            ApplicationTheme.CharcoalPro => true,
-            ApplicationTheme.VS2022Dark => true,
-            ApplicationTheme.VSDark3D => true,
-            ApplicationTheme.MidnightDeveloper3D => true,
-            ApplicationTheme.CharcoalPro3D => true,
-            ApplicationTheme.VS2022Dark3D => true,
-            _ => false
-        };
-    }
+        ApplicationTheme.VSDark => true,
+        ApplicationTheme.MidnightDeveloper => true,
+        ApplicationTheme.CharcoalPro => true,
+        ApplicationTheme.VS2022Dark => true,
+        ApplicationTheme.VSDark3D => true,
+        ApplicationTheme.MidnightDeveloper3D => true,
+        ApplicationTheme.CharcoalPro3D => true,
+        ApplicationTheme.VS2022Dark3D => true,
+        _ => false
+    };
 
     /// <summary>
     /// Applies the specified application theme by updating the merged resource dictionaries for the current application
@@ -375,33 +364,33 @@ public sealed class ThemeService : IThemeService
 
         try
         {
+            const string themeMarker = "/Resources/Themes/ApplicationThemes/";
+
             // Determine the theme category (Light or Dark)
             string themeCategory = IsDarkTheme(theme) ? "Dark" : "Light";
-
-            // Construct the resource URI for the theme
-            string themePath = $"avares://MermaidPad/Resources/Themes/ApplicationThemes/{themeCategory}/{theme}.axaml";
+            string themePath = $"avares://MermaidPad{themeMarker}{themeCategory}/{theme}.axaml";
 
             _logger.LogInformation("Loading application theme from: {ThemePath}", themePath);
 
-            // Create a new ResourceInclude for the theme
-            ResourceInclude themeResource = new ResourceInclude(new Uri(themePath))
+            StyleInclude themeStyles = new StyleInclude(new Uri("avares://MermaidPad"))
             {
                 Source = new Uri(themePath)
             };
 
-            // Remove any existing application theme resources
-            for (int i = Application.Current.Resources.MergedDictionaries.Count - 1; i >= 0; i--)
+            // Remove existing application theme styles
+            for (int i = Application.Current.Styles.Count - 1; i >= 0; i--)
             {
-                if (Application.Current.Resources.MergedDictionaries[i] is ResourceInclude ri &&
-                    ri.Source?.ToString().Contains("/Resources/Themes/ApplicationThemes/") == true)
+                if (Application.Current.Styles[i] is StyleInclude ri)
                 {
-                    Application.Current.Resources.MergedDictionaries.RemoveAt(i);
+                    string? src = ri.Source?.OriginalString;
+                    if (src?.Contains(themeMarker, StringComparison.Ordinal) == true)
+                    {
+                        Application.Current.Styles.RemoveAt(i);
+                    }
                 }
             }
 
-            // Add the new theme resource
-            Application.Current.Resources.MergedDictionaries.Add(themeResource);
-
+            Application.Current.Styles.Add(themeStyles);
             _logger.LogInformation("Successfully applied application theme: {Theme}", theme);
         }
         catch (Exception ex)

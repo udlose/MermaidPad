@@ -30,9 +30,9 @@ using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
+using MermaidPad.Services.Theming;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -57,6 +57,7 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
+    private readonly IThemeService _themeService;
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
@@ -296,30 +297,40 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
-    /// <param name="services">The service provider for dependency injection.</param>
-    /// <param name="logger">The logger instance for this view model.</param>
-    public MainWindowViewModel(IServiceProvider services, ILogger<MainWindowViewModel> logger)
+    /// <param name="logger">The <see cref="ILogger{MainWindowViewModel}"/> instance for this view model.</param>
+    /// <param name="themeService">The <see cref="IThemeService"/> instance for this view model.</param>
+    /// <param name="renderer">The <see cref="MermaidRenderer"/> instance for this view model.</param>
+    /// <param name="settingsService">The <see cref="SettingsService"/> instance for this view model.</param>
+    /// <param name="updateService">The <see cref="MermaidUpdateService"/> instance for this view model.</param>
+    /// <param name="editorDebouncer">The <see cref="IDebounceDispatcher"/> instance for this view model.</param>
+    /// <param name="exportService">The <see cref="ExportService"/> instance for this view model.</param>
+    /// <param name="dialogFactory">The <see cref="IDialogFactory"/> instance for this view model.</param>
+    /// <param name="fileService">The <see cref="IFileService"/> instance for this view model.</param>
+    public MainWindowViewModel(
+        ILogger<MainWindowViewModel> logger,
+        IThemeService themeService,
+        MermaidRenderer renderer,
+        SettingsService settingsService,
+        MermaidUpdateService updateService,
+        IDebounceDispatcher editorDebouncer,
+        ExportService exportService,
+        IDialogFactory dialogFactory,
+        IFileService fileService,
+        CommentingStrategy commentingStrategy)
     {
-        _renderer = services.GetRequiredService<MermaidRenderer>();
-        _settingsService = services.GetRequiredService<SettingsService>();
-        _updateService = services.GetRequiredService<MermaidUpdateService>();
-        _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
-        _exportService = services.GetRequiredService<ExportService>();
-        _dialogFactory = services.GetRequiredService<IDialogFactory>();
-        _fileService = services.GetRequiredService<IFileService>();
-        _commentingStrategy = services.GetRequiredService<CommentingStrategy>();
         _logger = logger;
+        _renderer = renderer;
+        _settingsService = settingsService;
+        _updateService = updateService;
+        _editorDebouncer = editorDebouncer;
+        _exportService = exportService;
+        _dialogFactory = dialogFactory;
+        _fileService = fileService;
+        _commentingStrategy = commentingStrategy;
+        _themeService = themeService;
 
-        // Initialize properties from settings
-        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
-        BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
-        LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
-        LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
-        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
-        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
-        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
-        CurrentFilePath = _settingsService.Settings.CurrentFilePath;
-
+        InitializeThemes();
+        InitializeSettings();
         UpdateRecentFiles();
         UpdateWindowTitle();
     }
@@ -1565,6 +1576,26 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
             LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         });
+    }
+
+    /// <summary>
+    /// Initializes the application's settings by loading values from the current settings service.
+    /// </summary>
+    /// <remarks>This method updates properties such as diagram text, Mermaid versions, live preview state,
+    /// editor selection, caret position, and the current file path to reflect the latest persisted settings. It should
+    /// be called to synchronize the application's state with user preferences or previously saved
+    /// configuration.</remarks>
+    private void InitializeSettings()
+    {
+        // Initialize properties from settings
+        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
+        BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
+        LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
+        LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
+        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
+        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
+        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
+        CurrentFilePath = _settingsService.Settings.CurrentFilePath;
     }
 
     /// <summary>
