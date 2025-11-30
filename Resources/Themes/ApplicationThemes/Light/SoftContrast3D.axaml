@@ -44,6 +44,12 @@
     </Setter>
   </Style>
 
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#F0EDE6" />
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
   <!-- Menu Styles -->
   <Style Selector="MenuItem">
     <Setter Property="Foreground" Value="#3E3E3E" />
@@ -167,6 +173,7 @@
 
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.5" />
+    <Setter Property="Foreground" Value="#A0A0A0" />
     <Setter Property="Effect" Value="{x:Null}" />
   </Style>
 

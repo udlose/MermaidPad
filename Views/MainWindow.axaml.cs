@@ -33,12 +33,14 @@ using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Highlighting;
+using MermaidPad.Services.Theming;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using TextMateSharp.Grammars;
 
 namespace MermaidPad.Views;
 
@@ -59,6 +61,7 @@ public sealed partial class MainWindow : Window
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly ILogger<MainWindow> _logger;
+    private readonly IThemeService _themeService;
 
     private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
@@ -76,6 +79,15 @@ public sealed partial class MainWindow : Window
     private EventHandler? _editorCaretPositionChangedHandler;
     private EventHandler? _themeChangedHandler;
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
+
+    // Theme menu tracking for O(1) checkmark updates
+    // Dictionary provides O(1) lookup to find the specific MenuItem for a given theme
+    private readonly Dictionary<ApplicationTheme, MenuItem> _applicationThemeMenuItems = new Dictionary<ApplicationTheme, MenuItem>();
+    private readonly Dictionary<ThemeName, MenuItem> _editorThemeMenuItems = new Dictionary<ThemeName, MenuItem>();
+
+    // Track previously selected theme for O(1) uncheck operation
+    private ApplicationTheme? _previousApplicationTheme;
+    private ThemeName? _previousEditorTheme;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -97,6 +109,7 @@ public sealed partial class MainWindow : Window
         _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
         _documentAnalyzer = sp.GetRequiredService<DocumentAnalyzer>();
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
+        _themeService = sp.GetRequiredService<IThemeService>();
         DataContext = _vm;
 
         _logger.LogInformation("=== MainWindow Initialization Started ===");
@@ -365,6 +378,14 @@ public sealed partial class MainWindow : Window
                     }
                 },
                 DispatcherPriority.Background);
+                break;
+
+            case nameof(_vm.CurrentApplicationTheme):
+                UpdateApplicationThemeCheckmarks();
+                break;
+
+            case nameof(_vm.CurrentEditorTheme):
+                UpdateEditorThemeCheckmarks();
                 break;
         }
     }
@@ -1564,4 +1585,261 @@ public sealed partial class MainWindow : Window
     }
 
     #endregion Syntax Highlighting methods
+
+    #region Theme methods
+
+    /// <summary>
+    /// Populates the specified menu with items representing available application themes.
+    /// </summary>
+    /// <remarks>
+    /// Each menu item allows the user to select an application theme. The menu is populated based on the themes 
+    /// provided by the application's view model. Menu items are tracked in a dictionary for O(1) checkmark updates.
+    /// MenuItem Click events are properly cleaned up in OnUnloaded to prevent memory leaks.
+    /// </remarks>
+    /// <param name="parentMenu">The menu to which theme selection items will be added. Must not be null.</param>
+    private void PopulateApplicationThemeMenu(MenuItem parentMenu)
+    {
+        ApplicationTheme currentTheme = _themeService.CurrentApplicationTheme;
+        _applicationThemeMenuItems.Clear();
+
+        // Initialize previous theme tracker
+        _previousApplicationTheme = currentTheme;
+
+        foreach (ApplicationTheme theme in _vm.GetAvailableApplicationThemes())
+        {
+            MenuItem menuItem = new MenuItem
+            {
+                Header = _vm.GetApplicationThemeDisplayName(theme),
+                Tag = theme,
+                IsChecked = theme == currentTheme
+            };
+
+            // Track menu item for O(1) checkmark updates
+            _applicationThemeMenuItems[theme] = menuItem;
+
+            // MenuItem Click event handlers ARE cleaned up in OnUnloaded - this is safe
+            menuItem.Click += OnApplicationThemeMenuItemClick;
+
+            parentMenu.Items.Add(menuItem);
+        }
+
+        _logger.LogInformation("Application theme menu populated with {Count} themes", _applicationThemeMenuItems.Count);
+    }
+
+    /// <summary>
+    /// Handles clicks on application theme menu items by delegating to the ViewModel command.
+    /// </summary>
+    /// <remarks>
+    /// This method follows proper MVVM patterns by invoking the ViewModel's SetApplicationThemeCommand
+    /// rather than directly manipulating UI state. The ViewModel will raise PropertyChanged for 
+    /// CurrentApplicationTheme, which triggers UpdateApplicationThemeCheckmarks via OnViewModelPropertyChanged.
+    /// </remarks>
+    /// <param name="sender">The menu item that was clicked.</param>
+    /// <param name="e">The event arguments.</param>
+    private void OnApplicationThemeMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not ApplicationTheme selectedTheme)
+        {
+            return;
+        }
+
+        // Execute the ViewModel command - this updates CurrentApplicationTheme property
+        // which triggers PropertyChanged and calls UpdateApplicationThemeCheckmarks
+        _vm.SetApplicationThemeCommand.Execute(selectedTheme);
+    }
+
+    /// <summary>
+    /// Updates checkmarks on application theme menu items based on the current theme.
+    /// TRUE O(1) complexity - only updates the previously checked and newly checked items.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the previous implementation that iterated through all menu items (O(n)), this method
+    /// uses the dictionary for O(1) lookup of exactly two items: the previous theme and the current theme.
+    /// This is a genuine performance optimization for theme switching.
+    /// </remarks>
+    private void UpdateApplicationThemeCheckmarks()
+    {
+        ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
+
+        // O(1): Uncheck the previously selected theme (if it exists and changed)
+        if (_previousApplicationTheme.HasValue && _previousApplicationTheme.Value != currentTheme)
+        {
+            if (_applicationThemeMenuItems.TryGetValue(_previousApplicationTheme.Value, out MenuItem? previousItem))
+            {
+                previousItem.IsChecked = false;
+            }
+        }
+
+        // O(1): Check the currently selected theme
+        if (_applicationThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
+        {
+            currentItem.IsChecked = true;
+        }
+
+        // Update tracker for next change
+        _previousApplicationTheme = currentTheme;
+    }
+
+    /// <summary>
+    /// Populates the specified menu with items representing available editor themes.
+    /// </summary>
+    /// <remarks>
+    /// Each menu item allows the user to select an editor theme. Menu items are tracked in a dictionary 
+    /// for O(1) checkmark updates. MenuItem Click events are properly cleaned up in OnUnloaded to prevent memory leaks.
+    /// </remarks>
+    /// <param name="parentMenu">The parent menu to which theme selection items will be added. Must not be null.</param>
+    private void PopulateEditorThemeMenu(MenuItem parentMenu)
+    {
+        ThemeName currentTheme = _themeService.CurrentEditorTheme;
+        _editorThemeMenuItems.Clear();
+
+        // Initialize previous theme tracker
+        _previousEditorTheme = currentTheme;
+
+        foreach (ThemeName theme in _vm.GetAvailableEditorThemes())
+        {
+            MenuItem menuItem = new MenuItem
+            {
+                Header = _vm.GetEditorThemeDisplayName(theme),
+                Tag = theme,
+                IsChecked = theme == currentTheme
+            };
+
+            // Track menu item for O(1) checkmark updates
+            _editorThemeMenuItems[theme] = menuItem;
+
+            // MenuItem Click event handlers ARE cleaned up in OnUnloaded - this is safe
+            menuItem.Click += OnEditorThemeMenuItemClick;
+
+            parentMenu.Items.Add(menuItem);
+        }
+
+        _logger.LogInformation("Editor theme menu populated with {Count} themes", _editorThemeMenuItems.Count);
+    }
+
+    /// <summary>
+    /// Handles clicks on editor theme menu items by delegating to the ViewModel method.
+    /// </summary>
+    /// <remarks>
+    /// This method follows proper MVVM patterns by calling the ViewModel's SetEditorTheme method
+    /// rather than directly manipulating UI state. The ViewModel will raise PropertyChanged for 
+    /// CurrentEditorTheme, which triggers UpdateEditorThemeCheckmarks via OnViewModelPropertyChanged.
+    /// </remarks>
+    /// <param name="sender">The menu item that was clicked.</param>
+    /// <param name="e">The event arguments.</param>
+    private void OnEditorThemeMenuItemClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not ThemeName selectedTheme)
+        {
+            return;
+        }
+
+        // Call the ViewModel method with the Editor reference - this updates CurrentEditorTheme property
+        // which triggers PropertyChanged and calls UpdateEditorThemeCheckmarks
+        _vm.SetEditorTheme(Editor, selectedTheme);
+    }
+
+    /// <summary>
+    /// Updates checkmarks on editor theme menu items based on the current theme.
+    /// TRUE O(1) complexity - only updates the previously checked and newly checked items.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the previous implementation that iterated through all menu items (O(n)), this method
+    /// uses the dictionary for O(1) lookup of exactly two items: the previous theme and the current theme.
+    /// This is a genuine performance optimization for theme switching.
+    /// </remarks>
+    private void UpdateEditorThemeCheckmarks()
+    {
+        ThemeName currentTheme = _vm.CurrentEditorTheme;
+
+        // O(1): Uncheck the previously selected theme (if it exists and changed)
+        if (_previousEditorTheme.HasValue && _previousEditorTheme.Value != currentTheme)
+        {
+            if (_editorThemeMenuItems.TryGetValue(_previousEditorTheme.Value, out MenuItem? previousItem))
+            {
+                previousItem.IsChecked = false;
+            }
+        }
+
+        // O(1): Check the currently selected theme
+        if (_editorThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
+        {
+            currentItem.IsChecked = true;
+        }
+
+        // Update tracker for next change
+        _previousEditorTheme = currentTheme;
+    }
+
+    #endregion Theme methods
+
+    #region Event handlers
+
+    /// <summary>
+    /// Handles the Loaded event for the control, initializing theme selection menus when the control is loaded.
+    /// </summary>
+    /// <remarks>This method is called when the control has been loaded and is ready for interaction. It
+    /// ensures that the application and editor theme menus are populated based on the current state. Override this
+    /// method to perform additional initialization when the control is loaded.</remarks>
+    /// <param name="e">The event data associated with the Loaded event.</param>
+    protected override void OnLoaded(RoutedEventArgs e)
+    {
+        base.OnLoaded(e);
+
+        // Apply saved editor theme (ThemeService.Initialize() loaded it but couldn't apply without editor)
+        _themeService.ApplyEditorTheme(Editor, _themeService.CurrentEditorTheme);
+        _logger.LogInformation("Applied saved editor theme: {EditorTheme}", _themeService.CurrentEditorTheme);
+
+        // Initialize theme menus
+        if (ApplicationThemeMenu is not null)
+        {
+            PopulateApplicationThemeMenu(ApplicationThemeMenu);
+        }
+        else
+        {
+            _logger.LogWarning("ApplicationThemeMenu control not found");
+        }
+
+        if (EditorThemeMenu is not null)
+        {
+            PopulateEditorThemeMenu(EditorThemeMenu);
+        }
+        else
+        {
+            _logger.LogWarning("EditorThemeMenu control not found");
+        }
+    }
+
+    /// <summary>
+    /// Handles the Unloaded event to clean up menu item event handlers and prevent memory leaks.
+    /// </summary>
+    /// <remarks>
+    /// CRITICAL for memory leak prevention: This method unsubscribes from all MenuItem.Click events
+    /// that were attached in PopulateApplicationThemeMenu and PopulateEditorThemeMenu. Without this cleanup,
+    /// the menu items would hold references to this window, preventing garbage collection.
+    /// This follows Avalonia lifecycle best practices as documented in the project knowledge.
+    /// </remarks>
+    /// <param name="e">The event data.</param>
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+
+        // CRITICAL: Unsubscribe from menu item click events to prevent memory leaks
+        foreach (MenuItem menuItem in _applicationThemeMenuItems.Values)
+        {
+            menuItem.Click -= OnApplicationThemeMenuItemClick;
+        }
+
+        foreach (MenuItem menuItem in _editorThemeMenuItems.Values)
+        {
+            menuItem.Click -= OnEditorThemeMenuItemClick;
+        }
+
+        _applicationThemeMenuItems.Clear();
+        _editorThemeMenuItems.Clear();
+
+        _logger.LogInformation("Theme menu event handlers unsubscribed");
+    }
+
+    #endregion Event handlers
 }

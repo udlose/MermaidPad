@@ -22,10 +22,12 @@ using AsyncAwaitBestPractices;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
+using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
@@ -39,9 +41,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using TextMateSharp.Grammars;
 
 namespace MermaidPad.ViewModels;
-
 /// <summary>
 /// Represents the main view model for the application's main window, providing properties, commands, and logic for
 /// editing, rendering, exporting, and managing Mermaid diagrams.
@@ -91,7 +93,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Gets or sets the version of the bundled Mermaid.js.
     /// </summary>
     [ObservableProperty]
-    public partial string BundledMermaidVersion { get; set; }
+    public partial string? BundledMermaidVersion { get; set; }
 
     /// <summary>
     /// Gets or sets the latest Mermaid.js version available.
@@ -294,6 +296,28 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     public bool HasRecentFiles => RecentFiles.Count > 0;
 
+    #region Theme properties
+
+    /// <summary>
+    /// Gets or sets the current application theme applied to the user interface.
+    /// </summary>
+    /// <remarks>Changing this property updates the visual appearance of the application to match the selected
+    /// theme. The available themes are defined by the application and may vary depending on configuration or
+    /// platform.</remarks>
+    [ObservableProperty]
+    public partial ApplicationTheme CurrentApplicationTheme { get; set; }
+
+    /// <summary>
+    /// Gets or sets the current theme applied to the editor interface.
+    /// </summary>
+    /// <remarks>Changing this property updates the visual appearance of the code editor to match the selected
+    /// theme. The available themes are defined by the application and may vary depending on configuration or
+    /// platform.</remarks>
+    [ObservableProperty]
+    public partial ThemeName CurrentEditorTheme { get; set; }
+
+    #endregion Theme properties
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
@@ -306,6 +330,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <param name="exportService">The <see cref="ExportService"/> instance for this view model.</param>
     /// <param name="dialogFactory">The <see cref="IDialogFactory"/> instance for this view model.</param>
     /// <param name="fileService">The <see cref="IFileService"/> instance for this view model.</param>
+    /// <param name="commentingStrategy">The <see cref="CommentingStrategy"/> instance for this view model.</param>
     public MainWindowViewModel(
         ILogger<MainWindowViewModel> logger,
         IThemeService themeService,
@@ -976,6 +1001,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// otherwise, <see langword="false"/>.</returns>
     private bool CanClear() => IsWebViewReady && HasText;
 
+    #region Export methods
+
     /// <summary>
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
     /// based on the selected options.
@@ -1268,6 +1295,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    #endregion Export methods
+
     #region Clipboard and Edit Commands
 
     /// <summary>
@@ -1428,6 +1457,91 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     #endregion Clipboard and Edit Commands
 
+    #region Theme methods
+
+    /// <summary>
+    /// Sets the application's theme to the specified value.
+    /// </summary>
+    /// <remarks>Calling this method updates the application's appearance and raises a property change
+    /// notification for <c>CurrentApplicationTheme</c>. This method should be used to switch between available themes
+    /// at runtime.</remarks>
+    /// <param name="theme">The theme to apply to the application. Must be a valid <see cref="ApplicationTheme"/> value.</param>
+    [RelayCommand]
+    private void SetApplicationTheme(ApplicationTheme theme)
+    {
+        try
+        {
+            _themeService.ApplyApplicationTheme(theme);
+            CurrentApplicationTheme = theme;
+            _logger.LogInformation("Application theme changed to: {Theme}", theme);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply application theme: {Theme}", theme);
+            LastError = $"Failed to apply theme: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Sets the editor's theme to the specified value.
+    /// </summary>
+    /// <remarks>Raises the <c>CurrentEditorTheme</c> property change notification after applying the theme.
+    /// This method is typically invoked in response to user actions that change the editor's appearance.</remarks>
+    /// <param name="editor">The text editor to apply the theme to.</param>
+    /// <param name="theme">The theme to apply to the editor. Must be a valid <see cref="ThemeName"/> value.</param>
+    public void SetEditorTheme(TextEditor editor, ThemeName theme)
+    {
+        try
+        {
+            _themeService.ApplyEditorTheme(editor, theme);
+            CurrentEditorTheme = theme;
+            _logger.LogInformation("Editor theme changed to: {Theme}", theme);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply editor theme: {Theme}", theme);
+            LastError = $"Failed to apply editor theme: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Retrieves the display name associated with the specified application theme.
+    /// </summary>
+    /// <param name="theme">The application theme for which to obtain the display name.</param>
+    /// <returns>A string containing the display name of the specified theme. Returns an empty string if the theme does not have
+    /// a display name.</returns>
+    public string GetApplicationThemeDisplayName(ApplicationTheme theme) => _themeService.GetApplicationThemeDisplayName(theme);
+
+    /// <summary>
+    /// Retrieves the display name for the specified editor theme.
+    /// </summary>
+    /// <param name="theme">The theme for which to obtain the display name. Must be a valid value of <see cref="ThemeName"/>.</param>
+    /// <returns>A string containing the display name of the specified editor theme.</returns>
+    public string GetEditorThemeDisplayName(ThemeName theme) => _themeService.GetEditorThemeDisplayName(theme);
+
+    /// <summary>
+    /// Determines whether the specified application theme is considered a dark theme.
+    /// </summary>
+    /// <param name="theme">The application theme to evaluate.</param>
+    /// <returns>true if the specified theme is classified as dark; otherwise, false.</returns>
+    public bool IsDarkTheme(ApplicationTheme theme) => _themeService.IsDarkTheme(theme);
+
+    /// <summary>
+    /// Retrieves all application themes that are available for use.
+    /// </summary>
+    /// <returns>An array of <see cref="ApplicationTheme"/> objects representing the available themes. The array will be empty if
+    /// no themes are available.</returns>
+    public ApplicationTheme[] GetAvailableApplicationThemes() => _themeService.GetAvailableApplicationThemes();
+
+    /// <summary>
+    /// Retrieves the list of available editor themes that can be applied to the editor interface.
+    /// </summary>
+    /// <returns>An array of <see cref="ThemeName"/> values representing all available editor themes. The array will be empty if
+    /// no themes are available.</returns>
+    public ThemeName[] GetAvailableEditorThemes() => _themeService.GetAvailableEditorThemes();
+
+    #endregion Theme methods
+
     #region Event handlers
 
     /// <summary>
@@ -1576,6 +1690,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
             LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         });
+    }
+
+    /// <summary>
+    /// Initializes the current application and editor themes by retrieving their values from the theme service.
+    /// </summary>
+    /// <remarks>This method should be called to synchronize theme-related properties with the latest values
+    /// provided by the theme service. It does not apply or change themes, but updates the local state to reflect the
+    /// current themes in use.</remarks>
+    private void InitializeThemes()
+    {
+        CurrentApplicationTheme = _themeService.CurrentApplicationTheme;
+        CurrentEditorTheme = _themeService.CurrentEditorTheme;
     }
 
     /// <summary>

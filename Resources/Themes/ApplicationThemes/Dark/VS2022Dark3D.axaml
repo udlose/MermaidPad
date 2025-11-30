@@ -38,6 +38,7 @@
   <!-- Menu Bar -->
   <Style Selector="Menu">
     <Setter Property="Background" Value="#2D2D30" />
+    <Setter Property="Foreground" Value="#DCDCDC" />
   </Style>
 
   <!-- Menu Items -->
@@ -47,10 +48,16 @@
 
   <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="#3E3E40" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ ContentPresenter">
     <Setter Property="Background" Value="#3E3E40" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="#656565" />
   </Style>
 
   <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
@@ -73,6 +80,11 @@
     <Setter Property="BorderBrush" Value="#3F3F46" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="#DCDCDC" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="#DCDCDC" />
   </Style>
 
   <Style Selector="StackPanel.Toolbar">
@@ -196,6 +208,7 @@
 
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.5" />
+    <Setter Property="Foreground" Value="#656565" />
     <Setter Property="Effect" Value="{x:Null}" />
   </Style>
 

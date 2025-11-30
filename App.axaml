@@ -8,5 +8,8 @@
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
+
+    <!-- Load the default theme at startup -->
+    <StyleInclude Source="avares://MermaidPad/Resources/Themes/ApplicationThemes/Dark/VS2022Dark.axaml" />
   </Application.Styles>
 </Application>

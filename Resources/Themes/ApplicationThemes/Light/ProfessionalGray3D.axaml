@@ -167,6 +167,7 @@
 
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.5" />
+    <Setter Property="Foreground" Value="#A0A0A0" />
     <Setter Property="Effect" Value="{x:Null}" />
   </Style>
 

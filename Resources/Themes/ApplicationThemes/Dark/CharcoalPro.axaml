@@ -27,11 +27,13 @@
 
   <Style Selector="Window">
     <Setter Property="Background" Value="#1A1A1A" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
 
   <!-- Menu Bar -->
   <Style Selector="Menu">
     <Setter Property="Background" Value="#242424" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
 
   <!-- Menu Items -->
@@ -41,10 +43,16 @@
 
   <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="#2E2E2E" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ ContentPresenter">
     <Setter Property="Background" Value="#2E2E2E" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="#656565" />
   </Style>
 
   <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
@@ -67,6 +75,11 @@
     <Setter Property="BorderBrush" Value="#3A3A3A" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
 
   <Style Selector="StackPanel.Toolbar">
@@ -104,6 +117,21 @@
     <Setter Property="BorderBrush" Value="#3A3A3A" />
   </Style>
 
+  <!-- TextBlock - Global text styling -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="#E0E0E0" />
+  </Style>
+
+  <!-- Dialog styling -->
+  <Style Selector="Window.dialog">
+    <Setter Property="Background" Value="#242424" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
+  </Style>
+
+  <Style Selector="Window.dialog TextBlock">
+    <Setter Property="Foreground" Value="#E0E0E0" />
+  </Style>
+
   <!--  Default Button Style  -->
   <Style Selector="Button">
     <Setter Property="Background" Value="#2E2E2E" />
@@ -118,9 +146,20 @@
     <Setter Property="MinWidth" Value="80" />
   </Style>
 
+  <Style Selector="Button:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#3A3A3A" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
   <Style Selector="Button:pointerover">
     <Setter Property="Background" Value="#3A3A3A" />
     <Setter Property="BorderBrush" Value="#FFA726" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="Button:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="#FFA726" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
   </Style>
 
   <Style Selector="Button:pressed">
@@ -130,6 +169,7 @@
 
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.6" />
+    <Setter Property="Foreground" Value="#656565" />
   </Style>
 
   <!--  Accent Button Style  -->
@@ -141,13 +181,16 @@
 
   <Style Selector="Button.accent:pointerover">
     <Setter Property="Background" Value="#FFB74D" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
   </Style>
 
   <Style Selector="Button.accent:pressed">
     <Setter Property="Background" Value="#FF8F00" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
   </Style>
 
   <Style Selector="Button.accent:disabled">
     <Setter Property="Background" Value="#FFD180" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
   </Style>
 </Styles>
