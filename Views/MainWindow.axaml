@@ -30,7 +30,7 @@
   <DockPanel>
     <!--  Menu Bar  -->
     <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File" InputGesture="Alt+F">
+      <MenuItem Header="_File">
         <MenuItem
           Command="{Binding OpenFileCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"

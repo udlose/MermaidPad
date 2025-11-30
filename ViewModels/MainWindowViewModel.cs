@@ -44,6 +44,7 @@ using System.Text;
 using TextMateSharp.Grammars;
 
 namespace MermaidPad.ViewModels;
+
 /// <summary>
 /// Represents the main view model for the application's main window, providing properties, commands, and logic for
 /// editing, rendering, exporting, and managing Mermaid diagrams.
@@ -1485,23 +1486,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Sets the editor's theme to the specified value.
     /// </summary>
-    /// <remarks>Raises the <c>CurrentEditorTheme</c> property change notification after applying the theme.
-    /// This method is typically invoked in response to user actions that change the editor's appearance.</remarks>
-    /// <param name="editor">The text editor to apply the theme to.</param>
+    /// <remarks>Changing the theme updates the editor's appearance immediately. This method also logs the
+    /// theme change for diagnostic purposes.</remarks>
     /// <param name="theme">The theme to apply to the editor. Must be a valid <see cref="ThemeName"/> value.</param>
-    public void SetEditorTheme(TextEditor editor, ThemeName theme)
+    [RelayCommand]
+    private void SetEditorTheme(ThemeName theme)
     {
-        try
-        {
-            _themeService.ApplyEditorTheme(editor, theme);
-            CurrentEditorTheme = theme;
-            _logger.LogInformation("Editor theme changed to: {Theme}", theme);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to apply editor theme: {Theme}", theme);
-            LastError = $"Failed to apply editor theme: {ex.Message}";
-        }
+        CurrentEditorTheme = theme;
+        _logger.LogInformation("Editor theme set to: {Theme} (View will react and apply)", theme);
     }
 
     /// <summary>
@@ -1735,7 +1727,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         _settingsService.Settings.LastDiagramText = DiagramText;
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
-        _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
+        _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion ?? "Unknown";
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
         _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
