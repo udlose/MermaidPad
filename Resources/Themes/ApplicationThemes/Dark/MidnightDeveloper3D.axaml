@@ -2,58 +2,127 @@
         xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
   <!--
     Midnight Developer 3D Theme - Skeuomorphic version of Midnight Developer
-    Accent Color: Orange (#F48024)
+    Accent Color: Cyan (#00D9FF)
     Design: Moderate skeuomorphism with gradients, shadows, and depth
   -->
 
+  <Design.PreviewWith>
+    <Border Padding="20" Width="800" Height="600">
+      <StackPanel Spacing="10">
+        <Menu>
+          <MenuItem Header="File">
+            <MenuItem Header="Open" />
+            <MenuItem Header="Save" />
+            <Separator />
+            <MenuItem Header="Exit" />
+          </MenuItem>
+        </Menu>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Content="Default Button" />
+          <Button Content="Accent Button" Classes="accent" />
+        </StackPanel>
+        <CheckBox Content="Sample CheckBox" />
+      </StackPanel>
+    </Border>
+  </Design.PreviewWith>
+  
   <Style Selector="Window">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
         <GradientStop Color="#161B22" Offset="0" />
-        <GradientStop Color="#0A0E13" Offset="1" />
-      </LinearGradientBrush>
-    </Setter>
-  </Style>
-
-  <Style Selector="StackPanel.Toolbar">
-    <Setter Property="Background">
-      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#21262D" Offset="0" />
-        <GradientStop Color="#161B22" Offset="0.5" />
         <GradientStop Color="#0D1117" Offset="1" />
       </LinearGradientBrush>
     </Setter>
   </Style>
 
-<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#161B22" />
+  </Style>
+
+  <!-- Menu Items -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#C9D1D9" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#21262D" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#21262D" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
+    <Setter Property="Background" Value="#161B22" />
+    <Setter Property="BorderBrush" Value="#30363D" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="#30363D" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="2,4" />
+  </Style>
+
+  <!-- Context Menu -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="#161B22" />
+    <Setter Property="BorderBrush" Value="#30363D" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FF9133" Offset="0" />
-        <GradientStop Color="#E06F15" Offset="1" />
+        <GradientStop Color="#1C2128" Offset="0" />
+        <GradientStop Color="#161B22" Offset="1" />
       </LinearGradientBrush>
     </Setter>
   </Style>
 
-  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
-    <Setter Property="Foreground" Value="White" />
-  </Style>-->
+  <!-- Toolbar Text -->
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="#C9D1D9" />
+  </Style>
+
+  <!-- CheckBox -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#C9D1D9" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#33E0FF" Offset="0" />
+        <GradientStop Color="#00B8D9" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="#0D1117" />
+  </Style>
 
   <Style Selector="avaloniaEdit|TextEditor">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
         <GradientStop Color="#0D1117" Offset="0" />
-        <GradientStop Color="#090C10" Offset="1" />
+        <GradientStop Color="#0A0E13" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-    <Setter Property="Foreground" Value="#E1E4E8" />
+    <Setter Property="Foreground" Value="#C9D1D9" />
   </Style>
 
   <Style Selector="GridSplitter">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-        <GradientStop Color="#3B4149" Offset="0" />
+        <GradientStop Color="#3D444D" Offset="0" />
         <GradientStop Color="#30363D" Offset="0.5" />
-        <GradientStop Color="#3B4149" Offset="1" />
+        <GradientStop Color="#3D444D" Offset="1" />
       </LinearGradientBrush>
     </Setter>
   </Style>
@@ -61,7 +130,7 @@
   <Style Selector="Border">
     <Setter Property="BorderBrush">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#3B4149" Offset="0" />
+        <GradientStop Color="#3D444D" Offset="0" />
         <GradientStop Color="#30363D" Offset="1" />
       </LinearGradientBrush>
     </Setter>
@@ -71,59 +140,60 @@
   <Style Selector="Button">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#4A5159" Offset="0" />
-        <GradientStop Color="#383E47" Offset="0.5" />
-        <GradientStop Color="#2D333A" Offset="1" />
+        <GradientStop Color="#2A2F38" Offset="0" />
+        <GradientStop Color="#21262D" Offset="0.5" />
+        <GradientStop Color="#1C2128" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-    <Setter Property="Foreground" Value="#E1E4E8" />
+    <Setter Property="Foreground" Value="#C9D1D9" />
     <Setter Property="BorderBrush">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#505860" Offset="0" />
+        <GradientStop Color="#3D444D" Offset="0" />
         <GradientStop Color="#30363D" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="CornerRadius" Value="5" />
     <Setter Property="Padding" Value="14,7" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="MinWidth" Value="80" />
     <Setter Property="Effect">
-      <DropShadowEffect Color="#70000000" OffsetX="0" OffsetY="2" BlurRadius="4" />
+      <DropShadowEffect Color="#40000000" OffsetX="0" OffsetY="2" BlurRadius="4" />
     </Setter>
   </Style>
 
   <Style Selector="Button:pointerover">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#5A6169" Offset="0" />
-        <GradientStop Color="#454D58" Offset="0.5" />
-        <GradientStop Color="#383E47" Offset="1" />
+        <GradientStop Color="#3A4048" Offset="0" />
+        <GradientStop Color="#30363D" Offset="0.5" />
+        <GradientStop Color="#2A2F38" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="BorderBrush">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FF9133" Offset="0" />
-        <GradientStop Color="#F48024" Offset="1" />
+        <GradientStop Color="#33E0FF" Offset="0" />
+        <GradientStop Color="#00D9FF" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="Effect">
-      <DropShadowEffect Color="#80F48024" OffsetX="0" OffsetY="2" BlurRadius="6" />
+      <DropShadowEffect Color="#6000D9FF" OffsetX="0" OffsetY="2" BlurRadius="6" />
     </Setter>
   </Style>
 
   <Style Selector="Button:pressed">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#21262D" Offset="0" />
-        <GradientStop Color="#2D333A" Offset="0.5" />
-        <GradientStop Color="#383E47" Offset="1" />
+        <GradientStop Color="#00B8D9" Offset="0" />
+        <GradientStop Color="#00D9FF" Offset="0.5" />
+        <GradientStop Color="#33E0FF" Offset="1" />
       </LinearGradientBrush>
     </Setter>
+    <Setter Property="Foreground" Value="#0D1117" />
     <Setter Property="Effect">
-      <DropShadowEffect Color="#A0000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
+      <DropShadowEffect Color="#80000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
     </Setter>
     <Setter Property="RenderTransform">
       <TranslateTransform Y="1" />
@@ -131,7 +201,7 @@
   </Style>
 
   <Style Selector="Button:disabled">
-    <Setter Property="Opacity" Value="0.4" />
+    <Setter Property="Opacity" Value="0.5" />
     <Setter Property="Effect" Value="{x:Null}" />
   </Style>
 
@@ -139,46 +209,46 @@
   <Style Selector="Button.accent">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FF9133" Offset="0" />
-        <GradientStop Color="#F48024" Offset="0.5" />
-        <GradientStop Color="#E06F15" Offset="1" />
+        <GradientStop Color="#33E0FF" Offset="0" />
+        <GradientStop Color="#00D9FF" Offset="0.5" />
+        <GradientStop Color="#00B8D9" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Foreground" Value="#0D1117" />
     <Setter Property="BorderBrush">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FFA94D" Offset="0" />
-        <GradientStop Color="#C85D0A" Offset="1" />
+        <GradientStop Color="#66E6FF" Offset="0" />
+        <GradientStop Color="#009BBD" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="Effect">
-      <DropShadowEffect Color="#70F48024" OffsetX="0" OffsetY="2" BlurRadius="4" />
+      <DropShadowEffect Color="#5000D9FF" OffsetX="0" OffsetY="2" BlurRadius="4" />
     </Setter>
   </Style>
 
   <Style Selector="Button.accent:pointerover">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FFA94D" Offset="0" />
-        <GradientStop Color="#FF9133" Offset="0.5" />
-        <GradientStop Color="#F48024" Offset="1" />
+        <GradientStop Color="#66E6FF" Offset="0" />
+        <GradientStop Color="#33E0FF" Offset="0.5" />
+        <GradientStop Color="#00D9FF" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="Effect">
-      <DropShadowEffect Color="#90F48024" OffsetX="0" OffsetY="2" BlurRadius="6" />
+      <DropShadowEffect Color="#7000D9FF" OffsetX="0" OffsetY="2" BlurRadius="6" />
     </Setter>
   </Style>
 
   <Style Selector="Button.accent:pressed">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#C85D0A" Offset="0" />
-        <GradientStop Color="#E06F15" Offset="0.5" />
-        <GradientStop Color="#F48024" Offset="1" />
+        <GradientStop Color="#009BBD" Offset="0" />
+        <GradientStop Color="#00B8D9" Offset="0.5" />
+        <GradientStop Color="#00D9FF" Offset="1" />
       </LinearGradientBrush>
     </Setter>
     <Setter Property="Effect">
-      <DropShadowEffect Color="#B0000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
+      <DropShadowEffect Color="#90000000" OffsetX="0" OffsetY="1" BlurRadius="2" />
     </Setter>
     <Setter Property="RenderTransform">
       <TranslateTransform Y="1" />
@@ -188,11 +258,11 @@
   <Style Selector="Button.accent:disabled">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#FFC799" Offset="0" />
-        <GradientStop Color="#F4A76A" Offset="1" />
+        <GradientStop Color="#99F0FF" Offset="0" />
+        <GradientStop Color="#66ECFF" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-    <Setter Property="Opacity" Value="0.4" />
+    <Setter Property="Opacity" Value="0.5" />
     <Setter Property="Effect" Value="{x:Null}" />
   </Style>
 </Styles>

@@ -6,6 +6,26 @@
     Design: Moderate skeuomorphism with gradients, shadows, and depth
   -->
 
+  <Design.PreviewWith>
+    <Border Padding="20" Width="800" Height="600">
+      <StackPanel Spacing="10">
+        <Menu>
+          <MenuItem Header="File">
+            <MenuItem Header="Open" />
+            <MenuItem Header="Save" />
+            <Separator />
+            <MenuItem Header="Exit" />
+          </MenuItem>
+        </Menu>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Content="Default Button" />
+          <Button Content="Accent Button" Classes="accent" />
+        </StackPanel>
+        <CheckBox Content="Sample CheckBox" />
+      </StackPanel>
+    </Border>
+  </Design.PreviewWith>
+
   <Style Selector="Window">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
@@ -24,7 +44,22 @@
     </Setter>
   </Style>
 
-<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
+  <!-- Menu Styles -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#333333" />
+  </Style>
+
+  <!-- Toolbar Text -->
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="#333333" />
+  </Style>
+
+  <!-- CheckBox -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#333333" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
         <GradientStop Color="#1C86D5" Offset="0" />
@@ -33,9 +68,9 @@
     </Setter>
   </Style>
 
-  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
+  <Style Selector="DockPanel.StatusBar TextBlock">
     <Setter Property="Foreground" Value="White" />
-  </Style>-->
+  </Style>
 
   <Style Selector="avaloniaEdit|TextEditor">
     <Setter Property="Background">

@@ -5,21 +5,91 @@
     Accent Color: Teal (#16A085)
   -->
 
+  <Design.PreviewWith>
+    <Border Padding="20" Width="800" Height="600">
+      <StackPanel Spacing="10">
+        <Menu>
+          <MenuItem Header="File">
+            <MenuItem Header="Open" />
+            <MenuItem Header="Save" />
+            <Separator />
+            <MenuItem Header="Exit" />
+          </MenuItem>
+        </Menu>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Content="Default Button" />
+          <Button Content="Accent Button" Classes="accent" />
+        </StackPanel>
+        <CheckBox Content="Sample CheckBox" />
+      </StackPanel>
+    </Border>
+  </Design.PreviewWith>
+
   <Style Selector="Window">
     <Setter Property="Background" Value="#FAF9F7" />
+  </Style>
+
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#F0EDE6" />
+  </Style>
+
+  <!-- Menu Items -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#3E3E3E" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#E8E5DB" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#E8E5DB" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
+    <Setter Property="Background" Value="#F5F3F0" />
+    <Setter Property="BorderBrush" Value="#D8D5CC" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="#D8D5CC" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="2,4" />
+  </Style>
+
+  <!-- Context Menu -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="#F5F3F0" />
+    <Setter Property="BorderBrush" Value="#D8D5CC" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
   </Style>
 
   <Style Selector="StackPanel.Toolbar">
     <Setter Property="Background" Value="#F0EDE6" />
   </Style>
 
-<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
+  <!-- Toolbar Text -->
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="#3E3E3E" />
+  </Style>
+
+  <!-- CheckBox -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#3E3E3E" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar">
     <Setter Property="Background" Value="#16A085" />
   </Style>
 
-  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
+  <Style Selector="DockPanel.StatusBar TextBlock">
     <Setter Property="Foreground" Value="White" />
-  </Style>-->
+  </Style>
 
   <Style Selector="avaloniaEdit|TextEditor">
     <Setter Property="Background" Value="#FFFFF8" />

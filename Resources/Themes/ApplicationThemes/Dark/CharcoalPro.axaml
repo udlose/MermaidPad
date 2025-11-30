@@ -1,44 +1,114 @@
 <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
   <!--
-    Charcoal Pro Theme - warmer dark theme
-    Accent Color: Green (#16C60C)
+    Charcoal Pro Theme - warm charcoal dark theme
+    Accent Color: Amber (#FFA726)
   -->
 
+  <Design.PreviewWith>
+    <Border Padding="20" Width="800" Height="600">
+      <StackPanel Spacing="10">
+        <Menu>
+          <MenuItem Header="File">
+            <MenuItem Header="Open" />
+            <MenuItem Header="Save" />
+            <Separator />
+            <MenuItem Header="Exit" />
+          </MenuItem>
+        </Menu>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Button Content="Default Button" />
+          <Button Content="Accent Button" Classes="accent" />
+        </StackPanel>
+        <CheckBox Content="Sample CheckBox" />
+      </StackPanel>
+    </Border>
+  </Design.PreviewWith>
+
   <Style Selector="Window">
-    <Setter Property="Background" Value="#1F1F1F" />
+    <Setter Property="Background" Value="#1A1A1A" />
+  </Style>
+
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#242424" />
+  </Style>
+
+  <!-- Menu Items -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#E0E0E0" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#2E2E2E" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#2E2E2E" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
+    <Setter Property="Background" Value="#202020" />
+    <Setter Property="BorderBrush" Value="#3A3A3A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="#3A3A3A" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="2,4" />
+  </Style>
+
+  <!-- Context Menu -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="#202020" />
+    <Setter Property="BorderBrush" Value="#3A3A3A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
   </Style>
 
   <Style Selector="StackPanel.Toolbar">
-    <Setter Property="Background" Value="#2B2B2B" />
+    <Setter Property="Background" Value="#242424" />
   </Style>
 
-<!--  <Style Selector="StatusBar, DockPanel.StatusBar">
-    <Setter Property="Background" Value="#16C60C" />
+  <!-- Toolbar Text -->
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
 
-  <Style Selector="StatusBar TextBlock, DockPanel.StatusBar TextBlock">
-    <Setter Property="Foreground" Value="White" />
+  <!-- CheckBox -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
--->
+
+  <Style Selector="DockPanel.StatusBar">
+    <Setter Property="Background" Value="#FFA726" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="#1A1A1A" />
+  </Style>
+
   <Style Selector="avaloniaEdit|TextEditor">
-    <Setter Property="Background" Value="#1F1F1F" />
-    <Setter Property="Foreground" Value="#CCCCCC" />
+    <Setter Property="Background" Value="#1A1A1A" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
   </Style>
 
   <Style Selector="GridSplitter">
-    <Setter Property="Background" Value="#3E3E42" />
+    <Setter Property="Background" Value="#3A3A3A" />
   </Style>
 
   <Style Selector="Border">
-    <Setter Property="BorderBrush" Value="#3E3E42" />
+    <Setter Property="BorderBrush" Value="#3A3A3A" />
   </Style>
 
   <!--  Default Button Style  -->
   <Style Selector="Button">
-    <Setter Property="Background" Value="#3E3E42" />
-    <Setter Property="Foreground" Value="#CCCCCC" />
-    <Setter Property="BorderBrush" Value="#3E3E42" />
+    <Setter Property="Background" Value="#2E2E2E" />
+    <Setter Property="Foreground" Value="#E0E0E0" />
+    <Setter Property="BorderBrush" Value="#3A3A3A" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="12,6" />
@@ -49,11 +119,13 @@
   </Style>
 
   <Style Selector="Button:pointerover">
-    <Setter Property="Background" Value="#505053" />
+    <Setter Property="Background" Value="#3A3A3A" />
+    <Setter Property="BorderBrush" Value="#FFA726" />
   </Style>
 
   <Style Selector="Button:pressed">
-    <Setter Property="Background" Value="#5A5A5E" />
+    <Setter Property="Background" Value="#FFA726" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
   </Style>
 
   <Style Selector="Button:disabled">
@@ -62,20 +134,20 @@
 
   <!--  Accent Button Style  -->
   <Style Selector="Button.accent">
-    <Setter Property="Background" Value="#16C60C" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="BorderBrush" Value="#129E0B" />
+    <Setter Property="Background" Value="#FFA726" />
+    <Setter Property="Foreground" Value="#1A1A1A" />
+    <Setter Property="BorderBrush" Value="#FF8F00" />
   </Style>
 
   <Style Selector="Button.accent:pointerover">
-    <Setter Property="Background" Value="#1EDE15" />
+    <Setter Property="Background" Value="#FFB74D" />
   </Style>
 
   <Style Selector="Button.accent:pressed">
-    <Setter Property="Background" Value="#129E0B" />
+    <Setter Property="Background" Value="#FF8F00" />
   </Style>
 
   <Style Selector="Button.accent:disabled">
-    <Setter Property="Background" Value="#6FDB67" />
+    <Setter Property="Background" Value="#FFD180" />
   </Style>
 </Styles>
