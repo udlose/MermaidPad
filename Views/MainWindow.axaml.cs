@@ -81,14 +81,16 @@ public sealed partial class MainWindow : Window
     private EventHandler? _themeChangedHandler;
     private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
-    // Theme menu tracking for O(1) checkmark updates
-    // Dictionary provides O(1) lookup to find the specific MenuItem for a given theme
+    #region Theme-related members
+
     private readonly Dictionary<ApplicationTheme, MenuItem> _applicationThemeMenuItems = new Dictionary<ApplicationTheme, MenuItem>();
     private readonly Dictionary<ThemeName, MenuItem> _editorThemeMenuItems = new Dictionary<ThemeName, MenuItem>();
-
-    // Track previously selected theme for O(1) uncheck operation
     private ApplicationTheme? _previousApplicationTheme;
     private ThemeName? _previousEditorTheme;
+    private const string CheckmarkGeometryPath = "M4,6 L8,10 L14,4 L14,6 L8,12 L4,8 Z";     // SVG-like path data for a 14x12 checkmark icon
+    private static readonly Geometry _checkmarkGeometry = Geometry.Parse(CheckmarkGeometryPath);
+
+    #endregion Theme-related members
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -1634,10 +1636,15 @@ public sealed partial class MainWindow : Window
             };
 
             // Add Bind Command and CommandParameter so we can avoid Click handlers
-            menuItem.Bind(MenuItem.CommandProperty, new Binding(nameof(_vm.SetApplicationThemeCommand)));
-            menuItem.CommandParameter = theme;
+            BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetApplicationThemeCommand), theme);
 
-            // Track menu item for O(1) checkmark updates
+            // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
+            if (theme == currentTheme)
+            {
+                menuItem.Icon = CreateCheckmarkIcon();
+            }
+
+            // Track menu item checkmark updates
             _applicationThemeMenuItems[theme] = menuItem;
 
             parentMenu.Items.Add(menuItem);
@@ -1657,18 +1664,18 @@ public sealed partial class MainWindow : Window
         ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
 
         // Uncheck the previously selected theme (if it exists and changed)
-        if (_previousApplicationTheme.HasValue && _previousApplicationTheme.Value != currentTheme)
+        if (_previousApplicationTheme.HasValue && _previousApplicationTheme.Value != currentTheme &&
+            _applicationThemeMenuItems.TryGetValue(_previousApplicationTheme.Value, out MenuItem? previousItem))
         {
-            if (_applicationThemeMenuItems.TryGetValue(_previousApplicationTheme.Value, out MenuItem? previousItem))
-            {
                 previousItem.IsChecked = false;
+                previousItem.Icon = null; // Remove checkmark
             }
-        }
 
         // Check the currently selected theme
         if (_applicationThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
         {
             currentItem.IsChecked = true;
+            currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
         }
 
         // Update tracker for next change
@@ -1701,10 +1708,15 @@ public sealed partial class MainWindow : Window
             };
 
             // Add Bind Command and CommandParameter so we can avoid Click handlers
-            menuItem.Bind(MenuItem.CommandProperty, new Binding(nameof(_vm.SetEditorThemeCommand)));
-            menuItem.CommandParameter = theme;
+            BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetEditorThemeCommand), theme);
 
-            // Track menu item for O(1) checkmark updates
+            // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
+            if (theme == currentTheme)
+            {
+                menuItem.Icon = CreateCheckmarkIcon();
+            }
+
+            // Track menu item for checkmark updates
             _editorThemeMenuItems[theme] = menuItem;
 
             parentMenu.Items.Add(menuItem);
@@ -1724,22 +1736,57 @@ public sealed partial class MainWindow : Window
         ThemeName currentTheme = _vm.CurrentEditorTheme;
 
         // Uncheck the previously selected theme (if it exists and changed)
-        if (_previousEditorTheme.HasValue && _previousEditorTheme.Value != currentTheme)
+        if (_previousEditorTheme.HasValue && _previousEditorTheme.Value != currentTheme &&
+            _editorThemeMenuItems.TryGetValue(_previousEditorTheme.Value, out MenuItem? previousItem))
         {
-            if (_editorThemeMenuItems.TryGetValue(_previousEditorTheme.Value, out MenuItem? previousItem))
-            {
                 previousItem.IsChecked = false;
+                previousItem.Icon = null; // Remove checkmark
             }
-        }
 
         // Check the currently selected theme
         if (_editorThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
         {
             currentItem.IsChecked = true;
+            currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
         }
 
         // Update tracker for next change
         _previousEditorTheme = currentTheme;
+    }
+
+    /// <summary>
+    /// Creates a new checkmark icon as a PathIcon with predefined geometry and size.
+    /// </summary>
+    /// <returns>A PathIcon representing a checkmark, with a width of 14 and height of 12 units.</returns>
+    private static PathIcon CreateCheckmarkIcon()
+    {
+        // Create a fresh PathIcon instance each time (controls cannot be shared across the visual tree).
+        return new PathIcon
+        {
+            Data = _checkmarkGeometry,
+            Width = 14,
+            Height = 12,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            IsHitTestVisible = false        // Prevents icon from intercepting input events
+        };
+    }
+
+    /// <summary>
+    /// Binds a command to the specified menu item using the provided command name and sets the command parameter.
+    /// </summary>
+    /// <remarks>This method sets up data binding for the menu item's command, enabling command-based handling
+    /// of menu actions in MVVM scenarios. Ensure that the command name matches a property in the menu item's data
+    /// context that implements the ICommand interface.</remarks>
+    /// <param name="menuItem">The menu item to which the command will be bound. Cannot be null.</param>
+    /// <param name="commandName">The name of the command property to bind to the menu item. Must correspond to a valid command property in the
+    /// data context.</param>
+    /// <param name="parameter">An optional parameter to pass to the command when it is executed. Can be null if no parameter is required.</param>
+    private static void BindMenuItemCommand(MenuItem menuItem, string commandName, object? parameter)
+    {
+        // Explicit OneWay binding avoids unintended updates if DataContext changes (pitfall: unintended TwoWay)
+        menuItem.Bind(MenuItem.CommandProperty, new Binding(commandName) { Mode = BindingMode.OneWay });
+        menuItem.CommandParameter = parameter;
     }
 
     #endregion Theme methods
