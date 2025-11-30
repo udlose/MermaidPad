@@ -148,6 +148,21 @@
     </Setter>
   </Style>
 
+  <!-- TextBlock - Global text styling -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="#F1F1F1" />
+  </Style>
+
+  <!-- Dialog styling -->
+  <Style Selector="Window.dialog">
+    <Setter Property="Background" Value="#2D2D30" />
+    <Setter Property="Foreground" Value="#F1F1F1" />
+  </Style>
+
+  <Style Selector="Window.dialog TextBlock">
+    <Setter Property="Foreground" Value="#F1F1F1" />
+  </Style>
+
   <!--  Default Button Style (Skeuomorphic)  -->
   <Style Selector="Button">
     <Setter Property="Background">

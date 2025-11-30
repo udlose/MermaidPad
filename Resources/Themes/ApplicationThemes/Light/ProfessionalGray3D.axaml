@@ -35,6 +35,58 @@
     </Setter>
   </Style>
 
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#E8E8E8" />
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
+  <!-- Menu Items -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#333333" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#D4D4D4" />
+    <Setter Property="Foreground" Value="#000000" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#D4D4D4" />
+    <Setter Property="Foreground" Value="#000000" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="#A0A0A0" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
+    <Setter Property="Background" Value="#F0F0F0" />
+    <Setter Property="BorderBrush" Value="#D0D0D0" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="#D4D4D4" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="2,4" />
+  </Style>
+
+  <!-- Context Menu -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="#F0F0F0" />
+    <Setter Property="BorderBrush" Value="#D0D0D0" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
   <Style Selector="StackPanel.Toolbar">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
@@ -42,11 +94,6 @@
         <GradientStop Color="#E0E0E0" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-  </Style>
-
-  <!-- Menu Styles -->
-  <Style Selector="MenuItem">
-    <Setter Property="Foreground" Value="#333333" />
   </Style>
 
   <!-- Toolbar Text -->
@@ -99,6 +146,21 @@
         <GradientStop Color="#C0C0C0" Offset="1" />
       </LinearGradientBrush>
     </Setter>
+  </Style>
+
+  <!-- TextBlock - Global text styling -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
+  <!-- Dialog styling -->
+  <Style Selector="Window.dialog">
+    <Setter Property="Background" Value="#E8E8E8" />
+    <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
+  <Style Selector="Window.dialog TextBlock">
+    <Setter Property="Foreground" Value="#1E1E1E" />
   </Style>
 
   <!--  Default Button Style (Skeuomorphic)  -->
