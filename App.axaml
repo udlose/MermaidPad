@@ -3,8 +3,6 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Styles>
-    <!--<StyleInclude Source="avares://MermaidPad/Styles/Styles.axaml" />
-    <StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->
     <FluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
     <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
