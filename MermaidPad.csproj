@@ -133,20 +133,21 @@
 		<AvaloniaResource Remove="**/*.axaml" />
 		<AvaloniaResource Remove="node_modules/**" />
 	</ItemGroup>
-	
+
 	<ItemGroup>
 		<AvaloniaXaml Include="**/*.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
-	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
-	  <AdditionalFiles Remove="Resources/Styles/Styles.axaml" />
-	  <AdditionalFiles Remove="Resources/Themes/ApplicationThemes/Dark/*.axaml" />
-	  <AdditionalFiles Remove="Resources/Themes/ApplicationThemes/Light/*.axaml" />
-	  <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
-	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
-	  <AdditionalFiles Remove="Views/SplashWindow.axaml" />
+		<AdditionalFiles Remove="Resources/Styles/Styles.axaml" />
+		<AdditionalFiles Remove="Resources/Themes/ApplicationThemes/Dark/*.axaml" />
+		<AdditionalFiles Remove="Resources/Themes/ApplicationThemes/Light/*.axaml" />
+		<AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
+		<AdditionalFiles Remove="Views/Dialogs/ExportDialog.axaml" />
+		<AdditionalFiles Remove="Views/Dialogs/MessageDialog.axaml" />
+		<AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
+		<AdditionalFiles Remove="Views/UserControls/DesignerOnly/ThemePreviewer.axaml" />
+		<AdditionalFiles Remove="Views/SplashWindow.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -161,7 +162,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AvaloniaResource Include="Resources/Styles/Styles.axaml" />
+		<AvaloniaResource Include="Resources/Styles/Styles.axaml" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -184,22 +185,25 @@
 		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	<ItemGroup>
-	  <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-	  <AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-	  <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-    <AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
-		<SubType>Designer</SubType>
-	</AvaloniaXaml>
-	<AvaloniaXaml Update="Views/SplashWindow.axaml">
-		<SubType>Designer</SubType>
-	</AvaloniaXaml>
-	</ItemGroup>
+		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+		<AvaloniaXaml Update="Views/UserControls/DesignerOnly/ThemePreviewer.axaml">
+			<SubType>Designer</SubType>
+		</AvaloniaXaml>
+        <AvaloniaXaml Update="Views/SplashWindow.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+    </ItemGroup>
 
 	<!-- Import custom targets for asset hash generation -->
 	<Import Project="MermaidPad.Build.targets" />
@@ -207,9 +211,9 @@
 		<!-- No need to explicitly include generated asset hash file in compilation -->
 		<!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
 		<!--<Compile Include="Generated/AssetHashes.cs" Condition="Exists('Generated/AssetHashes.cs')" />-->
-	
-	  <None Update="LICENSE.TXT">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
+
+		<None Update="LICENSE.TXT">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 </Project>

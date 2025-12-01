@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit">
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+        xmlns:designerOnly="clr-namespace:MermaidPad.Views.UserControls.DesignerOnly">
   <!--
     Soft Contrast 3D Theme - Skeuomorphic version of Soft Contrast
     Accent Color: Teal (#16A085)
@@ -7,23 +8,7 @@
   -->
 
   <Design.PreviewWith>
-    <Border Padding="20" Width="800" Height="600">
-      <StackPanel Spacing="10">
-        <Menu>
-          <MenuItem Header="File">
-            <MenuItem Header="Open" />
-            <MenuItem Header="Save" />
-            <Separator />
-            <MenuItem Header="Exit" />
-          </MenuItem>
-        </Menu>
-        <StackPanel Orientation="Horizontal" Spacing="10">
-          <Button Content="Default Button" />
-          <Button Content="Accent Button" Classes="accent" />
-        </StackPanel>
-        <CheckBox Content="Sample CheckBox" />
-      </StackPanel>
-    </Border>
+    <designerOnly:ThemePreviewer />
   </Design.PreviewWith>
 
   <Style Selector="Window">
