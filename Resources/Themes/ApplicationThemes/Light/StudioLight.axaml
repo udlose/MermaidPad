@@ -2,13 +2,17 @@
         xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
         xmlns:designeronly="using:MermaidPad.Views.UserControls.DesignerOnly">
   <!--
-    Studio Light Theme - inspired by Visual Studio 2022 Light Mode
-    Accent Color: Purple (#68217A)
+  Studio Light Theme - inspired by Visual Studio 2022 Light Mode
+  Accent Color: Purple (#68217A)
   -->
 
   <Design.PreviewWith>
     <designeronly:ThemePreviewer />
   </Design.PreviewWith>
+
+  <Styles.Resources>
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#EEEEF2</SolidColorBrush>
+  </Styles.Resources>
 
   <Style Selector="Window">
     <Setter Property="Background" Value="#F3F3F3" />
@@ -26,14 +30,47 @@
     <Setter Property="Foreground" Value="#1E1E1E" />
   </Style>
 
-  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#C9DEF5" />
-    <Setter Property="Foreground" Value="#000000" />
+  <!-- Change the foreground for the InputGesture text - e.g. CTRL+S -->
+  <Style Selector="MenuItem:open TextBlock#PART_InputGestureText">
+    <Setter Property="Foreground" Value="#1E1E1E" />
   </Style>
 
-  <Style Selector="MenuItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="#C9DEF5" />
-    <Setter Property="Foreground" Value="#000000" />
+  <!-- Change the foreground for the MenuItemChevronPathData -->
+  <Style Selector="MenuItem:open Path#PART_ChevronPath">
+    <Setter Property="Fill" Value="#68217A" />
+  </Style>
+
+  <!-- Remove the dark border/line (padding) surrounding MenuItems (use MenuFlyoutPresenterBackground above instead) -->
+<!--<Style Selector="MenuItem:open /template/ Popup#PART_Popup > Border">
+    <Setter Property="Background" Value="#EEEEF2" />
+  </Style>-->
+
+  <!-- Change the background for PathIcons in MenuItems -->
+  <Style Selector="MenuItem:checked PathIcon">
+    <Setter Property="Foreground" Value="#68217A" />
+  </Style>
+
+  <!-- Change the background for PathIcons in MenuItems on pointerover -->
+  <Style Selector="MenuItem:checked:pointerover PathIcon">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <!--  /template/ MenuItem -->
+  <Style Selector="MenuItem:pointerover /template/ Panel">
+    <Setter Property="Background" Value="#68217A" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="#68217A" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel">
+    <Setter Property="Background" Value="#68217A" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Panel">
+    <Setter Property="Background" Value="#EEEEF2" />
   </Style>
 
   <Style Selector="MenuItem:disabled /template/ ContentPresenter">
@@ -65,6 +102,29 @@
 
   <Style Selector="ContextMenu MenuItem">
     <Setter Property="Foreground" Value="#1E1E1E" />
+  </Style>
+
+  <!-- need this to override the pointerover style to avoid white-out text -->
+  <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="#000000" />
+  </Style>
+
+  <Style Selector="CheckBox /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="#1E1E1E" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="BorderBrush" Value="#68217A" />
+  </Style>
+
+  <Style Selector="CheckBox:unchecked /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="#68217A" />
+  </Style>
+
+  <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+    <Setter Property="Background" Value="#68217A" />
+    <Setter Property="BorderBrush" Value="#5A1C6B" />
   </Style>
 
   <Style Selector="StackPanel.Toolbar">
@@ -121,7 +181,7 @@
   <Style Selector="Button">
     <Setter Property="Background" Value="#FFFFFF" />
     <Setter Property="Foreground" Value="#1E1E1E" />
-    <Setter Property="BorderBrush" Value="#CCCCCC" />
+    <Setter Property="BorderBrush" Value="#68217A" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="12,6" />
@@ -132,14 +192,14 @@
   </Style>
 
   <Style Selector="Button:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#C9DEF5" />
-    <Setter Property="Foreground" Value="#000000" />
+    <Setter Property="Background" Value="#68217A" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
 
   <Style Selector="Button:pointerover">
-    <Setter Property="Background" Value="#C9DEF5" />
+    <Setter Property="Background" Value="#68217A" />
     <Setter Property="BorderBrush" Value="#3399FF" />
-    <Setter Property="Foreground" Value="#000000" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
   </Style>
 
   <Style Selector="Button:pressed /template/ ContentPresenter">
