@@ -1,0 +1,191 @@
+<!-- Halo2Flat.axaml -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+        xmlns:designerOnly="clr-namespace:MermaidPad.Views.UserControls.DesignerOnly">
+
+  <!-- Halo 2 Flat Theme - Chief + Covenant
+       Primary: #101314 (charcoal/green)
+       Surface: #171A1C, #1F2428
+       Accent 1 (UNSC gold): #EFB82A
+       Accent 2 (Covenant blue): #4FC3F7
+       Accent 3 (Covenant purple): #8E24AA
+  -->
+
+  <Design.PreviewWith>
+    <designerOnly:ThemePreviewer />
+  </Design.PreviewWith>
+
+  <!-- Window -->
+  <Style Selector="Window">
+    <Setter Property="Background" Value="#101314" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- Menu Bar -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="#171A1C" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- Menu Items -->
+  <Style Selector="MenuItem">
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#1F2428" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="#263038" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="#626A71" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
+    <Setter Property="Background" Value="#171A1C" />
+    <Setter Property="BorderBrush" Value="#2B333A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="#2B333A" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="2,4" />
+  </Style>
+
+  <!-- Context Menu -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="#171A1C" />
+    <Setter Property="BorderBrush" Value="#2B333A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- Toolbar -->
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background" Value="#171A1C" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- Status Bar -->
+  <Style Selector="DockPanel.StatusBar">
+    <!-- UNSC visor gold -->
+    <Setter Property="Background" Value="#EFB82A" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="#101314" />
+  </Style>
+
+  <!-- Text and Borders -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <Style Selector="Border">
+    <Setter Property="BorderBrush" Value="#2B333A" />
+  </Style>
+
+  <!-- CheckBox -->
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- Text Editor -->
+  <Style Selector="avaloniaEdit|TextEditor">
+    <Setter Property="Background" Value="#101314" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <!-- GridSplitter -->
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="#2B333A" />
+  </Style>
+
+  <!-- Default Button -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="#1F2428" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+    <Setter Property="BorderBrush" Value="#2B333A" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MinWidth" Value="80" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="#263038" />
+    <Setter Property="BorderBrush" Value="#4FC3F7" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="#111517" />
+    <Setter Property="BorderBrush" Value="#8E24AA" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.6" />
+    <Setter Property="Foreground" Value="#626A71" />
+  </Style>
+
+  <!-- Accent Button (UNSC gold) -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="#EFB82A" />
+    <Setter Property="Foreground" Value="#0A0B0C" />
+    <Setter Property="BorderBrush" Value="#C49017" />
+  </Style>
+
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Background" Value="#FFD452" />
+    <Setter Property="Foreground" Value="#0A0B0C" />
+  </Style>
+
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Background" Value="#C49017" />
+    <Setter Property="Foreground" Value="#0A0B0C" />
+  </Style>
+
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="Background" Value="#55471F" />
+    <Setter Property="Foreground" Value="#B6A36A" />
+  </Style>
+
+  <!-- Alert / Covenant energy button -->
+  <Style Selector="Button.alert">
+    <Setter Property="Background" Value="#28314A" />
+    <Setter Property="BorderBrush" Value="#4FC3F7" />
+    <Setter Property="Foreground" Value="#E0E6EA" />
+  </Style>
+
+  <Style Selector="Button.alert:pointerover">
+    <Setter Property="Background" Value="#31405A" />
+    <Setter Property="BorderBrush" Value="#8E24AA" />
+  </Style>
+
+  <Style Selector="Button.alert:pressed">
+    <Setter Property="Background" Value="#192034" />
+    <Setter Property="BorderBrush" Value="#4FC3F7" />
+  </Style>
+
+</Styles>

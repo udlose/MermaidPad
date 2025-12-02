@@ -1,0 +1,419 @@
+<!-- Halo2Covenant3D.axaml -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
+        xmlns:designerOnly="clr-namespace:MermaidPad.Views.UserControls.DesignerOnly">
+
+  <!-- Halo 2 Covenant 3D Theme
+  Base: #120818 -> #06040A (vertical gradient)
+  Panels: violet/indigo metallic
+  Accent: plasma blue (#4FC3F7) + energy purple (#BB3EFF)
+  UNSC gold used sparingly for highlights (#EFB82A) [web:8].
+  -->
+
+  <Design.PreviewWith>
+    <designerOnly:ThemePreviewer />
+  </Design.PreviewWith>
+  
+  <Styles.Resources>
+
+    <!-- Core colors -->
+    <Color x:Key="Color.WindowTop">#120818</Color>
+    <Color x:Key="Color.WindowBottom">#06040A</Color>
+
+    <!-- Covenant purples -->
+    <Color x:Key="Color.CovPurpleDark">#1A1036</Color>
+    <Color x:Key="Color.CovPurpleMid">#3C2D7A</Color>
+    <Color x:Key="Color.CovPurpleBright">#4A3897</Color>
+
+    <!-- Plasma blues -->
+    <Color x:Key="Color.PlasmaBlue">#4FC3F7</Color>
+    <Color x:Key="Color.PlasmaBlueSoft">#80E4FF</Color>
+
+    <!-- Chief greens -->
+    <Color x:Key="Color.ChiefGreenDark">#40402A</Color>
+    <Color x:Key="Color.ChiefGreen">#817F59</Color>
+
+    <!-- Visor gold / orange -->
+    <Color x:Key="Color.VisorGold">#EFB82A</Color>
+    <Color x:Key="Color.VisorGoldDark">#B67816</Color>
+
+    <!-- Neutrals -->
+    <Color x:Key="Color.TextPrimary">#E9E3FF</Color>
+    <Color x:Key="Color.TextMuted">#7A739C</Color>
+    <Color x:Key="Color.BorderDim">#4F3E86</Color>
+    <Color x:Key="Color.PanelDark">#161026</Color>
+    <Color x:Key="Color.PanelDarker">#0C0716</Color>
+
+    <!-- Brushes built from colors -->
+
+    <!-- Window -->
+    <LinearGradientBrush x:Key="Brush.WindowBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.WindowTop}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.WindowBottom}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="Brush.TextPrimary"
+                     Color="{StaticResource Color.TextPrimary}" />
+    <SolidColorBrush x:Key="Brush.TextMuted"
+                     Color="{StaticResource Color.TextMuted}" />
+
+    <!-- Panels / surfaces -->
+    <LinearGradientBrush x:Key="Brush.PanelDefault"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.PanelDark}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.PanelDarker}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.PanelHover"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#28334A" Offset="0" />
+      <GradientStop Color="{StaticResource Color.CovPurpleMid}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.PanelSelected"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.ChiefGreenDark}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Menu / flyout specific -->
+    <LinearGradientBrush x:Key="Brush.MenuBarBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#25164A" Offset="0" />
+      <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.MenuPopupBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#1B102F" Offset="0" />
+      <GradientStop Color="#120820" Offset="1" />
+    </LinearGradientBrush>
+
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground"
+                     Color="#1B102F" />
+
+    <!-- Borders -->
+    <LinearGradientBrush x:Key="Brush.BorderDefault"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.BorderDim}" Offset="0" />
+      <GradientStop Color="#271752" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.BorderHighlightGold"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.VisorGold}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.VisorGoldDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.BorderHighlightPlasma"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#BB3EFF" Offset="0" />
+      <GradientStop Color="{StaticResource Color.PlasmaBlue}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Checkbox fills -->
+    <LinearGradientBrush x:Key="Brush.CheckboxCheckedFill"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.ChiefGreen}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.ChiefGreenDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Buttons -->
+    <LinearGradientBrush x:Key="Brush.ButtonBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.CovPurpleMid}" Offset="0" />
+      <GradientStop Color="#261A55" Offset="0.5" />
+      <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.ButtonHoverBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.CovPurpleBright}" Offset="0" />
+      <GradientStop Color="#312063" Offset="0.5" />
+      <GradientStop Color="#211244" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.ButtonPressedBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#261A55" Offset="0" />
+      <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="0.6" />
+      <GradientStop Color="#120820" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.ButtonBorder"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#8372D6" Offset="0" />
+      <GradientStop Color="{StaticResource Color.ChiefGreenDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Accent / visor button -->
+    <LinearGradientBrush x:Key="Brush.ButtonAccentBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#FFE07A" Offset="0" />
+      <GradientStop Color="{StaticResource Color.VisorGold}" Offset="0.5" />
+      <GradientStop Color="{StaticResource Color.VisorGoldDark}" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.ButtonAccentHoverBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="#FFF2A0" Offset="0" />
+      <GradientStop Color="#FFD452" Offset="0.5" />
+      <GradientStop Color="{StaticResource Color.VisorGold}" Offset="1" />
+    </LinearGradientBrush>
+
+    <!-- Plasma button -->
+    <LinearGradientBrush x:Key="Brush.ButtonPlasmaBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.PlasmaBlue}" Offset="0" />
+      <GradientStop Color="#1E88E5" Offset="0.5" />
+      <GradientStop Color="#0D47A1" Offset="1" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.ButtonPlasmaHoverBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.PlasmaBlueSoft}" Offset="0" />
+      <GradientStop Color="{StaticResource Color.PlasmaBlue}" Offset="0.5" />
+      <GradientStop Color="#1E88E5" Offset="1" />
+    </LinearGradientBrush>
+
+  </Styles.Resources>
+
+  <!-- ========== WINDOW & GLOBAL TEXT ========== -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource Brush.WindowBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="Border">
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderDefault}" />
+  </Style>
+
+  <!-- ========== MENU & FLYOUTS ========== -->
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBarBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuPopupBackground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderDefault}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <!-- Flyout background via resource key already defined above -->
+
+  <!-- Menu chevrons & icons -->
+  <Style Selector="MenuItem:open Path#PART_ChevronPath">
+    <Setter Property="Fill" Value="{StaticResource Color.PlasmaBlue}" />
+  </Style>
+
+  <Style Selector="MenuItem:checked PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="MenuItem:checked:pointerover PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource Color.PlasmaBlue}" />
+  </Style>
+
+  <!-- Menu item panels and states -->
+  <Style Selector="MenuItem /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelDefault}" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelHover}" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelSelected}" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+  </Style>
+
+  <!-- ========== CHECKBOXES ========== -->
+
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderDefault}" />
+  </Style>
+
+  <Style Selector="CheckBox:unchecked /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderDefault}" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+    <Setter Property="Background" Value="{StaticResource Brush.CheckboxCheckedFill}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHighlightGold}" />
+  </Style>
+
+  <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHighlightPlasma}" />
+  </Style>
+
+  <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Color.BorderDim}" />
+  </Style>
+
+  <!-- ========== BUTTONS (DEFAULT / ACCENT / PLASMA) ========== -->
+
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="14,7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MinWidth" Value="80" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#80000000" OffsetX="0" OffsetY="2" BlurRadius="5" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonHoverBackground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHighlightGold}" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#70BB3EFF" OffsetX="0" OffsetY="2" BlurRadius="8" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPressedBackground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.ButtonBorder}" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#90000000" OffsetX="0" OffsetY="1" BlurRadius="3" />
+    </Setter>
+    <Setter Property="RenderTransform">
+      <TranslateTransform Y="1" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+    <Setter Property="Effect" Value="{x:Null}" />
+  </Style>
+
+  <!-- Accent (visor gold) -->
+  <Style Selector="Button.accent">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonAccentBackground}" />
+    <Setter Property="Foreground" Value="#0A0502" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHighlightGold}" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#A0EFB82A" OffsetX="0" OffsetY="2" BlurRadius="6" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.accent:pointerover">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonAccentHoverBackground}" />
+  </Style>
+
+  <Style Selector="Button.accent:pressed">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="{StaticResource Color.VisorGoldDark}" Offset="0" />
+        <GradientStop Color="{StaticResource Color.VisorGold}" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="RenderTransform">
+      <TranslateTransform Y="1" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.accent:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <!-- Plasma (energy) -->
+  <Style Selector="Button.plasma">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPlasmaBackground}" />
+    <Setter Property="Foreground" Value="#E9F7FF" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderHighlightPlasma}" />
+    <Setter Property="Effect">
+      <DropShadowEffect Color="#A04FC3F7" OffsetX="0" OffsetY="0" BlurRadius="10" />
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.plasma:pointerover">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPlasmaHoverBackground}" />
+  </Style>
+
+  <Style Selector="Button.plasma:pressed">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#1E88E5" Offset="0" />
+        <GradientStop Color="#0D47A1" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <!-- ========== EDITOR, TOOLBAR, STATUS BAR (same look, using resources) ========== -->
+
+  <Style Selector="avaloniaEdit|TextEditor">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#0C0716" Offset="0" />
+        <GradientStop Color="#04030A" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBarBackground}" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="{StaticResource Color.VisorGold}" Offset="0" />
+        <GradientStop Color="{StaticResource Color.VisorGoldDark}" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="#0A0502" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+        <GradientStop Color="#5E4BA5" Offset="0" />
+        <GradientStop Color="#3E2E76" Offset="0.5" />
+        <GradientStop Color="#5E4BA5" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+</Styles>
