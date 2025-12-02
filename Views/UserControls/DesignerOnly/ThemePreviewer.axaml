@@ -2,13 +2,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
              mc:Ignorable="d"
              x:Class="MermaidPad.Views.UserControls.DesignerOnly.ThemePreviewer">
-  
+
   <!-- Design-time preview of various controls to visualize themes and styles -->
-  <Border Padding="20" Width="800" Height="600">
-    <StackPanel Spacing="10">
-      <Menu>
+  <DockPanel Height="600" Width="800">
+    <!-- Menu Bar -->
+    <Menu DockPanel.Dock="Top">
         <MenuItem Header="File">
           <MenuItem Header="Open" InputGesture="Ctrl+O" />
           <MenuItem Header="Save" InputGesture="Ctrl+S">
@@ -20,13 +21,63 @@
           <MenuItem Header="Exit" />
         </MenuItem>
       </Menu>
-      <StackPanel Orientation="Horizontal" Spacing="10">
+    <!-- Toolbar -->
+    <StackPanel
+      Margin="6"
+      DockPanel.Dock="Top"
+      Orientation="Horizontal"
+      Spacing="6"
+      Classes="Toolbar">
         <Button Content="Default Button" />
         <Button Content="Accent Button" Classes="accent" />
-      </StackPanel>
-      <CheckBox Content="Unchecked CheckBox" />
-      <CheckBox Content="Checked CheckBox" IsChecked="True" />
-      <CheckBox Content="Disabled CheckBox" IsEnabled="False" />
+        <Button Content="Plasma Button" Classes="plasma" />
+        <CheckBox Content="Unchecked CheckBox" />
+        <CheckBox 
+          Margin="12,0,0,0" 
+          Content="Live Preview:"
+          FlowDirection="RightToLeft"
+          IsChecked="True" />
     </StackPanel>
-  </Border>
+    <!-- Status Bar -->
+    <DockPanel Name="StatusBar" DockPanel.Dock="Bottom" Classes="StatusBar" Height="24">
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="8,0">
+        <TextBlock Text="Version:" VerticalAlignment="Center" />
+        <TextBlock Text="1.0.0" VerticalAlignment="Center" Margin="4,0,0,0" />
+      </StackPanel>
+      <TextBlock Text="diagram.mmd"
+                 VerticalAlignment="Center"
+                 Margin="8,0" />
+
+    </DockPanel>
+      <Grid ColumnDefinitions="*,4,*">
+        <!-- Text Editor Panel -->
+        <Border Grid.Column="0" BorderThickness="1" Padding="4">
+          <avaloniaEdit:TextEditor
+            x:Name="Editor"
+            FontFamily="Consolas,Courier New,monospace"
+            FontSize="14"
+            HorizontalScrollBarVisibility="Auto"
+            ShowLineNumbers="True"
+            VerticalScrollBarVisibility="Auto"/>
+        </Border>
+
+        <!-- GridSplitter -->
+        <GridSplitter Grid.Column="1" />
+
+        <!-- WebView Panel -->
+        <Border Grid.Column="2" BorderThickness="1">
+          <Grid>
+            <WebView Name="Preview" HtmlContent="&lt;h2&gt;html content here&lt;/h2&gt;" />
+<!--            <TextBlock
+              Margin="10"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
+              FontSize="11"
+              Foreground="Red"
+              Text="Last Error"
+              TextWrapping="Wrap" />-->
+          </Grid>
+        </Border>
+      </Grid>
+  </DockPanel>
 </UserControl>
