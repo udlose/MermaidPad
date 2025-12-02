@@ -33,10 +33,8 @@
       <Setter Property="Margin" Value="0,5,0,10" />
     </Style>
 
-    <Style Selector="StackPanel.OptionRow">
-      <Setter Property="Orientation" Value="Horizontal" />
+    <Style Selector="Grid.OptionRow">
       <Setter Property="Margin" Value="0,5" />
-      <Setter Property="Spacing" Value="10" />
     </Style>
 
     <Style Selector="TextBlock.OptionLabel">
@@ -73,19 +71,37 @@
         <Border Classes="SectionBorder">
           <StackPanel>
             <!--  File Name  -->
-            <StackPanel Classes="OptionRow">
-              <TextBlock Classes="OptionLabel" Text="File Name:" />
+            <Grid Classes="OptionRow">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="100" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock
+                Grid.Column="0"
+                Classes="OptionLabel"
+                Text="File Name:" />
               <TextBox
-                Width="350"
+                Grid.Column="1"
                 Text="{Binding FileName}"
                 Watermark="diagram" />
-            </StackPanel>
+            </Grid>
 
             <!--  Format  -->
-            <StackPanel Classes="OptionRow">
-              <TextBlock Classes="OptionLabel" Text="Format:" />
+            <Grid Classes="OptionRow">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="100" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock
+                Grid.Column="0"
+                Classes="OptionLabel"
+                Text="Format:" />
               <ComboBox
-                Width="240"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
                 ItemsSource="{Binding AvailableFormats}"
                 SelectedItem="{Binding SelectedFormat}">
                 <ComboBox.ItemTemplate>
@@ -95,20 +111,29 @@
                 </ComboBox.ItemTemplate>
               </ComboBox>
               <Button
+                Grid.Column="3"
                 Width="100"
+                VerticalAlignment="Center"
                 Command="{Binding BrowseForDirectoryCommand}"
                 CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=Window}}"
                 Content="Browse..." />
-            </StackPanel>
+            </Grid>
 
             <!--  Directory  -->
-            <StackPanel Classes="OptionRow">
-              <TextBlock Classes="OptionLabel" Text="Save Location:" />
+            <Grid Classes="OptionRow">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="100" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <TextBlock
+                Grid.Column="0"
+                Classes="OptionLabel"
+                Text="Save Location:" />
               <TextBox
-                Width="350"
+                Grid.Column="1"
                 IsReadOnly="True"
                 Text="{Binding Directory}" />
-            </StackPanel>
+            </Grid>
           </StackPanel>
         </Border>
 
@@ -118,9 +143,19 @@
           <Border Classes="SectionBorder">
             <StackPanel>
               <!--  DPI  -->
-              <StackPanel Classes="OptionRow">
-                <TextBlock Classes="OptionLabel" Text="DPI:" />
+              <Grid Classes="OptionRow">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="10" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                  Grid.Column="0"
+                  Classes="OptionLabel"
+                  Text="DPI:" />
                 <ComboBox
+                  Grid.Column="1"
                   Width="100"
                   ItemsSource="{Binding AvailableDpiValues}"
                   SelectedItem="{Binding SelectedDpi}">
@@ -130,98 +165,168 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-                <TextBlock VerticalAlignment="Center" Text="(Higher = better quality, larger file)" />
-              </StackPanel>
+                <TextBlock
+                  Grid.Column="3"
+                  VerticalAlignment="Center"
+                  Text="(Higher = better quality, larger file)" />
+              </Grid>
 
               <!--  Scale Factor  -->
-              <StackPanel Classes="OptionRow">
-                <TextBlock Classes="OptionLabel" Text="Scale Factor:" />
+              <Grid Classes="OptionRow">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="10" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                  Grid.Column="0"
+                  Classes="OptionLabel"
+                  Text="Scale Factor:" />
                 <Slider
-                  Width="150"
+                  Grid.Column="1"
                   IsSnapToTickEnabled="True"
                   Maximum="4"
                   Minimum="1"
                   TickFrequency="1"
                   Value="{Binding ScaleFactor}" />
                 <TextBlock
+                  Grid.Column="3"
                   Width="40"
                   VerticalAlignment="Center"
                   Text="{Binding ScaleFactor, StringFormat='{}{0:F1}x'}" />
-              </StackPanel>
+              </Grid>
 
               <!--  Background  -->
-              <StackPanel Classes="OptionRow">
-                <TextBlock Classes="OptionLabel" Text="Background:" />
+              <Grid Classes="OptionRow">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="20" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                  Grid.Column="0"
+                  Classes="OptionLabel"
+                  Text="Background:" />
                 <RadioButton
+                  Grid.Column="1"
                   Content="White"
                   GroupName="Background"
                   IsChecked="{Binding UseWhiteBackground}" />
                 <RadioButton
-                  Margin="20,0,0,0"
+                  Grid.Column="3"
                   Content="Transparent"
                   GroupName="Background"
                   IsChecked="{Binding UseTransparentBackground}" />
-              </StackPanel>
+              </Grid>
 
               <!--  Quality  -->
-              <StackPanel Classes="OptionRow">
-                <TextBlock Classes="OptionLabel" Text="Quality:" />
+              <Grid Classes="OptionRow">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="10" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                  Grid.Column="0"
+                  Classes="OptionLabel"
+                  Text="Quality:" />
                 <Slider
-                  Width="150"
+                  Grid.Column="1"
                   IsSnapToTickEnabled="True"
                   Maximum="100"
                   Minimum="70"
                   TickFrequency="5"
                   Value="{Binding Quality}" />
                 <TextBlock
+                  Grid.Column="3"
                   Width="40"
                   VerticalAlignment="Center"
                   Text="{Binding Quality, StringFormat='{}{0}%'}" />
-              </StackPanel>
+              </Grid>
 
               <!--  Anti-aliasing  -->
-              <StackPanel Classes="OptionRow">
-                <TextBlock Classes="OptionLabel" Text="Anti-aliasing:" />
-                <CheckBox Content="Enable smooth edges" IsChecked="{Binding AntiAlias}" />
-              </StackPanel>
+              <Grid Classes="OptionRow">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                  Grid.Column="0"
+                  Classes="OptionLabel"
+                  Text="Anti-aliasing:" />
+                <CheckBox
+                  Grid.Column="1"
+                  Content="Enable smooth edges"
+                  IsChecked="{Binding AntiAlias}" />
+              </Grid>
 
               <!--  Max Dimensions  -->
               <Expander Margin="0,10,0,0" Header="Advanced Settings">
                 <StackPanel Margin="0,10,0,0">
-                  <StackPanel Classes="OptionRow">
-                    <TextBlock Classes="OptionLabel" Text="Max Width:" />
+                  <Grid Classes="OptionRow">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="100" />
+                      <ColumnDefinition Width="150" />
+                      <ColumnDefinition Width="5" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                      Grid.Column="0"
+                      Classes="OptionLabel"
+                      Text="Max Width:" />
                     <NumericUpDown
-                      Width="150"
+                      Grid.Column="1"
                       Increment="100"
                       Maximum="10000"
                       Minimum="0"
                       Watermark="0 = no limit"
                       Value="{Binding MaxWidth}" />
                     <TextBlock
-                      Margin="5,0,0,0"
+                      Grid.Column="3"
                       VerticalAlignment="Center"
                       Text="pixels" />
-                  </StackPanel>
+                  </Grid>
 
-                  <StackPanel Classes="OptionRow">
-                    <TextBlock Classes="OptionLabel" Text="Max Height:" />
+                  <Grid Classes="OptionRow">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="100" />
+                      <ColumnDefinition Width="150" />
+                      <ColumnDefinition Width="5" />
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                      Grid.Column="0"
+                      Classes="OptionLabel"
+                      Text="Max Height:" />
                     <NumericUpDown
-                      Width="150"
+                      Grid.Column="1"
                       Increment="100"
                       Maximum="10000"
                       Minimum="0"
                       Watermark="0 = no limit"
                       Value="{Binding MaxHeight}" />
                     <TextBlock
-                      Margin="5,0,0,0"
+                      Grid.Column="3"
                       VerticalAlignment="Center"
                       Text="pixels" />
-                  </StackPanel>
+                  </Grid>
 
-                  <StackPanel Classes="OptionRow">
-                    <TextBlock Classes="OptionLabel" Text="" />
-                    <CheckBox Content="Preserve aspect ratio when limiting dimensions" IsChecked="{Binding PreserveAspectRatio}" />
-                  </StackPanel>
+                  <Grid Classes="OptionRow">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="100" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <CheckBox
+                      Grid.Column="1"
+                      Content="Preserve aspect ratio when limiting dimensions"
+                      IsChecked="{Binding PreserveAspectRatio}" />
+                  </Grid>
                 </StackPanel>
               </Expander>
             </StackPanel>
@@ -233,10 +338,7 @@
           <TextBlock Classes="SectionHeader" Text="SVG Options" />
           <Border Classes="SectionBorder">
             <StackPanel>
-              <CheckBox
-                Margin="0,5,0,0"
-                Content="Optimize SVG (remove unnecessary elements)"
-                IsChecked="{Binding OptimizeSvg}" />
+              <CheckBox Content="Optimize SVG (remove unnecessary elements)" IsChecked="{Binding OptimizeSvg}" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -278,7 +380,6 @@
                   Foreground="#666666"
                   Text="{Binding EstimatedFileSize}" />
               </StackPanel>
-
             </Grid>
           </StackPanel>
         </Border>
