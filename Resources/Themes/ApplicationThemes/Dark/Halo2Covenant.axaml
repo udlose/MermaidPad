@@ -1,130 +1,232 @@
-<!-- Halo2Flat.axaml -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
-        xmlns:designerOnly="clr-namespace:MermaidPad.Views.UserControls.DesignerOnly">
+        xmlns:designeronly="using:MermaidPad.Views.UserControls.DesignerOnly">
 
-  <!-- Halo 2 Flat Theme - Chief + Covenant
-       Primary: #101314 (charcoal/green)
-       Surface: #171A1C, #1F2428
-       Accent 1 (UNSC gold): #EFB82A
-       Accent 2 (Covenant blue): #4FC3F7
-       Accent 3 (Covenant purple): #8E24AA
+  <!--
+    Halo 2 Covenant 2D Theme (flat)
+    Same palette as Halo2Covenant3D, but solid fills and no drop shadows.
   -->
 
+  <!-- ========== COLOR & BRUSH RESOURCES ========== -->
+  <Styles.Resources>
+
+    <!-- Colors copied from Halo2Covenant3D -->
+    <Color x:Key="Color.WindowTop">#1B102F</Color>
+    <Color x:Key="Color.WindowBottom">#06040A</Color>
+
+    <Color x:Key="Color.CovPurpleDark">#1A1036</Color>
+    <Color x:Key="Color.CovPurpleMid">#3C2D7A</Color>
+    <Color x:Key="Color.CovPurpleBright">#4A3897</Color>
+
+    <Color x:Key="Color.PlasmaBlue">#4FC3F7</Color>
+    <Color x:Key="Color.PlasmaBlueSoft">#80E4FF</Color>
+
+    <Color x:Key="Color.ChiefGreenDark">#40402A</Color>
+    <Color x:Key="Color.ChiefGreen">#817F59</Color>
+
+    <Color x:Key="Color.VisorGold">#EFB82A</Color>
+    <Color x:Key="Color.VisorGoldDark">#B67816</Color>
+
+    <Color x:Key="Color.TextPrimary">#E9E3FF</Color>
+    <Color x:Key="Color.TextMuted">#7A739C</Color>
+    <Color x:Key="Color.BorderDim">#4F3E86</Color>
+    <Color x:Key="Color.PanelDark">#161026</Color>
+    <Color x:Key="Color.PanelDarker">#0C0716</Color>
+
+    <!-- Shared menu color (same as 3D theme) -->
+    <Color x:Key="Color.MenuBase">#1B102F</Color>
+
+    <!-- Flat brushes (no gradients) -->
+    <SolidColorBrush x:Key="Brush.WindowBackgroundFlat"
+                     Color="#1B102F" />
+    <SolidColorBrush x:Key="Brush.TextPrimary"
+                     Color="{StaticResource Color.TextPrimary}" />
+    <SolidColorBrush x:Key="Brush.TextMuted"
+                     Color="{StaticResource Color.TextMuted}" />
+
+    <SolidColorBrush x:Key="Brush.MenuBackground"
+                     Color="{StaticResource Color.MenuBase}" />
+    <SolidColorBrush x:Key="Brush.MenuPopupBackgroundFlat"
+                     Color="#120820" />
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground"
+                     Color="{StaticResource Color.MenuBase}" />
+
+    <SolidColorBrush x:Key="Brush.PanelFlat"
+                     Color="{StaticResource Color.PanelDark}" />
+    <SolidColorBrush x:Key="Brush.PanelHoverFlat"
+                     Color="{StaticResource Color.CovPurpleMid}" />
+    <SolidColorBrush x:Key="Brush.PanelSelectedFlat"
+                     Color="{StaticResource Color.ChiefGreenDark}" />
+
+    <SolidColorBrush x:Key="Brush.BorderFlat"
+                     Color="{StaticResource Color.BorderDim}" />
+    <SolidColorBrush x:Key="Brush.BorderAccentGoldFlat"
+                     Color="{StaticResource Color.VisorGold}" />
+    <SolidColorBrush x:Key="Brush.BorderAccentPlasmaFlat"
+                     Color="{StaticResource Color.PlasmaBlue}" />
+
+    <SolidColorBrush x:Key="Brush.CheckboxCheckedFillFlat"
+                     Color="{StaticResource Color.ChiefGreen}" />
+
+    <SolidColorBrush x:Key="Brush.ButtonBackgroundFlat"
+                     Color="{StaticResource Color.CovPurpleMid}" />
+    <SolidColorBrush x:Key="Brush.ButtonHoverBackgroundFlat"
+                     Color="{StaticResource Color.CovPurpleBright}" />
+    <SolidColorBrush x:Key="Brush.ButtonPressedBackgroundFlat"
+                     Color="{StaticResource Color.CovPurpleDark}" />
+
+    <SolidColorBrush x:Key="Brush.ButtonAccentBackgroundFlat"
+                     Color="{StaticResource Color.VisorGold}" />
+    <SolidColorBrush x:Key="Brush.ButtonAccentHoverBackgroundFlat"
+                     Color="#FFD452" />
+
+    <SolidColorBrush x:Key="Brush.ButtonPlasmaBackgroundFlat"
+                     Color="{StaticResource Color.PlasmaBlue}" />
+    <SolidColorBrush x:Key="Brush.ButtonPlasmaHoverBackgroundFlat"
+                     Color="{StaticResource Color.PlasmaBlueSoft}" />
+
+  </Styles.Resources>
+
+  <!-- ========== DESIGN PREVIEW ========== -->
+
   <Design.PreviewWith>
-    <designerOnly:ThemePreviewer />
+    <designeronly:ThemePreviewer />
   </Design.PreviewWith>
 
-  <!-- Window -->
+  <!-- ========== WINDOW & GLOBAL TEXT ========== -->
+
   <Style Selector="Window">
-    <Setter Property="Background" Value="#101314" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
+    <Setter Property="Background" Value="{StaticResource Brush.WindowBackgroundFlat}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
-  <!-- Menu Bar -->
-  <Style Selector="Menu">
-    <Setter Property="Background" Value="#171A1C" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
-  </Style>
-
-  <!-- Menu Items -->
-  <Style Selector="MenuItem">
-    <Setter Property="Foreground" Value="#E0E6EA" />
-  </Style>
-
-  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="#1F2428" />
-    <Setter Property="Foreground" Value="#FFFFFF" />
-  </Style>
-
-  <Style Selector="MenuItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="#263038" />
-    <Setter Property="Foreground" Value="#FFFFFF" />
-  </Style>
-
-  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
-    <Setter Property="Foreground" Value="#626A71" />
-  </Style>
-
-  <Style Selector="MenuItem /template/ Border#PART_PopupBorder">
-    <Setter Property="Background" Value="#171A1C" />
-    <Setter Property="BorderBrush" Value="#2B333A" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="2" />
-  </Style>
-
-  <!-- Separator -->
-  <Style Selector="Separator">
-    <Setter Property="Background" Value="#2B333A" />
-    <Setter Property="Height" Value="1" />
-    <Setter Property="Margin" Value="2,4" />
-  </Style>
-
-  <!-- Context Menu -->
-  <Style Selector="ContextMenu">
-    <Setter Property="Background" Value="#171A1C" />
-    <Setter Property="BorderBrush" Value="#2B333A" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="2" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
-  </Style>
-
-  <Style Selector="ContextMenu MenuItem">
-    <Setter Property="Foreground" Value="#E0E6EA" />
-  </Style>
-
-  <!-- Toolbar -->
-  <Style Selector="StackPanel.Toolbar">
-    <Setter Property="Background" Value="#171A1C" />
-  </Style>
-
-  <Style Selector="StackPanel.Toolbar TextBlock">
-    <Setter Property="Foreground" Value="#E0E6EA" />
-  </Style>
-
-  <!-- Status Bar -->
-  <Style Selector="DockPanel.StatusBar">
-    <!-- UNSC visor gold -->
-    <Setter Property="Background" Value="#EFB82A" />
-  </Style>
-
-  <Style Selector="DockPanel.StatusBar TextBlock">
-    <Setter Property="Foreground" Value="#101314" />
-  </Style>
-
-  <!-- Text and Borders -->
   <Style Selector="TextBlock">
-    <Setter Property="Foreground" Value="#E0E6EA" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
   <Style Selector="Border">
-    <Setter Property="BorderBrush" Value="#2B333A" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFlat}" />
   </Style>
 
-  <!-- CheckBox -->
-  <Style Selector="CheckBox">
-    <Setter Property="Foreground" Value="#E0E6EA" />
+  <!-- ========== MENU & FLY-OUTS ========== -->
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBackground}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
-  <!-- Text Editor -->
-  <Style Selector="avaloniaEdit|TextEditor">
-    <Setter Property="Background" Value="#101314" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
+  <!-- Top-level menu items: keep background transparent so the bar is continuous -->
+  <Style Selector="MenuItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
-  <!-- GridSplitter -->
-  <Style Selector="GridSplitter">
-    <Setter Property="Background" Value="#2B333A" />
+  <Style Selector="MenuItem /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
   </Style>
 
-  <!-- Default Button -->
-  <Style Selector="Button">
-    <Setter Property="Background" Value="#1F2428" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
-    <Setter Property="BorderBrush" Value="#2B333A" />
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="MenuItem:open /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <!-- Drop-down / context menus -->
+  <Style Selector="ContextMenu">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuPopupBackgroundFlat}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFlat}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="ContextMenu MenuItem">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <!-- Chevron and icon colors -->
+  <Style Selector="MenuItem:open Path#PART_ChevronPath">
+    <Setter Property="Fill" Value="{StaticResource Color.PlasmaBlue}" />
+  </Style>
+
+  <Style Selector="MenuItem:checked PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="MenuItem:checked:pointerover PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource Color.PlasmaBlue}" />
+  </Style>
+
+  <!-- Panel backgrounds for menu items in popups -->
+  <Style Selector="MenuItem /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelFlat}" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelHoverFlat}" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel">
+    <Setter Property="Background" Value="{StaticResource Brush.PanelSelectedFlat}" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Panel ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+  </Style>
+
+  <!-- ========== TOOLBAR / HEADER STACKPANEL ========== -->
+
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBackground}" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <!-- ========== CHECKBOXES ========== -->
+
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFlat}" />
+  </Style>
+
+  <Style Selector="CheckBox:unchecked /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFlat}" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+    <Setter Property="Background" Value="{StaticResource Brush.CheckboxCheckedFillFlat}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderAccentGoldFlat}" />
+  </Style>
+
+  <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderAccentPlasmaFlat}" />
+  </Style>
+
+  <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+    <Setter Property="BorderBrush" Value="{StaticResource Color.BorderDim}" />
+  </Style>
+
+  <!-- ========== BUTTONS (DEFAULT / ACCENT / PLASMA) ========== -->
+
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonBackgroundFlat}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderFlat}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="4" />
     <Setter Property="Padding" Value="12,6" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -133,59 +235,75 @@
   </Style>
 
   <Style Selector="Button:pointerover">
-    <Setter Property="Background" Value="#263038" />
-    <Setter Property="BorderBrush" Value="#4FC3F7" />
-    <Setter Property="Foreground" Value="#FFFFFF" />
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonHoverBackgroundFlat}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderAccentPlasmaFlat}" />
+  </Style>
+  
+  <Style Selector="Button:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
   </Style>
 
   <Style Selector="Button:pressed">
-    <Setter Property="Background" Value="#111517" />
-    <Setter Property="BorderBrush" Value="#8E24AA" />
-    <Setter Property="Foreground" Value="#FFFFFF" />
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPressedBackgroundFlat}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderAccentGoldFlat}" />
   </Style>
 
   <Style Selector="Button:disabled">
-    <Setter Property="Opacity" Value="0.6" />
-    <Setter Property="Foreground" Value="#626A71" />
+    <Setter Property="Opacity" Value="0.5" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
   </Style>
 
-  <!-- Accent Button (UNSC gold) -->
+  <!-- Accent (visor gold) -->
   <Style Selector="Button.accent">
-    <Setter Property="Background" Value="#EFB82A" />
-    <Setter Property="Foreground" Value="#0A0B0C" />
-    <Setter Property="BorderBrush" Value="#C49017" />
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonAccentBackgroundFlat}" />
+    <Setter Property="Foreground" Value="#0A0502" />
+    <Setter Property="BorderBrush" Value="{StaticResource Color.VisorGoldDark}" />
   </Style>
 
   <Style Selector="Button.accent:pointerover">
-    <Setter Property="Background" Value="#FFD452" />
-    <Setter Property="Foreground" Value="#0A0B0C" />
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonAccentHoverBackgroundFlat}" />
   </Style>
 
   <Style Selector="Button.accent:pressed">
-    <Setter Property="Background" Value="#C49017" />
-    <Setter Property="Foreground" Value="#0A0B0C" />
+    <Setter Property="Background" Value="{StaticResource Color.VisorGoldDark}" />
   </Style>
 
   <Style Selector="Button.accent:disabled">
-    <Setter Property="Background" Value="#55471F" />
-    <Setter Property="Foreground" Value="#B6A36A" />
+    <Setter Property="Opacity" Value="0.5" />
   </Style>
 
-  <!-- Alert / Covenant energy button -->
-  <Style Selector="Button.alert">
-    <Setter Property="Background" Value="#28314A" />
-    <Setter Property="BorderBrush" Value="#4FC3F7" />
-    <Setter Property="Foreground" Value="#E0E6EA" />
+  <!-- Plasma (energy) -->
+  <Style Selector="Button.plasma">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPlasmaBackgroundFlat}" />
+    <Setter Property="Foreground" Value="#E9F7FF" />
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderAccentPlasmaFlat}" />
   </Style>
 
-  <Style Selector="Button.alert:pointerover">
-    <Setter Property="Background" Value="#31405A" />
-    <Setter Property="BorderBrush" Value="#8E24AA" />
+  <Style Selector="Button.plasma:pointerover">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonPlasmaHoverBackgroundFlat}" />
   </Style>
 
-  <Style Selector="Button.alert:pressed">
-    <Setter Property="Background" Value="#192034" />
-    <Setter Property="BorderBrush" Value="#4FC3F7" />
+  <Style Selector="Button.plasma:pressed">
+    <Setter Property="Background" Value="#1E88E5" />
+  </Style>
+
+  <!-- ========== EDITOR, STATUS BAR, SPLITTER ========== -->
+
+  <Style Selector="avaloniaEdit|TextEditor">
+    <Setter Property="Background" Value="{StaticResource Color.PanelDarker}" />
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar">
+    <Setter Property="Background" Value="{StaticResource Color.VisorGold}" />
+  </Style>
+
+  <Style Selector="DockPanel.StatusBar TextBlock">
+    <Setter Property="Foreground" Value="#0A0502" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{StaticResource Color.BorderDim}" />
   </Style>
 
 </Styles>

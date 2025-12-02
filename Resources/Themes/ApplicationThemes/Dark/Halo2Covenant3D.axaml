@@ -1,24 +1,18 @@
-<!-- Halo2Covenant3D.axaml -->
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avaloniaEdit="https://github.com/avaloniaui/avaloniaedit"
-        xmlns:designerOnly="clr-namespace:MermaidPad.Views.UserControls.DesignerOnly">
+        xmlns:designeronly="using:MermaidPad.Views.UserControls.DesignerOnly">
 
-  <!-- Halo 2 Covenant 3D Theme
-  Base: #120818 -> #06040A (vertical gradient)
-  Panels: violet/indigo metallic
-  Accent: plasma blue (#4FC3F7) + energy purple (#BB3EFF)
-  UNSC gold used sparingly for highlights (#EFB82A) [web:8].
+  <!--
+    Halo 2 Covenant 3D Theme (skeuomorphic)
+    Covenant purples + Chief greens + visor gold.
   -->
 
-  <Design.PreviewWith>
-    <designerOnly:ThemePreviewer />
-  </Design.PreviewWith>
-  
+  <!-- ========== COLOR & BRUSH RESOURCES ========== -->
   <Styles.Resources>
 
-    <!-- Core colors -->
-    <Color x:Key="Color.WindowTop">#120818</Color>
+    <!-- Core window gradient (top now matches menu background) -->
+    <Color x:Key="Color.WindowTop">#1B102F</Color>
     <Color x:Key="Color.WindowBottom">#06040A</Color>
 
     <!-- Covenant purples -->
@@ -30,11 +24,11 @@
     <Color x:Key="Color.PlasmaBlue">#4FC3F7</Color>
     <Color x:Key="Color.PlasmaBlueSoft">#80E4FF</Color>
 
-    <!-- Chief greens -->
+    <!-- Chief greens (approximate Halo 2 armor tones) [web:10][web:18] -->
     <Color x:Key="Color.ChiefGreenDark">#40402A</Color>
     <Color x:Key="Color.ChiefGreen">#817F59</Color>
 
-    <!-- Visor gold / orange -->
+    <!-- Visor gold / orange [web:43][web:55] -->
     <Color x:Key="Color.VisorGold">#EFB82A</Color>
     <Color x:Key="Color.VisorGoldDark">#B67816</Color>
 
@@ -45,22 +39,35 @@
     <Color x:Key="Color.PanelDark">#161026</Color>
     <Color x:Key="Color.PanelDarker">#0C0716</Color>
 
-    <!-- Brushes built from colors -->
-
-    <!-- Window -->
+    <!-- Window background -->
     <LinearGradientBrush x:Key="Brush.WindowBackground"
                          StartPoint="0%,0%" EndPoint="0%,100%">
       <GradientStop Color="{StaticResource Color.WindowTop}" Offset="0" />
       <GradientStop Color="{StaticResource Color.WindowBottom}" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Text -->
+    <!-- Global text -->
     <SolidColorBrush x:Key="Brush.TextPrimary"
                      Color="{StaticResource Color.TextPrimary}" />
     <SolidColorBrush x:Key="Brush.TextMuted"
                      Color="{StaticResource Color.TextMuted}" />
 
-    <!-- Panels / surfaces -->
+    <!-- Menu / header base color (single dark purple to avoid banding) -->
+    <Color x:Key="Color.MenuBase">#1B102F</Color>
+    <SolidColorBrush x:Key="Brush.MenuBackground"
+                     Color="{StaticResource Color.MenuBase}" />
+
+    <!-- Menu popup / flyout -->
+    <LinearGradientBrush x:Key="Brush.MenuPopupBackground"
+                         StartPoint="0%,0%" EndPoint="0%,100%">
+      <GradientStop Color="{StaticResource Color.MenuBase}" Offset="0" />
+      <GradientStop Color="#120820" Offset="1" />
+    </LinearGradientBrush>
+
+    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground"
+                     Color="{StaticResource Color.MenuBase}" />
+
+    <!-- General panels -->
     <LinearGradientBrush x:Key="Brush.PanelDefault"
                          StartPoint="0%,0%" EndPoint="0%,100%">
       <GradientStop Color="{StaticResource Color.PanelDark}" Offset="0" />
@@ -78,22 +85,6 @@
       <GradientStop Color="{StaticResource Color.ChiefGreenDark}" Offset="0" />
       <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="1" />
     </LinearGradientBrush>
-
-    <!-- Menu / flyout specific -->
-    <LinearGradientBrush x:Key="Brush.MenuBarBackground"
-                         StartPoint="0%,0%" EndPoint="0%,100%">
-      <GradientStop Color="#25164A" Offset="0" />
-      <GradientStop Color="{StaticResource Color.CovPurpleDark}" Offset="1" />
-    </LinearGradientBrush>
-
-    <LinearGradientBrush x:Key="Brush.MenuPopupBackground"
-                         StartPoint="0%,0%" EndPoint="0%,100%">
-      <GradientStop Color="#1B102F" Offset="0" />
-      <GradientStop Color="#120820" Offset="1" />
-    </LinearGradientBrush>
-
-    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground"
-                     Color="#1B102F" />
 
     <!-- Borders -->
     <LinearGradientBrush x:Key="Brush.BorderDefault"
@@ -114,7 +105,7 @@
       <GradientStop Color="{StaticResource Color.PlasmaBlue}" Offset="1" />
     </LinearGradientBrush>
 
-    <!-- Checkbox fills -->
+    <!-- Checkbox fill -->
     <LinearGradientBrush x:Key="Brush.CheckboxCheckedFill"
                          StartPoint="0%,0%" EndPoint="0%,100%">
       <GradientStop Color="{StaticResource Color.ChiefGreen}" Offset="0" />
@@ -181,11 +172,18 @@
 
   </Styles.Resources>
 
+  <!-- ========== DESIGN PREVIEW ========== -->
+
+  <Design.PreviewWith>
+    <designeronly:ThemePreviewer />
+  </Design.PreviewWith>
+
   <!-- ========== WINDOW & GLOBAL TEXT ========== -->
 
   <Style Selector="Window">
     <Setter Property="Background" Value="{StaticResource Brush.WindowBackground}" />
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+    <Setter Property="BorderThickness" Value="0" />
   </Style>
 
   <Style Selector="TextBlock">
@@ -196,10 +194,11 @@
     <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderDefault}" />
   </Style>
 
-  <!-- ========== MENU & FLYOUTS ========== -->
+  <!-- ========== MENU & FLY-OUTS ========== -->
 
   <Style Selector="Menu">
-    <Setter Property="Background" Value="{StaticResource Brush.MenuBarBackground}" />
+    <!-- same solid brush used by toolbar to avoid banding -->
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBackground}" />
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
@@ -215,9 +214,7 @@
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
-  <!-- Flyout background via resource key already defined above -->
-
-  <!-- Menu chevrons & icons -->
+  <!-- Chevron and icon colors -->
   <Style Selector="MenuItem:open Path#PART_ChevronPath">
     <Setter Property="Fill" Value="{StaticResource Color.PlasmaBlue}" />
   </Style>
@@ -250,6 +247,16 @@
 
   <Style Selector="MenuItem:disabled /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{StaticResource Brush.TextMuted}" />
+  </Style>
+
+  <!-- ========== TOOLBAR / HEADER STACKPANEL ========== -->
+
+  <Style Selector="StackPanel.Toolbar">
+    <Setter Property="Background" Value="{StaticResource Brush.MenuBackground}" />
+  </Style>
+
+  <Style Selector="StackPanel.Toolbar TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
   <!-- ========== CHECKBOXES ========== -->
@@ -301,6 +308,10 @@
     <Setter Property="Effect">
       <DropShadowEffect Color="#70BB3EFF" OffsetX="0" OffsetY="2" BlurRadius="8" />
     </Setter>
+  </Style>
+  
+  <Style Selector="Button:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Brush.ButtonHoverBackground}" />
   </Style>
 
   <Style Selector="Button:pressed">
@@ -373,23 +384,15 @@
     </Setter>
   </Style>
 
-  <!-- ========== EDITOR, TOOLBAR, STATUS BAR (same look, using resources) ========== -->
+  <!-- ========== EDITOR, STATUS BAR, SPLITTER ========== -->
 
   <Style Selector="avaloniaEdit|TextEditor">
     <Setter Property="Background">
       <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-        <GradientStop Color="#0C0716" Offset="0" />
+        <GradientStop Color="{StaticResource Color.PanelDarker}" Offset="0" />
         <GradientStop Color="#04030A" Offset="1" />
       </LinearGradientBrush>
     </Setter>
-    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
-  </Style>
-
-  <Style Selector="StackPanel.Toolbar">
-    <Setter Property="Background" Value="{StaticResource Brush.MenuBarBackground}" />
-  </Style>
-
-  <Style Selector="StackPanel.Toolbar TextBlock">
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
   </Style>
 
