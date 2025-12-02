@@ -37,11 +37,6 @@ public enum ApplicationTheme
     #region light themes
 
     /// <summary>
-    /// Studio Light theme - inspired by Visual Studio 2022 light mode with purple accents.
-    /// </summary>
-    StudioLight,
-
-    /// <summary>
     /// Professional Gray theme - inspired by VS Code light with blue accents.
     /// </summary>
     ProfessionalGray,
@@ -51,14 +46,24 @@ public enum ApplicationTheme
     /// </summary>
     SoftContrast,
 
+    /// <summary>
+    /// Studio Light theme - inspired by Visual Studio 2022 light mode with purple accents.
+    /// </summary>
+    StudioLight,
+
     #endregion light themes
 
     #region dark themes
 
     /// <summary>
-    /// VS Dark theme - classic VS Code dark theme with blue accents.
+    /// Charcoal Pro theme - warmer dark theme with green accents.
     /// </summary>
-    VSDark,
+    CharcoalPro,
+
+    /// <summary>
+    /// Halo 2 Covenant theme - warmer dark theme with gold, purple, and blue accents.
+    /// </summary>
+    Halo2Covenant,
 
     /// <summary>
     /// Midnight Developer theme - blue undertones with orange accents.
@@ -66,9 +71,9 @@ public enum ApplicationTheme
     MidnightDeveloper,
 
     /// <summary>
-    /// Charcoal Pro theme - warmer dark theme with green accents.
+    /// VS Dark theme - classic VS Code dark theme with blue accents.
     /// </summary>
-    CharcoalPro,
+    VSDark,
 
     /// <summary>
     /// VS 2022 Dark theme - replica of Visual Studio 2022 dark mode.
@@ -81,11 +86,6 @@ public enum ApplicationTheme
     #region Skeuomorphic light themes
 
     /// <summary>
-    /// Studio Light 3D theme - skeuomorphic version with gradients, shadows, and depth.
-    /// </summary>
-    StudioLight3D,
-
-    /// <summary>
     /// Professional Gray 3D theme - skeuomorphic version with gradients, shadows, and depth.
     /// </summary>
     ProfessionalGray3D,
@@ -95,14 +95,24 @@ public enum ApplicationTheme
     /// </summary>
     SoftContrast3D,
 
+    /// <summary>
+    /// Studio Light 3D theme - skeuomorphic version with gradients, shadows, and depth.
+    /// </summary>
+    StudioLight3D,
+
     #endregion Skeuomorphic light themes
 
     #region Skeuomorphic dark themes
 
     /// <summary>
-    /// VS Dark 3D theme - skeuomorphic version with gradients, shadows, and depth.
+    /// Charcoal Pro 3D theme - skeuomorphic version with gradients, shadows, and depth.
     /// </summary>
-    VSDark3D,
+    CharcoalPro3D,
+
+    /// <summary>
+    /// Halo 2 Covenant 3D theme - skeuomorphic version with gradients, shadows, and depth.
+    /// </summary>
+    Halo2Covenant3D,
 
     /// <summary>
     /// Midnight Developer 3D theme - skeuomorphic version with gradients, shadows, and depth.
@@ -110,9 +120,9 @@ public enum ApplicationTheme
     MidnightDeveloper3D,
 
     /// <summary>
-    /// Charcoal Pro 3D theme - skeuomorphic version with gradients, shadows, and depth.
+    /// VS Dark 3D theme - skeuomorphic version with gradients, shadows, and depth.
     /// </summary>
-    CharcoalPro3D,
+    VSDark3D,
 
     /// <summary>
     /// VS 2022 Dark 3D theme - skeuomorphic version with gradients, shadows, and depth.

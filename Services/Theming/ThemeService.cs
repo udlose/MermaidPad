@@ -279,19 +279,21 @@ public sealed class ThemeService : IThemeService
     /// representation of the theme value.</returns>
     public string GetApplicationThemeDisplayName(ApplicationTheme theme) => theme switch
     {
-        ApplicationTheme.StudioLight => "Studio Light",
-        ApplicationTheme.ProfessionalGray => "Professional Gray",
-        ApplicationTheme.SoftContrast => "Soft Contrast",
-        ApplicationTheme.VSDark => "VS Dark",
-        ApplicationTheme.MidnightDeveloper => "Midnight Developer",
         ApplicationTheme.CharcoalPro => "Charcoal Pro",
-        ApplicationTheme.VS2022Dark => "VS 2022 Dark",
-        ApplicationTheme.StudioLight3D => "Studio Light 3D",
-        ApplicationTheme.ProfessionalGray3D => "Professional Gray 3D",
-        ApplicationTheme.SoftContrast3D => "Soft Contrast 3D",
-        ApplicationTheme.VSDark3D => "VS Dark 3D",
-        ApplicationTheme.MidnightDeveloper3D => "Midnight Developer 3D",
         ApplicationTheme.CharcoalPro3D => "Charcoal Pro 3D",
+        ApplicationTheme.Halo2Covenant => "Halo 2: Covenant",
+        ApplicationTheme.Halo2Covenant3D => "Halo 2: Covenant 3D",
+        ApplicationTheme.MidnightDeveloper => "Midnight Developer",
+        ApplicationTheme.MidnightDeveloper3D => "Midnight Developer 3D",
+        ApplicationTheme.ProfessionalGray => "Professional Gray",
+        ApplicationTheme.ProfessionalGray3D => "Professional Gray 3D",
+        ApplicationTheme.SoftContrast => "Soft Contrast",
+        ApplicationTheme.SoftContrast3D => "Soft Contrast 3D",
+        ApplicationTheme.StudioLight => "Studio Light",
+        ApplicationTheme.StudioLight3D => "Studio Light 3D",
+        ApplicationTheme.VSDark => "VS Dark",
+        ApplicationTheme.VSDark3D => "VS Dark 3D",
+        ApplicationTheme.VS2022Dark => "VS 2022 Dark",
         ApplicationTheme.VS2022Dark3D => "VS 2022 Dark 3D",
         _ => theme.ToString()
     };
@@ -304,21 +306,21 @@ public sealed class ThemeService : IThemeService
     /// representation of the theme value.</returns>
     public string GetEditorThemeDisplayName(ThemeName theme) => theme switch
     {
+        ThemeName.AtomOneDark => "Atom One Dark",
+        ThemeName.AtomOneLight => "Atom One Light",
         ThemeName.DarkPlus => "Dark+",
+        ThemeName.DimmedMonokai => "Monokai Dimmed",
+        ThemeName.HighContrastLight => "High Contrast Light",
+        ThemeName.HighContrastDark => "High Contrast Dark",
         ThemeName.KimbieDark => "Kimbie Dark",
         ThemeName.Light => "Light",
         ThemeName.LightPlus => "Light+",
         ThemeName.Monokai => "Monokai",
-        ThemeName.DimmedMonokai => "Monokai Dimmed",
         ThemeName.OneDark => "One Dark",
         ThemeName.QuietLight => "Quiet Light",
         ThemeName.SolarizedDark => "Solarized Dark",
         ThemeName.SolarizedLight => "Solarized Light",
         ThemeName.TomorrowNightBlue => "Tomorrow Night Blue",
-        ThemeName.HighContrastLight => "High Contrast Light",
-        ThemeName.HighContrastDark => "High Contrast Dark",
-        ThemeName.AtomOneLight => "Atom One Light",
-        ThemeName.AtomOneDark => "Atom One Dark",
         ThemeName.VisualStudioLight => "Visual Studio Light",
         ThemeName.VisualStudioDark => "Visual Studio Dark",
         _ => theme.ToString()
@@ -334,13 +336,15 @@ public sealed class ThemeService : IThemeService
     /// <returns>true if the specified theme is classified as a dark theme; otherwise, false.</returns>
     public bool IsDarkTheme(ApplicationTheme theme) => theme switch
     {
-        ApplicationTheme.VSDark => true,
-        ApplicationTheme.MidnightDeveloper => true,
         ApplicationTheme.CharcoalPro => true,
-        ApplicationTheme.VS2022Dark => true,
-        ApplicationTheme.VSDark3D => true,
-        ApplicationTheme.MidnightDeveloper3D => true,
         ApplicationTheme.CharcoalPro3D => true,
+        ApplicationTheme.Halo2Covenant => true,
+        ApplicationTheme.Halo2Covenant3D => true,
+        ApplicationTheme.MidnightDeveloper => true,
+        ApplicationTheme.MidnightDeveloper3D => true,
+        ApplicationTheme.VSDark => true,
+        ApplicationTheme.VSDark3D => true,
+        ApplicationTheme.VS2022Dark => true,
         ApplicationTheme.VS2022Dark3D => true,
         _ => false
     };
