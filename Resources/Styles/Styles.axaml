@@ -1,4 +1,10 @@
-<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:designeronly="using:MermaidPad.Views.UserControls.DesignerOnly">
+
+  <Design.PreviewWith>
+    <designeronly:ThemePreviewer />
+  </Design.PreviewWith>
+
   <!--  Default Button style  -->
   <Style Selector="Button">
     <Setter Property="Background" Value="#F3F3F3" />
