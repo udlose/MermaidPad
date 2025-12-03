@@ -117,8 +117,8 @@
           InputGesture="Ctrl+Shift+U" />
       </MenuItem>
       <MenuItem Header="_View" InputGesture="Alt+V">
-        <MenuItem Header="A_pplication Theme" x:Name="ApplicationThemeMenu" />
-        <MenuItem Header="E_ditor Theme" x:Name="EditorThemeMenu" />
+        <MenuItem x:Name="ApplicationThemeMenu" Header="A_pplication Theme" />
+        <MenuItem x:Name="EditorThemeMenu" Header="E_ditor Theme" />
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
@@ -128,10 +128,10 @@
     <!--  Toolbar  -->
     <StackPanel
       Margin="6"
+      Classes="Toolbar"
       DockPanel.Dock="Top"
       Orientation="Horizontal"
-      Spacing="6"
-      Classes="Toolbar">
+      Spacing="6">
       <Button
         Width="90"
         Command="{Binding RenderCommand}"
@@ -154,16 +154,22 @@
         ToolTip.Tip="Toggle Live Preview" />
     </StackPanel>
 
-    <!-- Status Bar -->
-    <DockPanel Name="StatusBar" DockPanel.Dock="Bottom" Classes="StatusBar" Height="24">
-      <TextBlock Text="{Binding CurrentMermaidPadVersion}" 
-                 VerticalAlignment="Center" 
-                 Margin="8,0"
-                 HorizontalAlignment="Right"
-                 DockPanel.Dock="Right" />
-      <TextBlock Text="{Binding StatusText}" 
-            VerticalAlignment="Center" 
-            Margin="8,0" />
+    <!--  Status Bar  -->
+    <DockPanel
+      Name="StatusBar"
+      Height="24"
+      Classes="StatusBar"
+      DockPanel.Dock="Bottom">
+      <TextBlock
+        Margin="8,0"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Center"
+        DockPanel.Dock="Right"
+        Text="{Binding CurrentMermaidPadVersion}" />
+      <TextBlock
+        Margin="8,0"
+        VerticalAlignment="Center"
+        Text="{Binding StatusText}" />
       <TextBlock
         Margin="4,0,0,0"
         HorizontalAlignment="Right"
