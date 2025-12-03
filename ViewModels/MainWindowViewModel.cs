@@ -1727,7 +1727,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         _settingsService.Settings.LastDiagramText = DiagramText;
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
-        _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion ?? "Unknown";
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
         _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
         _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;

@@ -156,7 +156,8 @@ public sealed class MermaidUpdateService
             _logger.LogAsset("updated", MermaidMinJsFileName, true, new FileInfo(BundledMermaidPath).Length);
 
             // Step 5: Update version in settings
-            _settings.BundledMermaidVersion = newVersion;
+            //TODO - DaveBlack: re-enable this once the Update mechanism is back in place
+            //_settings.BundledMermaidVersion = newVersion;
             _logger.LogInformation("Bundled version updated to: {NewVersion}", newVersion);
 
             // Step 6: Cleanup
