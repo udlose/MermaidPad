@@ -72,6 +72,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// ============================================================================
+// =                                                                          =
+// =                         AUTO-GENERATED FILE                              =
+// =          DO NOT EDIT OR COMMIT – CHANGES WILL BE OVERWRITTEN             =
+// =                                                                          =
+// ============================================================================
+
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
