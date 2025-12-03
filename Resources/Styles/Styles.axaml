@@ -6,7 +6,7 @@
   </Design.PreviewWith>
 
   <!--  Default Button style  -->
-  <Style Selector="Button">
+<!--  <Style Selector="Button">
     <Setter Property="Background" Value="#F3F3F3" />
     <Setter Property="Foreground" Value="#1F1F1F" />
     <Setter Property="BorderBrush" Value="#D1D1D1" />
@@ -29,10 +29,10 @@
 
   <Style Selector="Button:disabled">
     <Setter Property="Opacity" Value="0.6" />
-  </Style>
+  </Style>-->
 
   <!--  Accent variant  -->
-  <Style Selector="Button.accent">
+<!--  <Style Selector="Button.accent">
     <Setter Property="Background" Value="#0078D4" />
     <Setter Property="Foreground" Value="White" />
     <Setter Property="BorderBrush" Value="#0071C2" />
@@ -45,5 +45,5 @@
   </Style>
   <Style Selector="Button.accent:disabled">
     <Setter Property="Background" Value="#A0C9F2" />
-  </Style>
+  </Style>-->
 </Styles>
