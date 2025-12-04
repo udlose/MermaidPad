@@ -131,6 +131,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsWebViewReady { get; set; }
 
+    #region Clipboard and Edit Properties
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the current content can be cut to the clipboard.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanCutClipboard { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether there is available content to copy to the clipboard.
     /// </summary>
@@ -142,6 +150,54 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     public partial bool CanPasteClipboard { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether undo is available.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanUndo { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether redo is available.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanRedo { get; set; }
+
+    #endregion Clipboard and Edit Properties
+
+    #region Clipboard and Edit Actions
+
+    /// <summary>
+    /// Gets or sets the action to invoke when cutting text to the clipboard.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
+    public Action? CutAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when copying text to the clipboard.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
+    public Action? CopyAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when pasting text from the clipboard.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
+    public Action? PasteAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when undoing the last edit.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual undo operation.</remarks>
+    public Action? UndoAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when redoing the last undone edit.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual redo operation.</remarks>
+    public Action? RedoAction { get; set; }
+
+    #endregion Clipboard and Edit Actions
 
     /// <summary>
     /// Gets or sets the current file path being edited.
@@ -1046,6 +1102,40 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             Debug.WriteLine($"Failed to show success message: {ex}");
         }
     }
+
+    #region Clipboard and Edit Commands
+
+    /// <summary>
+    /// Cuts the selected text to the clipboard.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCutClipboard))]
+    private void Cut() => CutAction?.Invoke();
+
+    /// <summary>
+    /// Copies the selected text to the clipboard.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCopyClipboard))]
+    private void Copy() => CopyAction?.Invoke();
+
+    /// <summary>
+    /// Pastes text from the clipboard at the current caret position.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPasteClipboard))]
+    private void Paste() => PasteAction?.Invoke();
+
+    /// <summary>
+    /// Undoes the last edit operation.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo() => UndoAction?.Invoke();
+
+    /// <summary>
+    /// Redoes the last undone edit operation.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo() => RedoAction?.Invoke();
+
+    #endregion Clipboard and Edit Commands
 
     #region Event handlers
 
