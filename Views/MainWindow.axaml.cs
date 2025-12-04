@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using AsyncAwaitBestPractices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -365,10 +366,10 @@ public sealed partial class MainWindow : Window
             try
             {
                 // Make sure caret is visible:
-                Editor.TextArea.Caret.CaretBrush = new SolidColorBrush(Colors.Red);
+                Editor.TextArea.Caret.CaretBrush = Brushes.Red;
 
                 // Ensure selection is visible
-                Editor.TextArea.SelectionBrush = new SolidColorBrush(Colors.SteelBlue);
+                Editor.TextArea.SelectionBrush = Brushes.SteelBlue;
                 if (!Editor.IsFocused)
                 {
                     Editor.Focus();
@@ -383,30 +384,73 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Handles the window <see cref="OnOpened"/> event and starts the asynchronous open sequence.
+    /// Handles the event that occurs when the window has been opened.
     /// </summary>
-    /// <param name="sender">Event sender (window).</param>
-    /// <param name="e">Event arguments (unused).</param>
-    /// <remarks>
-    /// This method delegates to <see cref="OnOpenedCoreAsync"/> to perform asynchronous initialization,
-    /// subscribe to renderer events, and start a failsafe timeout to enable UI if the WebView never becomes ready.
-    /// Uses SafeFireAndForget to handle the async operation without blocking the event handler.
-    /// </remarks>
+    /// <remarks>If an error occurs during the window opening process, an error is logged and a modal error
+    /// dialog is displayed to the user. The error is also communicated to the ViewModel for UI updates.</remarks>
+    /// <param name="sender">The source of the event. This is typically the window instance that was opened.</param>
+    /// <param name="e">An object that contains the event data.</param>
     private void OnOpened(object? sender, EventArgs e)
     {
         OnOpenedCoreAsync()
             .SafeFireAndForget(onException: ex =>
             {
                 _logger.LogError(ex, "Unhandled exception in OnOpened");
-                //TODO - show a message to the user (this would need UI thread!)
-                //Dispatcher.UIThread.Post(async () =>
-                //{
-                //    await MessageBox.ShowAsync(this, "An error occurred while opening the window. Please try again.", "Error", MessageBox.MessageBoxButtons.Ok, MessageBox.MessageBoxIcon.Error);
-                //});
-            }
-            //TODO - re-enable this if I add UI operations in the future
-            //continueOnCapturedContext: true  // Needed for UI operations and event subscriptions
-            );
+
+                // Surface the error to the ViewModel and show a simple modal error dialog on the UI thread.
+                Dispatcher.UIThread.InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        // Communicate error to the ViewModel so bound UI elements can react
+                        const string errorMessage = "An error occurred while opening the application. Please try again.";
+                        _vm.LastError = errorMessage;
+
+                        // Build a minimal, self-contained error dialog so we don't depend on external packages
+                        StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
+                        messagePanel.Children.Add(new TextBlock
+                        {
+                            Text = errorMessage,
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        messagePanel.Children.Add(new TextBlock
+                        {
+                            Text = ex.Message,
+                            Foreground = Brushes.Red,
+                            Margin = new Thickness(0, 8, 0, 0),
+                            TextWrapping = TextWrapping.Wrap
+                        });
+
+                        Button okButton = new Button
+                        {
+                            Content = "OK",
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Width = 80,
+                            Margin = new Thickness(0, 12, 0, 0)
+                        };
+                        messagePanel.Children.Add(okButton);
+
+                        Window dialog = new Window
+                        {
+                            Title = "Error",
+                            Width = 380,
+                            Height = 180,
+                            Content = messagePanel,
+                            CanResize = false,
+                            WindowStartupLocation = WindowStartupLocation.CenterOwner
+                        };
+
+                        okButton.Click += (_, _) => dialog.Close();
+
+                        await dialog.ShowDialog(this);
+                    }
+                    catch (Exception uiEx)
+                    {
+                        _logger.LogError(uiEx, "Failed to show error dialog after OnOpened failure");
+                    }
+                }, DispatcherPriority.Normal)
+                .SafeFireAndForget(onException: uiEx => _logger.LogError(uiEx, "Failed to marshal error dialog to UI thread"));
+            });
     }
 
     /// <summary>
@@ -512,7 +556,7 @@ public sealed partial class MainWindow : Window
         {
             e.Cancel = true;
             PromptAndCloseAsync()
-                .SafeFireAndForget(onException: ex =>
+                .SafeFireAndForget(onException: [SuppressMessage("ReSharper", "HeapView.ImplicitCapture")] (ex) =>
                 {
                     _logger.LogError(ex, "Failed during close prompt");
                     _isClosingApproved = false; // Reset on error
@@ -552,7 +596,8 @@ public sealed partial class MainWindow : Window
         // Capture logger for use in lambda in case 'this' is disposed before the async work completes
         ILogger<MainWindow> logger = _logger;
         OnClosingAsync()
-            .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
+            .SafeFireAndForget(onException: [SuppressMessage("ReSharper", "HeapView.ImplicitCapture")] (ex) =>
+                logger.LogError(ex, "Failed during window close cleanup"));
     }
 
     /// <summary>
