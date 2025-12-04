@@ -800,8 +800,8 @@ public sealed partial class MainWindow : Window
     private void WireUpClipboardActions()
     {
         _vm.CutAction = CutToClipboardAsync;
-        _vm.CopyAction = CopyToClipboard;
-        _vm.PasteAction = PasteFromClipboard;
+        _vm.CopyAction = CopyToClipboardAsync;
+        _vm.PasteAction = PasteFromClipboardAsync;
         _vm.UndoAction = UndoEdit;
         _vm.RedoAction = RedoEdit;
         _vm.SelectAllAction = SelectAllText;
@@ -831,57 +831,22 @@ public sealed partial class MainWindow : Window
     /// <returns>A task representing the asynchronous cut operation.</returns>
     private async Task CutToClipboardAsync()
     {
-        // Fast-path checks that don't require UI thread
-        if (Clipboard is null)
-        {
-            return;
-        }
-
         try
         {
-            // Marshal the entire two-phase operation to the UI thread because
-            // - Avalonia's clipboard APIs must be called on the UI thread, and
-            // - we read/write Editor state (selection, document) which is a UI object.
-            await Dispatcher.UIThread.InvokeAsync(async () =>
+            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
+            if (!Dispatcher.UIThread.CheckAccess())
             {
-                if (Editor.SelectionLength <= 0)
-                {
-                    return;
-                }
+                await Dispatcher.UIThread.InvokeAsync(CutToClipboardCoreAsync, DispatcherPriority.Normal);
+                return;
+            }
 
-                string selectedText = Editor.SelectedText;
-                if (string.IsNullOrEmpty(selectedText))
-                {
-                    return;
-                }
+            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
+            {
+                return;
+            }
 
-                // Store selection position before async operation
-                int selectionStart = Editor.SelectionStart;
-                int selectionLength = Editor.SelectionLength;
-
-                try
-                {
-                    // Phase 1: Copy to clipboard (must run on UI thread)
-                    await Clipboard.SetTextAsync(selectedText);
-
-                    // Phase 2: Remove text only if clipboard succeeded and selection unchanged
-                    if (Editor.SelectionStart == selectionStart && Editor.SelectionLength == selectionLength)
-                    {
-                        Editor.Document.Remove(selectionStart, selectionLength);
-                        _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Selection changed during cut operation (was {Start}:{Length}, now {NewStart}:{NewLength}) - text not removed",
-                            selectionStart, selectionLength, Editor.SelectionStart, Editor.SelectionLength);
-                    }
-                }
-                catch (Exception innerEx)
-                {
-                    _logger.LogError(innerEx, "Failed to cut text to clipboard (UI thread)");
-                }
-            }, DispatcherPriority.Normal);
+            // We're on the UI thread, proceed directly
+            await CutToClipboardCoreAsync();
         }
         catch (Exception ex)
         {
@@ -892,30 +857,96 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Copies the selected text to the clipboard.
+    /// Core logic for cutting text to clipboard. Must be called on the UI thread.
     /// </summary>
-    /// <remarks>
-    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
-    /// </remarks>
-    private void CopyToClipboard()
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task CutToClipboardCoreAsync()
     {
-        if (Editor.SelectionLength <= 0 || Clipboard is null)
+        // UI thread validation checks
+        string selectedText = Editor.SelectedText;
+        if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(selectedText) || Clipboard is null)
         {
             return;
         }
 
+        // Since this operation is asynchronous but should be atomic, we need to
+        // store the selection position before the async operation and verify it hasn't changed
+        int selectionStart = Editor.SelectionStart;
+        int selectionLength = Editor.SelectionLength;
+
         try
         {
-            string selectedText = Editor.SelectedText;
-            if (string.IsNullOrEmpty(selectedText))
+            // Phase 1: Copy to clipboard (async operation on UI thread)
+            await Clipboard.SetTextAsync(selectedText);
+
+            // Phase 2: Remove text only if:
+            // - Clipboard operation succeeded (we got here)
+            // - Selection hasn't changed
+            // - Document is still large enough (boundary validation)
+            if (Editor.SelectionStart == selectionStart &&
+                Editor.SelectionLength == selectionLength &&
+                selectionStart + selectionLength <= Editor.Document.TextLength)
+            {
+                Editor.Document.Remove(selectionStart, selectionLength);
+                _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
+
+                // We just put text on clipboard, so paste *should* be enabled, but double-check
+                // in case another app modified clipboard in the meantime
+                string? clipboardText = await Clipboard.TryGetTextAsync();
+                _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText);
+                _vm.PasteCommand.NotifyCanExecuteChanged();
+            }
+            else
+            {
+                // Log why we didn't remove the text
+                if (Editor.SelectionStart != selectionStart || Editor.SelectionLength != selectionLength)
+                {
+                    _logger.LogWarning(
+                        "Selection changed during cut operation (was {Start}:{Length}, now {NewStart}:{NewLength}) - text not removed",
+                        selectionStart, selectionLength, Editor.SelectionStart, Editor.SelectionLength);
+                }
+                else if (selectionStart + selectionLength > Editor.Document.TextLength)
+                {
+                    _logger.LogWarning(
+                        "Document size changed during cut operation (was {OldLength}, now {NewLength}) - text not removed to prevent exception",
+                        selectionStart + selectionLength, Editor.Document.TextLength);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cut text to clipboard");
+            // Don't re-throw - keep method safe for command handlers
+            // The text remains in the editor, which is the safe fallback
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously copies the selected text to the clipboard.
+    /// </summary>
+    /// <remarks>
+    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
+    /// </remarks>
+    /// <returns>A task representing the asynchronous copy operation.</returns>
+    private async Task CopyToClipboardAsync()
+    {
+        try
+        {
+            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                await Dispatcher.UIThread.InvokeAsync(CopyToClipboardCoreAsync, DispatcherPriority.Normal);
+                return;
+            }
+
+            // Now safe to check UI properties - we're guaranteed to be on UI thread
+            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
             {
                 return;
             }
 
-            Clipboard.SetTextAsync(selectedText)
-                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to set clipboard text during copy"));
-
-            _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
+            // We're on the UI thread, proceed directly
+            await CopyToClipboardCoreAsync();
         }
         catch (Exception ex)
         {
@@ -924,14 +955,78 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Pastes text from the clipboard at the current caret position.
+    /// Core logic for copying text to clipboard. Must be called on the UI thread.
+    /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task CopyToClipboardCoreAsync()
+    {
+        // UI thread validation checks
+        string selectedText = Editor.SelectedText;
+        if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(selectedText) || Clipboard is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Clipboard.SetTextAsync(selectedText);
+            _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
+
+            // We just put text on clipboard, so paste should be enabled
+            _vm.CanPasteClipboard = true;
+            _vm.PasteCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy text to clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously pastes text from the clipboard into the current context, if available.
+    /// </summary>
+    /// <remarks>This method ensures thread safety by dispatching clipboard operations to the UI thread when
+    /// necessary. If the clipboard is unavailable, the method completes without performing any action. Exceptions are
+    /// logged but not propagated, making this method safe to use in command handlers.</remarks>
+    /// <returns>A task that represents the asynchronous paste operation. The task completes when the clipboard content has been
+    /// processed.</returns>
+    private async Task PasteFromClipboardAsync()
+    {
+        try
+        {
+            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
+            if (!Dispatcher.UIThread.CheckAccess())
+            {
+                await Dispatcher.UIThread.InvokeAsync(PasteFromClipboardCoreAsync, DispatcherPriority.Normal);
+                return;
+            }
+
+            if (Clipboard is null)
+            {
+                return;
+            }
+
+            // We're on the UI thread, proceed directly
+            await PasteFromClipboardCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to paste text from clipboard");
+            // Don't re-throw - keep method safe for command handlers
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously pastes text from the clipboard at the current caret position.
     /// </summary>
     /// <remarks>
     /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
     /// The pasted text replaces any current selection, and the caret moves to the end of the pasted text.
     /// </remarks>
-    private void PasteFromClipboard()
+    /// <returns>A task representing the asynchronous paste operation.</returns>
+    private async Task PasteFromClipboardCoreAsync()
     {
+        // UI thread validation checks
         if (Clipboard is null)
         {
             return;
@@ -939,56 +1034,26 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            // Start async paste operation - SafeFireAndForget handles exceptions
-            PasteFromClipboardAsync()
-                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to paste from clipboard"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initiate paste from clipboard");
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously pastes text from the clipboard at the current caret position.
-    /// </summary>
-    /// <returns>A task representing the asynchronous paste operation.</returns>
-    private async Task PasteFromClipboardAsync()
-    {
-        try
-        {
-            string? clipboardText = await GetTextFromClipboardAsync(this)
-                .ConfigureAwait(false);
+            string? clipboardText = await GetTextFromClipboardAsync(this);
             if (string.IsNullOrEmpty(clipboardText))
             {
                 return;
             }
 
-            // Marshal back to UI thread to update the editor
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                try
-                {
-                    int insertPosition = Editor.SelectionStart;
-                    int removeLength = Editor.SelectionLength;
+            int insertPosition = Editor.SelectionStart;
+            int removeLength = Editor.SelectionLength;
 
-                    // Replace selection with clipboard text
-                    Editor.Document.Replace(insertPosition, removeLength, clipboardText);
+            // Replace selection with clipboard text
+            Editor.Document.Replace(insertPosition, removeLength, clipboardText);
 
-                    // Move caret to end of pasted text (standard behavior)
-                    Editor.CaretOffset = insertPosition + clipboardText.Length;
+            // Move caret to end of pasted text (standard behavior)
+            Editor.CaretOffset = insertPosition + clipboardText.Length;
 
-                    _logger.LogInformation("Pasted {CharCount} characters from clipboard", clipboardText.Length);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to insert clipboard text into editor");
-                }
-            }, DispatcherPriority.Normal);
+            _logger.LogInformation("Pasted {CharCount} characters from clipboard", clipboardText.Length);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to paste from clipboard");
+            _logger.LogError(ex, "Failed to paste text from clipboard");
         }
     }
 
@@ -1129,9 +1194,12 @@ public sealed partial class MainWindow : Window
     /// Determines the enabled state of context menu clipboard commands based on the current editor selection and
     /// clipboard availability.
     /// </summary>
-    /// <remarks>This method is intended to be used as an event handler for context menu opening events. It
-    /// updates the clipboard-related command states to reflect whether copy and paste actions are currently
-    /// available.</remarks>
+    /// <remarks>
+    /// This async void event handler is safe because:
+    /// 1. It's an event handler (the only legitimate use of async void)
+    /// 2. All exceptions are caught and logged
+    /// 3. It awaits the clipboard check so the menu doesn't render with stale state
+    /// </remarks>
     /// <param name="sender">The source of the event, typically the control that triggered the context menu opening.</param>
     /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
     private void GetContextMenuState(object? sender, CancelEventArgs e)

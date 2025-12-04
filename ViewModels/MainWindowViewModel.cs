@@ -181,13 +181,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Gets or sets the action to invoke when copying text to the clipboard.
     /// </summary>
     /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
-    public Action? CopyAction { get; internal set; }
+    public Func<Task>? CopyAction { get; internal set; }
 
     /// <summary>
     /// Gets or sets the action to invoke when pasting text from the clipboard.
     /// </summary>
     /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
-    public Action? PasteAction { get; internal set; }
+    public Func<Task>? PasteAction { get; internal set; }
 
     /// <summary>
     /// Gets or sets the action to invoke when undoing the last edit.
@@ -1134,12 +1134,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     #region Clipboard and Edit Commands
 
     /// <summary>
-    /// Cuts the selected text to the clipboard and removes it from the editor.
+    /// Performs a cut operation by removing the selected content and placing it on the clipboard asynchronously.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This async command ensures the cut operation completes atomically, preventing race conditions
     /// where the selection might change before the operation finishes.
+    /// </para>
+    /// <para>
+    /// This command is typically used in clipboard or editing scenarios to implement cut
+    /// functionality. The operation is only performed if a cut action is defined. The ability to execute this command
+    /// is determined by the <see cref="CanCutClipboard"/> property or method.
+    /// </para>
     /// </remarks>
+    /// <returns>A task that represents the asynchronous cut operation.</returns>
     [RelayCommand(CanExecute = nameof(CanCutClipboard))]
     private async Task CutAsync()
     {
@@ -1150,16 +1158,34 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Copies the selected text to the clipboard.
+    /// Asynchronously copies the current content to the clipboard if a copy action is available.
     /// </summary>
+    /// <remarks>This method performs no action if no copy action is defined. Use the <see cref="CanCopyClipboard"/>
+    /// property to determine whether copying is currently possible before invoking this method.</remarks>
+    /// <returns>A task that represents the asynchronous copy operation.</returns>
     [RelayCommand(CanExecute = nameof(CanCopyClipboard))]
-    private void Copy() => CopyAction?.Invoke();
+    private async Task CopyAsync()
+    {
+        if (CopyAction is not null)
+        {
+            await CopyAction();
+        }
+    }
 
     /// <summary>
-    /// Pastes text from the clipboard at the current caret position.
+    /// Executes the paste operation asynchronously if a paste action is available.
     /// </summary>
+    /// <remarks>This method is intended to be used as a command handler for paste actions, typically in
+    /// response to user interface events. The method does nothing if no paste action is defined.</remarks>
+    /// <returns>A task that represents the asynchronous paste operation.</returns>
     [RelayCommand(CanExecute = nameof(CanPasteClipboard))]
-    private void Paste() => PasteAction?.Invoke();
+    private async Task PasteAsync()
+    {
+        if (PasteAction is not null)
+        {
+            await PasteAction();
+        }
+    }
 
     /// <summary>
     /// Undoes the last edit operation.
