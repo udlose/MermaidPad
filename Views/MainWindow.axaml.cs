@@ -105,7 +105,7 @@ public sealed partial class MainWindow : Window
         _themeChangedHandler = OnThemeChanged;
         ActualThemeVariantChanged += _themeChangedHandler;
 
-        _activatedHandler = (_, _) => BringFocusToEditor();
+        _activatedHandler = OnActivated;
         Activated += _activatedHandler;
 
         // Initialize editor with ViewModel data using validation
@@ -352,6 +352,25 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Handles the window activated event, bringing focus to the editor and updating clipboard state.
+    /// </summary>
+    /// <remarks>
+    /// Updates the CanPasteClipboard state when the window gains focus, allowing the app to
+    /// detect if the user copied text from another application.
+    /// </remarks>
+    /// <param name="sender">The event sender.</param>
+    /// <param name="e">The event arguments.</param>
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        BringFocusToEditor();
+
+        // Update clipboard state when window gains focus (user might have copied from another app)
+        UpdateCanPasteClipboardAsync()
+            .SafeFireAndForget(onException: ex =>
+                _logger.LogError(ex, "Failed to update clipboard state on activation"));
+    }
+
+    /// <summary>
     /// Brings focus to the editor control and adjusts visuals for caret and selection.
     /// </summary>
     /// <remarks>
@@ -512,7 +531,6 @@ public sealed partial class MainWindow : Window
             await InitializeWebViewAsync();
 
             // Step 3: Update command states
-            _logger.LogInformation("Step 3: Updating command states...");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _vm.RenderCommand.NotifyCanExecuteChanged();
@@ -1137,7 +1155,7 @@ public sealed partial class MainWindow : Window
         try
         {
             // Pre-fill search with selected text if available
-            if (Editor.SelectionLength > 0 && Editor.SelectionLength < 100)
+            if (Editor.SelectionLength is > 0 and < 100)
             {
                 Editor.SearchPanel.SearchPattern = Editor.SelectedText;
             }
