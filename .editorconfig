@@ -86,6 +86,30 @@ csharp_style_prefer_simple_property_accessors = true:suggestion
 dotnet_diagnostic.RCS1261.severity = warning
 dotnet_diagnostic.RCS1133.severity = suggestion
 
+# VSTHRD analyzer rules - see https://microsoft.github.io/vs-threading/analyzers/
+dotnet_diagnostic.VSTHRD001.severity = error
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD003.severity = error
+dotnet_diagnostic.VSTHRD004.severity = error
+dotnet_diagnostic.VSTHRD010.severity = error
+dotnet_diagnostic.VSTHRD011.severity = error
+dotnet_diagnostic.VSTHRD012.severity = warning
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD101.severity = error
+dotnet_diagnostic.VSTHRD102.severity = error
+dotnet_diagnostic.VSTHRD103.severity = error
+dotnet_diagnostic.VSTHRD105.severity = error
+dotnet_diagnostic.VSTHRD106.severity = error
+dotnet_diagnostic.VSTHRD107.severity = error
+dotnet_diagnostic.VSTHRD108.severity = warning
+dotnet_diagnostic.VSTHRD109.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+dotnet_diagnostic.VSTHRD112.severity = error
+dotnet_diagnostic.VSTHRD113.severity = error
+dotnet_diagnostic.VSTHRD114.severity = error
+dotnet_diagnostic.VSTHRD115.severity = error
+dotnet_diagnostic.VSTHRD200.severity = error
+
 [*.{cs,vb}]
 #### Naming styles ####
 
