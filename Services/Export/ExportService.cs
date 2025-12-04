@@ -563,7 +563,8 @@ public sealed class ExportService
         }
         finally
         {
-            _mermaidRenderer.UnregisterExportProgressCallback(ProgressCallback);
+            // Unregister asynchronously to ensure polling CTS is cancelled/awaited safely
+            await _mermaidRenderer.UnregisterExportProgressCallbackAsync(ProgressCallback).ConfigureAwait(false);
         }
 
         void ProgressCallback(string statusJson) => HandleExportProgress(statusJson, completionSource, progress);
