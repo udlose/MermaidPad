@@ -55,6 +55,7 @@ public sealed partial class MainWindow : Window
     private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
+    private readonly SemaphoreSlim _contextMenuSemaphore = new(1, 1);
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
@@ -890,10 +891,9 @@ public sealed partial class MainWindow : Window
                 Editor.Document.Remove(selectionStart, selectionLength);
                 _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
 
-                // We just put text on clipboard, so paste *should* be enabled, but double-check
-                // in case another app modified clipboard in the meantime
-                string? clipboardText = await Clipboard.TryGetTextAsync();
-                _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText);
+                // We just put text on clipboard, so paste *should* be enabled.
+                // For our purpose, we'll optimistically assume it is.
+                _vm.CanPasteClipboard = true;
                 _vm.PasteCommand.NotifyCanExecuteChanged();
             }
             else
@@ -972,7 +972,8 @@ public sealed partial class MainWindow : Window
             await Clipboard.SetTextAsync(selectedText);
             _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
 
-            // We just put text on clipboard, so paste should be enabled
+            // We just put text on clipboard, so paste *should* be enabled.
+            // For our purpose, we'll optimistically assume it is.
             _vm.CanPasteClipboard = true;
             _vm.PasteCommand.NotifyCanExecuteChanged();
         }
@@ -1191,29 +1192,131 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Determines the enabled state of context menu clipboard commands based on the current editor selection and
-    /// clipboard availability.
+    /// Ensures context-menu commands (Copy, Cut, Undo, Redo, Paste) are enabled/disabled based on the
+    /// current editor selection and clipboard contents when the context menu opens.
     /// </summary>
     /// <remarks>
-    /// This async void event handler is safe because:
-    /// 1. It's an event handler (the only legitimate use of async void)
-    /// 2. All exceptions are caught and logged
-    /// 3. It awaits the clipboard check so the menu doesn't render with stale state
+    /// <para>
+    /// This is an async-void event handler; it is safe here because:
+    ///     1. It is an event handler (the only valid use of async void).
+    ///     2. All exceptions are caught and logged.
+    ///     3. It performs an awaited clipboard read so the menu doesn't render with stale state.
+    /// </para>
+    /// <para>
+    /// Synchronization semantics:
+    ///     * Uses a non-blocking, async-aware semaphore acquire (<c>_contextMenuSemaphore.WaitAsync(TimeSpan.Zero)</c>)
+    ///       to implement "skip-on-busy" behavior: if a state-check is already running, new invocations
+    ///       return immediately to keep the UI responsive.
+    ///     * A local <c>acquired</c> flag tracks whether the acquire succeeded; <c>Release()</c> is called
+    ///       in the <c>finally</c> block only when the semaphore was actually acquired.
+    /// </para>
+    /// <para>
+    /// Threading and safety:
+    ///     * The method assumes it starts on the UI thread (context-menu open event) but is defensive:
+    ///       all ViewModel updates are marshaled to the UI thread when required.
+    ///     * The semaphore prevents overlapping starts; it does not serialize callers that were never granted the semaphore.
+    /// </para>
+    /// <para>
+    /// Trade-offs and when to change:
+    ///     * Skip-on-busy (current) is fast and avoids allocations/queueing, but callers can be dropped and the menu
+    ///       may occasionally render with slightly stale state. This is acceptable for cheap, infrequent clipboard checks.
+    ///     * If you must guarantee every invocation runs (no drops) replace the try-acquire with a full
+    ///       <c>await _contextMenuSemaphore.WaitAsync()</c> so callers queue and are executed in order.
+    /// </para>
+    /// <para>
+    /// Diagnostics:
+    ///     * Unexpected semaphore release errors are surfaced via <c>Debug.Fail</c> in DEBUG and logged as Error in RELEASE.
+    /// </para>
     /// </remarks>
-    /// <param name="sender">The source of the event, typically the control that triggered the context menu opening.</param>
-    /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
-    private void GetContextMenuState(object? sender, CancelEventArgs e)
+    /// <param name="sender">Source of the event (may be null).</param>
+    /// <param name="e">CancelEventArgs for the opening event; if <see cref="CancelEventArgs.Cancel"/> is true no work is done.</param>
+    [SuppressMessage("ReSharper", "AsyncVoidEventHandlerMethod", Justification = "This is an event handler, so async void is appropriate here.")]
+    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "This is an event handler, so async void is appropriate here.")]
+    private async void GetContextMenuState(object? sender, CancelEventArgs e)
     {
-        // Update clipboard states
-        _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
-        _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
+        if (e.Cancel)
+        {
+            return; // nothing to do
+        }
 
-        // Update undo/redo states
-        _vm.CanUndo = Editor.CanUndo;
-        _vm.CanRedo = Editor.CanRedo;
+        // We want to avoid overlapping executions of this method if the user somehow triggers multiple context menu openings quickly
+        bool acquired = false;
+        try
+        {
+            // Non-blocking try-acquire: prefer skip-on-busy semantics (no UI blocking)
+            acquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero);
+            if (!acquired)
+            {
+                return; // skip if busy
+            }
 
-        UpdateCanPasteClipboardAsync()
-            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to update CanPasteClipboard"));
+            // We should already be on the UI thread since this method is an event handler,
+            // but be defensive: marshal ViewModel updates when not on UI thread.
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
+                _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
+                _vm.CanUndo = Editor.CanUndo;
+                _vm.CanRedo = Editor.CanRedo;
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
+                    _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
+                    _vm.CanUndo = Editor.CanUndo;
+                    _vm.CanRedo = Editor.CanRedo;
+                }, DispatcherPriority.Normal);
+            }
+
+            string? clipboardText = null;
+            try
+            {
+                // AWAIT the async clipboard check to minimize the possibility of the menu rendering with a stale state
+                clipboardText = await GetTextFromClipboardAsync(this);
+            }
+            catch (Exception ex)
+            {
+                // Treat as no text available
+                _logger.LogDebug(ex, "Clipboard read failed in context menu state check");
+            }
+
+            // We should be able to paste whitespace, so only check for null or empty
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText);
+            }
+            else
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText), DispatcherPriority.Normal);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update CanPasteClipboard in context menu");
+        }
+        finally
+        {
+            // Only release if we acquired the semaphore.
+            if (acquired)
+            {
+                try
+                {
+                    _contextMenuSemaphore.Release();
+                }
+                catch (SemaphoreFullException ex)
+                {
+#if DEBUG
+                    Debug.Fail("Context menu semaphore released without a matching WaitAsync", ex.ToString());
+                    Debugger.Break();
+#else
+                    // Log as error for triage but avoid re-throwing here because it will crash the process from an async-void
+                    _logger.LogError(ex, "Context menu semaphore release failed (already released) - indicates a logic bug");
+#endif
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1227,29 +1330,42 @@ public sealed partial class MainWindow : Window
     /// otherwise, null.</returns>
     private static async Task<string?> GetTextFromClipboardAsync(Window window)
     {
-        // Access Window.Clipboard on the UI thread
-        IClipboard? clipboard = Dispatcher.UIThread.CheckAccess()
-            ? window.Clipboard
-            : await Dispatcher.UIThread.InvokeAsync(() => window.Clipboard, DispatcherPriority.Background);
+        // Get Window.Clipboard on UI thread when necessary; don't capture caller context for the dispatch.
+        // If we end up on a background thread, we need to ensure we await Dispatcher calls without capturing the UI context
+        // If caller is on UI thread, read directly and resume on UI thread.
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            IClipboard? clipboard = window.Clipboard;
+            if (clipboard is null)
+            {
+                return null;
+            }
 
-        if (clipboard is null)
+            // If caller is on UI thread, allow resuming on UI thread.
+            return await clipboard.TryGetTextAsync();
+        }
+
+        // Off-UI caller: get the clipboard reference on the UI thread (synchronous lambda),
+        // then perform the async read without capturing the UI context to avoid deadlocks.
+        // If we don't await Dispatcher calls *in this case*, we run into possible race conditions where the Clipboard property isn't ready yet.
+        IClipboard? uiClipboard = await Dispatcher.UIThread.InvokeAsync(() => window.Clipboard, DispatcherPriority.Background);
+        if (uiClipboard is null)
         {
             return null;
         }
 
-        // Perform the read without capturing the UI context (no UI touched afterward)
-        string? clipboardText = await clipboard.TryGetTextAsync()
+        // If caller is background, avoid capturing the UI context to reduce deadlock risk.
+        return await uiClipboard.TryGetTextAsync()
             .ConfigureAwait(false);
-        return clipboardText;
     }
 
     /// <summary>
     /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
     /// </summary>
     /// <remarks>This method reads the clipboard text off the UI thread and updates the CanPasteClipboard
-    /// property on the ViewModel. If clipboard access fails or the clipboard contains only whitespace,
-    /// CanPasteClipboard is set to false. The update is marshaled back to the UI thread to ensure thread
-    /// safety.</remarks>
+    /// property on the ViewModel. If clipboard access fails or the clipboard is empty,
+    /// <see cref="MainWindowViewModel.CanPasteClipboard"/> is set to false.
+    /// The update is marshaled back to the UI thread to ensure thread safety.</remarks>
     /// <returns>
     /// A <see cref="Task"/> that represents the asynchronous operation of updating the ViewModel's
     /// <see cref="MainWindowViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
@@ -1271,7 +1387,8 @@ public sealed partial class MainWindow : Window
             _logger.LogError(ex, "Error reading clipboard text");
         }
 
-        bool canPaste = !string.IsNullOrWhiteSpace(clipboardText);
+        // We should be able to paste whitespace, so only check for null or empty
+        bool canPaste = !string.IsNullOrEmpty(clipboardText);
 
         // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
