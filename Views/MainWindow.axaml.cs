@@ -754,7 +754,7 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void WireUpClipboardActions()
     {
-        _vm.CutAction = CutToClipboard;
+        _vm.CutAction = CutToClipboardAsync;
         _vm.CopyAction = CopyToClipboard;
         _vm.PasteAction = PasteFromClipboard;
         _vm.UndoAction = UndoEdit;
@@ -762,39 +762,83 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Cuts the selected text to the clipboard and removes it from the editor.
+    /// Asynchronously cuts the selected text to the clipboard and removes it from the editor.
     /// </summary>
     /// <remarks>
-    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
-    /// After cutting, the text is removed from the editor and the ViewModel is updated.
+    /// <para>
+    /// This method performs a two-phase atomic operation:
+    /// 1. Copy selected text to clipboard (awaits completion)
+    /// 2. Remove text from editor only if clipboard operation succeeded
+    /// </para>
+    /// <para>
+    /// The entire operation is atomic - the command won't complete until both phases finish,
+    /// preventing race conditions where selection might change mid-operation.
+    /// </para>
+    /// <para>
+    /// THREADING: Avalonia's Clipboard.SetTextAsync must be called on the UI thread.
+    /// The operation runs entirely on UI thread to avoid cross-thread access issues.
+    /// </para>
     /// </remarks>
-    private void CutToClipboard()
+    /// <returns>A task representing the asynchronous cut operation.</returns>
+    private async Task CutToClipboardAsync()
     {
-        if (_vm.EditorSelectionLength <= 0 || Clipboard is null)
+        // Fast-path checks that don't require UI thread
+        if (Clipboard is null)
         {
             return;
         }
 
         try
         {
-            string selectedText = Editor.SelectedText;
-            if (string.IsNullOrEmpty(selectedText))
+            // Marshal the entire two-phase operation to the UI thread because
+            // - Avalonia's clipboard APIs must be called on the UI thread, and
+            // - we read/write Editor state (selection, document) which is a UI object.
+            await Dispatcher.UIThread.InvokeAsync(async () =>
             {
-                return;
-            }
+                if (Editor.SelectionLength <= 0)
+                {
+                    return;
+                }
 
-            // Copy to clipboard
-            Clipboard.SetTextAsync(selectedText)
-                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to set clipboard text during cut"));
+                string selectedText = Editor.SelectedText;
+                if (string.IsNullOrEmpty(selectedText))
+                {
+                    return;
+                }
 
-            // Remove selected text from editor
-            Editor.Document.Remove(Editor.SelectionStart, Editor.SelectionLength);
+                // Store selection position before async operation
+                int selectionStart = Editor.SelectionStart;
+                int selectionLength = Editor.SelectionLength;
 
-            _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
+                try
+                {
+                    // Phase 1: Copy to clipboard (must run on UI thread)
+                    await Clipboard.SetTextAsync(selectedText);
+
+                    // Phase 2: Remove text only if clipboard succeeded and selection unchanged
+                    if (Editor.SelectionStart == selectionStart && Editor.SelectionLength == selectionLength)
+                    {
+                        Editor.Document.Remove(selectionStart, selectionLength);
+                        _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Selection changed during cut operation (was {Start}:{Length}, now {NewStart}:{NewLength}) - text not removed",
+                            selectionStart, selectionLength, Editor.SelectionStart, Editor.SelectionLength);
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    _logger.LogError(innerEx, "Failed to cut text to clipboard (UI thread)");
+                }
+            }, DispatcherPriority.Normal);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to cut text to clipboard");
+            // Don't re-throw - keep method safe for command handlers
+            // The text remains in the editor, which is the safe fallback
         }
     }
 
@@ -806,7 +850,7 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void CopyToClipboard()
     {
-        if (_vm.EditorSelectionLength <= 0 || Clipboard is null)
+        if (Editor.SelectionLength <= 0 || Clipboard is null)
         {
             return;
         }
