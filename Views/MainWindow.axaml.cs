@@ -759,6 +759,10 @@ public sealed partial class MainWindow : Window
         _vm.PasteAction = PasteFromClipboard;
         _vm.UndoAction = UndoEdit;
         _vm.RedoAction = RedoEdit;
+        _vm.SelectAllAction = SelectAllText;
+        _vm.OpenFindAction = OpenFindPanel;
+        _vm.FindNextAction = FindNextMatch;
+        _vm.FindPreviousAction = FindPreviousMatch;
     }
 
     /// <summary>
@@ -986,6 +990,93 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to perform redo operation");
+        }
+    }
+
+    /// <summary>
+    /// Selects all text in the editor.
+    /// </summary>
+    /// <remarks>
+    /// This method calls the AvaloniaEdit TextEditor's built-in SelectAll functionality.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void SelectAllText()
+    {
+        try
+        {
+            Editor.SelectAll();
+            _logger.LogInformation("Select all operation performed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform select all operation");
+        }
+    }
+
+    /// <summary>
+    /// Opens the find panel in the editor.
+    /// </summary>
+    /// <remarks>
+    /// This method opens the AvaloniaEdit TextEditor's built-in SearchPanel.
+    /// If text is currently selected, it pre-fills the search pattern with the selected text.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void OpenFindPanel()
+    {
+        try
+        {
+            // Pre-fill search with selected text if available
+            if (Editor.SelectionLength > 0 && Editor.SelectionLength < 100)
+            {
+                Editor.SearchPanel.SearchPattern = Editor.SelectedText;
+            }
+
+            Editor.SearchPanel.Open();
+            _logger.LogInformation("Find panel opened");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open find panel");
+        }
+    }
+
+    /// <summary>
+    /// Finds the next match in the editor using the current search pattern.
+    /// </summary>
+    /// <remarks>
+    /// This method calls the AvaloniaEdit TextEditor's SearchPanel FindNext functionality.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void FindNextMatch()
+    {
+        try
+        {
+            Editor.SearchPanel.FindNext();
+            _logger.LogInformation("Find next operation performed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform find next operation");
+        }
+    }
+
+    /// <summary>
+    /// Finds the previous match in the editor using the current search pattern.
+    /// </summary>
+    /// <remarks>
+    /// This method calls the AvaloniaEdit TextEditor's SearchPanel FindPrevious functionality.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void FindPreviousMatch()
+    {
+        try
+        {
+            Editor.SearchPanel.FindPrevious();
+            _logger.LogInformation("Find previous operation performed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform find previous operation");
         }
     }
 

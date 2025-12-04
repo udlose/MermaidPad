@@ -201,6 +201,30 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <remarks>This action is set by MainWindow to implement the actual redo operation.</remarks>
     public Action? RedoAction { get; internal set; }
 
+    /// <summary>
+    /// Gets or sets the action to invoke when selecting all text.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to implement the actual select all operation.</remarks>
+    public Action? SelectAllAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when opening the find panel.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to open the TextEditor's built-in search panel.</remarks>
+    public Action? OpenFindAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when finding the next match.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to find the next match using the TextEditor's search panel.</remarks>
+    public Action? FindNextAction { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the action to invoke when finding the previous match.
+    /// </summary>
+    /// <remarks>This action is set by MainWindow to find the previous match using the TextEditor's search panel.</remarks>
+    public Action? FindPreviousAction { get; internal set; }
+
     #endregion Clipboard and Edit Actions
 
     /// <summary>
@@ -1148,6 +1172,30 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanRedo))]
     private void Redo() => RedoAction?.Invoke();
+
+    /// <summary>
+    /// Selects all text in the editor.
+    /// </summary>
+    [RelayCommand]
+    private void SelectAll() => SelectAllAction?.Invoke();
+
+    /// <summary>
+    /// Opens the find panel in the editor.
+    /// </summary>
+    [RelayCommand]
+    private void OpenFind() => OpenFindAction?.Invoke();
+
+    /// <summary>
+    /// Finds the next match in the editor.
+    /// </summary>
+    [RelayCommand]
+    private void FindNext() => FindNextAction?.Invoke();
+
+    /// <summary>
+    /// Finds the previous match in the editor.
+    /// </summary>
+    [RelayCommand]
+    private void FindPrevious() => FindPreviousAction?.Invoke();
 
     #endregion Clipboard and Edit Commands
 
