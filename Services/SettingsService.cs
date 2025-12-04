@@ -117,7 +117,7 @@ public sealed class SettingsService
             {
                 // Use SecurityService for comprehensive validation
                 // Note: Passing null logger to avoid circular dependency and timing issues during initialization
-                var securityService = new SecurityService(logger: null);
+                SecurityService securityService = new SecurityService(logger: null);
                 (bool isSecure, string? reason) = securityService.IsFilePathSecure(fullSettingsPath, configDir, isAssetFile: true);
                 if (!isSecure && !string.IsNullOrEmpty(reason))
                 {
