@@ -2,10 +2,10 @@
   x:Class="MermaidPad.Views.MainWindow"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:converters="clr-namespace:MermaidPad.Converters"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
-  xmlns:converters="clr-namespace:MermaidPad.Converters"
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
@@ -27,7 +27,7 @@
   </Window.Styles>
 
   <DockPanel>
-    <!-- Menu Bar -->
+    <!--  Menu Bar  -->
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
         <MenuItem
@@ -48,7 +48,7 @@
           InputGesture="Ctrl+Shift+S"
           IsEnabled="{Binding HasText}" />
         <Separator />
-<!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
+        <!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
           <MenuItem.ItemTemplate>
             <DataTemplate x:DataType="x:String">
               <MenuItem Header="{Binding}"
@@ -67,9 +67,32 @@
           Header="E_xit"
           InputGesture="Alt+F4" />
       </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem
+          Command="{Binding CutCommand}"
+          Header="Cu_t"
+          InputGesture="Ctrl+X" />
+        <MenuItem
+          Command="{Binding CopyCommand}"
+          Header="_Copy"
+          InputGesture="Ctrl+C" />
+        <MenuItem
+          Command="{Binding PasteCommand}"
+          Header="_Paste"
+          InputGesture="Ctrl+V" />
+        <Separator />
+        <MenuItem
+          Command="{Binding UndoCommand}"
+          Header="_Undo"
+          InputGesture="Ctrl+Z" />
+        <MenuItem
+          Command="{Binding RedoCommand}"
+          Header="_Redo"
+          InputGesture="Ctrl+Y" />
+      </MenuItem>
     </Menu>
 
-    <!-- Toolbar -->
+    <!--  Toolbar  -->
     <StackPanel
       Margin="6"
       DockPanel.Dock="Top"
@@ -115,7 +138,7 @@
         Text="{Binding StatusText}" />
     </StackPanel>
 
-    <!-- Main Content (your existing GridSplitter, Editor, WebView) -->
+    <!--  Main Content (your existing GridSplitter, Editor, WebView)  -->
     <Grid DockPanel.Dock="Top">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
@@ -123,7 +146,7 @@
         <ColumnDefinition Width="2*" />
       </Grid.ColumnDefinitions>
 
-      <!-- Text Editor Panel -->
+      <!--  Text Editor Panel  -->
       <Border
         Grid.Column="0"
         Margin="6,0,0,6"
@@ -139,25 +162,25 @@
           VerticalScrollBarVisibility="Auto">
           <edit:TextEditor.ContextMenu>
             <ContextMenu Opening="GetContextMenuState">
-            <MenuItem 
-              Header="Copy" 
-              IsEnabled="{Binding CanCopyClipboard}"/>
-            <MenuItem 
-              Header="Paste" 
-              IsEnabled="{Binding CanPasteClipboard}"/>
+              <MenuItem Command="{Binding CutCommand}" Header="Cut" />
+              <MenuItem Command="{Binding CopyCommand}" Header="Copy" />
+              <MenuItem Command="{Binding PasteCommand}" Header="Paste" />
+              <Separator />
+              <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
+              <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
             </ContextMenu>
           </edit:TextEditor.ContextMenu>
         </edit:TextEditor>
       </Border>
 
-      <!-- GridSplitter -->
+      <!--  GridSplitter  -->
       <GridSplitter
         Grid.Column="1"
         Width="6"
         Background="Transparent"
         ResizeDirection="Columns" />
 
-      <!-- WebView Panel -->
+      <!--  WebView Panel  -->
       <Border
         Grid.Column="2"
         Margin="0,0,6,6"

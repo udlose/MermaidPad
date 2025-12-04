@@ -114,10 +114,11 @@ public sealed partial class MainWindow : Window
             _vm.EditorCaretOffset
         );
 
-        _logger.LogInformation("Editor initialized with {CharacterCount} characters", _vm.DiagramText.Length);
-
         // Set up two-way synchronization between Editor and ViewModel
         SetupEditorViewModelSync();
+
+        // Wire up clipboard and edit actions to ViewModel
+        WireUpClipboardActions();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
@@ -176,6 +177,14 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
+            // Update undo/redo states immediately (not debounced)
+            _vm.CanUndo = Editor.CanUndo;
+            _vm.CanRedo = Editor.CanRedo;
+
+            // Notify commands that their CanExecute state may have changed
+            _vm.UndoCommand.NotifyCanExecuteChanged();
+            _vm.RedoCommand.NotifyCanExecuteChanged();
+
             // Debounce to avoid excessive updates
             _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
@@ -203,6 +212,15 @@ public sealed partial class MainWindow : Window
             {
                 return;
             }
+
+            // Update cut/copy states immediately based on selection
+            bool hasSelection = Editor.SelectionLength > 0;
+            _vm.CanCutClipboard = hasSelection;
+            _vm.CanCopyClipboard = hasSelection;
+
+            // Notify commands that their CanExecute state may have changed
+            _vm.CutCommand.NotifyCanExecuteChanged();
+            _vm.CopyCommand.NotifyCanExecuteChanged();
 
             ScheduleEditorStateSyncIfNeeded();
         };
@@ -725,7 +743,207 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    #region Clipboard methods
+    #region Clipboard and Edit Methods
+
+    /// <summary>
+    /// Wires up the clipboard and edit action delegates in the ViewModel to their implementations.
+    /// </summary>
+    /// <remarks>
+    /// This method connects the ViewModel's Action properties to the actual implementation methods,
+    /// enabling proper MVVM separation while allowing the View to implement UI-specific operations.
+    /// </remarks>
+    private void WireUpClipboardActions()
+    {
+        _vm.CutAction = CutToClipboard;
+        _vm.CopyAction = CopyToClipboard;
+        _vm.PasteAction = PasteFromClipboard;
+        _vm.UndoAction = UndoEdit;
+        _vm.RedoAction = RedoEdit;
+    }
+
+    /// <summary>
+    /// Cuts the selected text to the clipboard and removes it from the editor.
+    /// </summary>
+    /// <remarks>
+    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
+    /// After cutting, the text is removed from the editor and the ViewModel is updated.
+    /// </remarks>
+    private void CutToClipboard()
+    {
+        if (_vm.EditorSelectionLength <= 0 || Clipboard is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string selectedText = Editor.SelectedText;
+            if (string.IsNullOrEmpty(selectedText))
+            {
+                return;
+            }
+
+            // Copy to clipboard
+            Clipboard.SetTextAsync(selectedText)
+                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to set clipboard text during cut"));
+
+            // Remove selected text from editor
+            Editor.Document.Remove(Editor.SelectionStart, Editor.SelectionLength);
+
+            _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cut text to clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Copies the selected text to the clipboard.
+    /// </summary>
+    /// <remarks>
+    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
+    /// </remarks>
+    private void CopyToClipboard()
+    {
+        if (_vm.EditorSelectionLength <= 0 || Clipboard is null)
+        {
+            return;
+        }
+
+        try
+        {
+            string selectedText = Editor.SelectedText;
+            if (string.IsNullOrEmpty(selectedText))
+            {
+                return;
+            }
+
+            Clipboard.SetTextAsync(selectedText)
+                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to set clipboard text during copy"));
+
+            _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy text to clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Pastes text from the clipboard at the current caret position.
+    /// </summary>
+    /// <remarks>
+    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
+    /// The pasted text replaces any current selection, and the caret moves to the end of the pasted text.
+    /// </remarks>
+    private void PasteFromClipboard()
+    {
+        if (Clipboard is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Start async paste operation - SafeFireAndForget handles exceptions
+            PasteFromClipboardAsync()
+                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to paste from clipboard"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initiate paste from clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously pastes text from the clipboard at the current caret position.
+    /// </summary>
+    /// <returns>A task representing the asynchronous paste operation.</returns>
+    private async Task PasteFromClipboardAsync()
+    {
+        try
+        {
+            string? clipboardText = await GetTextFromClipboardAsync(this)
+                .ConfigureAwait(false);
+            if (string.IsNullOrEmpty(clipboardText))
+            {
+                return;
+            }
+
+            // Marshal back to UI thread to update the editor
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                try
+                {
+                    int insertPosition = Editor.SelectionStart;
+                    int removeLength = Editor.SelectionLength;
+
+                    // Replace selection with clipboard text
+                    Editor.Document.Replace(insertPosition, removeLength, clipboardText);
+
+                    // Move caret to end of pasted text (standard behavior)
+                    Editor.CaretOffset = insertPosition + clipboardText.Length;
+
+                    _logger.LogInformation("Pasted {CharCount} characters from clipboard", clipboardText.Length);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to insert clipboard text into editor");
+                }
+            }, DispatcherPriority.Normal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to paste from clipboard");
+        }
+    }
+
+    /// <summary>
+    /// Undoes the last edit operation in the editor.
+    /// </summary>
+    /// <remarks>
+    /// This method calls the AvaloniaEdit TextEditor's built-in Undo functionality.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void UndoEdit()
+    {
+        try
+        {
+            if (Editor.CanUndo)
+            {
+                Editor.Undo();
+                _logger.LogInformation("Undo operation performed");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform undo operation");
+        }
+    }
+
+    /// <summary>
+    /// Redoes the last undone edit operation in the editor.
+    /// </summary>
+    /// <remarks>
+    /// This method calls the AvaloniaEdit TextEditor's built-in Redo functionality.
+    /// Must be called on the UI thread.
+    /// </remarks>
+    private void RedoEdit()
+    {
+        try
+        {
+            if (Editor.CanRedo)
+            {
+                Editor.Redo();
+                _logger.LogInformation("Redo operation performed");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to perform redo operation");
+        }
+    }
 
     /// <summary>
     /// Determines the enabled state of context menu clipboard commands based on the current editor selection and
@@ -738,8 +956,13 @@ public sealed partial class MainWindow : Window
     /// <param name="e">A <see cref="CancelEventArgs"/> instance that can be used to cancel the context menu opening.</param>
     private void GetContextMenuState(object? sender, CancelEventArgs e)
     {
-        // Get Clipboard state
+        // Update clipboard states
         _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
+        _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
+
+        // Update undo/redo states
+        _vm.CanUndo = Editor.CanUndo;
+        _vm.CanRedo = Editor.CanRedo;
 
         UpdateCanPasteClipboardAsync()
             .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to update CanPasteClipboard"));
@@ -806,7 +1029,7 @@ public sealed partial class MainWindow : Window
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
     }
 
-    #endregion Clipboard methods
+    #endregion Clipboard and Edit Methods
 
     #region Syntax Highlighting methods
 
