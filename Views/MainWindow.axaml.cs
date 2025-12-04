@@ -1445,10 +1445,6 @@ public sealed partial class MainWindow : Window
             // Initialize the service (verifies grammar resources exist)
             _syntaxHighlightingService.Initialize();
 
-            // Apply Mermaid syntax highlighting with automatic theme detection
-            _syntaxHighlightingService.ApplyTo(Editor);
-
-            _logger.LogInformation("Syntax highlighting initialized successfully");
         }
         catch (Exception ex)
         {
@@ -1498,43 +1494,44 @@ public sealed partial class MainWindow : Window
     /// </summary>
     /// <param name="theme">The name of the theme to apply to the editor.</param>
     private void ApplyEditorTheme(ThemeName theme)
-{
-    try
     {
-        _themeService.ApplyEditorTheme(Editor, theme);
-        _logger.LogInformation("Applied editor theme in response to ViewModel change: {Theme}", theme);
+        try
+        {
+            _themeService.ApplyEditorTheme(Editor, theme);
+            _logger.LogInformation("Applied editor theme in response to ViewModel change: {Theme}", theme);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply editor theme: {Theme}", theme);
+            _vm.LastError = $"Failed to apply editor theme: {ex.Message}";
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to apply editor theme: {Theme}", theme);
-        _vm.LastError = $"Failed to apply editor theme: {ex.Message}";
-    }
-}
 
-/// <summary>
-/// Populates the specified menu with items representing all available application themes, enabling users to select
-/// and apply a theme.
-/// </summary>
-/// <remarks>Each menu item is bound to the application's theme selection command and reflects the current
-/// theme state. The method updates menu item checkmarks for efficient theme switching and uses MVVM command binding
-/// to avoid direct event handlers.</remarks>
-/// <param name="parentMenu">The parent menu to which theme selection items will be added. Must not be null.</param>
-private void PopulateApplicationThemeMenu(MenuItem parentMenu)
-{
-    ApplicationTheme currentTheme = _themeService.CurrentApplicationTheme;
-    _applicationThemeMenuItems.Clear();
+    /// <summary>
+    /// Populates the specified menu with items representing all available application themes, enabling users to select
+    /// and apply a theme.
+    /// </summary>
+    /// <remarks>Each menu item is bound to the application's theme selection command and reflects the current
+    /// theme state. The method updates menu item checkmarks for efficient theme switching and uses MVVM command binding
+    /// to avoid direct event handlers.</remarks>
+    /// <param name="parentMenu">The parent menu to which theme selection items will be added. Must not be null.</param>
+    private void PopulateApplicationThemeMenu(MenuItem parentMenu)
+    {
+        ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
+        _applicationThemeMenuItems.Clear();
 
     // Initialize previous theme tracker
     _previousApplicationTheme = currentTheme;
 
-    foreach (ApplicationTheme theme in _vm.GetAvailableApplicationThemes())
-    {
-        MenuItem menuItem = new MenuItem
+        //TODO - DaveBlack: this is ridiculous to first get the enum value and then go get the name separately
+        foreach (ApplicationTheme theme in _vm.GetAvailableApplicationThemes())
         {
-            Header = _vm.GetApplicationThemeDisplayName(theme),
-            Tag = theme,
-            IsChecked = theme == currentTheme
-        };
+            MenuItem menuItem = new MenuItem
+            {
+                Header = _vm.GetApplicationThemeDisplayName(theme),
+                Tag = theme,
+                IsChecked = theme == currentTheme
+            };
 
         // Add Bind Command and CommandParameter so we can avoid Click handlers
         BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetApplicationThemeCommand), theme);
@@ -1583,30 +1580,31 @@ private void UpdateApplicationThemeCheckmarks()
     _previousApplicationTheme = currentTheme;
 }
 
-/// <summary>
-/// Populates the specified menu with items representing available editor themes, enabling users to select and apply
-/// a theme via MVVM command binding.
-/// </summary>
-/// <remarks>Each menu item is bound to the ViewModel's SetEditorThemeCommand and represents a selectable
-/// editor theme. The currently active theme is indicated with a checkmark. This method should be called when the
-/// list of available themes or the current theme changes to ensure the menu reflects the latest state.</remarks>
-/// <param name="parentMenu">The parent menu to which editor theme menu items will be added. Must not be null.</param>
-private void PopulateEditorThemeMenu(MenuItem parentMenu)
-{
-    ThemeName currentTheme = _themeService.CurrentEditorTheme;
-    _editorThemeMenuItems.Clear();
+    /// <summary>
+    /// Populates the specified menu with items representing available editor themes, enabling users to select and apply
+    /// a theme via MVVM command binding.
+    /// </summary>
+    /// <remarks>Each menu item is bound to the ViewModel's SetEditorThemeCommand and represents a selectable
+    /// editor theme. The currently active theme is indicated with a checkmark. This method should be called when the
+    /// list of available themes or the current theme changes to ensure the menu reflects the latest state.</remarks>
+    /// <param name="parentMenu">The parent menu to which editor theme menu items will be added. Must not be null.</param>
+    private void PopulateEditorThemeMenu(MenuItem parentMenu)
+    {
+        ThemeName currentTheme = _vm.CurrentEditorTheme;
+        _editorThemeMenuItems.Clear();
 
     // Initialize previous theme tracker
     _previousEditorTheme = currentTheme;
 
-    foreach (ThemeName theme in _vm.GetAvailableEditorThemes())
-    {
-        MenuItem menuItem = new MenuItem
+        //TODO - DaveBlack: this is ridiculous to first get the enum value and then go get the name separately
+        foreach (ThemeName theme in _vm.GetAvailableEditorThemes())
         {
-            Header = _vm.GetEditorThemeDisplayName(theme),
-            Tag = theme,
-            IsChecked = theme == currentTheme
-        };
+            MenuItem menuItem = new MenuItem
+            {
+                Header = _vm.GetEditorThemeDisplayName(theme),
+                Tag = theme,
+                IsChecked = theme == currentTheme
+            };
 
         // Add Bind Command and CommandParameter so we can avoid Click handlers
         BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetEditorThemeCommand), theme);
@@ -1855,9 +1853,9 @@ protected override void OnLoaded(RoutedEventArgs e)
     IDisposable dThemeVariant = Disposable.Create(UnsubscribeThemeVariantChanged);
     AddOrDisposeSubscription(dThemeVariant);
 
-    // Apply saved editor theme (ThemeService.Initialize() loaded it but couldn't apply without editor)
-    _themeService.ApplyEditorTheme(Editor, _themeService.CurrentEditorTheme);
-    _logger.LogInformation("Applied saved editor theme: {EditorTheme}", _themeService.CurrentEditorTheme);
+        // Apply saved editor theme (ThemeService.Initialize() loaded it but couldn't apply since editor was not created yet)
+        _themeService.ApplyEditorTheme(Editor, _vm.CurrentEditorTheme);
+        _logger.LogInformation("Applied saved editor theme: {EditorTheme}", _vm.CurrentEditorTheme);
 
     // Initialize theme menus
     if (ApplicationThemeMenu is not null)
@@ -1906,19 +1904,27 @@ protected override void OnUnloaded(RoutedEventArgs e)
 
 #region Named handlers (method groups) for editor-side events
 
-/// <summary>
-/// Handles the event that occurs when the text in the editor control changes.
-/// </summary>
-/// <remarks>This handler synchronizes the editor's text with the underlying view model, using debouncing
-/// to minimize unnecessary updates. If text change suppression is active, the event is ignored.</remarks>
-/// <param name="sender">The source of the event, typically the editor control whose text was modified.</param>
-/// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
-private void OnEditorTextChanged(object? sender, EventArgs e)
-{
-    if (_suppressEditorTextChanged)
+    /// <summary>
+    /// Handles the event that occurs when the text in the editor control changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>This handler synchronizes the editor's text with the underlying view model, using debouncing
+    /// to minimize unnecessary updates. If text change suppression is active, the event is ignored.
+    /// </para>
+    /// <para>
+    /// IMPORTANT: This pattern of manual 2-way synchronization of the editor text with the ViewModel is
+    /// necessary because AvaloniaEdit's TextEditor control doesn't properly support two-way binding on
+    /// its Text property out of the box. This is a known limitation of the control.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event, typically the editor control whose text was modified.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void OnEditorTextChanged(object? sender, EventArgs e)
     {
-        return;
-    }
+        if (_suppressEditorTextChanged)
+        {
+            return;
+        }
 
     // Debounce to avoid excessive updates
     _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
