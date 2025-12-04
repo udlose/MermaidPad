@@ -25,6 +25,7 @@ using AvaloniaEdit;
 using MermaidPad.Models;
 using MermaidPad.Services.Highlighting;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 using TextMateSharp.Grammars;
 
 namespace MermaidPad.Services.Theming;
@@ -361,6 +362,7 @@ public sealed class ThemeService : IThemeService
     /// logs informational and error messages during the theme application process.</remarks>
     /// <param name="theme">The theme to apply to the application. Determines which resource dictionary is loaded. Must be a valid value of
     /// the <see cref="ApplicationTheme"/> enumeration.</param>
+    [SuppressMessage("SonarQube", "S1075:URIs should not be hardcoded", Justification = "Standard approach for Avalonia theming")]
     private void ApplyApplicationThemeInternal(ApplicationTheme theme)
     {
         if (Application.Current is null)
@@ -372,14 +374,15 @@ public sealed class ThemeService : IThemeService
         try
         {
             const string themeMarker = "/Resources/Themes/ApplicationThemes/";
+            const string avaresRoot = "avares://MermaidPad";
 
             // Determine the theme category (Light or Dark)
             string themeCategory = IsDarkTheme(theme) ? "Dark" : "Light";
-            string themePath = $"avares://MermaidPad{themeMarker}{themeCategory}/{theme}.axaml";
+            string themePath = $"{avaresRoot}{themeMarker}{themeCategory}/{theme}.axaml";
 
             _logger.LogInformation("Loading application theme from: {ThemePath}", themePath);
 
-            StyleInclude themeStyles = new StyleInclude(new Uri("avares://MermaidPad"))
+            StyleInclude themeStyles = new StyleInclude(new Uri(avaresRoot))
             {
                 Source = new Uri(themePath)
             };
