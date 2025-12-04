@@ -73,6 +73,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
+    private static readonly TimeSpan CancelAsyncTimeout = TimeSpan.FromMilliseconds(225);
+    private static readonly TimeSpan PollingTaskCancellationTimeout = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidRenderer"/> class.
@@ -787,13 +789,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Unregisters a previously registered callback for export progress updates.
+    /// Asynchronously unregisters a previously registered export progress callback, stopping export status
+    /// notifications for the specified callback.
     /// </summary>
-    /// <remarks>If this is the last registered callback, the export status polling process will be
-    /// stopped.</remarks>
-    /// <param name="callback">The callback to unregister. If the specified callback is <see langword="null"/> or was not previously
-    /// registered, the method has no effect.</param>
-    public void UnregisterExportProgressCallback(Action<string>? callback)
+    /// <remarks>If this is the last registered callback, export polling will be stopped and related resources
+    /// will be disposed. This method is thread-safe and may be called concurrently with other registration or
+    /// unregister operations.</remarks>
+    /// <param name="callback">The callback delegate to remove from export progress notifications. If <paramref name="callback"/> is <see
+    /// langword="null"/>, the method performs no action.</param>
+    /// <returns>A task that represents the asynchronous unregister operation.</returns>
+    [SuppressMessage("ReSharper", "MethodSupportsCancellation", Justification = "Cancellation is not needed here and introduces unnecessary complexity")]
+    public async Task UnregisterExportProgressCallbackAsync(Action<string>? callback)
     {
         ThrowIfDisposed();
         if (callback is null)
@@ -802,6 +808,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         }
 
         CancellationTokenSource? ctsToDispose = null;
+        Task? pollingTaskToAwait = null;
         lock (_exportCallbackLock)
         {
             _exportProgressCallbacks.Remove(callback);
@@ -809,22 +816,82 @@ public sealed class MermaidRenderer : IAsyncDisposable
             if (_exportProgressCallbacks.Count == 0)
             {
                 ctsToDispose = _exportPollingCts;
+                pollingTaskToAwait = _exportPollingTask;
                 _exportPollingCts = null;
+                _exportPollingTask = null;
                 _lastExportStatus = null;
             }
         }
 
-        // Dispose outside lock to prevent deadlocks
+        // Stop polling and dispose outside lock
         if (ctsToDispose is not null)
         {
             try
             {
-                ctsToDispose.Cancel();
-                ctsToDispose.Dispose();
+                // Prefer CancelAsync with a bounded wait
+                try
+                {
+                    Task cancelTask = ctsToDispose.CancelAsync();
+                    try
+                    {
+                        await cancelTask.WaitAsync(CancelAsyncTimeout)
+                            .ConfigureAwait(false);
+                    }
+                    catch (TimeoutException te)
+                    {
+                        _logger.LogWarning(te, "exportPollingCts.CancelAsync() timed out; proceeding with unregister");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to signal export polling CancellationTokenSource with CancelAsync");
+                }
+
+                // Wait for polling task to end (short timeout). If it completes, dispose the Task to match server-task handling.
+                if (pollingTaskToAwait is not null)
+                {
+                    try
+                    {
+                        await pollingTaskToAwait.WaitAsync(PollingTaskCancellationTimeout)
+                            .ConfigureAwait(false);
+
+                        // Completed in time
+                        try
+                        {
+                            pollingTaskToAwait.Dispose();
+                        }
+                        catch (Exception disposeEx)
+                        {
+                            _logger.LogError(disposeEx, "Failed to dispose polling task after completion");
+                        }
+                    }
+                    catch (TimeoutException te)
+                    {
+                        _logger.LogWarning(te, "Export polling task timed out during unregister");
+                    }
+#pragma warning disable S6667 // Logging in this specific catch intentionally omits the exception
+                    catch (OperationCanceledException)
+                    {
+                        // Expected during cancellation; logging without exception object is intentional and clearer here.
+                        _logger.LogDebug("Export polling task was canceled during unregister");
+                    }
+#pragma warning restore S6667
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Export polling did not stop cleanly during unregister");
+                    }
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.LogError(ex, "Failed to stop export status polling");
+                try
+                {
+                    ctsToDispose.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispose export polling CancellationTokenSource during unregister");
+                }
             }
         }
     }
@@ -1036,14 +1103,14 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Asynchronously releases the resources used by the current instance.
+    /// Asynchronously releases all resources used by the instance and performs a clean shutdown of background
+    /// operations.
     /// </summary>
-    /// <remarks>This method performs a clean shutdown of internal components, including canceling ongoing
-    /// operations, stopping background tasks, and releasing unmanaged resources.
-    /// It ensures that all asynchronous operations are awaited and disposed of
-    /// properly to prevent resource leaks. Exceptions encountered during
-    /// disposal are logged but do not propagate.</remarks>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous disposal operation.</returns>
+    /// <remarks>This method ensures that any ongoing server and export polling tasks are cancelled and
+    /// awaited with bounded timeouts to avoid blocking the calling thread. It is safe to call multiple times;
+    /// subsequent calls after the first have no effect. This method should be called when the instance is no longer
+    /// needed to ensure proper resource cleanup.</remarks>
+    /// <returns>A task that represents the asynchronous dispose operation.</returns>
     [SuppressMessage("ReSharper", "MethodSupportsCancellation")]
     public async ValueTask DisposeAsync()
     {
@@ -1062,11 +1129,26 @@ public sealed class MermaidRenderer : IAsyncDisposable
             Task? pollingTask = Interlocked.Exchange(ref _exportPollingTask, null);
             Task? serverTask = Interlocked.Exchange(ref _serverTask, null);
 
-            // Cancel server ops
+            // Signal server cancellation using CancelAsync with a short bounded wait to avoid UI deadlock.
             if (serverCts is not null)
             {
-                await serverCts.CancelAsync()
-                    .ConfigureAwait(false);
+                try
+                {
+                    Task cancelTask = serverCts.CancelAsync();
+                    try
+                    {
+                        await cancelTask.WaitAsync(CancelAsyncTimeout)
+                            .ConfigureAwait(false);
+                    }
+                    catch (TimeoutException te)
+                    {
+                        _logger.LogWarning(te, "serverCts.CancelAsync() timed out; continuing disposal to avoid blocking UI thread");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to signal server CancellationTokenSource with CancelAsync");
+                }
             }
 
             // Stop and close HTTP listener
@@ -1079,17 +1161,25 @@ public sealed class MermaidRenderer : IAsyncDisposable
             // Stop and cleanup export polling if running
             try
             {
-                // Cancel polling
+                // Signal polling cancellation using CancelAsync with a bounded wait
                 if (pollingCts is not null)
                 {
                     try
                     {
-                        await pollingCts.CancelAsync()
-                            .ConfigureAwait(false);
+                        Task cancelTask = pollingCts.CancelAsync();
+                        try
+                        {
+                            await cancelTask.WaitAsync(CancelAsyncTimeout)
+                                .ConfigureAwait(false);
+                        }
+                        catch (TimeoutException te)
+                        {
+                            _logger.LogWarning(te, "pollingCts.CancelAsync() timed out; proceeding with disposal");
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to cancel export polling CancellationTokenSource");
+                        _logger.LogError(ex, "Failed to signal export polling CancellationTokenSource with CancelAsync");
                     }
                 }
 
@@ -1098,7 +1188,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 {
                     try
                     {
-                        await pollingTask.WaitAsync(TimeSpan.FromSeconds(2))
+                        await pollingTask.WaitAsync(PollingTaskCancellationTimeout)
                             .ConfigureAwait(false);
                     }
                     catch (Exception ex)
@@ -1135,19 +1225,37 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     const int maxWaitSeconds = 5;
                     await serverTask.WaitAsync(TimeSpan.FromSeconds(maxWaitSeconds))
                         .ConfigureAwait(false);
+
+                    // server task finished in time - dispose task and CTS safely
                     serverTask.Dispose();
+                    try
+                    {
+                        serverCts?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error disposing server CancellationTokenSource");
+                    }
                 }
-                catch (TimeoutException)
+                catch (TimeoutException te)
                 {
-                    _logger.LogError("Server task did not complete within timeout - will dispose when background completion finishes");
-                    // No concern about capturing _logger here as DisposeAsync cannot be re-entered
+                    _logger.LogError(te, "Server task did not complete within timeout - will dispose when background completion finishes");
+
+                    // NOTE: serverCts was detached from the instance field earlier using
+                    // Interlocked.Exchange(ref _serverCancellation, null). That means the local
+                    // `serverCts` reference is no longer reachable via the field and cannot
+                    // be mutated by other threads; capturing it here for deferred disposal is
+                    // therefore safe. We still defer actual disposal until the server task
+                    // completes so that any cancellation callbacks can finish without racing
+                    // with Dispose() on the CTS.
                     ILogger<MermaidRenderer> logger = _logger; // Capture for continuation
+                    CancellationTokenSource? ctsToDispose = serverCts;
+
                     _ = serverTask.ContinueWith(
                         t =>
                         {
                             try
                             {
-                                // Handle different completion states
                                 if (t.IsFaulted)
                                 {
                                     // Exception already observed and logged by StartHttpServer's try-catch
@@ -1162,7 +1270,17 @@ public sealed class MermaidRenderer : IAsyncDisposable
                                     logger.LogInformation("Abandoned server task completed successfully");
                                 }
 
-                                // Dispose in all cases
+                                // Dispose CTS only after server task completion to avoid races with cancellation callbacks
+                                try
+                                {
+                                    ctsToDispose?.Dispose();
+                                }
+                                catch (Exception disposeEx)
+                                {
+                                    logger.LogError(disposeEx, "Error disposing server CancellationTokenSource in abandoned continuation");
+                                }
+
+                                // Dispose the task
                                 t.Dispose();
                                 logger.LogInformation("Abandoned server task completed and disposed");
                             }
@@ -1188,10 +1306,31 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     {
                         _logger.LogError(disposeEx, "Error disposing server task");
                     }
+
+                    // Safe to dispose CTS here because serverTask has completed (with error)
+                    try
+                    {
+                        serverCts?.Dispose();
+                    }
+                    catch (Exception ex2)
+                    {
+                        _logger.LogError(ex2, "Error disposing server CancellationTokenSource");
+                    }
+                }
+            }
+            else
+            {
+                // No server task running: safe to dispose CTS immediately
+                try
+                {
+                    serverCts?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispose server CancellationTokenSource");
                 }
             }
 
-            serverCts?.Dispose();
             _serverReadySemaphore.Dispose();
 
             _logger.LogInformation("MermaidRenderer disposed");
