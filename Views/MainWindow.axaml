@@ -89,6 +89,24 @@
           Command="{Binding RedoCommand}"
           Header="_Redo"
           InputGesture="Ctrl+Y" />
+        <Separator />
+        <MenuItem
+          Command="{Binding SelectAllCommand}"
+          Header="Select _All"
+          InputGesture="Ctrl+A" />
+        <Separator />
+        <MenuItem
+          Command="{Binding OpenFindCommand}"
+          Header="_Find..."
+          InputGesture="Ctrl+F" />
+        <MenuItem
+          Command="{Binding FindNextCommand}"
+          Header="Find _Next"
+          InputGesture="F3" />
+        <MenuItem
+          Command="{Binding FindPreviousCommand}"
+          Header="Find Pre_vious"
+          InputGesture="Shift+F3" />
       </MenuItem>
     </Menu>
 
@@ -165,6 +183,8 @@
               <MenuItem Command="{Binding CutCommand}" Header="Cut" />
               <MenuItem Command="{Binding CopyCommand}" Header="Copy" />
               <MenuItem Command="{Binding PasteCommand}" Header="Paste" />
+              <Separator />
+              <MenuItem Command="{Binding SelectAllCommand}" Header="Select All" />
               <Separator />
               <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
               <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
