@@ -300,8 +300,6 @@ public sealed partial class MainWindow : Window
 
             case nameof(_vm.EditorSelectionStart):
             case nameof(_vm.EditorSelectionLength):
-            case nameof(_vm.CanCopyClipboard):
-            case nameof(_vm.CanPasteClipboard):
             case nameof(_vm.EditorCaretOffset):
                 _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
                 {
