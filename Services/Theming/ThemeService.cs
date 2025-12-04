@@ -179,8 +179,11 @@ public sealed class ThemeService : IThemeService
             _logger.LogInformation("No saved editor theme found. Using default: {EditorTheme}", editorTheme);
         }
 
-        // Apply themes (Editor theme is applied from MainWindow when editor is available)
+        // Apply App theme (Editor theme is applied from MainWindow when editor is available)
         ApplyApplicationTheme(appTheme);
+
+        // Since we can't apply the editor theme yet, just set the property
+        CurrentEditorTheme = editorTheme;
 
         _logger.LogInformation("ThemeService initialized successfully.");
     }
