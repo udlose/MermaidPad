@@ -168,10 +168,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     #region Clipboard and Edit Actions
 
     /// <summary>
-    /// Gets or sets the action to invoke when cutting text to the clipboard.
+    /// Gets or sets the function to invoke when cutting text to the clipboard.
     /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
-    public Action? CutAction { get; internal set; }
+    /// <remarks>
+    /// This function is set by MainWindow to implement the actual async clipboard operation.
+    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
+    /// otherwise, there is a risk of race conditions with clipboard state.
+    /// </remarks>
+    public Func<Task>? CutAction { get; internal set; }
 
     /// <summary>
     /// Gets or sets the action to invoke when copying text to the clipboard.
@@ -195,7 +199,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Gets or sets the action to invoke when redoing the last undone edit.
     /// </summary>
     /// <remarks>This action is set by MainWindow to implement the actual redo operation.</remarks>
-    public Action? RedoAction { get; set; }
+    public Action? RedoAction { get; internal set; }
 
     #endregion Clipboard and Edit Actions
 
@@ -1106,10 +1110,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     #region Clipboard and Edit Commands
 
     /// <summary>
-    /// Cuts the selected text to the clipboard.
+    /// Cuts the selected text to the clipboard and removes it from the editor.
     /// </summary>
+    /// <remarks>
+    /// This async command ensures the cut operation completes atomically, preventing race conditions
+    /// where the selection might change before the operation finishes.
+    /// </remarks>
     [RelayCommand(CanExecute = nameof(CanCutClipboard))]
-    private void Cut() => CutAction?.Invoke();
+    private async Task CutAsync()
+    {
+        if (CutAction is not null)
+        {
+            await CutAction();
+        }
+    }
 
     /// <summary>
     /// Copies the selected text to the clipboard.
