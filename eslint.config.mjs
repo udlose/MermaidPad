@@ -23,20 +23,24 @@ export default [
     ],
   },
 
-  // 2) Your sources only
-  { files: ['Assets/**/*.{js,ts,html}'] },
-
-  // 3) Base rules + environment
-  js.configs.recommended,
+  // 2) Enable HTML processor so <script> and <script type='module'> are linted
   {
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'script',
-      globals: { ...globals.browser, ...globals.es2021 },
-    },
+    files: ['**/*.html'],
     plugins: { html },
   },
 
-  // 4) If you ever use <script type="module"> in HTML
-  { files: ['Assets/**/*.html'], languageOptions: { sourceType: 'module' } },
+  // 3) Base recommended rules
+  js.configs.recommended,
+
+  // 4) Global language settings
+  {
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module', // <--- correct choice for both script types
+      globals: { ...globals.browser, ...globals.es2025 },
+    },
+    plugins: {
+      html,
+    },
+  },
 ];
