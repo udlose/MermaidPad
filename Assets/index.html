@@ -562,7 +562,7 @@
         }
       } finally {
         // Always hide the loading indicator after all initialization and any pending render
-        console.log('Initialization complete, hiding loading indicator.');
+        console.debug('Initialization complete, hiding loading indicator.');
         globalThis.hideLoadingIndicator();
       }
     }
@@ -634,7 +634,6 @@
       try {
         // Set the flag for C# polling (AvaloniaWebView doesn't support postMessage events)
         globalThis.__renderingComplete__ = true;
-        console.log('Set __renderingComplete__ flag for C# polling');
 
         // Try platform-specific notifications
 
@@ -1146,50 +1145,47 @@
       // (OUTPUT persists across renders, unlike SVG which gets replaced)
       const isInitialized = !!output.dataset.hoverDelegationInit;
 
-      // Find all paths and lines that need hit areas
-      const paths = svg.querySelectorAll('path.flowchart-link, .edgePath path, path[class*="edge"], path[marker-end]');
-      const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
-
-      // Create hit areas for paths (these get recreated on each render since SVG is replaced)
-      for (const path of paths) {
-        if (path.dataset.hoverEnhanced) {
-          console.debug('Skipping already-enhanced path', path);
-          continue;
+      // Helper function to create hit area for an element
+      const createHitArea = (element) => {
+        if (element.dataset.hoverEnhanced) {
+          console.debug('Skipping already-enhanced element', element);
+          return;
         }
-        const hitArea = path.cloneNode(false);
+
+        const hitArea = element.cloneNode(false);
         hitArea.classList.add('hit-area');
         hitArea.dataset.hoverEnhanced = 'true';
+
+        // Remove marker attributes to prevent oversized markers from rendering on hit areas
+        hitArea.removeAttribute('marker-end');
+        hitArea.removeAttribute('marker-start');
+        hitArea.removeAttribute('marker-mid');
+        hitArea.removeAttribute('fill'); // Remove fill attribute to ensure inline style.fill = 'none' takes effect without attribute interference
+
         hitArea.style.strokeWidth = `${hitAreaWidth}px`;
         hitArea.style.stroke = 'transparent';
         hitArea.style.fill = 'none';
         hitArea.style.pointerEvents = 'stroke';
         hitArea.style.cursor = 'pointer';
 
-        // Insert the hit area immediately after the original path (stable sibling relationship)
-        path.parentNode.insertBefore(hitArea, path.nextSibling);
-        path.dataset.hoverEnhanced = 'true';
-        path.dataset.hoverTarget = 'true';
+        // Insert the hit area immediately after the original element (stable sibling relationship)
+        element.parentNode.insertBefore(hitArea, element.nextSibling);
+        element.dataset.hoverEnhanced = 'true';
+        element.dataset.hoverTarget = 'true';
+      };
+
+      // Find all paths and lines that need hit areas
+      const paths = svg.querySelectorAll('path.flowchart-link, .edgePath path, path[class*="edge"], path[marker-end]');
+      const lines = svg.querySelectorAll('line.messageLine, line[class*="edge"], line[marker-end]');
+
+      // Create hit areas for paths
+      for (const path of paths) {
+        createHitArea(path);
       }
 
       // Create hit areas for lines
       for (const line of lines) {
-        if (line.dataset.hoverEnhanced) {
-          console.debug('Skipping already-enhanced line', line);
-          continue;
-        }
-
-        const hitArea = line.cloneNode(false);
-        hitArea.classList.add('hit-area');
-        hitArea.dataset.hoverEnhanced = 'true';
-        hitArea.style.strokeWidth = `${hitAreaWidth}px`;
-        hitArea.style.stroke = 'transparent';
-        hitArea.style.pointerEvents = 'stroke';
-        hitArea.style.cursor = 'pointer';
-
-        // Insert the hit area immediately after the original line (stable sibling relationship)
-        line.parentNode.insertBefore(hitArea, line.nextSibling);
-        line.dataset.hoverEnhanced = 'true';
-        line.dataset.hoverTarget = 'true';
+        createHitArea(line);
       }
 
       // Only attach event listeners ONCE to the OUTPUT container
@@ -1233,7 +1229,7 @@
         // Mark OUTPUT container as initialized (persists across SVG replacements)
         output.dataset.hoverDelegationInit = 'true';
 
-        console.log('Hover event delegation initialized (one-time setup)');
+        console.debug('Hover event delegation initialized (one-time setup)');
       }
 
       // Log hit area creation on first render only (when event delegation is first initialized)
@@ -1242,7 +1238,7 @@
       }
     };
 
-    console.log('Hover enhancement function registered: globalThis.enhanceHoverability');
+    console.debug('Hover enhancement function registered: globalThis.enhanceHoverability');
   </script>
 </head>
 <body>
