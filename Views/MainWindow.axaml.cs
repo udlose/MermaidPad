@@ -610,13 +610,6 @@ public sealed partial class MainWindow : Window
             // I don't want silent failures here - rethrow to let higher-level handlers know
             throw;
         }
-
-        // Perform async cleanup
-        // Capture logger for use in lambda in case 'this' is disposed before the async work completes
-        ILogger<MainWindow> logger = _logger;
-        OnClosingAsync()
-            .SafeFireAndForget(onException: [SuppressMessage("ReSharper", "HeapView.ImplicitCapture")] (ex) =>
-                logger.LogError(ex, "Failed during window close cleanup"));
     }
 
     /// <summary>
@@ -675,21 +668,10 @@ public sealed partial class MainWindow : Window
             _viewModelPropertyChangedHandler = null;
         }
 
+        // Dispose of the context menu semaphore here, as all operations using it have completed
+        _contextMenuSemaphore?.Dispose();
+
         _logger.LogInformation("All event handlers unsubscribed successfully");
-    }
-
-
-    private async Task OnClosingAsync()
-    {
-        _logger.LogInformation("Window closing, cleaning up...");
-
-        if (_renderer is IAsyncDisposable disposableRenderer)
-        {
-            await disposableRenderer.DisposeAsync();
-            _logger.LogInformation("MermaidRenderer disposed");
-        }
-
-        _logger.LogInformation("Window cleanup completed successfully");
     }
 
     /// <summary>
@@ -1154,8 +1136,12 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            // The maximum length of selected text to pre-fill the search pattern in the find panel.
+            // This limit prevents excessively long selections from being used as the search pattern.
+            const int maxSearchPatternPrefillLength = 100;
+
             // Pre-fill search with selected text if available
-            if (Editor.SelectionLength is > 0 and < 100)
+            if (Editor.SelectionLength is > 0 and < maxSearchPatternPrefillLength)
             {
                 Editor.SearchPanel.SearchPattern = Editor.SelectedText;
             }
