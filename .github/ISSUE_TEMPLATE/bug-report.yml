@@ -1,0 +1,101 @@
+﻿name: "🐞 Bug Report"
+description: Report a reproducible problem in MermaidPad
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to help improve MermaidPad!
+        Please fill out the information below to help diagnose the problem. The more information you provide, the easier it will be to address the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: MermaidPad Version
+      description: The version or commit hash you are using.
+      placeholder: e.g., 0.9.2 or commit abc1234
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating_system
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS Version
+      description: Provide the detailed OS version.
+      placeholder: e.g., Windows 11 24H2, macOS 14.5, Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cpu_arch
+    attributes:
+      label: CPU Architecture
+      options:
+        - x64
+        - ARM64
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Is the issue reproducible?
+      options:
+        - Always
+        - Frequently
+        - Intermittently
+        - Rarely
+        - Unable to reproduce again
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened? What did you expect to happen?
+      placeholder: Clear and concise explanation of the issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Provide exact steps so I can reproduce the issue.
+      placeholder: |
+        1. Open MermaidPad
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: file
+    id: screenshots
+    attributes:
+      label: Screenshots (Optional)
+      description: If applicable, add screenshots or GIFs to help illustrate the issue.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Optional Logs / Error Messages
+      description: Paste any relevant logs or error messages here. MermaidPad logs can be found in the `%APPDATA%/MermaidPad/` directory.
+      render: shell
+
+  - type: textarea
+    id: additional_info
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful.

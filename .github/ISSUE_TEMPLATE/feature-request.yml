@@ -1,0 +1,44 @@
+﻿name: "✨ Feature Request"
+description: Suggest a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve MermaidPad with your ideas!
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What feature would you like to see?
+      placeholder: A concise description of your idea.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why Is This Needed?
+      description: What problem does it solve? How will it improve MermaidPad?
+      placeholder: Explain the motivation behind the request.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: If you have thoughts about how it could work, describe them here.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative features or workarounds you’ve considered.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Links, screenshots, or anything else useful.
