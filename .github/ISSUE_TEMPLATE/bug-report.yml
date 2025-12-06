@@ -37,6 +37,15 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: dotnet_version
+    attributes:
+      label: .NET Version
+      description: Provide the detailed .NET version. To get this, run `dotnet --info` in your terminal.
+      placeholder: e.g., .NET 9.0.11
+    validations:
+      required: true
+
   - type: dropdown
     id: cpu_arch
     attributes:
