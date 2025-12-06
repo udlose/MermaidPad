@@ -156,6 +156,10 @@
 		<None Include=".github/workflows/macos-universal-dmg.yml" />
 		<None Include=".github/workflows/macos-bundle.yml" />
 		<None Include=".github/workflows/README.md" />
+        <None Include=".github/pull_request_template.md" />
+        <None Include=".github/ISSUE_TEMPLATE/config.yml" />
+		<None Include=".github/ISSUE_TEMPLATE/feature-request.yml" />
+		<None Include=".github/ISSUE_TEMPLATE/bug-report.yml" />
 	</ItemGroup>
 
 	<!-- macOS app bundle support -->
