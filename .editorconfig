@@ -109,6 +109,7 @@ dotnet_diagnostic.VSTHRD113.severity = error
 dotnet_diagnostic.VSTHRD114.severity = error
 dotnet_diagnostic.VSTHRD115.severity = error
 dotnet_diagnostic.VSTHRD200.severity = error
+dotnet_diagnostic.SYSLIB1045.severity = error
 
 [*.{cs,vb}]
 #### Naming styles ####
