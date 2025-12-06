@@ -99,9 +99,11 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     #region FrozenSet and FrozenDictionary Declarations
 
     /// <summary>
-    /// Diagram type declarations that should trigger indentation on the next line.
-    /// Uses FrozenSet for O(1) case-insensitive lookup.
+    /// Provides a pre-initialized, case-insensitive set containing the names of all supported diagram declarations.
     /// </summary>
+    /// <remarks>This set is used to efficiently determine whether a given string corresponds to a recognized
+    /// diagram type. The comparison is performed using ordinal, case-insensitive matching. The set includes both stable
+    /// and beta diagram types.</remarks>
     private static readonly FrozenSet<string> _diagramDeclarations = FrozenSet.ToFrozenSet(
     [
         "flowchart", "flowchart-elk", "graph",
@@ -129,9 +131,12 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     ], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Sequence diagram block-opening keywords.
-    /// Uses FrozenSet for O(1) case-insensitive lookup.
+    /// Represents a set of keywords that indicate the opening of a sequence block in the parsed language. The set is
+    /// case-insensitive.
     /// </summary>
+    /// <remarks>This set is used to efficiently determine whether a given string marks the start of a
+    /// sequence block, such as 'loop', 'alt', or 'opt'. The use of a frozen set ensures fast lookups and thread
+    /// safety.</remarks>
     private static readonly FrozenSet<string> _sequenceBlockOpeners = FrozenSet.ToFrozenSet(
     [
         "loop", "alt", "else", "opt", "par", "and", "critical", "break", "rect"
@@ -158,9 +163,11 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Known C4 boundary type suffixes.
-    /// Uses FrozenSet for O(1) case-insensitive lookup.
+    /// Represents a set of C4 model boundary type names used for case-insensitive comparisons.
     /// </summary>
+    /// <remarks>This set includes common boundary types such as "Enterprise_Boundary", "System_Boundary",
+    /// "Container_Boundary", and "Boundary". The set is frozen for efficient lookups and uses ordinal case-insensitive
+    /// string comparison.</remarks>
     private static readonly FrozenSet<string> _c4BoundaryTypes = FrozenSet.ToFrozenSet(
     [
         "Enterprise_Boundary",
@@ -170,9 +177,11 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     ], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Known requirement diagram block types.
-    /// Uses FrozenSet for O(1) case-insensitive lookup.
+    /// Contains the set of block type names that are recognized as requirement-related elements.
     /// </summary>
+    /// <remarks>The set includes common requirement block types such as 'requirement',
+    /// 'functionalRequirement', and 'designConstraint'. Comparisons are performed using case-insensitive ordinal
+    /// matching.</remarks>
     private static readonly FrozenSet<string> _requirementBlockTypes = FrozenSet.ToFrozenSet(
     [
         "requirement",
@@ -203,7 +212,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// </summary>
     /// <remarks>This lookup enables efficient matching of sequence block opener strings against spans of
     /// characters, which can improve performance in scenarios where input is not already a string. The lookup is
-    /// case-sensitive and relies on the contents of the underlying set of sequence block openers.</remarks>
+    /// case-insensitive and relies on the contents of the underlying set of sequence block openers.</remarks>
     private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _sequenceBlockOpenersLookup =
         _sequenceBlockOpeners.GetAlternateLookup<ReadOnlySpan<char>>();
 
@@ -212,7 +221,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// the key.
     /// </summary>
     /// <remarks>This lookup enables efficient retrieval of diagram types by matching the exact sequence of
-    /// characters in the input span. It is intended for scenarios where precise, case-sensitive matching is required.
+    /// characters in the input span. It is intended for scenarios where precise, case-insensitive matching is required.
     /// The lookup is read-only and thread-safe.</remarks>
     private static readonly FrozenDictionary<string, DiagramType>.AlternateLookup<ReadOnlySpan<char>> _exactDiagramTypesLookup =
         _exactDiagramTypes.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -229,7 +238,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <summary>
     /// Provides an alternate lookup for requirement block types using a read-only character span as the key.
     /// </summary>
-    /// <remarks>This lookup enables efficient, case-sensitive searches for requirement block types without
+    /// <remarks>This lookup enables efficient, case-insensitive searches for requirement block types without
     /// allocating new strings. It is intended for scenarios where input is available as a span, such as parsing or
     /// streaming operations.</remarks>
     private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _requirementBlockTypesLookup =
@@ -246,7 +255,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// performance. It can be used to identify or replace runs of whitespace in text, such as for normalization or
     /// splitting operations.</remarks>
     /// <returns>A compiled <see cref="Regex"/> instance that matches sequences of whitespace characters in a string.</returns>
-    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
+    [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceNormalizationRegex();
 
     #endregion Regex patterns
