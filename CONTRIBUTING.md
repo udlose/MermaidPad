@@ -182,16 +182,21 @@ The issue templates in `.github/ISSUE_TEMPLATE/` will guide you.
 # Commit Messages
 
 Clear commit messages help maintain a readable history.
-Follow this pattern when possible:
 
-```
-Short summary of the change
+You can do either of the following:
+- Use AI generated commit messages based on your changes
+- or follow this pattern:
 
-Detailed explanation (optional)
-- Why the change was made
-- What problem it solves
-- Relevant context or links
-```
+  ```
+  Short summary of the change
+
+  Issue #<issue-number>
+
+  Detailed explanation (optional)
+  - Why the change was made
+  - What problem it solves
+  - Relevant context or links
+  ```
 
 Examples:
 
