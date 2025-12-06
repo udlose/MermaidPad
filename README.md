@@ -992,14 +992,21 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - ✅ Highlight connectors on hover (completed)
 - ✅ Performance optimizations (completed)
 - ✅ Syntax highlighting (completed)
-- Pan/Zoom support
+- Dockable panels for editor/preview (coming soon)
+- Theming for Editor and Application (coming soon)
+- Pan/Zoom support (coming soon)
 - Application update mechanism
+- Multiple tabs/documents (MDI)
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please open an issue for feature requests or bug reports. For pull requests, ensure your code adheres to the project's style and includes relevant tests.
+I welcome contributions in many forms: bug reports, documentation improvements, new features, tests, or UX fixes.
+
+If you’d like to contribute, please see [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines — including coding conventions, branch and PR workflow, testing, and more.  
+
+Also, please review our [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) to understand community expectations.  
 
 ---
 
