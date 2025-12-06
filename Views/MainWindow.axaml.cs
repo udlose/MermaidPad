@@ -28,6 +28,7 @@ using Avalonia.Threading;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using MermaidPad.Services;
+using MermaidPad.Services.Editor;
 using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -152,6 +153,7 @@ public sealed partial class MainWindow : Window
             Editor.Options.ConvertTabsToSpaces = true;
             Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
+            Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(Editor.Options);
 
             _logger.LogInformation("Editor state set with {CharacterCount} characters", textLength);
         }
