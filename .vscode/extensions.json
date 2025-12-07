@@ -18,7 +18,7 @@
     "dbaeumer.vscode-eslint"
   ],
   
-  // A list of extensions recommended for users opening this workspace.
+  // A list of extensions not recommended for users opening this workspace.
   "unwantedRecommendations": [
     // List any extensions that might conflict with the recommended setup
   ]
