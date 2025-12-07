@@ -56,6 +56,8 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     needs: [restrict-user, get-version]
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -236,8 +238,16 @@ jobs:
 
             ### Downloads
 
-            #### macOS (Recommended)
-            **Universal DMG - Works on All Macs:**
+            #### Windows
+            - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.zip`
+            - **ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.zip`
+
+            Extract and run `MermaidPad.exe`
+
+            ---
+
+            #### macOS
+            **Universal DMG (Recommended) - Works on All Macs:**
             - `MermaidPad-${{ needs.get-version.outputs.version }}-macos-universal.dmg`
 
             This single DMG file contains optimized binaries for both Intel and Apple Silicon Macs. Simply download, mount, and drag to Applications folder.
@@ -251,7 +261,7 @@ jobs:
             **First Launch (Unsigned App):**
             Since the app is not code-signed by Apple:
             1. **Right-click** MermaidPad.app -> **"Open"** (don't double-click)
-            2. Click **"Open"** when prompted about unidentified developer
+            2. Click **"Open"** if prompted
             3. Future launches work normally with double-click
 
             **Alternative: Homebrew**
@@ -259,18 +269,15 @@ jobs:
             brew install --cask udlose/tap/mermaidpad
             ```
 
-            - #### Windows
-            - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-x64.zip`
-            - **ARM64**: `MermaidPad-${{ needs.get-version.outputs.version }}-win-arm64.zip`
+            ---
 
-            Extract and run `MermaidPad.exe`
-
-            - #### Linux
+            #### Linux
             - **x64**: `MermaidPad-${{ needs.get-version.outputs.version }}-linux-x64.zip`
             - **arm64**: Not supported (CefGlue limitation - see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
 
-
             Extract, make executable (`chmod +x MermaidPad`), and run `./MermaidPad`
+
+            ---
 
             #### Advanced Users: Individual macOS Architecture Downloads
             For developers and advanced users who need specific architectures:
