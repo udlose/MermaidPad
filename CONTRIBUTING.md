@@ -79,9 +79,20 @@ If you spot inconsistencies or technical debt, feel free to open an issue or Dis
 
 Prefer async I/O and background work to avoid blocking the UI.
 
-### ✔ Avoid unnecessary allocations and excessive use of LINQ in performance-critical UI paths
+### ✔ Avoid EventHandlers in XAML when possible
 
-The app is cross-platform, and some platforms have more constrained environments.
+Instead, use MVVM bindings and commands to keep UI logic in ViewModels. This project
+uses the MVVM pattern extensively via:
+- [Microsoft's CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/)
+- [Avalonia's Data Binding](https://docs.avaloniaui.net/docs/concepts/the-mvvm-pattern/avalonia-ui-and-mvvm)
+
+There should be very few cases where code-behind is necessary. If you find yourself needing to add code-behind logic,
+please reach out in the Issue you are working on - or start a Discussion first to ensure it aligns with project conventions.
+
+There are plenty of examples in the codebase demonstrating proper MVVM usage. It uses DataBinding with `RelayCommand`.
+Here are some places in the code to look at:
+- [`Views/MainWindow.axaml`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/Views/MainWindow.axaml#L34)
+- [`ViewModels/MainWindowViewModel.cs`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/ViewModels/MainWindowViewModel.cs#L341-L347)
 
 ---
 
