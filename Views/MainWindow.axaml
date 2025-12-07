@@ -108,6 +108,9 @@
           Header="Find Pre_vious"
           InputGesture="Shift+F3" />
       </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="View _Logs" Click="ViewLogs_Click" />
+        </MenuItem>
     </Menu>
 
     <!--  Toolbar  -->
