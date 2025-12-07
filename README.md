@@ -20,8 +20,8 @@
 - [Requirements](#requirements)
 - [Technologies Used](#technologies-used)
 - [Installation](#installation)
-  - [macOS](#macos)
   - [Windows](#windows)
+  - [macOS](#macos)
   - [Linux](#linux)
   - [Advanced Users / Developers](#advanced-users--developers)
 - [Downloads](#downloads)
@@ -761,6 +761,16 @@ xychart-beta
 
 ## Installation
 
+### Windows
+
+Download the appropriate version for your processor:
+- **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-win-x64.zip`
+- **arm64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
+
+**Installation:**
+1. Download and extract the appropriate .zip file
+2. Run `MermaidPad.exe`
+
 ### macOS
 
 #### Universal DMG - One Download for All Macs (Recommended)
@@ -811,16 +821,6 @@ Architecture-specific downloads are available for developers and advanced users:
 - **Apple Silicon arm64:** `MermaidPad-[version]-osx-arm64.app.zip`
 
 These require manual unzipping and permission setting (`chmod +x MermaidPad`).
-
-### Windows
-
-Download the appropriate version for your processor:
-- **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-win-x64.zip`
-- **arm64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
-
-**Installation:**
-1. Download and extract the appropriate .zip file
-2. Run `MermaidPad.exe`
 
 ### Linux
 
@@ -991,11 +991,16 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - ✅ Highlight connectors on hover (completed)
 - ✅ Performance optimizations (completed)
 - ✅ Syntax highlighting (completed)
-- 🚀 Dockable panels for editor/preview (coming soon)
-- 🚀 Theming for Editor and Application (coming soon)
-- 🚀 Pan/Zoom support (coming soon)
-- 🚀 Application update mechanism
-- 🚀 Multiple tabs/documents (MDI)
+- 🚀 Dockable panels for editor/preview (coming soon) [#207](https://github.com/udlose/MermaidPad/issues/207)
+- 🚀 Theming for Editor and Application (coming soon) [#187](https://github.com/udlose/MermaidPad/issues/187)
+- 🚀 Smart Indenting for Mermaid Markdown (coming soon) [#230](https://github.com/udlose/MermaidPad/issues/230)
+- 🚀 Pan/Zoom support (coming soon) [#32](https://github.com/udlose/MermaidPad/issues/32)
+- 🚀 Installation via Chocolatey [#126](https://github.com/udlose/MermaidPad/issues/126)
+- 🚀 Installation via Microsoft Store [#125](https://github.com/udlose/MermaidPad/issues/125)
+- 🚀 Installation via WinGet [#124](https://github.com/udlose/MermaidPad/issues/124)
+- 🚀 AI Integration [#206](https://github.com/udlose/MermaidPad/issues/206)
+- 🚀 Application update mechanism [#116](https://github.com/udlose/MermaidPad/issues/116) and [#42](https://github.com/udlose/MermaidPad/issues/42)
+- 🚀 Multiple tabs/documents (MDI) [#211](https://github.com/udlose/MermaidPad/issues/211)
 
 ---
 
