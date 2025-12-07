@@ -163,6 +163,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool CanRedo { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the 'Select All' operation is available.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanSelectAll { get; set; }
+
     #endregion Clipboard and Edit Properties
 
     #region Clipboard and Edit Actions
@@ -1202,7 +1208,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Selects all text in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSelectAll))]
     private void SelectAll() => SelectAllAction?.Invoke();
 
     /// <summary>
