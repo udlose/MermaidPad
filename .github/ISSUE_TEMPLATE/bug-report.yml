@@ -1,8 +1,9 @@
-name: "🐞 Bug Report 🐛"
+name: 🐞 Bug Report 🐛
 description: Report a problem in MermaidPad
 labels: [bug]
 title: "[Bug]: "
 type: bug
+
 body:
   - type: markdown
     attributes:
