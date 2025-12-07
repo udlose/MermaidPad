@@ -35,6 +35,7 @@ using Microsoft.Extensions.Logging;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 
 namespace MermaidPad.Views;
 
@@ -559,6 +560,33 @@ public sealed partial class MainWindow : Window
     /// <param name="e">The event data associated with the Click event.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+    /// <summary>
+/// Opens the application's log file directory (%APPDATA%\MermaidPad) in the system's file explorer.
+/// </summary>
+/// <param name="sender">The source of the event, typically the View Logs menu item.</param>
+/// <param name="e">The event data associated with the Click event.</param>
+[SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
+private void ViewLogs_Click(object? sender, RoutedEventArgs e)
+{
+    try
+    {
+        // Get the log directory path for the current operating system user.
+        string appDataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
+
+        _logger.LogInformation("Attempting to open logs directory: {Path}", appDataPath);
+
+        // Use Process.Start to launch the default system application (file explorer) for the given path.
+        Process.Start(new ProcessStartInfo(appDataPath)
+        {
+            UseShellExecute = true
+        });
+    }
+    catch (Exception ex)
+    {
+        // Log the error if the directory cannot be opened.
+        _logger.LogError(ex, "Failed to open logs directory");
+    }
+}
 
     /// <summary>
     /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
