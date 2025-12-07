@@ -972,7 +972,6 @@ npx eslint "Assets/**/*.{html,js,ts}"
 
 > Windows note: keep the **double quotes** around the glob patterns.
 
-
 ### Common issues
 - **“ESLint couldn't find an eslint.config…”**  
   Ensure `eslint.config.mjs` exists **at repo root** (ESLint v9 uses flat config by default).
@@ -992,11 +991,11 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - ✅ Highlight connectors on hover (completed)
 - ✅ Performance optimizations (completed)
 - ✅ Syntax highlighting (completed)
-- Dockable panels for editor/preview (coming soon)
-- Theming for Editor and Application (coming soon)
-- Pan/Zoom support (coming soon)
-- Application update mechanism
-- Multiple tabs/documents (MDI)
+- 🚀 Dockable panels for editor/preview (coming soon)
+- 🚀 Theming for Editor and Application (coming soon)
+- 🚀 Pan/Zoom support (coming soon)
+- 🚀 Application update mechanism
+- 🚀 Multiple tabs/documents (MDI)
 
 ---
 
