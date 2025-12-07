@@ -878,7 +878,7 @@ This section documents how builds and releases are produced (CI) and how you can
 
 Source of truth:
 - Project-level build settings: `Directory.Build.props` (net9.0, RIDs, publish configuration)
-- Asset integrity: `MermaidPad.csproj.targets` generates `Generated/AssetHashes.cs` at build time
+- Asset integrity: `MermaidPad.Build.targets` generates `Generated/AssetHashes.cs` at build time
 - CI/workflow: `.github/workflows/build-and-release.yml` - uses a matrix to publish and upload artifacts, then creates releases
 
 Key settings
@@ -916,7 +916,7 @@ Local reproducible publish
      ```
 
 Asset integrity
-- `MermaidPad.csproj.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets - ensure your publish includes the `Assets/` content unchanged.
+- `MermaidPad.Build.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets - ensure your publish includes the `Assets/` content unchanged.
 
 Testing published artifacts (do this - do not assume local debug == published)
 - Download the artifact produced by CI (Release assets or artifact zip produced by `build-and-release.yml`) or use the zip you created locally.
