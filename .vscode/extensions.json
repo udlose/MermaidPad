@@ -1,0 +1,25 @@
+// .vscode/extensions.json
+{
+  // A list of extensions recommended for users opening this workspace.
+  "recommendations": [
+    // The C# Dev Kit is the primary recommendation, as it includes the C# extension.
+    "ms-dotnettools.csdevkit",
+
+    // Explicitly recommending the C# extension as a fallback/dependency.
+    "ms-dotnettools.csharp",
+
+    // Optional: Recommended for enforcing consistent code style (related to .editorconfig)
+    "editorconfig.editorconfig",
+
+    // Optional: Recommended for code quality and static analysis
+    "sonarsource.sonarlint-vscode",
+
+    // Optional: Recommended for linting JavaScript/TypeScript files
+    "dbaeumer.vscode-eslint"
+  ],
+  
+  // A list of extensions recommended for users opening this workspace.
+  "unwantedRecommendations": [
+    // List any extensions that might conflict with the recommended setup
+  ]
+}
