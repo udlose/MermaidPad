@@ -398,11 +398,14 @@ FodyWeavers.xsd
 
 # VS Code files for those working on multiple tools
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
+
+# EXCEPT for files that ensure project consistency and ease of contribution:
+# 1. Critical for Running/Debugging
 !.vscode/launch.json
+# 2. Critical for Build/Standard Tasks
+!.vscode/tasks.json
+# 3. Recommended Extensions for Contributors
 !.vscode/extensions.json
-!.vscode/*.code-snippets
 
 # Local History for Visual Studio Code
 .history/
