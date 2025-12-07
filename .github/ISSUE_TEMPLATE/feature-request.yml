@@ -1,6 +1,7 @@
-name: "✨ Feature Request"
+name: ✨ Feature Request
 description: Suggest a new capability or improvement
 labels: [enhancement]
+
 body:
   - type: markdown
     attributes:
