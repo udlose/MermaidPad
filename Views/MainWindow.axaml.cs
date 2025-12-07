@@ -182,10 +182,12 @@ public sealed partial class MainWindow : Window
             // Update undo/redo states immediately (not debounced)
             _vm.CanUndo = Editor.CanUndo;
             _vm.CanRedo = Editor.CanRedo;
+            _vm.CanSelectAll = CanSelectAll;
 
             // Notify commands that their CanExecute state may have changed
             _vm.UndoCommand.NotifyCanExecuteChanged();
             _vm.RedoCommand.NotifyCanExecuteChanged();
+            _vm.SelectAllCommand.NotifyCanExecuteChanged();
 
             // Debounce to avoid excessive updates
             _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
@@ -327,7 +329,7 @@ public sealed partial class MainWindow : Window
                     try
                     {
                         // Validate bounds before setting
-                        int textLength = Editor.Text.Length;
+                        int textLength = Editor.Document.TextLength;
                         int validSelectionStart = Math.Max(0, Math.Min(_vm.EditorSelectionStart, textLength));
                         int validSelectionLength = Math.Max(0, Math.Min(_vm.EditorSelectionLength, textLength - validSelectionStart));
                         int validCaretOffset = Math.Max(0, Math.Min(_vm.EditorCaretOffset, textLength));
@@ -1125,6 +1127,11 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Gets a value indicating whether the Select All operation can be performed in the editor.
+    /// </summary>
+    private bool CanSelectAll => Editor?.Document?.TextLength > 0;
+
+    /// <summary>
     /// Opens the find panel in the editor.
     /// </summary>
     /// <remarks>
@@ -1262,6 +1269,7 @@ public sealed partial class MainWindow : Window
                 _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
                 _vm.CanUndo = Editor.CanUndo;
                 _vm.CanRedo = Editor.CanRedo;
+                _vm.CanSelectAll = CanSelectAll;
             }
             else
             {
@@ -1271,6 +1279,7 @@ public sealed partial class MainWindow : Window
                     _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
                     _vm.CanUndo = Editor.CanUndo;
                     _vm.CanRedo = Editor.CanRedo;
+                    _vm.CanSelectAll = CanSelectAll;
                 }, DispatcherPriority.Normal);
             }
 
