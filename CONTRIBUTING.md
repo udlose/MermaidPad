@@ -181,6 +181,10 @@ The issue templates in `.github/ISSUE_TEMPLATE/` will guide you.
 
 # Commit Messages
 
+> [!IMPORTANT]
+> - Every commit message should reference the Issue it relates to.
+> - Avoid vague messages like "Fix bug" or "Update code".
+
 Clear commit messages help maintain a readable history.
 
 You can do either of the following:
@@ -203,10 +207,6 @@ Examples:
 * `Fix: handle large mermaid diagrams without UI freeze. Resolves Issue #123`
 * `Refactor: consolidate Linux clipboard integration. Resolves Issue #456`
 * `Feature: improved tab persistence across sessions. Resolves Issue #789`
-
-> [!IMPORTANT]
-> - Every commit message should reference the Issue it relates to.
-> - Avoid vague messages like "Fix bug" or "Update code".
 ---
 
 # Code of Conduct
