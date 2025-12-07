@@ -1151,13 +1151,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
 
-            // Stop and close HTTP listener
-            if (httpListener?.IsListening == true)
-            {
-                httpListener.Stop();
-            }
-            httpListener?.Close();
-
             // Stop and cleanup export polling if running
             try
             {
@@ -1331,7 +1324,28 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
 
-            _serverReadySemaphore.Dispose();
+            try
+            {
+                // Try to stop and close HTTP listener. It's possible the listener was already closed.
+                // So, we catch ObjectDisposedException and ignore it.
+                if (httpListener?.IsListening == true)
+                {
+                    httpListener.Stop();
+                }
+                httpListener?.Close();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore - already disposed
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error stopping/closing HttpListener");
+            }
+            finally
+            {
+                _serverReadySemaphore.Dispose();
+            }
 
             _logger.LogInformation("MermaidRenderer disposed");
         }
