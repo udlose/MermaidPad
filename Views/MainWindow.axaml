@@ -109,7 +109,7 @@
           InputGesture="Shift+F3" />
       </MenuItem>
       <MenuItem Header="_Help">
-        <MenuItem Header="View _Logs" Click="ViewLogs_Click" />
+        <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
         </MenuItem>
     </Menu>
 
