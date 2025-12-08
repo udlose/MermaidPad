@@ -37,6 +37,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
+using System.IO;
 
 namespace MermaidPad.ViewModels;
 
@@ -295,7 +296,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
 
         InitializeCurrentMermaidPadVersion();
-
+       
         // Initialize properties from settings
         DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
@@ -729,6 +730,33 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         WindowTitle = $"MermaidPad - {fileName}{dirtyIndicator}";
     }
 
+    #region Help Menu Commands
+
+    /// <summary>
+    /// Gets the command that opens the application's log file directory (%APPDATA%\MermaidPad) in the system's file explorer.
+    /// </summary>
+    /// <summary>
+    /// Opens the application's log file directory using the system's default file explorer.
+    /// </summary>
+    [RelayCommand]
+    private void ViewLogs()
+    {
+        string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
+
+        try
+        {
+            // Use ShellExecute to open the directory in the default file explorer
+            Process.Start(new ProcessStartInfo(logDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open log directory: {LogDirectory}", logDirectory);
+            // Consider showing an error message to the user here if this command is expected to fail silently.
+            // For now, we rely on logging.
+        }
+    }
+
+    #endregion Help Menu Commands
     /// <summary>
     /// Updates the status text to reflect the currently open file or indicate that no file is open.
     /// </summary>
