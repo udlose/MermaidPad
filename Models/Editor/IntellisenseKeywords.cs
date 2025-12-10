@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Avalonia.Media;
+using MermaidPad.Models.Constants;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Models.Editor;
@@ -48,32 +49,32 @@ internal static class IntellisenseKeywords
     /// </remarks>
     internal static readonly string[] FrontmatterKeywords =
     [
-        "%%",
-        "mermaid",
-        "defaultRenderer",
-        "title:",
-        "config:",
-        "layout:",
-        "dagre",
-        "elk",
-        "theme:",
-        "themeVariables:",
-        "logLevel:",
-        "securityLevel:",
-        "startOnLoad:",
-        "secure:",
-        "primaryColor:",
-        "signalColor:",
-        "signalTextColor:",
-        "true",
-        "false",
-        "base",
-        "forest",
-        "default",
-        "dark",
-        "neutral",
-        "useWidth:",
-        "useMaxWidth:"
+        Frontmatter.Comment,
+        Frontmatter.Mermaid,
+        Frontmatter.DefaultRenderer,
+        Frontmatter.Title,
+        Frontmatter.Config,
+        Frontmatter.Layout,
+        Frontmatter.Dagre,
+        Frontmatter.Elk,
+        Frontmatter.Theme,
+        Frontmatter.ThemeVariables,
+        Frontmatter.LogLevel,
+        Frontmatter.SecurityLevel,
+        Frontmatter.StartOnLoad,
+        Frontmatter.Secure,
+        Frontmatter.PrimaryColor,
+        Frontmatter.SignalColor,
+        Frontmatter.SignalTextColor,
+        Frontmatter.True,
+        Frontmatter.False,
+        Frontmatter.Base,
+        Frontmatter.Forest,
+        GeneralElementNames.Default,
+        Frontmatter.Dark,
+        Frontmatter.Neutral,
+        Frontmatter.UseWidth,
+        Frontmatter.UseMaxWidth
     ];
 
     #endregion Frontmatter keywords
@@ -88,9 +89,9 @@ internal static class IntellisenseKeywords
     [
         "darkMode:",
         "background:",
-        "fontFamily:",
-        "fontSize:",
-        "primaryColor:",
+        CssStyles.FontFamily,
+        CssStyles.FontSize,
+        Frontmatter.PrimaryColor,
         "primaryTextColor:",
         "secondaryColor:",
         "primaryBorderColor:",
@@ -103,7 +104,7 @@ internal static class IntellisenseKeywords
         "noteTextColor:",
         "noteBorderColor:",
         "lineColor:",
-        "textColor:",
+        CssStyles.TextColor,
         "mainBkg:",
         "errorBkgColor:",
         "errorTextColor:"
@@ -118,22 +119,22 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] CssStylesKeywords =
     [
-        "backgroundColor:",
-        "borderColor:",
-        "borderWidth:",
-        "color:",
-        "fill:",
-        "fontFamily:",
-        "fontSize:",
-        "fontWeight:",
-        "stroke:",
-        "stroke-dasharray:",
-        "stroke-dashoffset:",
-        "stroke-width:",
-        "style",
-        "textColor:",
-        "cssStyle",
-        "default"
+        CssStyles.CssStyle,
+        CssStyles.BackgroundColor,
+        CssStyles.BorderColor,
+        CssStyles.BorderWidth,
+        CssStyles.Color,
+        CssStyles.Fill,
+        CssStyles.FontFamily,
+        CssStyles.FontSize,
+        CssStyles.FontWeight,
+        CssStyles.Stroke,
+        CssStyles.StrokeDasharray,
+        CssStyles.StrokeDashoffset,
+        CssStyles.StrokeWidth,
+        GeneralElementNames.Style,
+        CssStyles.TextColor,
+        GeneralElementNames.Default
     ];
 
     #endregion CSS Styles
@@ -146,16 +147,17 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] ArchitectureDiagramKeywords =
     [
-        "architecture-beta",
-        "cloud",
-        "database",
-        "disk",
-        "edge",
-        "group",
-        "internet",
-        "junction",
-        "server",
-        "service",
+        DiagramTypeNames.ArchitectureBeta,
+        ArchitectureDiagram.ElementNames.Cloud,
+        ArchitectureDiagram.ElementNames.Database,
+        ArchitectureDiagram.ElementNames.Disk,
+        ArchitectureDiagram.ElementNames.Edge,
+        ArchitectureDiagram.ElementNames.Group,
+        ArchitectureDiagram.ElementNames.Internet,
+        ArchitectureDiagram.ElementNames.Junction,
+        ArchitectureDiagram.ElementNames.Server,
+        ArchitectureDiagram.ElementNames.Service,
+        "in",
         "L",
         "R",
         "T",
@@ -172,9 +174,9 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] BlockDiagramKeywords =
     [
-        "block",
+        DiagramTypeNames.Block,
         "columns",
-        "end",
+        GeneralElementNames.End,
         "space"
     ];
 
@@ -189,11 +191,11 @@ internal static class IntellisenseKeywords
     //TODO: this type is still experimental and may change. Revisit at some point to adjust as needed.
     internal static readonly string[] C4DiagramKeywords =
     [
-        "C4Component",
-        "C4Container",
-        "C4Context",
-        "C4Deployment",
-        "C4Dynamic",
+        DiagramTypeNames.C4Component,
+        DiagramTypeNames.C4Container,
+        DiagramTypeNames.C4Context,
+        DiagramTypeNames.C4Deployment,
+        DiagramTypeNames.C4Dynamic,
         // C4 Layout Elements
         "Lay_U",
         "Lay_Up",
@@ -206,7 +208,7 @@ internal static class IntellisenseKeywords
         // C4 Experimental Elements
         "sprite",
         "tags",
-        "link",
+        GeneralElementNames.Link,
         "Legend",
         // C4 System Context Diagram Elements
         "Person",
@@ -217,9 +219,9 @@ internal static class IntellisenseKeywords
         "System_Ext",
         "SystemDb_Ext",
         "SystemQueue_Ext",
-        "Boundary",
-        "Enterprise_Boundary",
-        "System_Boundary",
+        C4Diagram.BoundaryTypes.Boundary,
+        C4Diagram.BoundaryTypes.Enterprise,
+        C4Diagram.BoundaryTypes.System,
         // C4 Container Diagram Elements
         "Container",
         "ContainerDb",
@@ -227,7 +229,7 @@ internal static class IntellisenseKeywords
         "Container_Ext",
         "ContainerDb_Ext",
         "ContainerQueue_Ext",
-        "Container_Boundary",
+        C4Diagram.BoundaryTypes.Container,
         // C4 Component Diagram Elements
         "Component",
         "ComponentDb",
@@ -278,10 +280,10 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] ClassDiagramKeywords =
     [
-        "classDiagram",
-        "classDiagram-v2",
-        "class",
-        "classDef",
+        DiagramTypeNames.ClassDiagram,
+        DiagramTypeNames.ClassDiagramV2,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
         "interface",
         "namespace",
         "bool",
@@ -294,10 +296,10 @@ internal static class IntellisenseKeywords
         "<<abstract>>",
         "<<service>>",
         "<<enumeration>>",
-        "link",
+        GeneralElementNames.Link,
         "call",
         "callback",
-        "direction",
+        GeneralElementNames.Direction,
         "note",
         "href",
         "classText:",
@@ -314,13 +316,13 @@ internal static class IntellisenseKeywords
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
     internal static readonly string[] ERDiagramKeywords =
     [
-        "erDiagram",
+        DiagramTypeNames.ERDiagram,
         "allows",
         "has",
-        "TB",
-        "BT",
-        "RL",
-        "LR",
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
         "|o",
         "||",
         "}o",
@@ -340,22 +342,22 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] FlowchartKeywords =
     [
-        "graph",
-        "flowchart",
-        "flowchart-elk",
-        "subgraph",
-        "end",
-        "style",
-        "class",
-        "classDef",
+        DiagramTypeNames.Graph,
+        DiagramTypeNames.Flowchart,
+        DiagramTypeNames.FlowchartElk,
+        FlowchartDiagram.BlockOpenerNames.Subgraph,
+        GeneralElementNames.End,
+        GeneralElementNames.Style,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
         "click",
         "linkStyle",
-        "end",
-        "TB",
-        "TD",
-        "BT",
-        "RL",
-        "LR",
+        GeneralElementNames.End,
+        DirectionNames.TopToBottom,
+        DirectionNames.TopToBottomTD,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
         "img:",
         "label:",
         "pos:",
@@ -366,9 +368,9 @@ internal static class IntellisenseKeywords
         "_blank",
         "icon:",
         "form:",
-        "square",
-        "circle",
-        "rounded",
+        ShapeNames.Square,
+        ShapeNames.Circle,
+        ShapeNames.Rounded,
         // Arrows: https://mermaid.js.org/syntax/flowchart.html#new-arrow-types
         "--o",
         "-->",
@@ -383,7 +385,7 @@ internal static class IntellisenseKeywords
         "<-->",
         "x--x",
         // Stying line curves: https://mermaid.js.org/syntax/flowchart.html#styling-line-curves
-        "curve",
+        ShapeNames.Curve,
         "basis",
         "bumpX",
         "bumpY",
@@ -406,9 +408,9 @@ internal static class IntellisenseKeywords
         "brace-r",
         "braces",
         "card",
-        "circ",
-        "circle",
-        "cloud",
+        ShapeNames.Circ,
+        ShapeNames.Circle,
+        GeneralElementNames.Cloud,
         "collate",
         "com-link",
         "comment",
@@ -416,17 +418,17 @@ internal static class IntellisenseKeywords
         "crossed-circle",
         "curv-trap",
         "curved-trapezoid",
-        "cyl",
-        "cylinder",
+        ShapeNames.Cyl,
+        ShapeNames.Cylinder,
         "das",
-        "database",
+        GeneralElementNames.Database,
         "db",
         "dbl-circ",
         "decision",
         "delay",
         "diam",
-        "diamond",
-        "disk",
+        ShapeNames.Diamond,
+        ShapeNames.Disk,
         "display",
         "div-proc",
         "div-rect",
@@ -451,8 +453,8 @@ internal static class IntellisenseKeywords
         "framed-rectangle",
         "h-cyl",
         "half-rounded-rectangle",
-        "hex",
-        "hexagon",
+        ShapeNames.Hex,
+        ShapeNames.Hexagon,
         "horizontal-cylinder",
         "hourglass",
         "in-out",
@@ -492,9 +494,9 @@ internal static class IntellisenseKeywords
         "processes",
         "procs",
         "question",
-        "rect",
-        "rectangle",
-        "rounded",
+        ShapeNames.Rect,
+        ShapeNames.Rectangle,
+        ShapeNames.Rounded,
         "shaded-process",
         "sl-rect",
         "sloped-rectangle",
@@ -504,7 +506,7 @@ internal static class IntellisenseKeywords
         "st-rect",
         "stacked-document",
         "stacked-rectangle",
-        "stadium",
+        ShapeNames.Stadium,
         "start",
         "stop",
         "stored-data",
@@ -534,9 +536,22 @@ internal static class IntellisenseKeywords
         "clusterBkg:",
         "clusterBorder:",
         "defaultLinkColor:",
-        "titleColor:",
+        CssStyles.TitleColor,
         "edgeLabelBackground:",
         "nodeTextColor:",
+        // Flowchart Config: https://mermaid.js.org/config/schema-docs/config-defs-flowchart-diagram-config.html
+        FlowchartDiagram.Config.TitleTopMargin,
+        FlowchartDiagram.Config.SubGraphTitleMargin,
+        FlowchartDiagram.Config.ArrowMarkerAbsolute,
+        FlowchartDiagram.Config.DiagramPadding,
+        FlowchartDiagram.Config.HtmlLabels,
+        FlowchartDiagram.Config.NodeSpacing,
+        FlowchartDiagram.Config.RankSpacing,
+        FlowchartDiagram.Config.Curve,
+        FlowchartDiagram.Config.Padding,
+        FlowchartDiagram.Config.DefaultRenderer,
+        FlowchartDiagram.Config.WrappingWidth,
+        FlowchartDiagram.Config.InheritDir
     ];
 
     #endregion Flowchart
@@ -549,11 +564,11 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] GanttChartKeywords =
     [
-        "gantt",
+        DiagramTypeNames.Gantt,
         "dateFormat",
         "axisFormat",
-        "title",
-        "section",
+        GeneralElementNames.Title,
+        GeneralElementNames.Section,
         "excludes",
         "vert",
         "monday",
@@ -608,7 +623,7 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] GitGraphKeywords =
     [
-        "gitGraph",
+        DiagramTypeNames.GitGraph,
         "commit",
         "branch",
         "merge",
@@ -679,7 +694,7 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] KanbanKeywords =
     [
-        "kanban",
+        DiagramTypeNames.Kanban,
         "todo",
         "assigned:",
         "ticket:",
@@ -697,8 +712,7 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] MindmapKeywords =
     [
-        "mindmap",
-        "mindmap-v2",
+        DiagramTypeNames.Mindmap,
         "root",
         "tidy-tree"
     ];
@@ -713,8 +727,8 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] PacketKeywords =
     [
-        "packet",
-        "title",
+        DiagramTypeNames.Packet,
+        GeneralElementNames.Title,
         "rowHeight:",
         "bitWidth:",
         "bitsPerRow:",
@@ -733,9 +747,9 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] PieChartKeywords =
     [
-        "pie",
+        DiagramTypeNames.Pie,
         "showData",
-        "title",
+        GeneralElementNames.Title,
         "textPosition:",
         // Pie Chart Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#pie-diagram-variables
         "pieTitleTextSize:",
@@ -761,8 +775,8 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] QuadrantChartKeywords =
     [
-        "quadrantChart",
-        "title",
+        DiagramTypeNames.QuadrantChart,
+        GeneralElementNames.Title,
         "x-axis",
         "y-axis",
         "quadrant-1",
@@ -803,10 +817,10 @@ internal static class IntellisenseKeywords
         "quadrantInternalBorderStrokeFill:",
         "quadrantExternalBorderStrokeFill:",
         "quadrantTitleFill:",
-        "color:",
-        "radius:",
-        "stroke-width:",
-        "stroke-color:",
+        CssStyles.Color,
+        CssStyles.Radius,
+        CssStyles.StrokeWidth,
+        CssStyles.StrokeColor,
     ];
 
     #endregion Quadrant Diagrams
@@ -819,30 +833,30 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] RadarChartKeywords =
     [
-        "radar-beta",
-        "title",
+        DiagramTypeNames.RadarBeta,
+        GeneralElementNames.Title,
         "axis",
-        "curve",
+        ShapeNames.Curve,
         "showLegend",
         "max",
         "min",
         "graticule",
-        "circle",
-        "polygon",
+        ShapeNames.Circle,
+        ShapeNames.Polygon,
         "ticks",
         // Radar Chart Theming: https://mermaid.js.org/syntax/radar.html#configuration
-        "width:",
-        "height:",
-        "marginTop:",
-        "marginBottom:",
-        "marginLeft:",
-        "marginRight:",
+        CssStyles.Width,
+        CssStyles.Height,
+        CssStyles.MarginTop,
+        CssStyles.MarginBottom,
+        CssStyles.MarginLeft,
+        CssStyles.MarginRight,
         "axisScaleFactor:",
         "axisLabelFactor:",
         "curveTension:",
         // Radar Chart Global Theming: https://mermaid.js.org/syntax/radar.html#global-theme-variables
-        "fontSize:",
-        "titleColor:",
+        CssStyles.FontSize,
+        CssStyles.TitleColor,
         "cScale",
         "axisColor:",
         "axisStrokeWidth:",
@@ -866,14 +880,14 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] RequirementDiagramKeywords =
     [
-        "requirementDiagram",
-        "requirement",
-        "element",
-        "functionalRequirement",
-        "interfaceRequirement",
-        "performanceRequirement",
-        "physicalRequirement",
-        "designConstraint",
+        DiagramTypeNames.RequirementDiagram,
+        RequirementDiagram.BlockTypes.Requirement,
+        RequirementDiagram.BlockTypes.Element,
+        RequirementDiagram.BlockTypes.FunctionalRequirement,
+        RequirementDiagram.BlockTypes.InterfaceRequirement,
+        RequirementDiagram.BlockTypes.PerformanceRequirement,
+        RequirementDiagram.BlockTypes.PhysicalRequirement,
+        RequirementDiagram.BlockTypes.DesignConstraint,
         "id:",
         "risk:",
         "text:",
@@ -884,15 +898,15 @@ internal static class IntellisenseKeywords
         "inspection",
         "test",
         "demonstration",
-        "direction",
-        "TB",
-        "BT",
-        "LR",
-        "RL",
+        GeneralElementNames.Direction,
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.LeftToRight,
+        DirectionNames.RightToLeft,
         "simulation",
-        "style",
-        "class",
-        "classDef",
+        GeneralElementNames.Style,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
     ];
 
     #endregion Requirement Diagram
@@ -905,12 +919,12 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] SankeyKeywords =
     [
-        "sankey",
+        DiagramTypeNames.Sankey,
         "source",
         "target",
         "value",
-        "width:",
-        "height:",
+        CssStyles.Width,
+        CssStyles.Height,
         "linkColor:",
         "nodeAlignment:",
         "gradient",
@@ -930,13 +944,13 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] SequenceDiagramKeywords =
     [
-        "sequenceDiagram",
-        "participant",
-        "actor",
-        "boundary",
-        "control",
-        "entity",
-        "database",
+        DiagramTypeNames.SequenceDiagram,
+        SequenceDiagram.ParticipantTypes.Participant,
+        SequenceDiagram.ParticipantTypes.Actor,
+        SequenceDiagram.ParticipantTypes.Boundary,
+        SequenceDiagram.ParticipantTypes.Control,
+        SequenceDiagram.ParticipantTypes.Entity,
+        SequenceDiagram.ParticipantTypes.Database,
         "collections",
         "queue",
         "as",
@@ -945,7 +959,7 @@ internal static class IntellisenseKeywords
         "activate",
         "deactivate",
         "note",
-        "<br/>",
+        CssStyles.HtmlBreak,
         // Arrows: https://mermaid.js.org/syntax/sequenceDiagram.html#messages
         "->",
         "-->",
@@ -958,20 +972,20 @@ internal static class IntellisenseKeywords
         "-)",
         "--)",
         "box",
-        "loop",
-        "end",
-        "alt",
-        "else",
-        "opt",
-        "par",
-        "and",
-        "critical",
-        "break",
-        "rect",
+        SequenceDiagram.BlockOpenerNames.Loop,
+        GeneralElementNames.End,
+        SequenceDiagram.BlockOpenerNames.Alt,
+        SequenceDiagram.BlockOpenerNames.Else,
+        SequenceDiagram.BlockOpenerNames.Opt,
+        SequenceDiagram.BlockOpenerNames.Par,
+        SequenceDiagram.BlockOpenerNames.And,
+        SequenceDiagram.BlockOpenerNames.Critical,
+        SequenceDiagram.BlockOpenerNames.Break,
+        ShapeNames.Rect,
         "rgb",
         "rgba",
         "autonumber",
-        "link",
+        GeneralElementNames.Link,
         "links",
         // Styling: https://mermaid.js.org/syntax/sequenceDiagram.html#classes-used
         "actor",
@@ -1023,6 +1037,8 @@ internal static class IntellisenseKeywords
         "activationBorderColor:",
         "activationBkgColor:",
         "sequenceNumberColor:",
+        // Sequence Numbers: https://mermaid.js.org/syntax/sequenceDiagram.html#sequencenumbers
+        "showSequenceNumbers:",
     ];
 
     #endregion Sequence Diagram
@@ -1035,9 +1051,9 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] StateDiagramKeywords =
     [
-        "stateDiagram",
-        "stateDiagram-v2",
-        "state",
+        DiagramTypeNames.StateDiagram,
+        DiagramTypeNames.StateDiagramV2,
+        StateDiagram.BlockOpenerNames.State,
         "as",
         "note",
         "end note",
@@ -1048,13 +1064,13 @@ internal static class IntellisenseKeywords
         "<<choice>>",
         "<<fork>>",
         "<<join>>",
-        "direction",
-        "class",
-        "classDef",
-        "TB",
-        "BT",
-        "RL",
-        "LR",
+        GeneralElementNames.Direction,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
         // State Diagram Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#state-colors
         "labelColor:",
         "altBackground:",
@@ -1070,10 +1086,10 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] TimelineKeywords =
     [
-        "timeline",
-        "title",
-        "section",
-        "<br/>",
+        DiagramTypeNames.Timeline,
+        GeneralElementNames.Title,
+        GeneralElementNames.Section,
+        CssStyles.HtmlBreak,
         "disableMultiColor:",
         "cScale",
         "cScaleLabel"
@@ -1089,18 +1105,18 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] TreemapKeywords =
     [
-        "treemap",
-        "title",
-        "classDef",
+        DiagramTypeNames.Treemap,
+        GeneralElementNames.Title,
+        GeneralElementNames.ClassDef,
         // Treemap Theming: https://mermaid.js.org/syntax/treemap.html#diagram-padding
         "diagramPadding:",
         // https://mermaid.js.org/syntax/treemap.html#configuration-options
-        "useMaxWidth:",
-        "padding:",
+        Frontmatter.UseMaxWidth,
+        CssStyles.Padding,
         "showValues:",
         "nodeWidth:",
         "nodeHeight:",
-        "borderWidth:",
+        CssStyles.BorderWidth,
         "valueFontSize:",
         "labelFontSize:",
         "valueFormat:"
@@ -1116,9 +1132,9 @@ internal static class IntellisenseKeywords
     /// </summary>
     internal static readonly string[] UserJourneyKeywords =
     [
-        "journey",
-        "section",
-        "title",
+        DiagramTypeNames.UserJourney,
+        GeneralElementNames.Section,
+        GeneralElementNames.Title,
         // Journey Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#user-journey-colors
         "fillType0:",
         "fillType1:",
@@ -1141,8 +1157,8 @@ internal static class IntellisenseKeywords
     [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
     internal static readonly string[] XYChartKeywords =
     [
-        "xychart",
-        "title",
+        DiagramTypeNames.XYChart,
+        GeneralElementNames.Title,
         "x-axis",
         "y-axis",
         "series",
@@ -1155,13 +1171,9 @@ internal static class IntellisenseKeywords
         "min",
         "-->",
         // XY Chart Config: https://mermaid.js.org/syntax/xyChart.html#chart-configurations
-        "width:",
-        "height:",
-        "titlePadding:",
-        "titleFontSize:",
+        CssStyles.Width,
+        CssStyles.Height,
         "showTitle:",
-        "xAxis:",
-        "yAxis:",
         "chartOrientation:",
         "plotReservedSpacePercent:",
         "showDataLabel:",
@@ -1169,7 +1181,6 @@ internal static class IntellisenseKeywords
         "showLabel:",
         "labelFontSize:",
         "labelPadding:",
-        "showTitle:",
         "titleFontSize:",
         "titlePadding:",
         "showTick:",
@@ -1178,8 +1189,8 @@ internal static class IntellisenseKeywords
         "showAxisLine:",
         "axisLineWidth:",
         // Chart Theme Variables: https://mermaid.js.org/syntax/xyChart.html#chart-theme-variables
-        "backgroundColor:",
-        "titleColor:",
+        CssStyles.BackgroundColor,
+        CssStyles.TitleColor,
         "xAxisLabelColor:",
         "xAxisTitleColor:",
         "xAxisTickColor:",
