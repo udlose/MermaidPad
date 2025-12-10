@@ -33,7 +33,7 @@
 		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
 		<PackageReference Include="JetBrains.Annotations" Version="2025.2.2" />
 		<!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
-		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.307" />
+		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.308" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.11" />
 		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
