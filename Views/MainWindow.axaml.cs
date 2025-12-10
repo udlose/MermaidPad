@@ -44,6 +44,9 @@ namespace MermaidPad.Views;
 /// Manages synchronization between the editor control and the <see cref="MainWindowViewModel"/>,
 /// initializes and manages the <see cref="MermaidRenderer"/>, and handles window lifecycle events.
 /// </summary>
+#pragma warning disable IDE0078
+[SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
+[SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
 public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _vm;
@@ -56,7 +59,7 @@ public sealed partial class MainWindow : Window
     private bool _isClosingApproved;
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync; // Prevent circular updates
-    private readonly SemaphoreSlim _contextMenuSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
@@ -95,6 +98,8 @@ public sealed partial class MainWindow : Window
 
         // Initialize syntax highlighting before wiring up OnThemeChanged
         InitializeSyntaxHighlighting();
+
+        InitializeIntellisense();
 
         // Store event handlers for proper cleanup
         _openedHandler = OnOpened;
@@ -194,12 +199,14 @@ public sealed partial class MainWindow : Window
             // Debounce to avoid excessive updates
             _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
             {
-                if (_vm.DiagramText != Editor.Text)
+                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
+                string text = Editor.Text;
+                if (_vm.DiagramText != text)
                 {
                     _suppressEditorStateSync = true;
                     try
                     {
-                        _vm.DiagramText = Editor.Text;
+                        _vm.DiagramText = text;
                     }
                     finally
                     {
@@ -302,7 +309,9 @@ public sealed partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(_vm.DiagramText):
-                if (Editor.Text != _vm.DiagramText)
+                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
+                string currentText = Editor.Text;
+                if (currentText != _vm.DiagramText)
                 {
                     _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
@@ -672,8 +681,10 @@ public sealed partial class MainWindow : Window
             _viewModelPropertyChangedHandler = null;
         }
 
+        UnsubscribeIntellisenseEventHandlers();
+
         // Dispose of the context menu semaphore here, as all operations using it have completed
-        _contextMenuSemaphore?.Dispose();
+        _contextMenuSemaphore.Dispose();
 
         _logger.LogInformation("All event handlers unsubscribed successfully");
     }
@@ -1220,7 +1231,7 @@ public sealed partial class MainWindow : Window
     ///     * Uses a non-blocking, async-aware semaphore acquire (<c>_contextMenuSemaphore.WaitAsync(TimeSpan.Zero)</c>)
     ///       to implement "skip-on-busy" behavior: if a state-check is already running, new invocations
     ///       return immediately to keep the UI responsive.
-    ///     * A local <c>acquired</c> flag tracks whether the acquire succeeded; <c>Release()</c> is called
+    ///     * A local <c>acquired</c> flag tracks whether the 'acquire' succeeded; <c>Release()</c> is called
     ///       in the <c>finally</c> block only when the semaphore was actually acquired.
     /// </para>
     /// <para>
