@@ -9,7 +9,7 @@
 [![Issues Closed](https://img.shields.io/github/issues-closed-raw/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/issues?q=is%3Aissue+is%3Aclosed)
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
-[![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
 
 ---
 
