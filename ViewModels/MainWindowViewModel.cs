@@ -37,7 +37,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
-using System.IO;
 
 namespace MermaidPad.ViewModels;
 
@@ -296,7 +295,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _logger = logger;
 
         InitializeCurrentMermaidPadVersion();
-       
+
         // Initialize properties from settings
         DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
