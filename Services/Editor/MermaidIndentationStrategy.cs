@@ -46,18 +46,18 @@ namespace MermaidPad.Services.Editor;
 ///     <item>flowchart, flowchart-elk, graph (with subgraph/end)</item>
 ///     <item>sequenceDiagram (with loop/alt/opt/par/critical/break/rect/end)</item>
 ///     <item>stateDiagram, stateDiagram-v2 (with state/end)</item>
-///     <item>classDiagram (with class blocks)</item>
+///     <item>classDiagram, classDiagram-v2 (with class blocks)</item>
 ///     <item>erDiagram (with entity blocks)</item>
 ///     <item>gantt (with section)</item>
-///     <item>pie, quadrantChart, xychart-beta, radar-beta (flat structure)</item>
-///     <item>mindmap, treemap-beta (indentation-based hierarchy)</item>
+///     <item>pie, quadrantChart, xychart, radar-beta (flat structure)</item>
+///     <item>mindmap, treemap (indentation-based hierarchy)</item>
 ///     <item>timeline, journey (with section)</item>
 ///     <item>gitGraph (with branch/checkout/merge)</item>
 ///     <item>C4Context, C4Container, C4Component, C4Dynamic (with boundaries)</item>
 ///     <item>architecture-beta (with group)</item>
-///     <item>block-beta (with block:/end)</item>
+///     <item>block (with block:/end)</item>
 ///     <item>requirementDiagram (with requirement/element blocks)</item>
-///     <item>sankey-beta, packet-beta (flat structure)</item>
+///     <item>sankey, packet (flat structure)</item>
 ///     <item>kanban (indentation-based columns)</item>
 /// </list>
 /// </para>
@@ -806,25 +806,25 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
             return DiagramType.Architecture;
         }
 
-        // Block diagram (check prefix for block-beta)
+        // Block diagram (check prefix for block)
         if (keyword.StartsWith("block", StringComparison.OrdinalIgnoreCase))
         {
             return DiagramType.Block;
         }
 
-        // Sankey (check prefix for sankey-beta)
+        // Sankey (check prefix for sankey)
         if (keyword.StartsWith("sankey", StringComparison.OrdinalIgnoreCase))
         {
             return DiagramType.Sankey;
         }
 
-        // XY Chart (check prefix for xychart-beta)
+        // XY Chart (check prefix for xychart)
         if (keyword.StartsWith("xychart", StringComparison.OrdinalIgnoreCase))
         {
             return DiagramType.XYChart;
         }
 
-        // Packet (check prefix for packet-beta)
+        // Packet (check prefix for packet)
         if (keyword.StartsWith("packet", StringComparison.OrdinalIgnoreCase))
         {
             return DiagramType.Packet;
@@ -836,7 +836,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
             return DiagramType.Radar;
         }
 
-        // Treemap (check prefix for treemap-beta)
+        // Treemap (check prefix for treemap)
         if (keyword.StartsWith("treemap", StringComparison.OrdinalIgnoreCase))
         {
             return DiagramType.Treemap;
