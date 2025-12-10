@@ -91,7 +91,7 @@ architecture-beta
 <summary>Block Diagrams</summary>
 
 ```
-block-beta
+block
 columns 1
   db(("DB"))
   blockArrowId6<["&nbsp;&nbsp;&nbsp;"]>(down)
@@ -511,7 +511,7 @@ mindmap
 ---
 title: "TCP Packet"
 ---
-packet-beta
+packet
 0-15: "Source Port"
 16-31: "Destination Port"
 32-63: "Sequence Number"
@@ -614,7 +614,7 @@ config:
   sankey:
     showValues: false
 ---
-sankey-beta
+sankey
   Agricultural 'waste',Bio-conversion,124.729
   Bio-conversion,Liquid,0.597
   Bio-conversion,Losses,26.862
@@ -766,7 +766,7 @@ timeline
 <summary>Tree Maps</summary>
 
 ```
-treemap-beta
+treemap
 "Section 1"
     "Leaf 1.1": 12
     "Section 1.2"
@@ -805,7 +805,7 @@ journey
 <summary>XY Charts</summary>
 
 ```
-xychart-beta
+xychart
   title "Performance Improvements"
   x-axis ["2020","2021","2022","2023","2024","2025"]
   y-axis "Requests per second" 0 --> 1200
