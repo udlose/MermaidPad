@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Models.Editor;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 
@@ -51,50 +52,7 @@ public readonly ref struct IntellisenseScanner
     /// flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, pie charts, Git
     /// graphs, journey diagrams, mindmaps, requirement diagrams, and C4 diagrams. These keywords are excluded to
     /// prevent them from being treated as user-defined identifiers or content.</remarks>
-    private static readonly FrozenSet<string> _ignoredKeywords = FrozenSet.ToFrozenSet(
-        [
-            // Graph / Flowchart
-            "graph", "flowchart", "subgraph", "end", "style", "classDef", "click", "linkStyle",
-            "TD", "TB", "BT", "RL", "LR",
-
-            // Sequence Diagram
-            "sequenceDiagram", "participant", "actor", "boundary", "control", "entity", "database", "box", "loop", "alt", "else", "opt", "par", "rect", "autonumber", "activate", "deactivate",
-
-            // Class Diagram
-            "classDiagram", "class", "interface", "namespace", "cssClass", "callback", "link",
-
-            // State Diagram
-            "stateDiagram", "stateDiagram-v2", "state", "note",
-
-            // ER Diagram
-            "erDiagram",
-
-            // Gantt
-            "gantt", "dateFormat", "axisFormat", "title", "section", "excludes", "todayMarker",
-
-            // Pie
-            "pie", "showData",
-
-            // GitGraph
-            "gitGraph", "commit", "branch", "merge", "checkout", "cherry-pick", "reset",
-
-            // Journey
-            "journey", "section",
-
-            // Mindmap
-            "mindmap", "root",
-
-            // Requirement
-            "requirementDiagram", "requirement", "functionalRequirement", "interfaceRequirement", "performanceRequirement", "physicalRequirement", "designConstraint",
-
-            // C4
-            "C4Context", "C4Container", "C4Component", "C4Dynamic", "C4Deployment",
-
-            // Common
-            "%%"
-        ],
-        StringComparer.Ordinal
-    );
+    private static readonly FrozenSet<string> _ignoredKeywords = IntellisenseKeywords.AggregatedDistinctKeywords.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
     /// Provides an alternate lookup for keywords using a read-only character span as the key.
@@ -293,7 +251,7 @@ public readonly ref struct IntellisenseScanner
             return true;
         }
 
-        // If it's a word and not a keyword, it's a candidate.
+        // If it's a word and not a keyword, it's a candidate for intellisense
         // Check intern pool
         if (!internLookup.TryGetValue(wordSpan, out string? textValue))
         {

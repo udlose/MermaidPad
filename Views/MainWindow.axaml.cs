@@ -570,7 +570,7 @@ public sealed partial class MainWindow : Window
     /// <param name="e">The event data associated with the Click event.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
-    
+
     /// <summary>
     /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
     /// before the window closes.
