@@ -21,7 +21,8 @@
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Indentation;
-using System.Collections.Frozen;
+using MermaidPad.Models;
+using MermaidPad.Models.Constants;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
@@ -62,10 +63,17 @@ namespace MermaidPad.Services.Editor;
 /// </list>
 /// </para>
 /// </remarks>
+#pragma warning disable IDE0078
+[SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
+[SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
 public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrategy
 {
     private const char TabChar = '\t';
     private const char SpaceChar = ' ';
+    private const char LeftParen = '(';
+    private const char LeftBrace = '{';
+    private const char RightBrace = '}';
+    private const char Colon = ':';
     private const string DefaultIndentation = "  "; // 2 spaces - standard for YAML/Mermaid
     private const int DefaultIndentationSize = 2;
     private readonly string _indentationString;
@@ -95,156 +103,6 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     private static readonly string[] _preAllocatedIndentsTab = CreateIndentationCache("\t", MaxPreAllocatedIndentLevels);
 
     #endregion Pre-allocated whitespace
-
-    #region FrozenSet and FrozenDictionary Declarations
-
-    /// <summary>
-    /// Provides a pre-initialized, case-insensitive set containing the names of all supported diagram declarations.
-    /// </summary>
-    /// <remarks>This set is used to efficiently determine whether a given string corresponds to a recognized
-    /// diagram type. The comparison is performed using ordinal, case-insensitive matching. The set includes both stable
-    /// and beta diagram types.</remarks>
-    private static readonly FrozenSet<string> _diagramDeclarations = FrozenSet.ToFrozenSet(
-    [
-        "flowchart", "flowchart-elk", "graph",
-        "sequenceDiagram",
-        "stateDiagram", "stateDiagram-v2",
-        "classDiagram",
-        "erDiagram",
-        "gantt",
-        "pie",
-        "mindmap",
-        "timeline",
-        "journey",
-        "gitGraph",
-        "C4Context", "C4Container", "C4Component", "C4Dynamic",
-        "architecture-beta",
-        "block-beta",
-        "requirementDiagram",
-        "sankey-beta",
-        "xychart-beta",
-        "quadrantChart",
-        "packet-beta",
-        "kanban",
-        "radar-beta",
-        "treemap-beta"
-    ], StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Represents a set of keywords that indicate the opening of a sequence block in the parsed language. The set is
-    /// case-insensitive.
-    /// </summary>
-    /// <remarks>This set is used to efficiently determine whether a given string marks the start of a
-    /// sequence block, such as 'loop', 'alt', or 'opt'. The use of a frozen set ensures fast lookups and thread
-    /// safety.</remarks>
-    private static readonly FrozenSet<string> _sequenceBlockOpeners = FrozenSet.ToFrozenSet(
-    [
-        "loop", "alt", "else", "opt", "par", "and", "critical", "break", "rect"
-    ], StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Maps exact diagram type keywords to their corresponding <see cref="DiagramType"/> values.
-    /// Uses FrozenDictionary for O(1) case-insensitive lookup without string allocation.
-    /// </summary>
-    private static readonly FrozenDictionary<string, DiagramType> _exactDiagramTypes = new Dictionary<string, DiagramType>
-    {
-        ["sequenceDiagram"] = DiagramType.Sequence,
-        ["classDiagram"] = DiagramType.Class,
-        ["erDiagram"] = DiagramType.EntityRelationship,
-        ["gantt"] = DiagramType.Gantt,
-        ["pie"] = DiagramType.Pie,
-        ["mindmap"] = DiagramType.Mindmap,
-        ["timeline"] = DiagramType.Timeline,
-        ["journey"] = DiagramType.Journey,
-        ["gitGraph"] = DiagramType.GitGraph,
-        ["requirementDiagram"] = DiagramType.Requirement,
-        ["quadrantChart"] = DiagramType.Quadrant,
-        ["kanban"] = DiagramType.Kanban
-    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Represents a set of C4 model boundary type names used for case-insensitive comparisons.
-    /// </summary>
-    /// <remarks>This set includes common boundary types such as "Enterprise_Boundary", "System_Boundary",
-    /// "Container_Boundary", and "Boundary". The set is frozen for efficient lookups and uses ordinal case-insensitive
-    /// string comparison.</remarks>
-    private static readonly FrozenSet<string> _c4BoundaryTypes = FrozenSet.ToFrozenSet(
-    [
-        "Enterprise_Boundary",
-        "System_Boundary",
-        "Container_Boundary",
-        "Boundary"
-    ], StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Contains the set of block type names that are recognized as requirement-related elements.
-    /// </summary>
-    /// <remarks>The set includes common requirement block types such as 'requirement',
-    /// 'functionalRequirement', and 'designConstraint'. Comparisons are performed using case-insensitive ordinal
-    /// matching.</remarks>
-    private static readonly FrozenSet<string> _requirementBlockTypes = FrozenSet.ToFrozenSet(
-    [
-        "requirement",
-        "functionalRequirement",
-        "performanceRequirement",
-        "interfaceRequirement",
-        "physicalRequirement",
-        "designConstraint",
-        "element"
-    ], StringComparer.OrdinalIgnoreCase);
-
-    #endregion FrozenSet and FrozenDictionary Declarations
-
-    #region Allocation-free AlternateLookups
-
-    /// <summary>
-    /// Provides an alternate lookup for diagram declarations that enables allocation-free queries using read-only
-    /// character spans.
-    /// </summary>
-    /// <remarks>This lookup allows efficient membership checks against the set of diagram declarations
-    /// without allocating new strings. It is intended for scenarios where performance is critical and input data is
-    /// available as a span of characters.</remarks>
-    private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _diagramDeclarationsLookup =
-        _diagramDeclarations.GetAlternateLookup<ReadOnlySpan<char>>();
-
-    /// <summary>
-    /// Provides an alternate lookup for sequence block opener strings using a read-only character span as the key.
-    /// </summary>
-    /// <remarks>This lookup enables efficient matching of sequence block opener strings against spans of
-    /// characters, which can improve performance in scenarios where input is not already a string. The lookup is
-    /// case-insensitive and relies on the contents of the underlying set of sequence block openers.</remarks>
-    private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _sequenceBlockOpenersLookup =
-        _sequenceBlockOpeners.GetAlternateLookup<ReadOnlySpan<char>>();
-
-    /// <summary>
-    /// Provides an alternate lookup for diagram types using exact string matching with a read-only character span as
-    /// the key.
-    /// </summary>
-    /// <remarks>This lookup enables efficient retrieval of diagram types by matching the exact sequence of
-    /// characters in the input span. It is intended for scenarios where precise, case-insensitive matching is required.
-    /// The lookup is read-only and thread-safe.</remarks>
-    private static readonly FrozenDictionary<string, DiagramType>.AlternateLookup<ReadOnlySpan<char>> _exactDiagramTypesLookup =
-        _exactDiagramTypes.GetAlternateLookup<ReadOnlySpan<char>>();
-
-    /// <summary>
-    /// Provides an alternate lookup for C4 boundary types using a read-only character span as the key.
-    /// </summary>
-    /// <remarks>This lookup enables efficient, allocation-free searches for boundary types by allowing
-    /// queries with a <see cref="ReadOnlySpan{char}"/> instead of a string. It is intended
-    /// for internal use to optimize performance when working with substrings or slices of character data.</remarks>
-    private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _c4BoundaryTypesLookup =
-        _c4BoundaryTypes.GetAlternateLookup<ReadOnlySpan<char>>();
-
-    /// <summary>
-    /// Provides an alternate lookup for requirement block types using a read-only character span as the key.
-    /// </summary>
-    /// <remarks>This lookup enables efficient, case-insensitive searches for requirement block types without
-    /// allocating new strings. It is intended for scenarios where input is available as a span, such as parsing or
-    /// streaming operations.</remarks>
-    private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> _requirementBlockTypesLookup =
-        _requirementBlockTypes.GetAlternateLookup<ReadOnlySpan<char>>();
-
-    #endregion Allocation-free AlternateLookups
 
     #region Regex patterns for whitespace normalization
 
@@ -460,7 +318,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // Check for lines ending with { (class definitions, entity blocks, etc.)
-        if (EndsWithChar(previousLineTrimmed, '{'))
+        if (EndsWithChar(previousLineTrimmed, LeftBrace))
         {
             return previousIndentation + _indentationString;
         }
@@ -627,7 +485,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         string text = document.GetText(line.Offset, line.Length).Trim();
 
         // Collapse consecutive whitespace to single space for consistent comparison
-        // e.g., "flowchart  TD" -> "flowchart TD"
+        // e.g., "flowchart   TD" -> "flowchart TD"
         if (text.Length > 0)
         {
             text = WhitespaceNormalizationRegex().Replace(text, " ");
@@ -781,71 +639,49 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         int spaceIndex = lineText.IndexOf(SpaceChar);
         ReadOnlySpan<char> keyword = spaceIndex > 0 ? lineText[..spaceIndex] : lineText;
 
-        // Flowchart variants (check prefix)
-        if (keyword.StartsWith("flowchart", StringComparison.OrdinalIgnoreCase) ||
-            keyword.StartsWith("graph", StringComparison.OrdinalIgnoreCase))
+        if (keyword.IsEmpty)
         {
-            return DiagramType.Flowchart;
+            return DiagramType.Unknown;
         }
 
-        // State diagram (check prefix for stateDiagram-v2)
-        if (keyword.StartsWith("stateDiagram", StringComparison.OrdinalIgnoreCase))
+        // Try authoritative exact-name lookup first
+        // This ensures canonical names and aliases wins over permissive family fallbacks
+        if (DiagramTypeLookups.DiagramNameToTypeMappingLookup.TryGetValue(keyword, out DiagramType diagramType))
         {
-            return DiagramType.State;
+            return diagramType;
         }
 
-        // C4 diagrams (check prefix)
-        if (keyword.StartsWith("C4", StringComparison.OrdinalIgnoreCase))
+        // Fast family prefix checks (cheap, early-exit)
+        if (keyword.StartsWith(DiagramTypeNames.Flowchart, StringComparison.Ordinal) ||
+            keyword.StartsWith(DiagramTypeNames.Graph, StringComparison.Ordinal))
         {
-            return DiagramType.C4;
+            if (keyword.Equals(DiagramTypeNames.Flowchart, StringComparison.Ordinal)) return DiagramType.Flowchart;
+            if (keyword.Equals(DiagramTypeNames.FlowchartElk, StringComparison.Ordinal)) return DiagramType.FlowchartElk;
+            if (keyword.Equals(DiagramTypeNames.Graph, StringComparison.Ordinal)) return DiagramType.Graph;
+
+            // Unknown flowchart/graph variant
+            return DiagramType.Unknown;
         }
 
-        // Architecture (check prefix for architecture-beta)
-        if (keyword.StartsWith("architecture", StringComparison.OrdinalIgnoreCase))
+        if (keyword.StartsWith("C4", StringComparison.Ordinal))
         {
-            return DiagramType.Architecture;
+            // C4 family - only a few exact names to check
+            if (keyword.Equals(DiagramTypeNames.C4Context, StringComparison.Ordinal)) return DiagramType.C4Context;
+            if (keyword.Equals(DiagramTypeNames.C4Container, StringComparison.Ordinal)) return DiagramType.C4Container;
+            if (keyword.Equals(DiagramTypeNames.C4Component, StringComparison.Ordinal)) return DiagramType.C4Component;
+            if (keyword.Equals(DiagramTypeNames.C4Deployment, StringComparison.Ordinal)) return DiagramType.C4Deployment;
+            if (keyword.Equals(DiagramTypeNames.C4Dynamic, StringComparison.Ordinal)) return DiagramType.C4Dynamic;
+
+            // Unknown C4 variant
+            return DiagramType.Unknown;
         }
 
-        // Block diagram (check prefix for block)
-        if (keyword.StartsWith("block", StringComparison.OrdinalIgnoreCase))
+        if (keyword.Equals(DiagramTypeNames.ArchitectureBeta, StringComparison.Ordinal))
         {
-            return DiagramType.Block;
+            return DiagramType.ArchitectureBeta;
         }
 
-        // Sankey (check prefix for sankey)
-        if (keyword.StartsWith("sankey", StringComparison.OrdinalIgnoreCase))
-        {
-            return DiagramType.Sankey;
-        }
-
-        // XY Chart (check prefix for xychart)
-        if (keyword.StartsWith("xychart", StringComparison.OrdinalIgnoreCase))
-        {
-            return DiagramType.XYChart;
-        }
-
-        // Packet (check prefix for packet)
-        if (keyword.StartsWith("packet", StringComparison.OrdinalIgnoreCase))
-        {
-            return DiagramType.Packet;
-        }
-
-        // Radar (check prefix for radar-beta)
-        if (keyword.StartsWith("radar", StringComparison.OrdinalIgnoreCase))
-        {
-            return DiagramType.Radar;
-        }
-
-        // Treemap (check prefix for treemap)
-        if (keyword.StartsWith("treemap", StringComparison.OrdinalIgnoreCase))
-        {
-            return DiagramType.Treemap;
-        }
-
-        // Exact matches using O(1) FrozenDictionary alternate lookup (no allocation)
-        return _exactDiagramTypesLookup.TryGetValue(keyword, out DiagramType diagramType)
-            ? diagramType
-            : DiagramType.Unknown;
+        return DiagramType.Unknown;
     }
 
     /// <summary>
@@ -855,7 +691,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <returns><see langword="true"/> if the diagram uses indentation for hierarchy; otherwise, <see langword="false"/>.</returns>
     private static bool IsIndentationBasedDiagram(DiagramType diagramType)
     {
-        return diagramType is DiagramType.Mindmap or DiagramType.Treemap or DiagramType.Kanban;
+        return diagramType == DiagramType.Mindmap || diagramType == DiagramType.Treemap || diagramType == DiagramType.Kanban;
     }
 
     /// <summary>
@@ -870,7 +706,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ReadOnlySpan<char> firstWord = spaceIndex > 0 ? lineTrimmed[..spaceIndex] : lineTrimmed;
 
         // O(1) lookup using alternate lookup - no allocation
-        return _diagramDeclarationsLookup.Contains(firstWord);
+        return DiagramTypeLookups.DiagramDeclarationsLookup.Contains(firstWord);
     }
 
     /// <summary>
@@ -885,20 +721,20 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ReadOnlySpan<char> firstWord = spaceIndex > 0 ? lineTrimmed[..spaceIndex] : lineTrimmed;
 
         // Flowchart: subgraph
-        if (firstWord.Equals("subgraph", StringComparison.OrdinalIgnoreCase))
+        if (firstWord.Equals(FlowchartDiagram.BlockOpenerNames.Subgraph, StringComparison.Ordinal))
         {
             return true;
         }
 
         // Sequence diagram blocks - O(1) lookup, no allocation
-        if (_sequenceBlockOpenersLookup.Contains(firstWord))
+        if (DiagramTypeLookups.SequenceBlockOpenersLookup.Contains(firstWord))
         {
             return true;
         }
 
         // State diagram: state keyword followed by name and { (e.g., "state Active {")
-        if (firstWord.Equals("state", StringComparison.OrdinalIgnoreCase) &&
-            EndsWithChar(lineTrimmed, '{'))
+        if (firstWord.Equals(StateDiagram.BlockOpenerNames.State, StringComparison.Ordinal) &&
+            EndsWithChar(lineTrimmed, LeftBrace))
         {
             return true;
         }
@@ -906,10 +742,10 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         // Block diagram: "block:" or "block:ID" (colon must immediately follow "block" prefix)
         // Valid: "block:", "block:ID", "block:myBlock"
         // Invalid: "block-beta", "block: text with: colons"
-        if (firstWord.StartsWith("block", StringComparison.OrdinalIgnoreCase) &&
-            !firstWord.Equals("block-beta", StringComparison.OrdinalIgnoreCase))
+        if (firstWord.StartsWith(BlockDiagram.BlockOpenerNames.Block, StringComparison.Ordinal) &&
+            !firstWord.Equals("block-beta", StringComparison.Ordinal))
         {
-            int colonIndex = firstWord.IndexOf(':');
+            int colonIndex = firstWord.IndexOf(Colon);
             // Colon must be at position 5 (immediately after "block") or exist in firstWord
             if (colonIndex >= 5)
             {
@@ -918,28 +754,28 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // Gantt/Journey/Timeline: section
-        if (firstWord.Equals("section", StringComparison.OrdinalIgnoreCase))
+        if (firstWord.Equals(GeneralElementNames.Section, StringComparison.Ordinal))
         {
             return true;
         }
 
         // Architecture: group
-        if (firstWord.Equals("group", StringComparison.OrdinalIgnoreCase))
+        if (firstWord.Equals(ArchitectureDiagram.ElementNames.Group, StringComparison.Ordinal))
         {
             return true;
         }
 
         // C4: exact boundary type matches (Enterprise_Boundary, System_Boundary, etc.)
         // Extract just the keyword before any parenthesis for matching
-        int parenIndex = firstWord.IndexOf('(');
+        int parenIndex = firstWord.IndexOf(LeftParen);
         ReadOnlySpan<char> boundaryKeyword = parenIndex > 0 ? firstWord[..parenIndex] : firstWord;
-        if (_c4BoundaryTypesLookup.Contains(boundaryKeyword))
+        if (DiagramTypeLookups.C4BoundaryTypesLookup.Contains(boundaryKeyword))
         {
             return true;
         }
 
         // Requirement diagram: exact matches for known requirement/element types
-        if (_requirementBlockTypesLookup.Contains(firstWord))
+        if (DiagramTypeLookups.RequirementBlockTypesLookup.Contains(firstWord))
         {
             return true;
         }
@@ -960,7 +796,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // Single closing brace
-        if (lineTrimmed.Length == 1 && lineTrimmed[0] == '}')
+        if (lineTrimmed.Length == 1 && lineTrimmed[0] == RightBrace)
         {
             return true;
         }
@@ -974,13 +810,13 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         // Check for "end" (exact match or followed by whitespace)
         if (lineTrimmed.Length == 3)
         {
-            return lineTrimmed.Equals("end", StringComparison.OrdinalIgnoreCase);
+            return lineTrimmed.Equals(GeneralElementNames.End, StringComparison.Ordinal);
         }
 
         // "end" followed by whitespace
         if (char.IsWhiteSpace(lineTrimmed[3]))
         {
-            return lineTrimmed[..3].Equals("end", StringComparison.OrdinalIgnoreCase);
+            return lineTrimmed[..3].Equals(GeneralElementNames.End, StringComparison.Ordinal);
         }
 
         return false;
@@ -993,7 +829,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <returns><see langword="true"/> if the line is a C4 boundary opener; otherwise, <see langword="false"/>.</returns>
     private static bool IsC4BoundaryOpener(ReadOnlySpan<char> lineTrimmed)
     {
-        if (!EndsWithChar(lineTrimmed, '{'))
+        if (!EndsWithChar(lineTrimmed, LeftBrace))
         {
             return false;
         }
@@ -1003,11 +839,11 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
 
         ReadOnlySpan<char> firstWord = spaceIndex > 0 ? lineTrimmed[..spaceIndex] : lineTrimmed;
 
-        int parenIndex = firstWord.IndexOf('(');
+        int parenIndex = firstWord.IndexOf(LeftParen);
         ReadOnlySpan<char> boundaryKeyword = parenIndex > 0 ? firstWord[..parenIndex] : firstWord;
 
         // Use exact match against known C4 boundary types
-        return _c4BoundaryTypesLookup.Contains(boundaryKeyword);
+        return DiagramTypeLookups.C4BoundaryTypesLookup.Contains(boundaryKeyword);
     }
 
     /// <summary>
@@ -1026,14 +862,14 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     private static bool EndsWithColonNotInValue(ReadOnlySpan<char> lineTrimmed)
     {
         // Must end with colon
-        if (lineTrimmed.IsEmpty || lineTrimmed[^1] != ':')
+        if (lineTrimmed.IsEmpty || lineTrimmed[^1] != Colon)
         {
             return false;
         }
 
         // Find the first colon to check for inline values (e.g., "key: value" or "label: test:")
         // If the first colon has non-whitespace content after it, this is an inline value
-        int firstColonIndex = lineTrimmed.IndexOf(':');
+        int firstColonIndex = lineTrimmed.IndexOf(Colon);
         if (firstColonIndex < lineTrimmed.Length - 1)
         {
             ReadOnlySpan<char> afterFirstColon = lineTrimmed[(firstColonIndex + 1)..].Trim();
@@ -1197,6 +1033,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <param name="maxLevels">The maximum number of indentation levels to cache. Must be greater than or equal to 0.</param>
     /// <returns>An array of strings where each element represents the indentation for its corresponding level. The first element
     /// is an empty string for level 0.</returns>
+    /// <remarks>This method is only called during initialization to pre-allocate common indentation strings.</remarks>
     private static string[] CreateIndentationCache(string indent, int maxLevels)
     {
         string[] cache = new string[maxLevels + 1];
@@ -1233,37 +1070,5 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         /// The line is within the Mermaid diagram content.
         /// </summary>
         Diagram
-    }
-
-    /// <summary>
-    /// Represents the type of Mermaid diagram detected in the document.
-    /// </summary>
-    [SuppressMessage("ReSharper", "UnusedMember.Local", Justification = "All enum values may be used for diagram type detection")]
-    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Enum names match Mermaid diagram types")]
-    private enum DiagramType
-    {
-        Unknown,
-        Flowchart,
-        Sequence,
-        State,
-        Class,
-        EntityRelationship,
-        Gantt,
-        Pie,
-        Mindmap,
-        Timeline,
-        Journey,
-        GitGraph,
-        C4,
-        Architecture,
-        Block,
-        Requirement,
-        Sankey,
-        XYChart,
-        Quadrant,
-        Packet,
-        Kanban,
-        Radar,
-        Treemap
     }
 }
