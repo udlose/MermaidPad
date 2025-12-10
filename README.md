@@ -149,10 +149,50 @@ C4Context
 </details>
 
 <details>
-<summary>Class Diagrams</summary>
+<summary>Class Diagrams (including v2)</summary>
 
 ```
 classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +String breed
+        +bark()
+    }
+    Animal <|-- Dog
+    class Cat {
+        +String color
+        +meow()
+    }
+    Animal <|-- Cat
+    class Bird {
+        +String species
+        +fly()
+    }
+    Animal <|-- Bird
+    class Fish {
+        +String type
+        +swim()
+    }
+    Animal <|-- Fish
+    class Reptile {
+        +String habitat
+        +crawl()
+    }
+    Animal <|-- Reptile
+    class Insect {
+        +String wingspan
+        +buzz()
+    }
+    Animal <|-- Insect
+```
+
+Class Diagram v2:
+```
+classDiagram-v2
     class Animal {
         +String name
         +int age
@@ -666,7 +706,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary>State Diagrams</summary>
+<summary>State Diagrams (including v2)</summary>
 
 ```
 stateDiagram
@@ -676,6 +716,33 @@ stateDiagram
     Processing --> Error : fail
     Completed --> Idle : reset
     Error --> Idle : reset
+```
+
+State Diagram v2:
+```
+stateDiagram-v2
+    [*] --> First
+
+    state First {
+        [*] --> Second
+
+        state Second {
+            [*] --> second
+            second --> Third
+
+            state Third {
+                [*] --> third
+                third --> [*]
+            }
+        }
+    }
+
+stateDiagram-v2
+    state if_state <<choice>>
+    [*] --> IsPositive
+    IsPositive --> if_state
+    if_state --> False: if n < 0
+    if_state --> True : if n >= 0
 ```
 <img width="2320" height="1361" alt="State Diagram Example" src="https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be" />
 </details>
@@ -747,6 +814,7 @@ xychart-beta
   bar [200,300,400,500,600,700]
 ```
 </details>
+
 ---
 
 ## Requirements
