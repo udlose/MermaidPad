@@ -1,7 +1,16 @@
-xychart-beta
-  title "Performance Improvements"
-  x-axis ["2020","2021","2022","2023","2024","2025"]
-  y-axis "Requests per second" 0 --> 1200
-  line [400,650,800,950,1100,1180]
-  line [300,500,680,760,820,900]
-  bar [200,300,400,500,600,700]
+---
+config:
+    xyChart:
+        width: 900
+        height: 600
+        showDataLabel: true
+    themeVariables:
+        xyChart:
+            titleColor: "#ff0000"
+---
+xychart
+    title "Sales Revenue"
+    x-axis [jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec]
+    y-axis "Revenue (in $)" 4000 --> 11000
+    bar [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
+    line [5000, 6000, 7500, 8200, 9500, 10500, 11000, 10200, 9200, 8500, 7000, 6000]
