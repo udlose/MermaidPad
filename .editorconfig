@@ -85,6 +85,7 @@ csharp_style_prefer_readonly_struct_member = true:suggestion
 csharp_style_prefer_simple_property_accessors = true:suggestion
 dotnet_diagnostic.RCS1261.severity = warning
 dotnet_diagnostic.RCS1133.severity = suggestion
+dotnet_diagnostic.CA1859.severity = error
 
 # VSTHRD analyzer rules - see https://microsoft.github.io/vs-threading/analyzers/
 dotnet_diagnostic.VSTHRD001.severity = error
