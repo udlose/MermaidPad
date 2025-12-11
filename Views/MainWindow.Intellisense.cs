@@ -20,6 +20,7 @@
 
 using Avalonia.Input;
 using AvaloniaEdit.CodeCompletion;
+using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.ObjectPoolPolicies;
 using MermaidPad.Services.Editor;
@@ -54,16 +55,6 @@ public partial class MainWindow
 
     private readonly Dictionary<string, IntellisenseCompletionData> _wrapperCache =
         new Dictionary<string, IntellisenseCompletionData>(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Provides a static array of completion data for recognized keywords used in various Mermaid diagram types.
-    /// </summary>
-    /// <remarks>This array includes keywords relevant to multiple Mermaid diagram syntaxes, such as
-    /// architecture, flowchart, sequence, class, state, ER, Gantt, pie, gitGraph, journey, mindmap, requirement, and C4
-    /// diagrams. The array may contain duplicate entries for keywords that are valid in more than one diagram type. The
-    /// data is intended for use in IntelliSense or code completion scenarios to assist users authoring Mermaid
-    /// diagrams.</remarks>
-    private static readonly IntellisenseCompletionData[] _staticKeywords = IntellisenseKeywords.GetAggregatedDistinctKeywords();
 
     /// <summary>
     /// Indicates, for each character code, whether the character is considered a trigger character.
@@ -184,22 +175,16 @@ public partial class MainWindow
     /// Determines whether typing the specified character should trigger code completion in the editor.
     /// </summary>
     /// <remarks>Completion is triggered for certain immediate characters, such as '>' and space, or when a
-    /// word threshold is met (e.g., after typing at least two valid identifier characters). The method does not trigger
+    /// word threshold is met (e.g., after typing at least one valid identifier character). The method does not trigger
     /// completion for non-trigger characters or when insufficient context is present.</remarks>
-    /// <param name="typedChar">The character that was typed by the user.
-    /// Must be a valid trigger character for completion to be considered.</param>
+    /// <param name="typedChar">The character that was typed by the user must be a valid
+    /// trigger character for completion to be considered.</param>
     /// <returns>true if code completion should be triggered for the specified character; otherwise, false.</returns>
     private static bool ShouldTriggerCompletion(char typedChar)
     {
-        // Fast fail guard (must go first)
-        if (!IsTriggerChar(typedChar))
-        {
-            return false;
-        }
-
-        // Threshold of "characters typed before triggering completion" is 1 for this editor.
-        // If more than 1 is required, we can use the logic below.
-        return true;
+        // NOTE: Threshold of "characters typed before triggering completion" is 1 for this editor.
+        // If this is changed to use more than 1 character, we can use the logic below.
+        return IsTriggerChar(typedChar);
 
         //// Immediate Triggers: arrows, spaces
         //if (typedChar == '>' || typedChar == ' ')
@@ -240,7 +225,19 @@ public partial class MainWindow
                 return;
             }
 
-            // Scan Document
+#if DEBUG
+            Stopwatch sw = Stopwatch.StartNew();
+#endif
+
+            // Detect current diagram type using the indentation strategy cache
+            MermaidIndentationStrategy? indentationStrategy = Editor.TextArea.IndentationStrategy as MermaidIndentationStrategy;
+            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(Editor.Document)
+                ?? DiagramType.Unknown;
+
+            // Get context-aware keywords
+            IntellisenseCompletionData[] contextKeywords = IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType);
+
+            // Scan document for user-defined nodes/identifiers
             IntellisenseScanner scanner = new IntellisenseScanner(docText.AsSpan(), reusableSet, _stringInternPool);
             scanner.Scan();
 
@@ -251,15 +248,20 @@ public partial class MainWindow
                 StartOffset = GetWordStartOffset(Editor.CaretOffset, docText)
             };
 
-            IList<ICompletionData>? data = _completionWindow.CompletionList.CompletionData;
-            PopulateCompletionData(data, reusableSet);
+            IList<ICompletionData>? completionData = _completionWindow.CompletionList.CompletionData;
+            PopulateCompletionData(completionData, reusableSet, contextKeywords);
 
             _completionWindow.Show();
             _completionWindow.Closed += CompletionWindow_Closed;
+
+#if DEBUG
+            sw.Stop();
+            _logger.LogDebug("Intellisense completion triggered in {ElapsedMilliseconds} ms (Diagram: {DiagramType})",
+                sw.ElapsedMilliseconds, currentDiagramType);
+#endif
         }
         catch (Exception ex)
         {
-            // Log, but swallow exceptions to avoid crashing on completion errors
             _logger.LogDebug(ex, "Error showing completion window");
             Debug.Fail("Error showing completion window", ex.ToString());
         }
@@ -271,26 +273,29 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Populates the specified completion data list with static keywords and wrappers for scanned node texts.
+    /// Populates the specified completion data list with context-aware keywords and scanned node entries, sorted
+    /// alphabetically by <see cref="StringComparison.OrdinalIgnoreCase"/> for consistent ordering for use in code
+    /// completion scenarios where "abc" and "ABC" should be grouped together.
     /// </summary>
-    /// <remarks>Static keywords are always added to the completion data. For each node text in <paramref
-    /// name="scannedNodes"/>, a wrapper is added to the list; if a wrapper does not already exist in the cache, a new
-    /// one is created and cached.</remarks>
-    /// <param name="targetList">The list to which completion data items will be added. Must not be null.</param>
-    /// <param name="scannedNodes">A set of node text strings to be included in the completion data.
-    /// Each string represents a node to be wrapped and added.</param>
-    [SuppressMessage("ReSharper", "SuggestBaseTypeForParameter", Justification = "AvaloniaEdit's CompletionList.CompletionData implements IList")]
-    private void PopulateCompletionData(IList<ICompletionData> targetList, HashSet<string> scannedNodes)
+    /// <remarks>This method combines "context-aware" keywords and scanned node names into a single,
+    /// alphabetically sorted, by <see cref="StringComparison.OrdinalIgnoreCase"/>, list of completion data.
+    /// The resulting items are added to the target list, which is displayed in an IntelliSense completion window in TextEditor.
+    /// The method does not clear the target list before adding new items; callers should ensure the list is in the desired state prior to invocation.</remarks>
+    /// <param name="targetList">The list to which the combined and sorted completion data will be added. Must not be null.</param>
+    /// <param name="scannedNodes">A set of node names that have been scanned and should be included in the completion data. Cannot be null.</param>
+    /// <param name="contextAwareKeywords">An array of context-specific completion keywords to be included in the completion data. Cannot be null.</param>
+    [SuppressMessage("ReSharper", "SuggestBaseTypeForParameter", Justification = "AvaloniaEdit's CompletionList.CompletionData implements IList<ICompletionData>, not ICollection<ICompletionData>")]
+    private void PopulateCompletionData(
+        IList<ICompletionData> targetList,
+        HashSet<string> scannedNodes,
+        IntellisenseCompletionData[] contextAwareKeywords)
     {
-        // Create a temporary buffer for sorting
-        // Size = Keywords + Scanned Nodes
-        List<ICompletionData> tempList = new List<ICompletionData>(_staticKeywords.Length + scannedNodes.Count);
+        // Create a temporary buffer for sorting. It's pre-sized to Context Keywords + Scanned Nodes
+        List<ICompletionData> tempList = new List<ICompletionData>(contextAwareKeywords.Length + scannedNodes.Count);
 
-        // Add static keywords
-        tempList.AddRange(_staticKeywords);
-
-
-        // TODO de-duplicate scanned nodes against static keywords?
+        // Make the CompletionWindow "context-aware" so that only relevant keywords are shown for the current diagram type.
+        // So, only add context-aware keywords instead of all static keywords
+        tempList.AddRange(contextAwareKeywords);
 
         // Add Scanned Nodes
         foreach (string nodeText in scannedNodes)
@@ -307,8 +312,8 @@ public partial class MainWindow
         // Sort the combined list. Use ordinal ignore-case for consistent ordering to group similar items, regardless of casing.
         tempList.Sort(static (a, b) => string.Compare(a.Text, b.Text, StringComparison.OrdinalIgnoreCase));
 
-        // Dump into the Window. Unfortunately CompletionData is not an implementation of List<T> that supports AddRange,
-        // so we have to iterate.
+        // Dump into the Window. Unfortunately CompletionData is not an implementation of List<T> that supports AddRange.
+        // CompletionList.CompletionData only implements IList<ICompletionData>, so we have to iterate and add one-by-one.
         foreach (ICompletionData item in tempList)
         {
             targetList.Add(item);

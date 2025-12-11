@@ -371,7 +371,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// </list>
     /// </para>
     /// </remarks>
-    private DiagramType GetCachedDiagramType(TextDocument document)
+    internal DiagramType GetCachedDiagramType(TextDocument document)
     {
         // Fast path: Check if cached line number is still valid and content matches
         if (_cachedDeclarationLineNumber > 0 && _cachedDeclarationLineNumber <= document.LineCount)
