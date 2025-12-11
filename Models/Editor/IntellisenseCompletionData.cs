@@ -18,11 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace MermaidPad.Models.Editor;
 
@@ -35,6 +39,11 @@ namespace MermaidPad.Models.Editor;
 /// value to influence suggestion ordering. Instances are immutable and thread-safe.</remarks>
 public sealed class IntellisenseCompletionData : ICompletionData
 {
+    /// <summary>
+    /// Represents the ABC icon displayed in the CompletionWindow as a static <see cref="RenderTargetBitmap"/> resource.
+    /// </summary>
+    internal static readonly RenderTargetBitmap? AbcIcon = CreateAbcIconBitmap();
+
     /// <summary>
     /// Gets the text content associated with this instance.
     /// </summary>
@@ -88,5 +97,42 @@ public sealed class IntellisenseCompletionData : ICompletionData
 
         // if TextArea is null, just return without failure
         textArea?.Document.Replace(completionSegment, Text);
+    }
+
+    /// <summary>
+    /// Creates a 48x48 pixel bitmap containing the text "abc" rendered in a bold Segoe UI font and colored with the
+    /// Visual Studio Code purple accent color.
+    /// </summary>
+    /// <remarks>The generated bitmap uses a color that is visually consistent in both light and dark themes.
+    /// The text is centered within the bitmap for optimal icon appearance.</remarks>
+    /// <returns>A RenderTargetBitmap containing the rendered "abc" icon.</returns>
+    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Actual name of font family")]
+    private static RenderTargetBitmap CreateAbcIconBitmap()
+    {
+        const int size = 48;
+        RenderTargetBitmap bitmap = new RenderTargetBitmap(new PixelSize(size, size), new Vector(96, 96));
+
+        // Use VS Code Purple color which works in both ThemeModes (light and dark)
+        SolidColorBrush vsCodePurpleBrush = SolidColorBrush.Parse("#B180D7");
+        Typeface segoeUINormalBoldTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyle.Normal, FontWeight.Bold);
+
+        FormattedText formattedText = new FormattedText(
+            "abc",
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            segoeUINormalBoldTypeface,
+            32,  // larger font for the bitmap
+            vsCodePurpleBrush
+        );
+
+        // Render to bitmap
+        using DrawingContext ctx = bitmap.CreateDrawingContext();
+
+        // Center the text in the bitmap
+        double x = (size - formattedText.Width) / 2;
+        double y = (size - formattedText.Height) / 2;
+        ctx.DrawText(formattedText, new Point(x, y));
+
+        return bitmap;
     }
 }
