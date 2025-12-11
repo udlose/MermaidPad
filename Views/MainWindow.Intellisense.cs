@@ -18,9 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia;
 using Avalonia.Input;
-using Avalonia.Media;
 using AvaloniaEdit.CodeCompletion;
 using MermaidPad.Models.Editor;
 using MermaidPad.ObjectPoolPolicies;
@@ -29,7 +27,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 
 namespace MermaidPad.Views;
 
@@ -48,7 +45,6 @@ namespace MermaidPad.Views;
 public partial class MainWindow
 {
     private const int LookupTableSize = 128;
-    private static readonly DrawingImage? _abcIcon = CreateAbcIcon();
     private CompletionWindow? _completionWindow;
     private static readonly ObjectPool<HashSet<string>> _nodeBufferPool =
         new DefaultObjectPool<HashSet<string>>(new HashSetPooledObjectPolicy());
@@ -302,16 +298,17 @@ public partial class MainWindow
             // Only allocate new wrapper if we've never seen this node before
             if (!_wrapperCache.TryGetValue(nodeText, out IntellisenseCompletionData? wrapper))
             {
-                wrapper = new IntellisenseCompletionData(nodeText, 0, _abcIcon);
+                wrapper = new IntellisenseCompletionData(nodeText, 0, IntellisenseCompletionData.AbcIcon);
                 _wrapperCache[nodeText] = wrapper;
             }
             tempList.Add(wrapper);
         }
 
-        // Sort the combined list
+        // Sort the combined list. Use ordinal ignore-case for consistent ordering to group similar items, regardless of casing.
         tempList.Sort(static (a, b) => string.Compare(a.Text, b.Text, StringComparison.OrdinalIgnoreCase));
 
-        // Dump into the Window. Unfortunately CompletionData is not an implementation of List<T> that supports AddRange, so we have to iterate.
+        // Dump into the Window. Unfortunately CompletionData is not an implementation of List<T> that supports AddRange,
+        // so we have to iterate.
         foreach (ICompletionData item in tempList)
         {
             targetList.Add(item);
@@ -368,39 +365,6 @@ public partial class MainWindow
     /// <param name="c">The character to evaluate as a potential trigger for completion.</param>
     /// <returns>true if the character is a completion trigger; otherwise, false.</returns>
     private static bool IsTriggerChar(char c) => c < LookupTableSize && _completionTriggerFlags[c];
-
-    /// <summary>
-    /// Creates a vector-based icon displaying the text "abc" in the VS Code purple color.
-    /// </summary>
-    /// <remarks>The icon uses the Segoe UI font in bold style and a small font size suitable for use as an
-    /// icon. The color is chosen to provide good visibility in both light and dark themes.</remarks>
-    /// <returns>A <see cref="DrawingImage"/> containing the formatted "abc" icon.</returns>
-    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Actual name of font family")]
-    private static DrawingImage CreateAbcIcon()
-    {
-        // Use VS Code Purple color which works in both ThemeModes (light and dark)
-        SolidColorBrush vsCodePurpleBrush = SolidColorBrush.Parse("#B180D7");
-        Typeface segoeUINormalBoldTypeface = new Typeface(new FontFamily("Segoe UI"), FontStyle.Normal, FontWeight.Bold);
-
-        // Create formatted vector text
-        FormattedText formattedText = new FormattedText(
-            "abc",
-            CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight,
-            segoeUINormalBoldTypeface,
-            10,             // Font size (small, icon-sized)
-            vsCodePurpleBrush
-        );
-
-        Geometry? geometry = formattedText.BuildGeometry(new Point(0, 0));
-        GeometryDrawing drawing = new GeometryDrawing
-        {
-            Brush = vsCodePurpleBrush,
-            Geometry = geometry
-        };
-
-        return new DrawingImage { Drawing = drawing };
-    }
 
     /// <summary>
     /// Unsubscribes event handlers related to Intellisense functionality from the editor and completion window.
