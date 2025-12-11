@@ -3,7 +3,7 @@
 name: Greetings
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
   issues:
@@ -22,8 +22,6 @@ jobs:
     steps:
       - uses: actions/first-interaction@v3
         with:
-          # TODO - DaveBlack: which is better to use here?
-          #repo_token: ${{ secrets.FIRST_INTERACTION }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           issue_message: |
             # Welcome to MermaidPad!
