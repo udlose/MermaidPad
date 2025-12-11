@@ -43,7 +43,7 @@ jobs:
       contents: write           # To update artifacts and create releases
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download published artifact
         uses: actions/download-artifact@v6
