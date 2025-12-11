@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using MermaidPad.Models.Constants;
 using System.Diagnostics.CodeAnalysis;
 
@@ -1263,9 +1263,9 @@ internal static class IntellisenseKeywords
     /// <param name="keywords">An array of keyword strings to be used for creating completion data. Cannot be null or empty.</param>
     /// <param name="priority">The priority value to assign to each completion data item. Defaults to 0.</param>
     /// <param name="icon">An optional icon to associate with each completion data item. If null, no icon is assigned.</param>
-    /// <returns>An array of IntellisenseCompletionData objects corresponding to the provided keywords. Returns an empty array if
+    /// <returns>An array of <see cref="IntellisenseCompletionData"/> objects corresponding to the provided keywords. Returns an empty array if
     /// no keywords are specified.</returns>
-    internal static IntellisenseCompletionData[] CreateCompletionData(string[] keywords, int priority = 0, DrawingImage? icon = null)
+    internal static IntellisenseCompletionData[] CreateCompletionData(string[] keywords, int priority = 0, RenderTargetBitmap? icon = null)
     {
         if (keywords.Length == 0)
         {
@@ -1287,5 +1287,5 @@ internal static class IntellisenseKeywords
     /// <returns>An array of <see cref="IntellisenseCompletionData"/> objects representing the distinct keywords. The array will
     /// be empty if no keywords are available.</returns>
     internal static IntellisenseCompletionData[] GetAggregatedDistinctKeywords() =>
-        CreateCompletionData(AggregatedDistinctKeywords, priority: 0);
+        CreateCompletionData(AggregatedDistinctKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
 }
