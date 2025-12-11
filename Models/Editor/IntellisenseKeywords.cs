@@ -33,7 +33,8 @@ namespace MermaidPad.Models.Editor;
 /// to populate intellisense completion lists in the editor.
 /// Contains approximately 815+ keywords across 25 different diagram types and categories.
 /// </remarks>
-[SuppressMessage("Maintainability", "S1192:String literals should not be duplicated", Justification = "Easier to maintain as separate arrays for each diagram type - even if there are duplicates.")]
+[SuppressMessage("Maintainability", "S1192:String literals should not be duplicated",
+    Justification = "Easier to maintain as separate arrays for each diagram type - even if there are duplicates.")]
 internal static class IntellisenseKeywords
 {
     #region Keyword String Arrays
@@ -47,7 +48,7 @@ internal static class IntellisenseKeywords
     /// These keywords are used in the frontmatter section of Mermaid diagrams (delimited by ---).
     /// Includes configuration options, theme settings, and boolean values.
     /// </remarks>
-    internal static readonly string[] FrontmatterKeywords =
+    private static readonly string[] _frontmatterKeywords =
     [
         Frontmatter.Comment,
         Frontmatter.Mermaid,
@@ -85,7 +86,7 @@ internal static class IntellisenseKeywords
     /// Contains general theming configuration keywords for Mermaid diagrams.
     /// See: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md?plain=1
     /// </summary>
-    internal static readonly string[] ThemingGeneralKeywords =
+    private static readonly string[] _themingGeneralKeywords =
     [
         "darkMode:",
         "background:",
@@ -117,7 +118,7 @@ internal static class IntellisenseKeywords
     /// <summary>
     /// Contains CSS styling keywords applicable to Mermaid diagram elements.
     /// </summary>
-    internal static readonly string[] CssStylesKeywords =
+    private static readonly string[] _cssStylesKeywords =
     [
         CssStyles.CssStyle,
         CssStyles.BackgroundColor,
@@ -145,7 +146,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Architecture diagrams (architecture-beta).
     /// See: https://mermaid.js.org/syntax/architecture.html
     /// </summary>
-    internal static readonly string[] ArchitectureDiagramKeywords =
+    private static readonly string[] _architectureDiagramKeywords =
     [
         DiagramTypeNames.ArchitectureBeta,
         ArchitectureDiagram.ElementNames.Cloud,
@@ -172,7 +173,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Block diagrams (block).
     /// See: https://mermaid.js.org/syntax/block.html
     /// </summary>
-    internal static readonly string[] BlockDiagramKeywords =
+    private static readonly string[] _blockDiagramKeywords =
     [
         DiagramTypeNames.Block,
         "columns",
@@ -189,7 +190,7 @@ internal static class IntellisenseKeywords
     /// See: https://mermaid.js.org/syntax/c4.html
     /// </summary>
     //TODO: this type is still experimental and may change. Revisit at some point to adjust as needed.
-    internal static readonly string[] C4DiagramKeywords =
+    private static readonly string[] _c4DiagramKeywords =
     [
         DiagramTypeNames.C4Component,
         DiagramTypeNames.C4Container,
@@ -278,7 +279,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Class diagrams (classDiagram, classDiagram-v2).
     /// See: https://mermaid.js.org/syntax/classDiagram.html
     /// </summary>
-    internal static readonly string[] ClassDiagramKeywords =
+    private static readonly string[] _classDiagramKeywords =
     [
         DiagramTypeNames.ClassDiagram,
         DiagramTypeNames.ClassDiagramV2,
@@ -313,8 +314,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Entity Relationship (ER) diagrams.
     /// See: https://mermaid.js.org/syntax/entityRelationshipDiagram.html
     /// </summary>
-    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
-    internal static readonly string[] ERDiagramKeywords =
+    private static readonly string[] _erDiagramKeywords =
     [
         DiagramTypeNames.ERDiagram,
         "allows",
@@ -340,7 +340,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Flowchart/Graph diagrams, including all shape types.
     /// See: https://mermaid.js.org/syntax/flowchart.html
     /// </summary>
-    internal static readonly string[] FlowchartKeywords =
+    private static readonly string[] _flowchartKeywords =
     [
         DiagramTypeNames.Graph,
         DiagramTypeNames.Flowchart,
@@ -562,7 +562,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Gantt charts.
     /// See: https://mermaid.js.org/syntax/gantt.html
     /// </summary>
-    internal static readonly string[] GanttChartKeywords =
+    private static readonly string[] _ganttChartKeywords =
     [
         DiagramTypeNames.Gantt,
         "dateFormat",
@@ -621,7 +621,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Git Graph diagrams.
     /// See: https://mermaid.js.org/syntax/gitgraph.html
     /// </summary>
-    internal static readonly string[] GitGraphKeywords =
+    private static readonly string[] _gitGraphKeywords =
     [
         DiagramTypeNames.GitGraph,
         "commit",
@@ -692,7 +692,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Kanban diagrams.
     /// See: https://mermaid.js.org/syntax/kanban.html
     /// </summary>
-    internal static readonly string[] KanbanKeywords =
+    private static readonly string[] _kanbanKeywords =
     [
         DiagramTypeNames.Kanban,
         "todo",
@@ -710,7 +710,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Mindmap diagrams.
     /// See: https://mermaid.js.org/syntax/mindmap.html
     /// </summary>
-    internal static readonly string[] MindmapKeywords =
+    private static readonly string[] _mindmapKeywords =
     [
         DiagramTypeNames.Mindmap,
         "root",
@@ -725,7 +725,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Packet diagrams.
     /// See: https://mermaid.js.org/syntax/packet.html
     /// </summary>
-    internal static readonly string[] PacketKeywords =
+    private static readonly string[] _packetKeywords =
     [
         DiagramTypeNames.Packet,
         GeneralElementNames.Title,
@@ -745,7 +745,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Pie charts.
     /// See: https://mermaid.js.org/syntax/pie.html
     /// </summary>
-    internal static readonly string[] PieChartKeywords =
+    private static readonly string[] _pieChartKeywords =
     [
         DiagramTypeNames.Pie,
         "showData",
@@ -773,7 +773,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Quadrant Chart diagrams.
     /// See: https://mermaid.js.org/syntax/quadrantChart.html
     /// </summary>
-    internal static readonly string[] QuadrantChartKeywords =
+    private static readonly string[] _quadrantChartKeywords =
     [
         DiagramTypeNames.QuadrantChart,
         GeneralElementNames.Title,
@@ -831,7 +831,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Radar charts (radar-beta).
     /// See: https://mermaid.js.org/syntax/radar.html
     /// </summary>
-    internal static readonly string[] RadarChartKeywords =
+    private static readonly string[] _radarChartKeywords =
     [
         DiagramTypeNames.RadarBeta,
         GeneralElementNames.Title,
@@ -878,7 +878,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Requirement diagrams.
     /// See: https://mermaid.js.org/syntax/requirementDiagram.html
     /// </summary>
-    internal static readonly string[] RequirementDiagramKeywords =
+    private static readonly string[] _requirementDiagramKeywords =
     [
         DiagramTypeNames.RequirementDiagram,
         RequirementDiagram.BlockTypes.Requirement,
@@ -917,7 +917,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Sankey diagrams (sankey).
     /// See: https://mermaid.js.org/syntax/sankey.html
     /// </summary>
-    internal static readonly string[] SankeyKeywords =
+    private static readonly string[] _sankeyKeywords =
     [
         DiagramTypeNames.Sankey,
         "source",
@@ -942,7 +942,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Sequence diagrams.
     /// See: https://mermaid.js.org/syntax/sequenceDiagram.html
     /// </summary>
-    internal static readonly string[] SequenceDiagramKeywords =
+    private static readonly string[] _sequenceDiagramKeywords =
     [
         DiagramTypeNames.SequenceDiagram,
         SequenceDiagram.ParticipantTypes.Participant,
@@ -1049,7 +1049,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to State diagrams (stateDiagram, stateDiagram-v2).
     /// See: https://mermaid.js.org/syntax/stateDiagram.html
     /// </summary>
-    internal static readonly string[] StateDiagramKeywords =
+    private static readonly string[] _stateDiagramKeywords =
     [
         DiagramTypeNames.StateDiagram,
         DiagramTypeNames.StateDiagramV2,
@@ -1084,7 +1084,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Timeline diagrams.
     /// See: https://mermaid.js.org/syntax/timeline.html
     /// </summary>
-    internal static readonly string[] TimelineKeywords =
+    private static readonly string[] _timelineKeywords =
     [
         DiagramTypeNames.Timeline,
         GeneralElementNames.Title,
@@ -1103,7 +1103,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to Treemap diagrams (treemap).
     /// See: https://mermaid.js.org/syntax/treemap.html
     /// </summary>
-    internal static readonly string[] TreemapKeywords =
+    private static readonly string[] _treemapKeywords =
     [
         DiagramTypeNames.Treemap,
         GeneralElementNames.Title,
@@ -1130,7 +1130,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to User Journey diagrams.
     /// See: https://mermaid.js.org/syntax/userJourney.html
     /// </summary>
-    internal static readonly string[] UserJourneyKeywords =
+    private static readonly string[] _userJourneyKeywords =
     [
         DiagramTypeNames.UserJourney,
         GeneralElementNames.Section,
@@ -1154,8 +1154,7 @@ internal static class IntellisenseKeywords
     /// Contains keywords specific to XY Chart diagrams (xychart).
     /// See: https://mermaid.js.org/syntax/xyChart.html
     /// </summary>
-    [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
-    internal static readonly string[] XYChartKeywords =
+    private static readonly string[] _xyChartKeywords =
     [
         DiagramTypeNames.XYChart,
         GeneralElementNames.Title,
@@ -1211,53 +1210,44 @@ internal static class IntellisenseKeywords
     /// type. This field is intended for internal use to facilitate keyword lookups and categorization.</remarks>
     private static readonly string[][] _allSourceArrays =
     [
-        FrontmatterKeywords,
-        ThemingGeneralKeywords,
-        CssStylesKeywords,
-        ArchitectureDiagramKeywords,
-        BlockDiagramKeywords,
-        C4DiagramKeywords,
-        ClassDiagramKeywords,
-        ERDiagramKeywords,
-        FlowchartKeywords,
-        GanttChartKeywords,
-        GitGraphKeywords,
-        KanbanKeywords,
-        MindmapKeywords,
-        PacketKeywords,
-        PieChartKeywords,
-        QuadrantChartKeywords,
-        RadarChartKeywords,
-        RequirementDiagramKeywords,
-        SankeyKeywords,
-        SequenceDiagramKeywords,
-        StateDiagramKeywords,
-        TimelineKeywords,
-        TreemapKeywords,
-        UserJourneyKeywords,
-        XYChartKeywords
+        _frontmatterKeywords,
+        _themingGeneralKeywords,
+        _cssStylesKeywords,
+        _architectureDiagramKeywords,
+        _blockDiagramKeywords,
+        _c4DiagramKeywords,
+        _classDiagramKeywords,
+        _erDiagramKeywords,
+        _flowchartKeywords,
+        _ganttChartKeywords,
+        _gitGraphKeywords,
+        _kanbanKeywords,
+        _mindmapKeywords,
+        _packetKeywords,
+        _pieChartKeywords,
+        _quadrantChartKeywords,
+        _radarChartKeywords,
+        _requirementDiagramKeywords,
+        _sankeyKeywords,
+        _sequenceDiagramKeywords,
+        _stateDiagramKeywords,
+        _timelineKeywords,
+        _treemapKeywords,
+        _userJourneyKeywords,
+        _xyChartKeywords
     ];
 
     /// <summary>
-    /// Provides a collection of all distinct keywords aggregated from the source arrays.
+    /// Gets an array containing all distinct keywords aggregated from the available source arrays.
     /// </summary>
-    /// <remarks>
-    /// <para>This array contains only unique keyword values, preserving no particular order. The
-    /// aggregation avoids repeated resizing and copying by flattening and deduplicating the source arrays
-    /// efficiently.</para>
-    /// <para>This SelectMany approach avoids the costly <see cref="List{T}"/> resizing and copying
-    /// associated with calling <see cref="List{T}.AddRange"/> multiple times.</para>
-    /// </remarks>
-    internal static readonly string[] AggregatedDistinctKeywords = _allSourceArrays
-        // No need to sort here; we sort later in PopulateCompletionData
-        .SelectMany(static arr => arr)
-        .Distinct()     // Avoid duplicates like "database", "section"
-        .ToArray();     // Using array for better memory locality and keeping this data immutable
+    /// <remarks>The returned array contains only unique keyword values, with duplicates removed. The order of
+    /// keywords in the array is not guaranteed.</remarks>
+    internal static readonly string[] AggregatedDistinctKeywords = FlattenToDistinctKeywords(_allSourceArrays);
 
     #endregion Keyword String Arrays
 
     /// <summary>
-    /// Retrieves context-aware completion data for the specified diagram type.
+    /// Retrieves context-aware completion data for the specified <paramref name="diagramType"/>
     /// </summary>
     /// <param name="diagramType">The type of Mermaid diagram being edited.</param>
     /// <returns>An array of completion data specific to the diagram type, or all keywords if type is Unknown.</returns>
@@ -1266,137 +1256,137 @@ internal static class IntellisenseKeywords
         string[] keywords = diagramType switch
         {
             DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                FlowchartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _flowchartKeywords
             ),
             DiagramType.Sequence => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                SequenceDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _sequenceDiagramKeywords
             ),
             DiagramType.State or DiagramType.StateV2 => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                StateDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _stateDiagramKeywords
             ),
             DiagramType.Class or DiagramType.ClassV2 => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                ClassDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _classDiagramKeywords
             ),
             DiagramType.ERDiagram => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                ERDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _erDiagramKeywords
             ),
             DiagramType.UserJourney => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                UserJourneyKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _userJourneyKeywords
             ),
             DiagramType.Gantt => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                GanttChartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _ganttChartKeywords
             ),
             DiagramType.Pie => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                PieChartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _pieChartKeywords
             ),
             DiagramType.QuadrantChart => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                QuadrantChartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _quadrantChartKeywords
             ),
             DiagramType.Requirement => FlattenToDistinctKeywords(
-               FrontmatterKeywords,
-               ThemingGeneralKeywords,
-               CssStylesKeywords,
-               RequirementDiagramKeywords
+               _frontmatterKeywords,
+               _themingGeneralKeywords,
+               _cssStylesKeywords,
+               _requirementDiagramKeywords
             ),
             DiagramType.GitGraph => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                GitGraphKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _gitGraphKeywords
             ),
             DiagramType.C4Component or DiagramType.C4Container or DiagramType.C4Context
             or DiagramType.C4Deployment or DiagramType.C4Dynamic => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                C4DiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _c4DiagramKeywords
             ),
             DiagramType.Mindmap => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                MindmapKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _mindmapKeywords
             ),
             DiagramType.Timeline => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                TimelineKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _timelineKeywords
             ),
             DiagramType.Sankey => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                SankeyKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _sankeyKeywords
             ),
             DiagramType.XYChart => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                XYChartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _xyChartKeywords
             ),
             DiagramType.Block => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                BlockDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _blockDiagramKeywords
             ),
             DiagramType.Packet => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                PacketKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _packetKeywords
             ),
             DiagramType.Kanban => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                KanbanKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _kanbanKeywords
             ),
             DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                ArchitectureDiagramKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _architectureDiagramKeywords
             ),
             DiagramType.RadarBeta => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                RadarChartKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _radarChartKeywords
             ),
             DiagramType.Treemap => FlattenToDistinctKeywords(
-                FrontmatterKeywords,
-                ThemingGeneralKeywords,
-                CssStylesKeywords,
-                TreemapKeywords
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords,
+                _treemapKeywords
             ),
             _ => AggregatedDistinctKeywords // Unknown or fallback
         };
@@ -1413,11 +1403,13 @@ internal static class IntellisenseKeywords
     /// <param name="icon">An optional icon to associate with each completion data item. If null, no icon is assigned.</param>
     /// <returns>An array of <see cref="IntellisenseCompletionData"/> objects corresponding to the provided keywords. Returns an empty array if
     /// no keywords are specified.</returns>
-    internal static IntellisenseCompletionData[] CreateCompletionData(string[] keywords, int priority = 0, RenderTargetBitmap? icon = null)
+    private static IntellisenseCompletionData[] CreateCompletionData(string[] keywords, int priority = 0, RenderTargetBitmap? icon = null)
     {
         if (keywords.Length == 0)
         {
+#pragma warning disable IDE0301     // IDE0301:Use collection expression for empty. Prefer explicit intent in this context
             return Array.Empty<IntellisenseCompletionData>();
+#pragma warning restore IDE0301
         }
 
         IntellisenseCompletionData[] result = new IntellisenseCompletionData[keywords.Length];
@@ -1429,11 +1421,26 @@ internal static class IntellisenseKeywords
     }
 
     /// <summary>
-    /// Retrieves an array of completion data containing all aggregated distinct keywords available for IntelliSense
-    /// suggestions.
+    /// Combines multiple arrays of keywords into a single array containing unique keywords.
     /// </summary>
-    /// <returns>An array of <see cref="IntellisenseCompletionData"/> objects representing the distinct keywords. The array will
-    /// be empty if no keywords are available.</returns>
-    internal static IntellisenseCompletionData[] GetAggregatedDistinctKeywords() =>
-        CreateCompletionData(AggregatedDistinctKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+    /// <remarks>
+    /// <para>This array contains only unique keyword values, preserving no particular order. The
+    /// aggregation avoids repeated resizing and copying by flattening and de-duplicating the source arrays
+    /// efficiently.</para>
+    /// <para>This SelectMany approach avoids the costly <see cref="List{T}"/> resizing and copying
+    /// associated with calling <see cref="List{T}.AddRange"/> multiple times.</para>
+    /// </remarks>
+    /// <param name="keywordArrays">An array of keyword arrays to be combined. Each inner
+    /// array contains keywords to include in the result. Cannot
+    /// be null; inner arrays may be empty.</param>
+    /// <returns>An array of strings containing all distinct keywords from the provided arrays.
+    /// The array will be empty if no keywords are supplied.</returns>
+    private static string[] FlattenToDistinctKeywords(params string[][] keywordArrays)
+    {
+        return keywordArrays
+            // No need to sort here; we sort later in PopulateCompletionData
+            .SelectMany(static arr => arr)
+            .Distinct()
+            .ToArray();     // Using array for better memory locality and keeping this data immutable
+    }
 }
