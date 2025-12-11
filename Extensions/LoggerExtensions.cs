@@ -99,7 +99,7 @@ public static class LoggerExtensions
             ? $"WebView {eventName}: {details}"
             : $"WebView {eventName}";
 
-        logger.LogDebug("[{MemberName}] {Message}", memberName, message);
+        logger.LogDebug("[{MemberName}]: {Message}", memberName, message);
     }
 
     /// <summary>
