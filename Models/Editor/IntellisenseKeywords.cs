@@ -1257,6 +1257,154 @@ internal static class IntellisenseKeywords
     #endregion Keyword String Arrays
 
     /// <summary>
+    /// Retrieves context-aware completion data for the specified diagram type.
+    /// </summary>
+    /// <param name="diagramType">The type of Mermaid diagram being edited.</param>
+    /// <returns>An array of completion data specific to the diagram type, or all keywords if type is Unknown.</returns>
+    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType)
+    {
+        string[] keywords = diagramType switch
+        {
+            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                FlowchartKeywords
+            ),
+            DiagramType.Sequence => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                SequenceDiagramKeywords
+            ),
+            DiagramType.State or DiagramType.StateV2 => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                StateDiagramKeywords
+            ),
+            DiagramType.Class or DiagramType.ClassV2 => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                ClassDiagramKeywords
+            ),
+            DiagramType.ERDiagram => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                ERDiagramKeywords
+            ),
+            DiagramType.UserJourney => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                UserJourneyKeywords
+            ),
+            DiagramType.Gantt => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                GanttChartKeywords
+            ),
+            DiagramType.Pie => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                PieChartKeywords
+            ),
+            DiagramType.QuadrantChart => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                QuadrantChartKeywords
+            ),
+            DiagramType.Requirement => FlattenToDistinctKeywords(
+               FrontmatterKeywords,
+               ThemingGeneralKeywords,
+               CssStylesKeywords,
+               RequirementDiagramKeywords
+            ),
+            DiagramType.GitGraph => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                GitGraphKeywords
+            ),
+            DiagramType.C4Component or DiagramType.C4Container or DiagramType.C4Context
+            or DiagramType.C4Deployment or DiagramType.C4Dynamic => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                C4DiagramKeywords
+            ),
+            DiagramType.Mindmap => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                MindmapKeywords
+            ),
+            DiagramType.Timeline => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                TimelineKeywords
+            ),
+            DiagramType.Sankey => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                SankeyKeywords
+            ),
+            DiagramType.XYChart => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                XYChartKeywords
+            ),
+            DiagramType.Block => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                BlockDiagramKeywords
+            ),
+            DiagramType.Packet => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                PacketKeywords
+            ),
+            DiagramType.Kanban => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                KanbanKeywords
+            ),
+            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                ArchitectureDiagramKeywords
+            ),
+            DiagramType.RadarBeta => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                RadarChartKeywords
+            ),
+            DiagramType.Treemap => FlattenToDistinctKeywords(
+                FrontmatterKeywords,
+                ThemingGeneralKeywords,
+                CssStylesKeywords,
+                TreemapKeywords
+            ),
+            _ => AggregatedDistinctKeywords // Unknown or fallback
+        };
+
+        return CreateCompletionData(keywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+    }
+
+    /// <summary>
     /// Creates an array of <see cref="IntellisenseCompletionData"/> objects from the specified keywords, assigning each a priority
     /// and optional icon.
     /// </summary>
