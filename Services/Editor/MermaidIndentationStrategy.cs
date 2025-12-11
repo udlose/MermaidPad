@@ -655,33 +655,54 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         if (keyword.StartsWith(DiagramTypeNames.Flowchart, StringComparison.Ordinal) ||
             keyword.StartsWith(DiagramTypeNames.Graph, StringComparison.Ordinal))
         {
-            if (keyword.Equals(DiagramTypeNames.Flowchart, StringComparison.Ordinal)) return DiagramType.Flowchart;
-            if (keyword.Equals(DiagramTypeNames.FlowchartElk, StringComparison.Ordinal)) return DiagramType.FlowchartElk;
-            if (keyword.Equals(DiagramTypeNames.Graph, StringComparison.Ordinal)) return DiagramType.Graph;
-
-            // Unknown flowchart/graph variant
-            return DiagramType.Unknown;
+            return GetFlowchartDiagramType(keyword);
         }
 
         if (keyword.StartsWith("C4", StringComparison.Ordinal))
         {
             // C4 family - only a few exact names to check
-            if (keyword.Equals(DiagramTypeNames.C4Context, StringComparison.Ordinal)) return DiagramType.C4Context;
-            if (keyword.Equals(DiagramTypeNames.C4Container, StringComparison.Ordinal)) return DiagramType.C4Container;
-            if (keyword.Equals(DiagramTypeNames.C4Component, StringComparison.Ordinal)) return DiagramType.C4Component;
-            if (keyword.Equals(DiagramTypeNames.C4Deployment, StringComparison.Ordinal)) return DiagramType.C4Deployment;
-            if (keyword.Equals(DiagramTypeNames.C4Dynamic, StringComparison.Ordinal)) return DiagramType.C4Dynamic;
-
-            // Unknown C4 variant
-            return DiagramType.Unknown;
+            return GetC4DiagramType(keyword);
         }
 
-        if (keyword.Equals(DiagramTypeNames.ArchitectureBeta, StringComparison.Ordinal))
+        return keyword.Equals(DiagramTypeNames.ArchitectureBeta, StringComparison.Ordinal) ? DiagramType.ArchitectureBeta : DiagramType.Unknown;
+    }
+
+    /// <summary>
+    /// Determines the diagram type corresponding to the specified flowchart-related keyword.
+    /// </summary>
+    /// <param name="keyword">A read-only span of characters representing the diagram keyword to evaluate. The comparison is case-sensitive
+    /// and expects known flowchart or graph keywords.</param>
+    /// <returns>A DiagramType value that matches the specified keyword. Returns DiagramType.Unknown if the keyword does not
+    /// correspond to a recognized diagram type.</returns>
+    private static DiagramType GetFlowchartDiagramType(ReadOnlySpan<char> keyword)
+    {
+        return keyword switch
         {
-            return DiagramType.ArchitectureBeta;
-        }
+            _ when keyword.Equals(DiagramTypeNames.Flowchart, StringComparison.Ordinal) => DiagramType.Flowchart,
+            _ when keyword.Equals(DiagramTypeNames.FlowchartElk, StringComparison.Ordinal) => DiagramType.FlowchartElk,
+            _ when keyword.Equals(DiagramTypeNames.Graph, StringComparison.Ordinal) => DiagramType.Graph,
+            _ => DiagramType.Unknown    // Unknown flowchart/graph variant
+        };
+    }
 
-        return DiagramType.Unknown;
+    /// <summary>
+    /// Determines the C4 diagram type corresponding to the specified keyword.
+    /// </summary>
+    /// <param name="keyword">A read-only span of characters representing the diagram type keyword to evaluate. The comparison is
+    /// case-sensitive and must match a known C4 diagram type name exactly.</param>
+    /// <returns>A value of the DiagramType enumeration that corresponds to the specified keyword. Returns DiagramType.Unknown if
+    /// the keyword does not match any known C4 diagram type.</returns>
+    private static DiagramType GetC4DiagramType(ReadOnlySpan<char> keyword)
+    {
+        return keyword switch
+        {
+            _ when keyword.Equals(DiagramTypeNames.C4Context, StringComparison.Ordinal) => DiagramType.C4Context,
+            _ when keyword.Equals(DiagramTypeNames.C4Container, StringComparison.Ordinal) => DiagramType.C4Container,
+            _ when keyword.Equals(DiagramTypeNames.C4Component, StringComparison.Ordinal) => DiagramType.C4Component,
+            _ when keyword.Equals(DiagramTypeNames.C4Deployment, StringComparison.Ordinal) => DiagramType.C4Deployment,
+            _ when keyword.Equals(DiagramTypeNames.C4Dynamic, StringComparison.Ordinal) => DiagramType.C4Dynamic,
+            _ => DiagramType.Unknown    // Unknown C4 variant
+        };
     }
 
     /// <summary>
