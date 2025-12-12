@@ -22,30 +22,32 @@ namespace MermaidPad.Models.Constants;
 
 internal static class Frontmatter
 {
-    public const string Delimiter = "---";
-    public const string Comment = "%%";
-    public const string Mermaid = "mermaid";
-    public const string DefaultRenderer = "defaultRenderer";
-    public const string Title = "title:";
-    public const string Config = "config:";
-    public const string Layout = "layout:";
-    public const string Dagre = "dagre";
-    public const string Elk = "elk";
-    public const string Theme = "theme:";
-    public const string ThemeVariables = "themeVariables:";
-    public const string LogLevel = "logLevel:";
-    public const string SecurityLevel = "securityLevel:";
-    public const string StartOnLoad = "startOnLoad:";
-    public const string Secure = "secure:";
-    public const string PrimaryColor = "primaryColor:";
-    public const string SignalColor = "signalColor:";
-    public const string SignalTextColor = "signalTextColor:";
-    public const string True = "true";
-    public const string False = "false";
-    public const string Base = "base";
-    public const string Forest = "forest";
-    public const string Dark = "dark";
-    public const string Neutral = "neutral";
-    public const string UseWidth = "useWidth:";
-    public const string UseMaxWidth = "useMaxWidth:";
+    internal const string Delimiter = "---";
+    internal const string Comment = "%%";
+    internal const string Mermaid = "mermaid";
+    internal const string DefaultRenderer = "defaultRenderer";
+    internal const string Title = "title:";
+    internal const string Config = "config:";
+    internal const string Layout = "layout:";
+    internal const string Dagre = "dagre";
+    internal const string Elk = "elk";
+    internal const string Theme = "theme:";
+    internal const string LogLevel = "logLevel:";
+    internal const string SecurityLevel = "securityLevel:";
+    internal const string StartOnLoad = "startOnLoad:";
+    internal const string Secure = "secure:";
+    internal const string PrimaryColor = "primaryColor:";
+    internal const string SignalColor = "signalColor:";
+    internal const string SignalTextColor = "signalTextColor:";
+    internal const string True = "true";
+    internal const string False = "false";
+    // Theme options: https://mermaid.js.org/config/theming.html#base-diagram-config
+    internal const string Base = "base";
+    internal const string Forest = "forest";
+    internal const string Dark = "dark";
+    internal const string Neutral = "neutral";
+    internal const string ThemeVariables = "themeVariables:";
+    // Base diagram Config: https://mermaid.js.org/config/theming.html#base-diagram-config
+    internal const string UseWidth = "useWidth:";
+    internal const string UseMaxWidth = "useMaxWidth:";
 }
