@@ -960,7 +960,7 @@ internal static class IntellisenseKeywords
         "activate",
         "deactivate",
         "note",
-        CssStyles.HtmlBreak,
+        GeneralElementNames.HtmlBreak,
         // Arrows: https://mermaid.js.org/syntax/sequenceDiagram.html#messages
         "->",
         "-->",
@@ -1090,7 +1090,7 @@ internal static class IntellisenseKeywords
         DiagramTypeNames.Timeline,
         GeneralElementNames.Title,
         GeneralElementNames.Section,
-        CssStyles.HtmlBreak,
+        GeneralElementNames.HtmlBreak,
         "disableMultiColor:",
         "cScale",
         "cScaleLabel"
