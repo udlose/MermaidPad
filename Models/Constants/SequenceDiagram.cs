@@ -24,24 +24,24 @@ internal static class SequenceDiagram
 {
     internal static class ParticipantTypes
     {
-        public const string Actor = "actor";
-        public const string Participant = "participant";
-        public const string Boundary = "boundary";
-        public const string Control = "control";
-        public const string Entity = "entity";
-        public const string Database = GeneralElementNames.Database;
+        internal const string Actor = "actor";
+        internal const string Participant = "participant";
+        internal const string Boundary = "boundary";
+        internal const string Control = "control";
+        internal const string Entity = "entity";
+        internal const string Database = GeneralElementNames.Database;
     }
 
     internal static class BlockOpenerNames
     {
-        public const string Loop = "loop";
-        public const string Alt = "alt";
-        public const string Else = "else";
-        public const string Opt = "opt";
-        public const string Par = "par";
-        public const string And = "and";
-        public const string Critical = "critical";
-        public const string Break = "break";
-        public const string Rect = ShapeNames.Rect;
+        internal const string Loop = "loop";
+        internal const string Alt = "alt";
+        internal const string Else = "else";
+        internal const string Opt = "opt";
+        internal const string Par = "par";
+        internal const string And = "and";
+        internal const string Critical = "critical";
+        internal const string Break = "break";
+        internal const string Rect = ShapeNames.Rect;
     }
 }

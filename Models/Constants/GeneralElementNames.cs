@@ -28,16 +28,16 @@ namespace MermaidPad.Models.Constants;
 /// referenced without instantiating the class.</remarks>
 internal static class GeneralElementNames
 {
-    public const string Section = "section";
-    public const string Title = "title";
-    public const string Class = "class";
-    public const string ClassDef = "classDef";
-    public const string Cloud = "cloud";
-    public const string Database = "database";
-    public const string Default = "default";
-    public const string Direction = "direction";
-    public const string End = "end";
-    public const string Link = "link";
-    public const string Style = "style";
-    public const string HtmlBreak = "<br/>";
+    internal const string Section = "section";
+    internal const string Title = "title";
+    internal const string Class = "class";
+    internal const string ClassDef = "classDef";
+    internal const string Cloud = "cloud";
+    internal const string Database = "database";
+    internal const string Default = "default";
+    internal const string Direction = "direction";
+    internal const string End = "end";
+    internal const string Link = "link";
+    internal const string Style = "style";
+    internal const string HtmlBreak = "<br/>";
 }

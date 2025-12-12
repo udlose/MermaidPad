@@ -30,6 +30,6 @@ internal static class BlockDiagram
     /// </summary>
     internal static class BlockOpenerNames
     {
-        public const string Block = "block";
+        internal const string Block = "block";
     }
 }

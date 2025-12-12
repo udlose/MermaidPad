@@ -32,38 +32,38 @@ namespace MermaidPad.Models.Constants;
 [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
 internal static class DiagramTypeNames
 {
-    public const string Flowchart = "flowchart";
-    public const string FlowchartElk = "flowchart-elk";
-    public const string Graph = "graph";
-    public const string SequenceDiagram = "sequenceDiagram";
-    public const string StateDiagram = "stateDiagram";
-    public const string StateDiagramV2 = "stateDiagram-v2";
-    public const string ClassDiagram = "classDiagram";
-    public const string ClassDiagramV2 = "classDiagram-v2";
+    internal const string Flowchart = "flowchart";
+    internal const string FlowchartElk = "flowchart-elk";
+    internal const string Graph = "graph";
+    internal const string SequenceDiagram = "sequenceDiagram";
+    internal const string StateDiagram = "stateDiagram";
+    internal const string StateDiagramV2 = "stateDiagram-v2";
+    internal const string ClassDiagram = "classDiagram";
+    internal const string ClassDiagramV2 = "classDiagram-v2";
 
-    public const string ERDiagram = "erDiagram";
-    public const string UserJourney = "journey";
-    public const string Gantt = "gantt";
-    public const string Pie = "pie";
-    public const string QuadrantChart = "quadrantChart";
-    public const string RequirementDiagram = "requirementDiagram";
-    public const string GitGraph = "gitGraph";
+    internal const string ERDiagram = "erDiagram";
+    internal const string UserJourney = "journey";
+    internal const string Gantt = "gantt";
+    internal const string Pie = "pie";
+    internal const string QuadrantChart = "quadrantChart";
+    internal const string RequirementDiagram = "requirementDiagram";
+    internal const string GitGraph = "gitGraph";
 
-    public const string C4Context = "C4Context";
-    public const string C4Container = "C4Container";
-    public const string C4Component = "C4Component";
-    public const string C4Deployment = "C4Deployment";
-    public const string C4Dynamic = "C4Dynamic";
+    internal const string C4Context = "C4Context";
+    internal const string C4Container = "C4Container";
+    internal const string C4Component = "C4Component";
+    internal const string C4Deployment = "C4Deployment";
+    internal const string C4Dynamic = "C4Dynamic";
 
-    public const string Mindmap = "mindmap";
-    public const string Timeline = "timeline";
-    public const string Sankey = "sankey";
-    public const string XYChart = "xychart";
-    public const string Block = "block";
+    internal const string Mindmap = "mindmap";
+    internal const string Timeline = "timeline";
+    internal const string Sankey = "sankey";
+    internal const string XYChart = "xychart";
+    internal const string Block = "block";
 
-    public const string Packet = "packet";
-    public const string Kanban = "kanban";
-    public const string ArchitectureBeta = "architecture-beta";
-    public const string RadarBeta = "radar-beta";
-    public const string Treemap = "treemap";
+    internal const string Packet = "packet";
+    internal const string Kanban = "kanban";
+    internal const string ArchitectureBeta = "architecture-beta";
+    internal const string RadarBeta = "radar-beta";
+    internal const string Treemap = "treemap";
 }
