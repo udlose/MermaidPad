@@ -33,6 +33,6 @@ internal static class StateDiagram
     /// </summary>
     internal static class BlockOpenerNames
     {
-        public const string State = "state";
+        internal const string State = "state";
     }
 }

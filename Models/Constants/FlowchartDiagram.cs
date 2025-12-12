@@ -33,7 +33,7 @@ internal static class FlowchartDiagram
     /// </summary>
     internal static class BlockOpenerNames
     {
-        public const string Subgraph = "subgraph";
+        internal const string Subgraph = "subgraph";
     }
 
     /// <summary>
@@ -44,17 +44,17 @@ internal static class FlowchartDiagram
     /// is internal and static, and is not intended to be instantiated.</remarks>
     internal static class Config
     {
-        public const string TitleTopMargin = "titleTopMargin:";
-        public const string SubGraphTitleMargin = "subGraphTitleMargin:";
-        public const string ArrowMarkerAbsolute = "arrowMarkerAbsolute:";
-        public const string DiagramPadding = "diagramPadding:";
-        public const string HtmlLabels = "htmlLabels:";
-        public const string NodeSpacing = "nodeSpacing:";
-        public const string RankSpacing = "rankSpacing:";
-        public const string Curve = ShapeNames.Curve + ":";
-        public const string Padding = "padding:";
-        public const string DefaultRenderer = "defaultRenderer:";
-        public const string WrappingWidth = "wrappingWidth:";
-        public const string InheritDir = "inheritDir:";
+        internal const string TitleTopMargin = "titleTopMargin:";
+        internal const string SubGraphTitleMargin = "subGraphTitleMargin:";
+        internal const string ArrowMarkerAbsolute = "arrowMarkerAbsolute:";
+        internal const string DiagramPadding = "diagramPadding:";
+        internal const string HtmlLabels = "htmlLabels:";
+        internal const string NodeSpacing = "nodeSpacing:";
+        internal const string RankSpacing = "rankSpacing:";
+        internal const string Curve = ShapeNames.Curve + ":";
+        internal const string Padding = "padding:";
+        internal const string DefaultRenderer = "defaultRenderer:";
+        internal const string WrappingWidth = "wrappingWidth:";
+        internal const string InheritDir = "inheritDir:";
     }
 }
