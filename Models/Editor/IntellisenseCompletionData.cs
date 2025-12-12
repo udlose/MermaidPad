@@ -85,18 +85,56 @@ public sealed class IntellisenseCompletionData : ICompletionData
     }
 
     /// <summary>
-    /// Inserts the completion text into the specified text area, replacing the content within the given segment.
+    /// Inserts the completion text into the specified text area, replacing the content within the given segment,
+    /// and appends a trailing space if appropriate for convenient continued typing.
     /// </summary>
     /// <param name="textArea">The text area where the completion text will be inserted. Cannot be null.</param>
     /// <param name="completionSegment">The segment of text in the document to be replaced by the completion text. Must be a valid segment within the
     /// document.</param>
     /// <param name="insertionRequestEventArgs">The event arguments associated with the insertion request. Provides context for the completion operation.</param>
+    [SuppressMessage("ReSharper", "ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract",
+        Justification = "TextEditor API doesn't enable nullable; so using defensive programming for null checks")]
     public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs)
     {
-        Debug.Assert(textArea is not null, "textArea cannot be null");
+        if (textArea is null || completionSegment is null)
+        {
+            Debug.Fail("textArea or completionSegment cannot be null");
+            return;
+        }
 
-        // if TextArea is null, just return without failure
-        textArea?.Document.Replace(completionSegment, Text);
+        const char singleSpaceChar = ' ';
+        textArea.Document.Replace(completionSegment, Text);
+
+        // Calculate where the caret will be after insertion
+        int newCaretOffset = completionSegment.Offset + Text.Length;
+
+        // Check if we should insert a space after the completion
+        bool shouldInsertSpace = true;
+
+        if (newCaretOffset < textArea.Document.TextLength)
+        {
+            char nextChar = textArea.Document.GetCharAt(newCaretOffset);
+            if (nextChar == singleSpaceChar || char.IsPunctuation(nextChar) || nextChar == '(')
+            {
+                shouldInsertSpace = false;
+
+                // If next char is a space, move caret past it for consistency
+                if (nextChar == singleSpaceChar)
+                {
+                    newCaretOffset++;
+                }
+            }
+        }
+
+        // Add a space if appropriate and move caret past it
+        if (shouldInsertSpace)
+        {
+            textArea.Document.Insert(newCaretOffset, " ");
+            newCaretOffset++;
+        }
+
+        // Position the caret
+        textArea.Caret.Offset = newCaretOffset;
     }
 
     /// <summary>
