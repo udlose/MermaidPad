@@ -24,9 +24,9 @@ internal static class C4Diagram
 {
     internal static class BoundaryTypes
     {
-        public const string Enterprise = "Enterprise_Boundary";
-        public const string System = "System_Boundary";
-        public const string Container = "Container_Boundary";
-        public const string Boundary = "Boundary";
+        internal const string Enterprise = "Enterprise_Boundary";
+        internal const string System = "System_Boundary";
+        internal const string Container = "Container_Boundary";
+        internal const string Boundary = "Boundary";
     }
 }

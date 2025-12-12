@@ -24,14 +24,14 @@ internal static class ArchitectureDiagram
 {
     internal static class ElementNames
     {
-        public const string Cloud = GeneralElementNames.Cloud;
-        public const string Database = GeneralElementNames.Database;
-        public const string Disk = "disk";
-        public const string Edge = "edge";
-        public const string Group = "group";
-        public const string Internet = "internet";
-        public const string Junction = "junction";
-        public const string Server = "server";
-        public const string Service = "service";
+        internal const string Cloud = GeneralElementNames.Cloud;
+        internal const string Database = GeneralElementNames.Database;
+        internal const string Disk = "disk";
+        internal const string Edge = "edge";
+        internal const string Group = "group";
+        internal const string Internet = "internet";
+        internal const string Junction = "junction";
+        internal const string Server = "server";
+        internal const string Service = "service";
     }
 }

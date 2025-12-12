@@ -28,19 +28,19 @@ namespace MermaidPad.Models.Constants;
 /// abbreviations for each shape.</remarks>
 internal static class ShapeNames
 {
-    public const string Cyl = "cyl";
-    public const string Cylinder = "cylinder";
-    public const string Circ = "circ";
-    public const string Circle = "circle";
-    public const string Curve = "curve";
-    public const string Diamond = "diamond";
-    public const string Disk = "disk";
-    public const string Hex = "hex";
-    public const string Hexagon = "hexagon";
-    public const string Polygon = "polygon";
-    public const string Rect = "rect";
-    public const string Rectangle = "rectangle";
-    public const string Rounded = "rounded";
-    public const string Square = "square";
-    public const string Stadium = "stadium";
+    internal const string Cyl = "cyl";
+    internal const string Cylinder = "cylinder";
+    internal const string Circ = "circ";
+    internal const string Circle = "circle";
+    internal const string Curve = "curve";
+    internal const string Diamond = "diamond";
+    internal const string Disk = "disk";
+    internal const string Hex = "hex";
+    internal const string Hexagon = "hexagon";
+    internal const string Polygon = "polygon";
+    internal const string Rect = "rect";
+    internal const string Rectangle = "rectangle";
+    internal const string Rounded = "rounded";
+    internal const string Square = "square";
+    internal const string Stadium = "stadium";
 }

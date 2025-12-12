@@ -37,12 +37,12 @@ internal static class RequirementDiagram
     /// working with requirement block types to ensure consistency across the application.</remarks>
     internal static class BlockTypes
     {
-        public const string Requirement = "requirement";
-        public const string FunctionalRequirement = "functionalRequirement";
-        public const string PerformanceRequirement = "performanceRequirement";
-        public const string InterfaceRequirement = "interfaceRequirement";
-        public const string PhysicalRequirement = "physicalRequirement";
-        public const string DesignConstraint = "designConstraint";
-        public const string Element = "element";
+        internal const string Requirement = "requirement";
+        internal const string FunctionalRequirement = "functionalRequirement";
+        internal const string PerformanceRequirement = "performanceRequirement";
+        internal const string InterfaceRequirement = "interfaceRequirement";
+        internal const string PhysicalRequirement = "physicalRequirement";
+        internal const string DesignConstraint = "designConstraint";
+        internal const string Element = "element";
     }
 }
