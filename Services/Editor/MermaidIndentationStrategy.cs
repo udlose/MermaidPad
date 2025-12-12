@@ -528,7 +528,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// Uses cached frontmatter boundaries for O(1) lookup instead of scanning from line 1.
     /// The cache is invalidated when the document version changes.
     /// </remarks>
-    private DocumentContext DetermineContext(TextDocument document, int lineNumber)
+    internal DocumentContext DetermineContext(TextDocument document, int lineNumber)
     {
         // Ensure frontmatter boundaries are cached and up-to-date
         EnsureFrontmatterCacheValid(document);
