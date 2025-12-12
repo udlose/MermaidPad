@@ -22,6 +22,7 @@ namespace MermaidPad.Models.Constants;
 
 internal static class Frontmatter
 {
+    public const string Delimiter = "---";
     public const string Comment = "%%";
     public const string Mermaid = "mermaid";
     public const string DefaultRenderer = "defaultRenderer";

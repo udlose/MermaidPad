@@ -50,6 +50,7 @@ internal static class IntellisenseKeywords
     /// </remarks>
     private static readonly string[] _frontmatterKeywords =
     [
+        // NOTE: Do not add the --- delimiter here as it isn't a keyword but a structural element.
         Frontmatter.Comment,
         Frontmatter.Mermaid,
         Frontmatter.DefaultRenderer,
