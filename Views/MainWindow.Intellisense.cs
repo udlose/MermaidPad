@@ -237,10 +237,8 @@ public partial class MainWindow
             DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(document)
                 ?? DiagramType.Unknown;
 
-            // Get Document Context (e.g., Frontmatter vs Diagram)
-            //    We need the line number where the cursor is to determine this.
+            // Get the line number where the cursor is to determine document context - Frontmatter vs Diagram
             int currentLineNumber = document.GetLineByOffset(Editor.CaretOffset).LineNumber;
-
             DocumentContext currentContext = indentationStrategy?.DetermineContext(document, currentLineNumber)
                 ?? DocumentContext.Diagram;
 
