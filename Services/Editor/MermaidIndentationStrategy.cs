@@ -23,6 +23,7 @@ using AvaloniaEdit.Document;
 using AvaloniaEdit.Indentation;
 using MermaidPad.Models;
 using MermaidPad.Models.Constants;
+using MermaidPad.Models.Editor;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
@@ -608,8 +609,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         {
             DocumentLine scanLine = document.GetLineByNumber(i);
             ReadOnlySpan<char> lineText = document.GetText(scanLine).AsSpan().Trim();
-
-            if (lineText.SequenceEqual(FrontmatterDelimiter))
+            if (lineText.SequenceEqual(Frontmatter.Delimiter))
             {
                 if (_cachedFrontmatterStartLine < 0)
                 {
@@ -1065,31 +1065,5 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         return cache;
-    }
-
-    /// <summary>
-    /// Represents the context within a Mermaid document.
-    /// </summary>
-    private enum DocumentContext
-    {
-        /// <summary>
-        /// The line is the opening frontmatter delimiter (first ---).
-        /// </summary>
-        FrontmatterStart,
-
-        /// <summary>
-        /// The line is within the YAML frontmatter section.
-        /// </summary>
-        Frontmatter,
-
-        /// <summary>
-        /// The line is the closing frontmatter delimiter (second ---).
-        /// </summary>
-        FrontmatterEnd,
-
-        /// <summary>
-        /// The line is within the Mermaid diagram content.
-        /// </summary>
-        Diagram
     }
 }
