@@ -1251,148 +1251,63 @@ internal static class IntellisenseKeywords
     /// Retrieves context-aware completion data for the specified <paramref name="diagramType"/>
     /// </summary>
     /// <param name="diagramType">The type of Mermaid diagram being edited.</param>
+    /// <param name="context">The document context providing additional information for keyword retrieval.</param>
     /// <returns>An array of completion data specific to the diagram type, or all keywords if type is Unknown.</returns>
-    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType)
+    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType, DocumentContext context)
     {
-        string[] keywords = diagramType switch
+        // Handle Frontmatter context first
+        if (context is DocumentContext.Frontmatter or DocumentContext.FrontmatterStart)
         {
-            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph => FlattenToDistinctKeywords(
+            string[] frontmatterKeywords = FlattenToDistinctKeywords([
                 _frontmatterKeywords,
                 _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _flowchartKeywords
-            ),
-            DiagramType.Sequence => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _sequenceDiagramKeywords
-            ),
-            DiagramType.State or DiagramType.StateV2 => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _stateDiagramKeywords
-            ),
-            DiagramType.Class or DiagramType.ClassV2 => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _classDiagramKeywords
-            ),
-            DiagramType.ERDiagram => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _erDiagramKeywords
-            ),
-            DiagramType.UserJourney => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _userJourneyKeywords
-            ),
-            DiagramType.Gantt => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _ganttChartKeywords
-            ),
-            DiagramType.Pie => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _pieChartKeywords
-            ),
-            DiagramType.QuadrantChart => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _quadrantChartKeywords
-            ),
-            DiagramType.Requirement => FlattenToDistinctKeywords(
-               _frontmatterKeywords,
-               _themingGeneralKeywords,
-               _cssStylesKeywords,
-               _requirementDiagramKeywords
-            ),
-            DiagramType.GitGraph => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _gitGraphKeywords
-            ),
-            DiagramType.C4Component or DiagramType.C4Container or DiagramType.C4Context
-            or DiagramType.C4Deployment or DiagramType.C4Dynamic => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _c4DiagramKeywords
-            ),
-            DiagramType.Mindmap => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _mindmapKeywords
-            ),
-            DiagramType.Timeline => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _timelineKeywords
-            ),
-            DiagramType.Sankey => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _sankeyKeywords
-            ),
-            DiagramType.XYChart => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _xyChartKeywords
-            ),
-            DiagramType.Block => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _blockDiagramKeywords
-            ),
-            DiagramType.Packet => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _packetKeywords
-            ),
-            DiagramType.Kanban => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _kanbanKeywords
-            ),
-            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _architectureDiagramKeywords
-            ),
-            DiagramType.RadarBeta => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _radarChartKeywords
-            ),
-            DiagramType.Treemap => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _treemapKeywords
-            ),
-            _ => AggregatedDistinctKeywords // Unknown or fallback
+                _cssStylesKeywords
+            ]);
+            return CreateCompletionData(frontmatterKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+        }
+
+        // Handle Diagram context
+        string[] diagramKeywords = diagramType switch
+        {
+            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph =>
+                FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _flowchartKeywords]),
+
+            DiagramType.Sequence =>
+                FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _sequenceDiagramKeywords]),
+
+            DiagramType.State or DiagramType.StateV2 =>
+                FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _stateDiagramKeywords]),
+
+            DiagramType.Class or DiagramType.ClassV2 =>
+                FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _classDiagramKeywords]),
+
+            DiagramType.C4Context or DiagramType.C4Container or DiagramType.C4Component or
+            DiagramType.C4Deployment or DiagramType.C4Dynamic =>
+                FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _c4DiagramKeywords]),
+
+            DiagramType.ERDiagram => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _erDiagramKeywords]),
+            DiagramType.Gantt => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _ganttChartKeywords]),
+            DiagramType.Pie => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _pieChartKeywords]),
+            DiagramType.Mindmap => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _mindmapKeywords]),
+            DiagramType.Timeline => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _timelineKeywords]),
+            DiagramType.UserJourney => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _userJourneyKeywords]),
+            DiagramType.GitGraph => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _gitGraphKeywords]),
+            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _architectureDiagramKeywords]),
+            DiagramType.Block => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _blockDiagramKeywords]),
+            DiagramType.Requirement => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _requirementDiagramKeywords]),
+            DiagramType.Sankey => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _sankeyKeywords]),
+            DiagramType.XYChart => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _xyChartKeywords]),
+            DiagramType.QuadrantChart => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _quadrantChartKeywords]),
+            DiagramType.Packet => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _packetKeywords]),
+            DiagramType.Kanban => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _kanbanKeywords]),
+            DiagramType.RadarBeta => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _radarChartKeywords]),
+            DiagramType.Treemap => FlattenToDistinctKeywords([_themingGeneralKeywords, _cssStylesKeywords, _treemapKeywords]),
+
+            // Fallback for Unknown or unhandled types
+            _ => AggregatedDistinctKeywords
         };
 
-        return CreateCompletionData(keywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+        return CreateCompletionData(diagramKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
     }
 
     /// <summary>

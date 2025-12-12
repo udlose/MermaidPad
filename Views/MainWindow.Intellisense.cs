@@ -20,6 +20,7 @@
 
 using Avalonia.Input;
 using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Document;
 using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.ObjectPoolPolicies;
@@ -229,16 +230,27 @@ public partial class MainWindow
             Stopwatch sw = Stopwatch.StartNew();
 #endif
 
+            TextDocument document = Editor.Document;
+
             // Detect current diagram type using the indentation strategy cache
             MermaidIndentationStrategy? indentationStrategy = Editor.TextArea.IndentationStrategy as MermaidIndentationStrategy;
-            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(Editor.Document)
+            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(document)
                 ?? DiagramType.Unknown;
 
-            // Get context-aware keywords
-            IntellisenseCompletionData[] contextKeywords = IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType);
+            // Get Document Context (e.g., Frontmatter vs Diagram)
+            //    We need the line number where the cursor is to determine this.
+            int currentLineNumber = document.GetLineByOffset(Editor.CaretOffset).LineNumber;
+
+            DocumentContext currentContext = indentationStrategy?.DetermineContext(document, currentLineNumber)
+                ?? DocumentContext.Diagram;
+
+            // Get context-aware keywords based on diagram type and context
+            IntellisenseCompletionData[] contextKeywords =
+                IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType, currentContext);
 
             // Scan document for user-defined nodes/identifiers
-            IntellisenseScanner scanner = new IntellisenseScanner(docText.AsSpan(), reusableSet, _stringInternPool);
+            IntellisenseScanner scanner = new IntellisenseScanner(
+                docText.AsSpan(), reusableSet, _stringInternPool);
             scanner.Scan();
 
             // Setup Window
