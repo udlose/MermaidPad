@@ -40,7 +40,6 @@ internal static class CssStyles
     public const string FontSize = "fontSize:";
     public const string FontWeight = "fontWeight:";
     public const string Height = "height:";
-    public const string HtmlBreak = "<br/>";
     public const string MarginTop = "marginTop:";
     public const string MarginBottom = "marginBottom:";
     public const string MarginLeft = "marginLeft:";
