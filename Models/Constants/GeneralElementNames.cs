@@ -39,4 +39,5 @@ internal static class GeneralElementNames
     public const string End = "end";
     public const string Link = "link";
     public const string Style = "style";
+    public const string HtmlBreak = "<br/>";
 }
