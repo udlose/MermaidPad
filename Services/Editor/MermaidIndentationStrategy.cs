@@ -75,21 +75,12 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     private const char LeftBrace = '{';
     private const char RightBrace = '}';
     private const char Colon = ':';
-    private const string DefaultIndentation = "  "; // 2 spaces - standard for YAML/Mermaid
-    private const int DefaultIndentationSize = 2;
     private readonly string _indentationString;
     private readonly int _indentationSize;
 
     private int _cachedDeclarationLineNumber;  // 0 = not cached
     private string? _cachedDeclarationContent; // null = not cached
     private DiagramType _cachedDiagramType = DiagramType.Unknown;
-
-    /// <summary>
-    /// Gets the delimiter string used to identify the boundaries of frontmatter sections in a document.
-    /// </summary>
-    /// <remarks>The delimiter is typically used in formats such as Markdown to separate metadata from
-    /// content. This property provides a read-only span containing the delimiter value.</remarks>
-    private static ReadOnlySpan<char> FrontmatterDelimiter => "---";
 
     // Cached frontmatter boundaries to avoid O(n) scanning on every line
     private int _cachedFrontmatterStartLine = -1;  // -1 means no frontmatter
@@ -118,18 +109,6 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     private static partial Regex WhitespaceNormalizationRegex();
 
     #endregion Regex patterns
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MermaidIndentationStrategy"/> class with default settings.
-    /// </summary>
-    /// <remarks>
-    /// Uses 2 spaces as the default indentation, which is the standard for YAML and Mermaid diagrams.
-    /// </remarks>
-    public MermaidIndentationStrategy()
-    {
-        _indentationString = DefaultIndentation;
-        _indentationSize = DefaultIndentationSize;
-    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidIndentationStrategy"/> class using the specified editor options.
