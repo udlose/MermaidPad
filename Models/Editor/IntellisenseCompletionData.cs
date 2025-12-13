@@ -114,7 +114,13 @@ public sealed class IntellisenseCompletionData : ICompletionData
         if (newCaretOffset < textArea.Document.TextLength)
         {
             char nextChar = textArea.Document.GetCharAt(newCaretOffset);
-            if (nextChar == singleSpaceChar || char.IsPunctuation(nextChar) || nextChar == '(')
+
+            // We suppress space insertion if:
+            //  1. Next char is ALREADY a space (to avoid double spaces).
+            //  2. Next char is Punctuation (e.g. ',' or '.') because we don't want "Keyword ,".
+            //    EXCEPTION: We explicitly ALLOW space before '(' because Mermaid syntax often
+            //    uses whitespace separators before parenthesized arguments (e.g. interaction callbacks).
+            if (nextChar == singleSpaceChar || (char.IsPunctuation(nextChar) && nextChar != '('))
             {
                 shouldInsertSpace = false;
 
