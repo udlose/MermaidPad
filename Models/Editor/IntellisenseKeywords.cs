@@ -50,6 +50,7 @@ internal static class IntellisenseKeywords
     /// </remarks>
     private static readonly string[] _frontmatterKeywords =
     [
+        // NOTE: Do not add the --- delimiter here as it isn't a keyword but a structural element.
         Frontmatter.Comment,
         Frontmatter.Mermaid,
         Frontmatter.DefaultRenderer,
@@ -283,27 +284,154 @@ internal static class IntellisenseKeywords
     [
         DiagramTypeNames.ClassDiagram,
         DiagramTypeNames.ClassDiagramV2,
-        GeneralElementNames.Class,
+        ClassDiagram.Class,
         GeneralElementNames.ClassDef,
-        "interface",
-        "namespace",
-        "bool",
-        "double",
-        "float",
-        "int",
-        "long",
-        "string",
-        "<<interface>>",
-        "<<abstract>>",
-        "<<service>>",
-        "<<enumeration>>",
-        GeneralElementNames.Link,
-        "call",
-        "callback",
         GeneralElementNames.Direction,
-        "note",
-        "href",
+        ClassDiagram.Namespace,
+        ClassDiagram.Comment,
+        ClassDiagram.Note,
+        ClassDiagram.Visibility.Public,
+        ClassDiagram.Visibility.Private,
+        ClassDiagram.Visibility.Protected,
+        ClassDiagram.Visibility.PackageOrInternal,
+        ClassDiagram.OneWayRelationship.Inheritance,
+        ClassDiagram.OneWayRelationship.Composition,
+        ClassDiagram.OneWayRelationship.Aggregation,
+        ClassDiagram.OneWayRelationship.Association,
+        ClassDiagram.OneWayRelationship.LinkSolid,
+        ClassDiagram.OneWayRelationship.Dependency,
+        ClassDiagram.OneWayRelationship.Realization,
+        ClassDiagram.OneWayRelationship.LinkDashed,
+        ClassDiagram.TwoWayRelationship.Inheritance,
+        ClassDiagram.TwoWayRelationship.Composition,
+        ClassDiagram.TwoWayRelationship.Aggregation,
+        ClassDiagram.TwoWayRelationship.AssociationRight,
+        ClassDiagram.TwoWayRelationship.AssociationLeft,
+        ClassDiagram.TwoWayRelationship.Realization,
+        ClassDiagram.TwoWayRelationship.LinkSolid,
+        ClassDiagram.TwoWayRelationship.LinkDashed,
+        ClassDiagram.Cardinality.One,
+        ClassDiagram.Cardinality.ZeroOrOne,
+        ClassDiagram.Cardinality.OneOrMore,
+        ClassDiagram.Cardinality.Many,
+        ClassDiagram.Cardinality.N,
+        ClassDiagram.Cardinality.ZeroToN,
+        ClassDiagram.Cardinality.OneToN,
+        ClassDiagram.Annotation.Interface,
+        ClassDiagram.Annotation.Abstract,
+        ClassDiagram.Annotation.Service,
+        ClassDiagram.Annotation.Enumeration,
+        ClassDiagram.Interaction.Callback,
+        ClassDiagram.Interaction.Click,
+        ClassDiagram.Interaction.Link,
+        ClassDiagram.Href,
+        ClassDiagram.TypeModifiers.Abstract,
+        ClassDiagram.TypeModifiers.Generic,
+        ClassDiagram.TypeModifiers.Static,
+        ClassDiagram.NativeType.ArrayBracketNotation,
+        ClassDiagram.NativeType.BigInteger,
+        ClassDiagram.NativeType.Bool,
+        ClassDiagram.NativeType.Byte,
+        ClassDiagram.NativeType.CancellationToken,
+        ClassDiagram.NativeType.Char,
+        ClassDiagram.NativeType.DateOnly,
+        ClassDiagram.NativeType.DateTime,
+        ClassDiagram.NativeType.DateTimeOffset,
+        ClassDiagram.NativeType.Decimal,
+        ClassDiagram.NativeType.Double,
+        ClassDiagram.NativeType.Enum,
+        ClassDiagram.NativeType.Exception,
+        ClassDiagram.NativeType.FileStream,
+        ClassDiagram.NativeType.Float,
+        ClassDiagram.NativeType.Guid,
+        ClassDiagram.NativeType.Half,
+        ClassDiagram.NativeType.IAsyncDisposable,
+        ClassDiagram.NativeType.IDisposable,
+        ClassDiagram.NativeType.Int,
+        ClassDiagram.NativeType.Long,
+        ClassDiagram.NativeType.MemoryOfT,
+        ClassDiagram.NativeType.MemoryStream,
+        ClassDiagram.NativeType.NullableOfT,
+        ClassDiagram.NativeType.Object,
+        ClassDiagram.NativeType.ReadOnlyMemoryOfT,
+        ClassDiagram.NativeType.ReadOnlySpanOfT,
+        ClassDiagram.NativeType.SByte,
+        ClassDiagram.NativeType.Short,
+        ClassDiagram.NativeType.SpanOfT,
+        ClassDiagram.NativeType.Stream,
+        ClassDiagram.NativeType.String,
+        ClassDiagram.NativeType.StringBuilder,
+        ClassDiagram.NativeType.Struct,
+        ClassDiagram.NativeType.Task,
+        ClassDiagram.NativeType.TaskOfT,
+        ClassDiagram.NativeType.TimeOnly,
+        ClassDiagram.NativeType.TimeSpan,
+        ClassDiagram.NativeType.Type,
+        ClassDiagram.NativeType.UInt,
+        ClassDiagram.NativeType.ULong,
+        ClassDiagram.NativeType.UShort,
+        ClassDiagram.NativeType.Uri,
+        ClassDiagram.NativeType.ValueTask,
+        ClassDiagram.NativeType.ValueTaskOfT,
+        ClassDiagram.NativeType.Void,
+        // Http types
+        ClassDiagram.NativeType.HttpClient,
+        ClassDiagram.NativeType.HttpContent,
+        ClassDiagram.NativeType.HttpMethod,
+        ClassDiagram.NativeType.HttpRequestMessage,
+        ClassDiagram.NativeType.HttpResponseMessage,
+        ClassDiagram.NativeType.HttpStatusCode,
+        // LINQ types
+        ClassDiagram.NativeType.Enumerable,
+        // LINQ interface types
+        ClassDiagram.NativeType.IAsyncEnumeratorOfT,
+        ClassDiagram.NativeType.IEnumerator,
+        ClassDiagram.NativeType.IEnumeratorOfT,
+        ClassDiagram.NativeType.IAsyncEnumerableOfT,
+        ClassDiagram.NativeType.ICollection,
+        ClassDiagram.NativeType.ICollectionOfT,
+        ClassDiagram.NativeType.IEnumerable,
+        ClassDiagram.NativeType.IEnumerableOfT,
+        ClassDiagram.NativeType.IList,
+        ClassDiagram.NativeType.IListOfT,
+        ClassDiagram.NativeType.IOrderedEnumerableOfT,
+        ClassDiagram.NativeType.IOrderedQueryable,
+        ClassDiagram.NativeType.IOrderedQueryableOfT,
+        ClassDiagram.NativeType.IQueryable,
+        ClassDiagram.NativeType.IQueryableOfT,
+        ClassDiagram.NativeType.IReadOnlyCollectionOfT,
+        ClassDiagram.NativeType.IReadOnlyListOfT,
+        // Non-generic collection types
+        ClassDiagram.NativeType.Array,
+        ClassDiagram.NativeType.ArrayList,
+        ClassDiagram.NativeType.Collection,
+        ClassDiagram.NativeType.FrozenSet,
+        ClassDiagram.NativeType.Hashtable,
+        // Generic collection types
+        ClassDiagram.NativeType.ArrayOfT,
+        ClassDiagram.NativeType.ArraySegmentOfT,
+        ClassDiagram.NativeType.CollectionOfT,
+        ClassDiagram.NativeType.FrozenSetOfT,
+        ClassDiagram.NativeType.HashSetOfT,
+        ClassDiagram.NativeType.ListOfT,
+        ClassDiagram.NativeType.LinkedListOfT,
+        ClassDiagram.NativeType.QueueOfT,
+        ClassDiagram.NativeType.SortedSetOfT,
+        ClassDiagram.NativeType.StackOfT,
+        // Class Theming: https://mermaid.js.org/config/theming.html#class-colors
         "classText:",
+        // Class Diagram Config: https://mermaid.js.org/config/schema-docs/config-defs-class-diagram-config.html
+        ClassDiagram.Config.TitleTopMargin,
+        ClassDiagram.Config.ArrowMarkerAbsolute,
+        ClassDiagram.Config.DividerMargin,
+        ClassDiagram.Config.Padding,
+        ClassDiagram.Config.TextHeight,
+        ClassDiagram.Config.DefaultRenderer,
+        ClassDiagram.Config.NodeSpacing,
+        ClassDiagram.Config.RankSpacing,
+        ClassDiagram.Config.DiagramPadding,
+        ClassDiagram.Config.HtmlLabels,
+        ClassDiagram.Config.HideEmptyMembersBox
     ];
 
     #endregion Class Diagram
@@ -959,7 +1087,7 @@ internal static class IntellisenseKeywords
         "activate",
         "deactivate",
         "note",
-        CssStyles.HtmlBreak,
+        GeneralElementNames.HtmlBreak,
         // Arrows: https://mermaid.js.org/syntax/sequenceDiagram.html#messages
         "->",
         "-->",
@@ -1089,7 +1217,7 @@ internal static class IntellisenseKeywords
         DiagramTypeNames.Timeline,
         GeneralElementNames.Title,
         GeneralElementNames.Section,
-        CssStyles.HtmlBreak,
+        GeneralElementNames.HtmlBreak,
         "disableMultiColor:",
         "cScale",
         "cScaleLabel"
@@ -1250,148 +1378,63 @@ internal static class IntellisenseKeywords
     /// Retrieves context-aware completion data for the specified <paramref name="diagramType"/>
     /// </summary>
     /// <param name="diagramType">The type of Mermaid diagram being edited.</param>
+    /// <param name="context">The document context providing additional information for keyword retrieval.</param>
     /// <returns>An array of completion data specific to the diagram type, or all keywords if type is Unknown.</returns>
-    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType)
+    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType, DocumentContext context)
     {
-        string[] keywords = diagramType switch
+        // Handle Frontmatter context first
+        if (context is DocumentContext.Frontmatter or DocumentContext.FrontmatterStart)
         {
-            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph => FlattenToDistinctKeywords(
+            string[] frontmatterKeywords = FlattenToDistinctKeywords([
                 _frontmatterKeywords,
                 _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _flowchartKeywords
-            ),
-            DiagramType.Sequence => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _sequenceDiagramKeywords
-            ),
-            DiagramType.State or DiagramType.StateV2 => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _stateDiagramKeywords
-            ),
-            DiagramType.Class or DiagramType.ClassV2 => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _classDiagramKeywords
-            ),
-            DiagramType.ERDiagram => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _erDiagramKeywords
-            ),
-            DiagramType.UserJourney => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _userJourneyKeywords
-            ),
-            DiagramType.Gantt => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _ganttChartKeywords
-            ),
-            DiagramType.Pie => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _pieChartKeywords
-            ),
-            DiagramType.QuadrantChart => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _quadrantChartKeywords
-            ),
-            DiagramType.Requirement => FlattenToDistinctKeywords(
-               _frontmatterKeywords,
-               _themingGeneralKeywords,
-               _cssStylesKeywords,
-               _requirementDiagramKeywords
-            ),
-            DiagramType.GitGraph => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _gitGraphKeywords
-            ),
-            DiagramType.C4Component or DiagramType.C4Container or DiagramType.C4Context
-            or DiagramType.C4Deployment or DiagramType.C4Dynamic => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _c4DiagramKeywords
-            ),
-            DiagramType.Mindmap => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _mindmapKeywords
-            ),
-            DiagramType.Timeline => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _timelineKeywords
-            ),
-            DiagramType.Sankey => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _sankeyKeywords
-            ),
-            DiagramType.XYChart => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _xyChartKeywords
-            ),
-            DiagramType.Block => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _blockDiagramKeywords
-            ),
-            DiagramType.Packet => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _packetKeywords
-            ),
-            DiagramType.Kanban => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _kanbanKeywords
-            ),
-            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _architectureDiagramKeywords
-            ),
-            DiagramType.RadarBeta => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _radarChartKeywords
-            ),
-            DiagramType.Treemap => FlattenToDistinctKeywords(
-                _frontmatterKeywords,
-                _themingGeneralKeywords,
-                _cssStylesKeywords,
-                _treemapKeywords
-            ),
-            _ => AggregatedDistinctKeywords // Unknown or fallback
+                _cssStylesKeywords
+            ]);
+            return CreateCompletionData(frontmatterKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+        }
+
+        // Handle Diagram context
+        string[] diagramKeywords = diagramType switch
+        {
+            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _flowchartKeywords),
+
+            DiagramType.Sequence =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _sequenceDiagramKeywords),
+
+            DiagramType.State or DiagramType.StateV2 =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _stateDiagramKeywords),
+
+            DiagramType.Class or DiagramType.ClassV2 =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _classDiagramKeywords),
+
+            DiagramType.C4Context or DiagramType.C4Container or DiagramType.C4Component or
+            DiagramType.C4Deployment or DiagramType.C4Dynamic =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _c4DiagramKeywords),
+
+            DiagramType.ERDiagram => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _erDiagramKeywords),
+            DiagramType.Gantt => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _ganttChartKeywords),
+            DiagramType.Pie => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _pieChartKeywords),
+            DiagramType.Mindmap => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _mindmapKeywords),
+            DiagramType.Timeline => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _timelineKeywords),
+            DiagramType.UserJourney => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _userJourneyKeywords),
+            DiagramType.GitGraph => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _gitGraphKeywords),
+            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _architectureDiagramKeywords),
+            DiagramType.Block => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _blockDiagramKeywords),
+            DiagramType.Requirement => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _requirementDiagramKeywords),
+            DiagramType.Sankey => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _sankeyKeywords),
+            DiagramType.XYChart => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _xyChartKeywords),
+            DiagramType.QuadrantChart => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _quadrantChartKeywords),
+            DiagramType.Packet => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _packetKeywords),
+            DiagramType.Kanban => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _kanbanKeywords),
+            DiagramType.RadarBeta => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _radarChartKeywords),
+            DiagramType.Treemap => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _treemapKeywords),
+
+            // Fallback for Unknown or unhandled types
+            _ => AggregatedDistinctKeywords
         };
 
-        return CreateCompletionData(keywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+        return CreateCompletionData(diagramKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
     }
 
     /// <summary>
@@ -1407,7 +1450,7 @@ internal static class IntellisenseKeywords
     {
         if (keywords.Length == 0)
         {
-#pragma warning disable IDE0301     // IDE0301:Use collection expression for empty. Prefer explicit intent in this context
+#pragma warning disable IDE0301     // IDE0301:Use collection expression for empty. Prefer explicit intent with Array.Empty<T>() in this context
             return Array.Empty<IntellisenseCompletionData>();
 #pragma warning restore IDE0301
         }

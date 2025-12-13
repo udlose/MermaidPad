@@ -81,18 +81,18 @@ internal static class DiagramTypeLookups
     /// </summary>
     /// <remarks>This set is used to efficiently determine whether a given string marks the start of a
     /// sequence block, such as 'loop', 'alt', or 'opt'. The use of a frozen set ensures fast lookups and thread
-    /// safety.</remarks>
+    /// safety. NOTE: 'else' and 'and' are continuation keywords, not block openers, so they are excluded.</remarks>
     private static readonly FrozenSet<string> _sequenceBlockOpeners = FrozenSet.ToFrozenSet(
     [
         SequenceDiagram.BlockOpenerNames.Loop,
         SequenceDiagram.BlockOpenerNames.Alt,
-        SequenceDiagram.BlockOpenerNames.Else,
         SequenceDiagram.BlockOpenerNames.Opt,
         SequenceDiagram.BlockOpenerNames.Par,
-        SequenceDiagram.BlockOpenerNames.And,
         SequenceDiagram.BlockOpenerNames.Critical,
         SequenceDiagram.BlockOpenerNames.Break,
         SequenceDiagram.BlockOpenerNames.Rect
+        // 'else' is a continuation keyword, not block opener
+        // 'and' is a continuation keyword, not block opener
     ], StringComparer.Ordinal);
 
     /// <summary>

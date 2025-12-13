@@ -31,9 +31,9 @@ namespace MermaidPad.Models.Constants;
 [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Following Mermaid naming convention for clarity.")]
 internal static class DirectionNames
 {
-    public const string TopToBottom = "TB";
-    public const string TopToBottomTD = "TD";
-    public const string BottomToTop = "BT";
-    public const string LeftToRight = "LR";
-    public const string RightToLeft = "RL";
+    internal const string TopToBottom = "TB";
+    internal const string TopToBottomTD = "TD";
+    internal const string BottomToTop = "BT";
+    internal const string LeftToRight = "LR";
+    internal const string RightToLeft = "RL";
 }

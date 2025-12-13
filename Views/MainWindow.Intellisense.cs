@@ -20,6 +20,7 @@
 
 using Avalonia.Input;
 using AvaloniaEdit.CodeCompletion;
+using AvaloniaEdit.Document;
 using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.ObjectPoolPolicies;
@@ -45,6 +46,7 @@ namespace MermaidPad.Views;
 [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
 public partial class MainWindow
 {
+    private const char Underscore = '_';
     private const int LookupTableSize = 128;
     private CompletionWindow? _completionWindow;
     private static readonly ObjectPool<HashSet<string>> _nodeBufferPool =
@@ -101,7 +103,7 @@ public partial class MainWindow
             if ((c >= 'a' && c <= 'z') ||
                 (c >= 'A' && c <= 'Z') ||
                 (c >= '0' && c <= '9') ||
-                c == '_' ||
+                c == Underscore ||
                 c == '>' ||
                 c == ' ')
             {
@@ -130,7 +132,7 @@ public partial class MainWindow
             char c = e.Text[0];
 
             // Check if char is NOT a valid identifier part (Letter, Digit, Dash, Underscore)
-            if (!char.IsLetterOrDigit(c) && c != '-' && c != '_')
+            if (!char.IsLetterOrDigit(c) && c != '-' && c != Underscore)
             {
                 _completionWindow.CompletionList.RequestInsertion(e);
             }
@@ -229,16 +231,25 @@ public partial class MainWindow
             Stopwatch sw = Stopwatch.StartNew();
 #endif
 
+            TextDocument document = Editor.Document;
+
             // Detect current diagram type using the indentation strategy cache
             MermaidIndentationStrategy? indentationStrategy = Editor.TextArea.IndentationStrategy as MermaidIndentationStrategy;
-            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(Editor.Document)
+            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(document)
                 ?? DiagramType.Unknown;
 
-            // Get context-aware keywords
-            IntellisenseCompletionData[] contextKeywords = IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType);
+            // Get the line number where the cursor is to determine document context - Frontmatter vs Diagram
+            int currentLineNumber = document.GetLineByOffset(Editor.CaretOffset).LineNumber;
+            DocumentContext currentContext = indentationStrategy?.DetermineContext(document, currentLineNumber)
+                ?? DocumentContext.Diagram;
+
+            // Get context-aware keywords based on diagram type and context
+            IntellisenseCompletionData[] contextKeywords =
+                IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType, currentContext);
 
             // Scan document for user-defined nodes/identifiers
-            IntellisenseScanner scanner = new IntellisenseScanner(docText.AsSpan(), reusableSet, _stringInternPool);
+            IntellisenseScanner scanner = new IntellisenseScanner(
+                docText.AsSpan(), reusableSet, _stringInternPool);
             scanner.Scan();
 
             // Setup Window
@@ -340,7 +351,7 @@ public partial class MainWindow
             char c = text[i];
 
             // Stop if we hit a separator (space, symbols, etc.)
-            if (!char.IsLetterOrDigit(c) && c != '_')
+            if (!char.IsLetterOrDigit(c) && c != Underscore)
             {
                 return i + 1; // The character AFTER the separator is the start
             }

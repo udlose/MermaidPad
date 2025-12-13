@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-namespace MermaidPad.Models.Constants;
+namespace MermaidPad.Models.Editor;
 
 /// <summary>
-/// Provides constants and helper members for working with state diagram blocks within the system.
+/// Specifies the context of a line within a document, such as frontmatter
+/// delimiters, frontmatter content, or diagram content.
 /// </summary>
-/// <remarks>This class is intended for internal use and supplies names and identifiers used when parsing or
-/// generating state diagram structures. It is not intended to be used directly by application code.</remarks>
-internal static class StateDiagram
+/// <remarks>Use this enumeration to identify the structural role of a line when
+/// parsing documents that may contain YAML frontmatter or embedded Mermaid diagrams.</remarks>
+internal enum DocumentContext
 {
     /// <summary>
-    /// Provides constant string values representing block opener element names used internally for parsing or
-    /// processing operations.
+    /// The line is the opening frontmatter delimiter (first ---).
     /// </summary>
-    internal static class BlockOpenerNames
-    {
-        internal const string State = "state";
-    }
+    FrontmatterStart,
+
+    /// <summary>
+    /// The line is within the YAML frontmatter section.
+    /// </summary>
+    Frontmatter,
+
+    /// <summary>
+    /// The line is the closing frontmatter delimiter (second ---).
+    /// </summary>
+    FrontmatterEnd,
+
+    /// <summary>
+    /// The line is within the Mermaid diagram content.
+    /// </summary>
+    Diagram
 }
