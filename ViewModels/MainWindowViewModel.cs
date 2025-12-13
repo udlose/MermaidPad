@@ -428,7 +428,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSave))]
     private Task SaveFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -491,7 +491,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]    // Can only 'Save As' if there is text to save, even if not dirty
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -870,7 +870,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanClear() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanClear() => IsWebViewReady && HasText;
 
     /// <summary>
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
@@ -1241,19 +1241,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Opens the find panel in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void OpenFind() => OpenFindAction?.Invoke();
 
     /// <summary>
     /// Finds the next match in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void FindNext() => FindNextAction?.Invoke();
 
     /// <summary>
     /// Finds the previous match in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void FindPrevious() => FindPreviousAction?.Invoke();
 
     #endregion Clipboard and Edit Commands
