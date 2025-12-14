@@ -1141,6 +1141,9 @@ public sealed partial class MainWindow : Window
             Editor.TextArea.Selection = selection;
             Editor.CaretOffset = Editor.Document.TextLength;
 
+            // Make sure caret is visible after selection
+            Editor.TextArea.Caret.BringCaretToView();
+
             _logger.LogInformation("Select all operation performed");
         }
         catch (Exception ex)
