@@ -706,6 +706,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <remarks>This command removes all entries from the recent files list and updates any associated user
     /// interface elements to reflect the change. Use this method to reset the recent files history, for example, when
     /// privacy is a concern or to start a new session.</remarks>
+    //TODO - DaveBlack - add CanExecute logic here for ClearRecentFiles
     [RelayCommand]
     private void ClearRecentFiles()
     {
