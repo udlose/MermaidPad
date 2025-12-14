@@ -25,6 +25,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AvaloniaEdit.Editing;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using MermaidPad.Services;
