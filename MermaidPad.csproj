@@ -54,6 +54,7 @@
 		<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
 		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
 		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+		<PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
 		<PackageReference Include="SkiaSharp" Version="3.119.1" />
 		<PackageReference Include="Svg.Skia" Version="3.2.1" />
 		<PackageReference Include="TextMateSharp" Version="1.0.70" />

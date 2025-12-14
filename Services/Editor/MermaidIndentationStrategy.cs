@@ -444,6 +444,10 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // Walk backwards to keep insert offsets stable across the range.
+        // When inserting or deleting text, changes at higher offsets (later lines)
+        // do not affect the offsets of earlier lines. By iterating from the end
+        // towards the start, we ensure that each modification does not invalidate
+        // the offsets for lines that have not yet been processed.
         for (int lineNumber = to; lineNumber >= from; lineNumber--)
         {
             DocumentLine line = document.GetLineByNumber(lineNumber);
