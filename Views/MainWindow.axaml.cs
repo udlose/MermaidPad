@@ -126,7 +126,7 @@ public sealed partial class MainWindow : Window
         SetupEditorViewModelSync();
 
         // Wire up clipboard and edit actions to ViewModel
-        WireUpClipboardActions();
+        WireUpEditorActions();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
@@ -813,7 +813,7 @@ public sealed partial class MainWindow : Window
     /// This method connects the ViewModel's Action properties to the actual implementation methods,
     /// enabling proper MVVM separation while allowing the View to implement UI-specific operations.
     /// </remarks>
-    private void WireUpClipboardActions()
+    private void WireUpEditorActions()
     {
         _vm.CutAction = CutToClipboardAsync;
         _vm.CopyAction = CopyToClipboardAsync;
@@ -1130,7 +1130,16 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            Editor.SelectAll();
+            //TODO: there is a known issue where SelectAll does not update. See: https://github.com/AvaloniaUI/AvaloniaEdit/issues/512
+            // we need to monitor that issue for a new release and remove this comment when it is fixed.
+            // I am tracking it here: https://github.com/udlose/MermaidPad/issues/258
+            //Editor.SelectAll();
+
+            // As a temporary workaround, we manually create the selection.
+            Selection selection = Selection.Create(Editor.TextArea, 0, Editor.Document.TextLength);
+            Editor.TextArea.Selection = selection;
+            Editor.CaretOffset = Editor.Document.TextLength;
+
             _logger.LogInformation("Select all operation performed");
         }
         catch (Exception ex)
