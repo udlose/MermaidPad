@@ -123,7 +123,7 @@ jobs:
 
       # # Upload the .app bundle immediately after creation
       # - name: Upload .app bundle artifact
-      #   uses: actions/upload-artifact@v5
+      #   uses: actions/upload-artifact@v6
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts/MermaidPad.app
@@ -167,7 +167,7 @@ jobs:
 
       # Upload the zipped .app bundle as the artifact
       - name: Upload .app bundle zip artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
           path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
