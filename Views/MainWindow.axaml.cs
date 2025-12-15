@@ -25,9 +25,11 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
+using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Highlighting;
@@ -837,6 +839,7 @@ public sealed partial class MainWindow : Window
         _vm.OpenFindAction = OpenFindPanel;
         _vm.FindNextAction = FindNextMatch;
         _vm.FindPreviousAction = FindPreviousMatch;
+        _vm.GetCurrentEditorContextFunc = GetCurrentEditorContext;
     }
 
     /// <summary>
@@ -1443,6 +1446,66 @@ public sealed partial class MainWindow : Window
 
         // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// Extracts the current editor context from the TextEditor control.
+    /// </summary>
+    /// <remarks>
+    /// This method retrieves the current state of the editor including the document, selection,
+    /// and caret position. It validates the editor state and returns null if the editor is not
+    /// in a valid state for commenting operations. This is called on-demand by the ViewModel
+    /// when comment/uncomment commands execute, ensuring fresh, accurate state.
+    /// </remarks>
+    /// <returns>
+    /// An <see cref="EditorContext"/> containing the current editor state if valid; otherwise, null.
+    /// </returns>
+    private EditorContext? GetCurrentEditorContext()
+    {
+        // Validate editor is loaded and has a document
+        if (!Editor.IsLoaded)
+        {
+            _logger.LogWarning("{MethodName}: Editor is not loaded", nameof(GetCurrentEditorContext));
+            return null;
+        }
+
+        TextDocument? document = Editor.Document;
+        if (document is null)
+        {
+            _logger.LogWarning("{MethodName}: Editor document is null", nameof(GetCurrentEditorContext));
+            return null;
+        }
+
+        // Extract current editor state
+        int selectionStart = Editor.SelectionStart;
+        int selectionLength = Editor.SelectionLength;
+        int caretOffset = Editor.CaretOffset;
+
+        // Validate selection and caret are within bounds
+        if (selectionStart < 0 || selectionLength < 0 || caretOffset < 0 || (selectionStart + selectionLength) > document.TextLength)
+        {
+            _logger.LogWarning("{MethodName}: Invalid editor state - SelectionStart={SelectionStart}, SelectionLength={SelectionLength}, CaretOffset={CaretOffset}, TextLength={TextLength}",
+                nameof(GetCurrentEditorContext), selectionStart, selectionLength, caretOffset, document.TextLength);
+
+            return new EditorContext(document, selectionStart, selectionLength, caretOffset)
+            {
+                IsValid = false
+            };
+        }
+
+        // Emulate what AvaloniaEdit.TextEditor.SelectedText does - see: https://github.com/AvaloniaUI/AvaloniaEdit/blob/8dea781b49b09dedcf98ee7496d4e4a10b410ef0/src/AvaloniaEdit/TextEditor.cs#L971-L978
+        // We'll get the text from the whole surrounding segment. This is done to ensure that SelectedText.Length == SelectionLength.
+        string selectedText = string.Empty;
+        if (!Editor.TextArea.Selection.IsEmpty)
+        {
+            selectedText = Editor.TextArea.Document.GetText(Editor.TextArea.Selection.SurroundingSegment);
+        }
+
+        return new EditorContext(document, selectionStart, selectionLength, caretOffset)
+        {
+            SelectedText = selectedText,
+            IsValid = true
+        };
     }
 
     #endregion Clipboard and Edit Methods
