@@ -242,6 +242,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <remarks>This action is set by MainWindow to find the previous match using the TextEditor's search panel.</remarks>
     public Action? FindPreviousAction { get; internal set; }
 
+    /// <summary>
+    /// Gets or sets the function to invoke when retrieving the current editor context for comment/uncomment operations.
+    /// </summary>
+    /// <remarks>
+    /// This function is set by MainWindow to extract the current editor state (document, selection, caret position) on-demand.
+    /// This ensures fresh, accurate editor state is always used. Returns null if the editor is not in a valid state.
+    /// </remarks>
+    /// <returns>A new <see cref="EditorContext"/> instance or null if invalid.</returns>
+    public Func<EditorContext?>? GetCurrentEditorContextFunc { get; internal set; }
+
     #endregion Clipboard and Edit Actions
 
     /// <summary>
@@ -1269,20 +1279,33 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(HasText))]
     private void FindPrevious() => FindPreviousAction?.Invoke();
 
-    #region Comment/UncommentSelection methods
+    #region Comment/Uncomment Selection Commands
 
     /// <summary>
     /// Comments the currently selected text in the editor, if a selection is present and commenting is allowed.
     /// It uses the commenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
     /// </summary>
-    /// <param name="editorContext">The editor context containing information about the current selection.
-    /// This parameter is created by the EditorContextConverter class.</param>
-    [RelayCommand]
-    private void CommentSelection(EditorContext? editorContext)
+    /// <remarks>
+    /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
+    /// the most current selection state is used. This command is enabled only when there is text in the editor.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasText))]
+    private void CommentSelection()
     {
+        // Make sure the GetCurrentEditorContextFunc is defined
+        if (GetCurrentEditorContextFunc is null)
+        {
+            _logger.LogWarning("{MethodName} called with undefined {Property}. Initialize this property in MainWindow.WireUpEditorActions.", nameof(CommentSelection), nameof(GetCurrentEditorContextFunc));
+            return;
+        }
+
+        // Get the current editor context on-demand to ensure fresh state
+        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
+
         // Make sure the EditorContext is valid
         if (editorContext?.IsValid != true)
         {
+            _logger.LogWarning("{MethodName} called with invalid editor context", nameof(CommentSelection));
             return;
         }
 
@@ -1293,21 +1316,34 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Removes comments from the currently selected text in the editor, if a selection is present and uncommenting is allowed.
     /// It uses the uncommenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
     /// </summary>
-    /// <param name="editorContext">The editor context containing information about the current selection.
-    /// This parameter is created by the EditorContextConverter class.</param>
-    [RelayCommand]
-    private void UncommentSelection(EditorContext? editorContext)
+    /// <remarks>
+    /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
+    /// the most current selection state is used. This command is enabled only when there is text in the editor.
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(HasText))]
+    private void UncommentSelection()
     {
+        // Make sure the GetCurrentEditorContextFunc is defined
+        if (GetCurrentEditorContextFunc is null)
+        {
+            _logger.LogWarning("{MethodName} called with undefined {Property}. Initialize this property in MainWindow.WireUpEditorActions.", nameof(UncommentSelection), nameof(GetCurrentEditorContextFunc));
+            return;
+        }
+
+        // Get the current editor context on-demand to ensure fresh state
+        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
+
         // Make sure the EditorContext is valid
         if (editorContext?.IsValid != true)
         {
+            _logger.LogWarning("{MethodName} called with invalid editor context", nameof(UncommentSelection));
             return;
         }
 
         _commentingStrategy.UncommentSelection(editorContext);
     }
 
-    #endregion Comment/UncommentSelection methods
+    #endregion Comment/Uncomment Selection Commands
 
     #endregion Clipboard and Edit Commands
 
@@ -1366,6 +1402,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         RenderCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
+        CommentSelectionCommand.NotifyCanExecuteChanged();
+        UncommentSelectionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(HasText));
     }
