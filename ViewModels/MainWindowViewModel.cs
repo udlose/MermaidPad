@@ -25,7 +25,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
+using MermaidPad.Models.Editor;
 using MermaidPad.Services;
+using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.Views.Dialogs;
@@ -62,6 +64,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
+    private readonly CommentingStrategy _commentingStrategy;
     private readonly ILogger<MainWindowViewModel> _logger;
 
     private const string DebounceRenderKey = "render";
@@ -186,13 +189,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Gets or sets the action to invoke when copying text to the clipboard.
     /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
+    /// <remarks>
+    /// This function is set by MainWindow to implement the actual async clipboard operation.
+    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
+    /// otherwise, there is a risk of race conditions with clipboard state.
+    /// </remarks>
     public Func<Task>? CopyAction { get; internal set; }
 
     /// <summary>
     /// Gets or sets the action to invoke when pasting text from the clipboard.
     /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual clipboard operation.</remarks>
+    /// <remarks>
+    /// This function is set by MainWindow to implement the actual async clipboard operation.
+    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
+    /// otherwise, there is a risk of race conditions with clipboard state.
+    /// </remarks>
     public Func<Task>? PasteAction { get; internal set; }
 
     /// <summary>
@@ -292,6 +303,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
+        _commentingStrategy = services.GetRequiredService<CommentingStrategy>();
         _logger = logger;
 
         InitializeCurrentMermaidPadVersion();
@@ -1256,6 +1268,46 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     [RelayCommand(CanExecute = nameof(HasText))]
     private void FindPrevious() => FindPreviousAction?.Invoke();
+
+    #region Comment/UncommentSelection methods
+
+    /// <summary>
+    /// Comments the currently selected text in the editor, if a selection is present and commenting is allowed.
+    /// It uses the commenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
+    /// </summary>
+    /// <param name="editorContext">The editor context containing information about the current selection.
+    /// This parameter is created by the EditorContextConverter class.</param>
+    [RelayCommand]
+    private void CommentSelection(EditorContext? editorContext)
+    {
+        // Make sure the EditorContext is valid
+        if (editorContext?.IsValid != true)
+        {
+            return;
+        }
+
+        _commentingStrategy.CommentSelection(editorContext);
+    }
+
+    /// <summary>
+    /// Removes comments from the currently selected text in the editor, if a selection is present and uncommenting is allowed.
+    /// It uses the uncommenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
+    /// </summary>
+    /// <param name="editorContext">The editor context containing information about the current selection.
+    /// This parameter is created by the EditorContextConverter class.</param>
+    [RelayCommand]
+    private void UncommentSelection(EditorContext? editorContext)
+    {
+        // Make sure the EditorContext is valid
+        if (editorContext?.IsValid != true)
+        {
+            return;
+        }
+
+        _commentingStrategy.UncommentSelection(editorContext);
+    }
+
+    #endregion Comment/UncommentSelection methods
 
     #endregion Clipboard and Edit Commands
 

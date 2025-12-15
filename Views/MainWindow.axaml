@@ -14,6 +14,7 @@
 
   <Window.Resources>
     <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
+    <converters:EditorContextConverter x:Key="EditorContextConverter" />
   </Window.Resources>
 
   <Window.Styles>
@@ -105,10 +106,27 @@
           Command="{Binding FindPreviousCommand}"
           Header="Find Pre_vious"
           InputGesture="Shift+F3" />
+        <Separator />
+        <MenuItem
+          Command="{Binding CommentSelectionCommand}"
+          Header="_Comment Selection"
+          InputGesture="Ctrl+Shift+C">
+          <MenuItem.CommandParameter>
+            <Binding Converter="{StaticResource EditorContextConverter}" RelativeSource="{RelativeSource AncestorType=TopLevel}" />
+          </MenuItem.CommandParameter>
+        </MenuItem>
+        <MenuItem
+          Command="{Binding UncommentSelectionCommand}"
+          Header="_Uncomment Selection"
+          InputGesture="Ctrl+Shift+U">
+          <MenuItem.CommandParameter>
+            <Binding Converter="{StaticResource EditorContextConverter}" RelativeSource="{RelativeSource AncestorType=TopLevel}" />
+          </MenuItem.CommandParameter>
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Help">
-        <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
-        </MenuItem>
+        <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
+      </MenuItem>
     </Menu>
 
     <!--  Toolbar  -->
@@ -189,6 +207,17 @@
               <Separator />
               <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
               <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
+              <Separator />
+              <MenuItem Command="{Binding CommentSelectionCommand}" Header="Comment Selection">
+                <MenuItem.CommandParameter>
+                  <Binding Converter="{StaticResource EditorContextConverter}" RelativeSource="{RelativeSource AncestorType=Window}" />
+                </MenuItem.CommandParameter>
+              </MenuItem>
+              <MenuItem Command="{Binding UncommentSelectionCommand}" Header="Uncomment Selection">
+                <MenuItem.CommandParameter>
+                  <Binding Converter="{StaticResource EditorContextConverter}" RelativeSource="{RelativeSource AncestorType=Window}" />
+                </MenuItem.CommandParameter>
+              </MenuItem>
             </ContextMenu>
           </edit:TextEditor.ContextMenu>
         </edit:TextEditor>
