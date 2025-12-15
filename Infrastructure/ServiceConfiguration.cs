@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Services;
+using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
@@ -102,6 +103,7 @@ public static class ServiceConfiguration
         services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
         services.AddSingleton<IDialogFactory, DialogFactory>();
         services.AddSingleton<IFileService, FileService>();
+        services.AddSingleton<CommentingStrategy>();
 
         // Main ViewModel: transient (one per window)
         services.AddTransient<MainWindowViewModel>();
