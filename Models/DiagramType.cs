@@ -26,7 +26,7 @@ namespace MermaidPad.Models;
 /// Represents the type of Mermaid diagram detected in the document.
 /// </summary>
 [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Enum names match Mermaid diagram types")]
-internal enum DiagramType
+public enum DiagramType
 {
     Unknown,
     Flowchart,

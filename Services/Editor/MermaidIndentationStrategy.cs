@@ -175,7 +175,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     }
 
     /// <summary>
-    /// Applies indentation to a range of lines. 
+    /// Applies indentation to a range of lines.
     /// </summary>
     /// <remarks>
     /// Applies indentation to each line in the specified range sequentially.
