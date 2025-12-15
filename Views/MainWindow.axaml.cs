@@ -393,28 +393,39 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     private void BringFocusToEditor()
     {
-        Dispatcher.UIThread.Post(() =>
+        // Check if we're on the ui thread first
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            // Suppress event reactions during programmatic focus/caret adjustments
-            _suppressEditorStateSync = true;
-            try
-            {
-                // Make sure caret is visible:
-                Editor.TextArea.Caret.CaretBrush = Brushes.Red;
+            SetFocusToEditor();
+            return;
+        }
 
-                // Ensure selection is visible
-                Editor.TextArea.SelectionBrush = Brushes.SteelBlue;
-                if (!Editor.IsFocused)
-                {
-                    Editor.Focus();
-                }
-                Editor.TextArea.Caret.BringCaretToView();
-            }
-            finally
+        Dispatcher.UIThread.Post(SetFocusToEditor, DispatcherPriority.Input);
+
+        void SetFocusToEditor()
+        {
+            if (Editor?.TextArea is not null)
             {
-                _suppressEditorStateSync = false;
+                // Suppress event reactions during programmatic focus/caret adjustments
+                _suppressEditorStateSync = true;
+                try
+                {
+                    // Make sure caret is visible:
+                    Editor.TextArea.Caret.CaretBrush = Brushes.Red;
+                    // Ensure selection is visible
+                    Editor.TextArea.SelectionBrush = Brushes.SteelBlue;
+                    if (!Editor.IsFocused)
+                    {
+                        Editor.Focus();
+                    }
+                    Editor.TextArea.Caret.BringCaretToView();
+                }
+                finally
+                {
+                    _suppressEditorStateSync = false;
+                }
             }
-        }, DispatcherPriority.Background);
+        }
     }
 
     /// <summary>
@@ -474,6 +485,7 @@ public sealed partial class MainWindow : Window
                             WindowStartupLocation = WindowStartupLocation.CenterOwner
                         };
 
+                        // No reason to unsubscribe - dialog is a local variable and will be disposed after close
                         okButton.Click += (_, _) => dialog.Close();
 
                         await dialog.ShowDialog(this);
