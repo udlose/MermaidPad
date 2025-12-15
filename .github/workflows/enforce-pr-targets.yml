@@ -1,0 +1,74 @@
+﻿# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Enforce PR Target Branch Policy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  enforce-policy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enforce branch rules
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const base = pr.base.ref;
+            const head = pr.head.ref;
+
+            const violations = [];
+
+            // Rule 1: PRs to main must come from develop
+            if (base === "main" && head !== "develop") {
+              violations.push(
+                "❌ **Invalid PR target**\n\n" +
+                "Pull requests to `main` must come from the `develop` branch.\n\n" +
+                "👉 **What to do instead:**\n" +
+                "- Change the base branch of this PR to `develop`, **or**\n" +
+                "- Merge your changes into `develop` first, then open a PR from `develop` → `main`."
+              );
+            }
+
+            // Rule 2: develop must be rebased onto main before merging to main
+            if (base === "main" && head === "develop") {
+              const { data: comparison } = await github.rest.repos.compareCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                base: "main",
+                head: "develop"
+              });
+
+              if (comparison.behind_by > 0) {
+                violations.push(
+                  "❌ **`develop` is behind `main`**\n\n" +
+                  "`develop` must be rebased onto the latest `main` before it can be merged.\n\n" +
+                  "👉 **Fix:**\n" +
+                  "```bash\n" +
+                  "git checkout develop\n" +
+                  "git fetch origin\n" +
+                  "git rebase origin/main\n" +
+                  "git push --force-with-lease\n" +
+                  "```"
+                );
+              }
+            }
+
+            if (violations.length > 0) {
+              const message = violations.join("\n\n---\n\n");
+
+              // Avoid comment spam
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
+              });
+
+              const alreadyCommented = comments.data.some(c =>
+                c.body.includes("❌ **Invalid PR target**") ||
+                c.body.includes("❌ **`develop` is behind `main`**")
+              );
+
+              if (!alreadyCommented)
