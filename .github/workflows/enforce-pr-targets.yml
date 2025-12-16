@@ -6,69 +6,82 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, edited]
 
+permissions:
+  contents: read
+
 jobs:
-  enforce-policy:
+  enforce-branch-rules:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Enforce branch rules
-        uses: actions/github-script@v7
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v5
         with:
-          script: |
-            const pr = context.payload.pull_request;
-            const base = pr.base.ref;
-            const head = pr.head.ref;
+          fetch-depth: 0
 
-            const violations = [];
+      - name: Validate pull request branch rules
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
 
-            // Rule 1: PRs to main must come from develop
-            if (base === "main" && head !== "develop") {
-              violations.push(
-                "❌ **Invalid PR target**\n\n" +
-                "Pull requests to `main` must come from the `develop` branch.\n\n" +
-                "👉 **What to do instead:**\n" +
-                "- Change the base branch of this PR to `develop`, **or**\n" +
-                "- Merge your changes into `develop` first, then open a PR from `develop` → `main`."
-              );
-            }
+          echo "🔍 Validating pull request"
+          echo "   Base branch: $BASE_REF"
+          echo "   Head branch: $HEAD_REF"
 
-            // Rule 2: develop must be rebased onto main before merging to main
-            if (base === "main" && head === "develop") {
-              const { data: comparison } = await github.rest.repos.compareCommits({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                base: "main",
-                head: "develop"
-              });
+          #
+          # Rule 1: Only develop -> main is allowed
+          #
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "develop" ]]; then
+            echo "::error title=Invalid PR Target::Pull requests to 'main' are only allowed from 'develop'."
+            echo "➡ Feature branches must merge into 'develop' first."
+            exit 1
+          fi
 
-              if (comparison.behind_by > 0) {
-                violations.push(
-                  "❌ **`develop` is behind `main`**\n\n" +
-                  "`develop` must be rebased onto the latest `main` before it can be merged.\n\n" +
-                  "👉 **Fix:**\n" +
-                  "```bash\n" +
-                  "git checkout develop\n" +
-                  "git fetch origin\n" +
-                  "git rebase origin/main\n" +
-                  "git push --force-with-lease\n" +
-                  "```"
-                );
-              }
-            }
+          #
+          # Rule 2: Never allow main -> develop
+          #
+          if [[ "$BASE_REF" == "develop" && "$HEAD_REF" == "main" ]]; then
+            echo "::error title=Invalid PR Direction::Pull requests from 'main' into 'develop' are not allowed."
+            exit 1
+          fi
 
-            if (violations.length > 0) {
-              const message = violations.join("\n\n---\n\n");
+          #
+          # Rule 3: develop must contain main (rebase required)
+          #
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "develop" ]]; then
+            echo "🔎 Verifying that 'develop' contains 'main'..."
 
-              // Avoid comment spam
-              const comments = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number
-              });
+            set +e
+            git fetch origin main develop
+            FETCH_RESULT=$?
+            set -e
 
-              const alreadyCommented = comments.data.some(c =>
-                c.body.includes("❌ **Invalid PR target**") ||
-                c.body.includes("❌ **`develop` is behind `main`**")
-              );
+            if [[ $FETCH_RESULT -ne 0 ]]; then
+              echo "::error title=Git Fetch Failed::Failed to fetch 'main' and 'develop' from origin."
+              echo "➡ This is a CI or repository issue, not a policy violation."
+              echo "➡ Please retry. If the issue persists, check branch existence and network status."
+              exit $FETCH_RESULT
+            fi
 
-              if (!alreadyCommented)
+            set +e
+            git merge-base --is-ancestor origin/main origin/develop
+            RESULT=$?
+            set -e
+
+            if [[ $RESULT -eq 1 ]]; then
+              echo "::error title=Rebase Required::'develop' does not contain the latest commits from 'main'."
+              echo "➡ Please rebase before opening this PR:"
+              echo "   git checkout develop"
+              echo "   git fetch origin"
+              echo "   git rebase origin/main"
+              exit 1
+            elif [[ $RESULT -ne 0 ]]; then
+              echo "::error title=Branch Validation Failed::Unable to verify branch ancestry due to a git error."
+              echo "➡ Please retry. If the problem persists, check repository integrity or CI logs."
+              exit 1
+            fi
+          fi
+
+          echo "✅ Branch policy checks passed."
