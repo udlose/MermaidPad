@@ -3,7 +3,8 @@
 		<!-- Assembly and Package Metadata -->
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
 		<Version>1.0.0-beta</Version>
-		<Authors>Dave Black (udlose)</Authors>
+		<Authors>Dave Black (https://github.com/udlose)</Authors>
+        <Copyright>Copyright 2025-$([System.DateTime]::Now.ToString('yyyy')) &#169; Dave Black</Copyright>
 		<Company>udlose</Company>
 		<PackageId>MermaidPad</PackageId>
 		<Product>MermaidPad</Product>

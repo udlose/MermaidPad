@@ -39,14 +39,12 @@
           Command="{Binding SaveFileCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Save"
-          InputGesture="Ctrl+S"
-          IsEnabled="{Binding CanSave}" />
+          InputGesture="Ctrl+S" />
         <MenuItem
           Command="{Binding SaveFileAsCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="Save _As..."
-          InputGesture="Ctrl+Shift+S"
-          IsEnabled="{Binding HasText}" />
+          InputGesture="Ctrl+Shift+S" />
         <Separator />
         <!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
           <MenuItem.ItemTemplate>
@@ -108,6 +106,9 @@
           Header="Find Pre_vious"
           InputGesture="Shift+F3" />
       </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
+        </MenuItem>
     </Menu>
 
     <!--  Toolbar  -->

@@ -428,7 +428,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSave))]
     private Task SaveFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -491,7 +491,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]    // Can only 'Save As' if there is text to save, even if not dirty
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -706,6 +706,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <remarks>This command removes all entries from the recent files list and updates any associated user
     /// interface elements to reflect the change. Use this method to reset the recent files history, for example, when
     /// privacy is a concern or to start a new session.</remarks>
+    //TODO - DaveBlack - add CanExecute logic here for ClearRecentFiles
     [RelayCommand]
     private void ClearRecentFiles()
     {
@@ -729,6 +730,33 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         WindowTitle = $"MermaidPad - {fileName}{dirtyIndicator}";
     }
 
+    #region Help Menu Commands
+
+    /// <summary>
+    /// Gets the command that opens the application's log file directory (%APPDATA%\MermaidPad) in the system's file explorer.
+    /// </summary>
+    /// <summary>
+    /// Opens the application's log file directory using the system's default file explorer.
+    /// </summary>
+    [RelayCommand]
+    private void ViewLogs()
+    {
+        string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
+
+        try
+        {
+            // Use ShellExecute to open the directory in the default file explorer
+            Process.Start(new ProcessStartInfo(logDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open log directory: {LogDirectory}", logDirectory);
+            // Consider showing an error message to the user here if this command is expected to fail silently.
+            // For now, we rely on logging.
+        }
+    }
+
+    #endregion Help Menu Commands
     /// <summary>
     /// Updates the status text to reflect the currently open file or indicate that no file is open.
     /// </summary>
@@ -843,7 +871,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanClear() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanClear() => IsWebViewReady && HasText;
 
     /// <summary>
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
@@ -1214,19 +1242,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Opens the find panel in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void OpenFind() => OpenFindAction?.Invoke();
 
     /// <summary>
     /// Finds the next match in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void FindNext() => FindNextAction?.Invoke();
 
     /// <summary>
     /// Finds the previous match in the editor.
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasText))]
     private void FindPrevious() => FindPreviousAction?.Invoke();
 
     #endregion Clipboard and Edit Commands

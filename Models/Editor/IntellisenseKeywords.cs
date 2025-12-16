@@ -1,0 +1,1489 @@
+﻿// MIT License
+// Copyright (c) 2025 Dave Black
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+using Avalonia.Media.Imaging;
+using MermaidPad.Models.Constants;
+using System.Diagnostics.CodeAnalysis;
+
+namespace MermaidPad.Models.Editor;
+
+/// <summary>
+/// Provides keyword collections for Mermaid diagram intellisense and completion data.
+/// </summary>
+/// <remarks>
+/// This class contains static keyword arrays for all supported Mermaid diagram types,
+/// including frontmatter, theming, and diagram-specific keywords. The keywords are used
+/// to populate intellisense completion lists in the editor.
+/// Contains approximately 815+ keywords across 25 different diagram types and categories.
+/// </remarks>
+[SuppressMessage("Maintainability", "S1192:String literals should not be duplicated",
+    Justification = "Easier to maintain as separate arrays for each diagram type - even if there are duplicates.")]
+internal static class IntellisenseKeywords
+{
+    #region Keyword String Arrays
+
+    #region Frontmatter keywords
+
+    /// <summary>
+    /// Contains keywords for YAML frontmatter configuration in Mermaid diagrams.
+    /// </summary>
+    /// <remarks>
+    /// These keywords are used in the frontmatter section of Mermaid diagrams (delimited by ---).
+    /// Includes configuration options, theme settings, and boolean values.
+    /// </remarks>
+    private static readonly string[] _frontmatterKeywords =
+    [
+        // NOTE: Do not add the --- delimiter here as it isn't a keyword but a structural element.
+        Frontmatter.Comment,
+        Frontmatter.Mermaid,
+        Frontmatter.DefaultRenderer,
+        Frontmatter.Title,
+        Frontmatter.Config,
+        Frontmatter.Layout,
+        Frontmatter.Dagre,
+        Frontmatter.Elk,
+        Frontmatter.Theme,
+        Frontmatter.ThemeVariables,
+        Frontmatter.LogLevel,
+        Frontmatter.SecurityLevel,
+        Frontmatter.StartOnLoad,
+        Frontmatter.Secure,
+        Frontmatter.PrimaryColor,
+        Frontmatter.SignalColor,
+        Frontmatter.SignalTextColor,
+        Frontmatter.True,
+        Frontmatter.False,
+        Frontmatter.Base,
+        Frontmatter.Forest,
+        GeneralElementNames.Default,
+        Frontmatter.Dark,
+        Frontmatter.Neutral,
+        Frontmatter.UseWidth,
+        Frontmatter.UseMaxWidth
+    ];
+
+    #endregion Frontmatter keywords
+
+    #region Theming General
+
+    /// <summary>
+    /// Contains general theming configuration keywords for Mermaid diagrams.
+    /// See: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md?plain=1
+    /// </summary>
+    private static readonly string[] _themingGeneralKeywords =
+    [
+        "darkMode:",
+        "background:",
+        CssStyles.FontFamily,
+        CssStyles.FontSize,
+        Frontmatter.PrimaryColor,
+        "primaryTextColor:",
+        "secondaryColor:",
+        "primaryBorderColor:",
+        "secondaryBorderColor:",
+        "secondaryTextColor:",
+        "tertiaryColor:",
+        "tertiaryBorderColor:",
+        "tertiaryTextColor:",
+        "noteBkgColor:",
+        "noteTextColor:",
+        "noteBorderColor:",
+        "lineColor:",
+        CssStyles.TextColor,
+        "mainBkg:",
+        "errorBkgColor:",
+        "errorTextColor:"
+    ];
+
+    #endregion Theming General
+
+    #region CSS Styles
+
+    /// <summary>
+    /// Contains CSS styling keywords applicable to Mermaid diagram elements.
+    /// </summary>
+    private static readonly string[] _cssStylesKeywords =
+    [
+        CssStyles.CssStyle,
+        CssStyles.BackgroundColor,
+        CssStyles.BorderColor,
+        CssStyles.BorderWidth,
+        CssStyles.Color,
+        CssStyles.Fill,
+        CssStyles.FontFamily,
+        CssStyles.FontSize,
+        CssStyles.FontWeight,
+        CssStyles.Stroke,
+        CssStyles.StrokeDasharray,
+        CssStyles.StrokeDashoffset,
+        CssStyles.StrokeWidth,
+        GeneralElementNames.Style,
+        CssStyles.TextColor,
+        GeneralElementNames.Default
+    ];
+
+    #endregion CSS Styles
+
+    #region Architecture Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Architecture diagrams (architecture-beta).
+    /// See: https://mermaid.js.org/syntax/architecture.html
+    /// </summary>
+    private static readonly string[] _architectureDiagramKeywords =
+    [
+        DiagramTypeNames.ArchitectureBeta,
+        ArchitectureDiagram.ElementNames.Cloud,
+        ArchitectureDiagram.ElementNames.Database,
+        ArchitectureDiagram.ElementNames.Disk,
+        ArchitectureDiagram.ElementNames.Edge,
+        ArchitectureDiagram.ElementNames.Group,
+        ArchitectureDiagram.ElementNames.Internet,
+        ArchitectureDiagram.ElementNames.Junction,
+        ArchitectureDiagram.ElementNames.Server,
+        ArchitectureDiagram.ElementNames.Service,
+        "in",
+        "L",
+        "R",
+        "T",
+        "B"
+    ];
+
+    #endregion Architecture Diagram
+
+    #region Block Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Block diagrams (block).
+    /// See: https://mermaid.js.org/syntax/block.html
+    /// </summary>
+    private static readonly string[] _blockDiagramKeywords =
+    [
+        DiagramTypeNames.Block,
+        "columns",
+        GeneralElementNames.End,
+        "space"
+    ];
+
+    #endregion Block Diagram
+
+    #region C4 Diagram Elements
+
+    /// <summary>
+    /// Contains keywords specific to C4 diagrams (Context, Container, Component, Dynamic, Deployment).
+    /// See: https://mermaid.js.org/syntax/c4.html
+    /// </summary>
+    //TODO: this type is still experimental and may change. Revisit at some point to adjust as needed.
+    private static readonly string[] _c4DiagramKeywords =
+    [
+        DiagramTypeNames.C4Component,
+        DiagramTypeNames.C4Container,
+        DiagramTypeNames.C4Context,
+        DiagramTypeNames.C4Deployment,
+        DiagramTypeNames.C4Dynamic,
+        // C4 Layout Elements
+        "Lay_U",
+        "Lay_Up",
+        "Lay_D",
+        "Lay_Down",
+        "Lay_L",
+        "Lay_Left",
+        "Lay_R",
+        "Lay_Right",
+        // C4 Experimental Elements
+        "sprite",
+        "tags",
+        GeneralElementNames.Link,
+        "Legend",
+        // C4 System Context Diagram Elements
+        "Person",
+        "Person_Ext",
+        "System",
+        "SystemDb",
+        "SystemQueue",
+        "System_Ext",
+        "SystemDb_Ext",
+        "SystemQueue_Ext",
+        C4Diagram.BoundaryTypes.Boundary,
+        C4Diagram.BoundaryTypes.Enterprise,
+        C4Diagram.BoundaryTypes.System,
+        // C4 Container Diagram Elements
+        "Container",
+        "ContainerDb",
+        "ContainerQueue",
+        "Container_Ext",
+        "ContainerDb_Ext",
+        "ContainerQueue_Ext",
+        C4Diagram.BoundaryTypes.Container,
+        // C4 Component Diagram Elements
+        "Component",
+        "ComponentDb",
+        "ComponentQueue",
+        "Component_Ext",
+        "ComponentDb_Ext",
+        "ComponentQueue_Ext",
+        // C4 Dynamic Diagram Elements
+        "RelIndex",
+        // C4 Deployment Diagram Elements
+        "Deployment_Node",
+        "Node",
+        "Node_L",
+        "Node_R",
+        // C4 Relationship Types
+        "Rel",
+        "BiRel",
+        "Rel_U",
+        "Rel_Up",
+        "Rel_D",
+        "Rel_Down",
+        "Rel_L",
+        "Rel_Left",
+        "Rel_R",
+        "Rel_Right",
+        "Rel_Back",
+        "Rel_Index",
+        // C4 Custom Tags
+        "AddElementTag",
+        "AddRelTag",
+        "UpdateElementStyle",
+        "UpdateRelStyle",
+        "RoundedBoxShape",
+        "EightSidedShape",
+        "DashedLine",
+        "DottedLine",
+        "BoldLine",
+        "UpdateLayoutConfig",
+    ];
+
+    #endregion C4 Diagram Elements
+
+    #region Class Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Class diagrams (classDiagram, classDiagram-v2).
+    /// See: https://mermaid.js.org/syntax/classDiagram.html
+    /// </summary>
+    private static readonly string[] _classDiagramKeywords =
+    [
+        DiagramTypeNames.ClassDiagram,
+        DiagramTypeNames.ClassDiagramV2,
+        ClassDiagram.Class,
+        GeneralElementNames.ClassDef,
+        GeneralElementNames.Direction,
+        ClassDiagram.Namespace,
+        ClassDiagram.Comment,
+        ClassDiagram.Note,
+        ClassDiagram.Visibility.Public,
+        ClassDiagram.Visibility.Private,
+        ClassDiagram.Visibility.Protected,
+        ClassDiagram.Visibility.PackageOrInternal,
+        ClassDiagram.OneWayRelationship.Inheritance,
+        ClassDiagram.OneWayRelationship.Composition,
+        ClassDiagram.OneWayRelationship.Aggregation,
+        ClassDiagram.OneWayRelationship.Association,
+        ClassDiagram.OneWayRelationship.LinkSolid,
+        ClassDiagram.OneWayRelationship.Dependency,
+        ClassDiagram.OneWayRelationship.Realization,
+        ClassDiagram.OneWayRelationship.LinkDashed,
+        ClassDiagram.TwoWayRelationship.Inheritance,
+        ClassDiagram.TwoWayRelationship.Composition,
+        ClassDiagram.TwoWayRelationship.Aggregation,
+        ClassDiagram.TwoWayRelationship.AssociationRight,
+        ClassDiagram.TwoWayRelationship.AssociationLeft,
+        ClassDiagram.TwoWayRelationship.Realization,
+        ClassDiagram.TwoWayRelationship.LinkSolid,
+        ClassDiagram.TwoWayRelationship.LinkDashed,
+        ClassDiagram.Cardinality.One,
+        ClassDiagram.Cardinality.ZeroOrOne,
+        ClassDiagram.Cardinality.OneOrMore,
+        ClassDiagram.Cardinality.Many,
+        ClassDiagram.Cardinality.N,
+        ClassDiagram.Cardinality.ZeroToN,
+        ClassDiagram.Cardinality.OneToN,
+        ClassDiagram.Annotation.Interface,
+        ClassDiagram.Annotation.Abstract,
+        ClassDiagram.Annotation.Service,
+        ClassDiagram.Annotation.Enumeration,
+        ClassDiagram.Interaction.Callback,
+        ClassDiagram.Interaction.Click,
+        ClassDiagram.Interaction.Link,
+        ClassDiagram.Href,
+        ClassDiagram.TypeModifiers.Abstract,
+        ClassDiagram.TypeModifiers.Generic,
+        ClassDiagram.TypeModifiers.Static,
+        ClassDiagram.NativeType.ArrayBracketNotation,
+        ClassDiagram.NativeType.BigInteger,
+        ClassDiagram.NativeType.Bool,
+        ClassDiagram.NativeType.Byte,
+        ClassDiagram.NativeType.CancellationToken,
+        ClassDiagram.NativeType.Char,
+        ClassDiagram.NativeType.DateOnly,
+        ClassDiagram.NativeType.DateTime,
+        ClassDiagram.NativeType.DateTimeOffset,
+        ClassDiagram.NativeType.Decimal,
+        ClassDiagram.NativeType.Double,
+        ClassDiagram.NativeType.Enum,
+        ClassDiagram.NativeType.Exception,
+        ClassDiagram.NativeType.FileStream,
+        ClassDiagram.NativeType.Float,
+        ClassDiagram.NativeType.Guid,
+        ClassDiagram.NativeType.Half,
+        ClassDiagram.NativeType.IAsyncDisposable,
+        ClassDiagram.NativeType.IDisposable,
+        ClassDiagram.NativeType.Int,
+        ClassDiagram.NativeType.Long,
+        ClassDiagram.NativeType.MemoryOfT,
+        ClassDiagram.NativeType.MemoryStream,
+        ClassDiagram.NativeType.NullableOfT,
+        ClassDiagram.NativeType.Object,
+        ClassDiagram.NativeType.ReadOnlyMemoryOfT,
+        ClassDiagram.NativeType.ReadOnlySpanOfT,
+        ClassDiagram.NativeType.SByte,
+        ClassDiagram.NativeType.Short,
+        ClassDiagram.NativeType.SpanOfT,
+        ClassDiagram.NativeType.Stream,
+        ClassDiagram.NativeType.String,
+        ClassDiagram.NativeType.StringBuilder,
+        ClassDiagram.NativeType.Struct,
+        ClassDiagram.NativeType.Task,
+        ClassDiagram.NativeType.TaskOfT,
+        ClassDiagram.NativeType.TimeOnly,
+        ClassDiagram.NativeType.TimeSpan,
+        ClassDiagram.NativeType.Type,
+        ClassDiagram.NativeType.UInt,
+        ClassDiagram.NativeType.ULong,
+        ClassDiagram.NativeType.UShort,
+        ClassDiagram.NativeType.Uri,
+        ClassDiagram.NativeType.ValueTask,
+        ClassDiagram.NativeType.ValueTaskOfT,
+        ClassDiagram.NativeType.Void,
+        // Http types
+        ClassDiagram.NativeType.HttpClient,
+        ClassDiagram.NativeType.HttpContent,
+        ClassDiagram.NativeType.HttpMethod,
+        ClassDiagram.NativeType.HttpRequestMessage,
+        ClassDiagram.NativeType.HttpResponseMessage,
+        ClassDiagram.NativeType.HttpStatusCode,
+        // LINQ types
+        ClassDiagram.NativeType.Enumerable,
+        // LINQ interface types
+        ClassDiagram.NativeType.IAsyncEnumeratorOfT,
+        ClassDiagram.NativeType.IEnumerator,
+        ClassDiagram.NativeType.IEnumeratorOfT,
+        ClassDiagram.NativeType.IAsyncEnumerableOfT,
+        ClassDiagram.NativeType.ICollection,
+        ClassDiagram.NativeType.ICollectionOfT,
+        ClassDiagram.NativeType.IEnumerable,
+        ClassDiagram.NativeType.IEnumerableOfT,
+        ClassDiagram.NativeType.IList,
+        ClassDiagram.NativeType.IListOfT,
+        ClassDiagram.NativeType.IOrderedEnumerableOfT,
+        ClassDiagram.NativeType.IOrderedQueryable,
+        ClassDiagram.NativeType.IOrderedQueryableOfT,
+        ClassDiagram.NativeType.IQueryable,
+        ClassDiagram.NativeType.IQueryableOfT,
+        ClassDiagram.NativeType.IReadOnlyCollectionOfT,
+        ClassDiagram.NativeType.IReadOnlyListOfT,
+        // Non-generic collection types
+        ClassDiagram.NativeType.Array,
+        ClassDiagram.NativeType.ArrayList,
+        ClassDiagram.NativeType.Collection,
+        ClassDiagram.NativeType.FrozenSet,
+        ClassDiagram.NativeType.Hashtable,
+        // Generic collection types
+        ClassDiagram.NativeType.ArrayOfT,
+        ClassDiagram.NativeType.ArraySegmentOfT,
+        ClassDiagram.NativeType.CollectionOfT,
+        ClassDiagram.NativeType.FrozenSetOfT,
+        ClassDiagram.NativeType.HashSetOfT,
+        ClassDiagram.NativeType.ListOfT,
+        ClassDiagram.NativeType.LinkedListOfT,
+        ClassDiagram.NativeType.QueueOfT,
+        ClassDiagram.NativeType.SortedSetOfT,
+        ClassDiagram.NativeType.StackOfT,
+        // Class Theming: https://mermaid.js.org/config/theming.html#class-colors
+        "classText:",
+        // Class Diagram Config: https://mermaid.js.org/config/schema-docs/config-defs-class-diagram-config.html
+        ClassDiagram.Config.TitleTopMargin,
+        ClassDiagram.Config.ArrowMarkerAbsolute,
+        ClassDiagram.Config.DividerMargin,
+        ClassDiagram.Config.Padding,
+        ClassDiagram.Config.TextHeight,
+        ClassDiagram.Config.DefaultRenderer,
+        ClassDiagram.Config.NodeSpacing,
+        ClassDiagram.Config.RankSpacing,
+        ClassDiagram.Config.DiagramPadding,
+        ClassDiagram.Config.HtmlLabels,
+        ClassDiagram.Config.HideEmptyMembersBox
+    ];
+
+    #endregion Class Diagram
+
+    #region ER Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Entity Relationship (ER) diagrams.
+    /// See: https://mermaid.js.org/syntax/entityRelationshipDiagram.html
+    /// </summary>
+    private static readonly string[] _erDiagramKeywords =
+    [
+        DiagramTypeNames.ERDiagram,
+        "allows",
+        "has",
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
+        "|o",
+        "||",
+        "}o",
+        "}|",
+        "o|",
+        "o{",
+        "|{",
+    ];
+
+    #endregion ER Diagram
+
+    #region Flowchart
+
+    /// <summary>
+    /// Contains keywords specific to Flowchart/Graph diagrams, including all shape types.
+    /// See: https://mermaid.js.org/syntax/flowchart.html
+    /// </summary>
+    private static readonly string[] _flowchartKeywords =
+    [
+        DiagramTypeNames.Graph,
+        DiagramTypeNames.Flowchart,
+        DiagramTypeNames.FlowchartElk,
+        FlowchartDiagram.BlockOpenerNames.Subgraph,
+        GeneralElementNames.End,
+        GeneralElementNames.Style,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
+        "click",
+        "linkStyle",
+        GeneralElementNames.End,
+        DirectionNames.TopToBottom,
+        DirectionNames.TopToBottomTD,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
+        "img:",
+        "label:",
+        "pos:",
+        "constraint:",
+        "animate:",
+        "animation:",
+        "markdownAutoWrap",
+        "_blank",
+        "icon:",
+        "form:",
+        ShapeNames.Square,
+        ShapeNames.Circle,
+        ShapeNames.Rounded,
+        // Arrows: https://mermaid.js.org/syntax/flowchart.html#new-arrow-types
+        "--o",
+        "-->",
+        "--x",
+        "---",
+        "===",
+        "==>",
+        "-.-",
+        "-.->",
+        // Multi-directional arrows: https://mermaid.js.org/syntax/flowchart.html#multi-directional-arrows
+        "o--o",
+        "<-->",
+        "x--x",
+        // Stying line curves: https://mermaid.js.org/syntax/flowchart.html#styling-line-curves
+        ShapeNames.Curve,
+        "basis",
+        "bumpX",
+        "bumpY",
+        "cardinal",
+        "catmullRom",
+        "linear",
+        "monotoneX",
+        "monotoneY",
+        "natural",
+        "step",
+        "stepAfter",
+        "stepBefore",
+        // Shapes: https://mermaid.js.org/syntax/flowchart.html#complete-list-of-new-shapes
+        "bang",
+        "bolt",
+        "bow-rect",
+        "bow-tie-rectangle",
+        "brace",
+        "brace-l",
+        "brace-r",
+        "braces",
+        "card",
+        ShapeNames.Circ,
+        ShapeNames.Circle,
+        GeneralElementNames.Cloud,
+        "collate",
+        "com-link",
+        "comment",
+        "cross-circ",
+        "crossed-circle",
+        "curv-trap",
+        "curved-trapezoid",
+        ShapeNames.Cyl,
+        ShapeNames.Cylinder,
+        "das",
+        GeneralElementNames.Database,
+        "db",
+        "dbl-circ",
+        "decision",
+        "delay",
+        "diam",
+        ShapeNames.Diamond,
+        ShapeNames.Disk,
+        "display",
+        "div-proc",
+        "div-rect",
+        "divided-process",
+        "divided-rectangle",
+        "doc",
+        "docs",
+        "document",
+        "documents",
+        "double-circle",
+        "event",
+        "extract",
+        "f-circ",
+        "filled-circle",
+        "flag",
+        "flip-tri",
+        "flipped-triangle",
+        "fork",
+        "fr-circ",
+        "fr-rect",
+        "framed-circle",
+        "framed-rectangle",
+        "h-cyl",
+        "half-rounded-rectangle",
+        ShapeNames.Hex,
+        ShapeNames.Hexagon,
+        "horizontal-cylinder",
+        "hourglass",
+        "in-out",
+        "internal-storage",
+        "inv-trapezoid",
+        "join",
+        "junction",
+        "lean-l",
+        "lean-left",
+        "lean-r",
+        "lean-right",
+        "lightning-bolt",
+        "lin-cyl",
+        "lin-doc",
+        "lin-proc",
+        "lin-rect",
+        "lined-cylinder",
+        "lined-document",
+        "lined-process",
+        "lined-rectangle",
+        "loop-limit",
+        "manual",
+        "manual-file",
+        "manual-input",
+        "notch-pent",
+        "notch-rect",
+        "notched-pentagon",
+        "notched-rectangle",
+        "odd",
+        "out-in",
+        "paper-tape",
+        "pill",
+        "prepare",
+        "priority",
+        "proc",
+        "process",
+        "processes",
+        "procs",
+        "question",
+        ShapeNames.Rect,
+        ShapeNames.Rectangle,
+        ShapeNames.Rounded,
+        "shaded-process",
+        "sl-rect",
+        "sloped-rectangle",
+        "sm-circ",
+        "small-circle",
+        "st-doc",
+        "st-rect",
+        "stacked-document",
+        "stacked-rectangle",
+        ShapeNames.Stadium,
+        "start",
+        "stop",
+        "stored-data",
+        "subproc",
+        "subprocess",
+        "subroutine",
+        "summary",
+        "tag-doc",
+        "tag-proc",
+        "tag-rect",
+        "tagged-document",
+        "tagged-process",
+        "tagged-rectangle",
+        "terminal",
+        "text",
+        "trap-b",
+        "trap-t",
+        "trapezoid",
+        "trapezoid-bottom",
+        "trapezoid-top",
+        "tri",
+        "triangle",
+        "win-pane",
+        "window-pane",
+        // Flowchart Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#flowchart-variables
+        "nodeBorder:",
+        "clusterBkg:",
+        "clusterBorder:",
+        "defaultLinkColor:",
+        CssStyles.TitleColor,
+        "edgeLabelBackground:",
+        "nodeTextColor:",
+        // Flowchart Config: https://mermaid.js.org/config/schema-docs/config-defs-flowchart-diagram-config.html
+        FlowchartDiagram.Config.TitleTopMargin,
+        FlowchartDiagram.Config.SubGraphTitleMargin,
+        FlowchartDiagram.Config.ArrowMarkerAbsolute,
+        FlowchartDiagram.Config.DiagramPadding,
+        FlowchartDiagram.Config.HtmlLabels,
+        FlowchartDiagram.Config.NodeSpacing,
+        FlowchartDiagram.Config.RankSpacing,
+        FlowchartDiagram.Config.Curve,
+        FlowchartDiagram.Config.Padding,
+        FlowchartDiagram.Config.DefaultRenderer,
+        FlowchartDiagram.Config.WrappingWidth,
+        FlowchartDiagram.Config.InheritDir
+    ];
+
+    #endregion Flowchart
+
+    #region Gantt
+
+    /// <summary>
+    /// Contains keywords specific to Gantt charts.
+    /// See: https://mermaid.js.org/syntax/gantt.html
+    /// </summary>
+    private static readonly string[] _ganttChartKeywords =
+    [
+        DiagramTypeNames.Gantt,
+        "dateFormat",
+        "axisFormat",
+        GeneralElementNames.Title,
+        GeneralElementNames.Section,
+        "excludes",
+        "vert",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+        "weekend",
+        "weekday",
+        "active",
+        "done",
+        "crit",
+        "milestone",
+        "after",
+        "until",
+        "isadded",
+        "tickInterval",
+        "millisecond",
+        "second",
+        "minute",
+        "hour",
+        "day",
+        "week",
+        "month",
+        "year",
+        "todayMarker",
+        "titleTopMargin:",
+        "barHeight:",
+        "barGap:",
+        "topPadding:",
+        "rightPadding:",
+        "leftPadding:",
+        "gridLineStartPadding:",
+        "sectionFontSize:",
+        "numberSectionStyles:",
+        "topAxis:",
+        "displayMode:",
+        "compact",
+        "mirrorActor:",
+        "bottomMarginAdj:",
+    ];
+
+    #endregion Gantt
+
+    #region GitGraph
+
+    /// <summary>
+    /// Contains keywords specific to Git Graph diagrams.
+    /// See: https://mermaid.js.org/syntax/gitgraph.html
+    /// </summary>
+    private static readonly string[] _gitGraphKeywords =
+    [
+        DiagramTypeNames.GitGraph,
+        "commit",
+        "branch",
+        "merge",
+        "checkout",
+        "cherry-pick",
+        "reset",
+        "switch",
+        "main",
+        "develop",
+        "release",
+        "NORMAL",
+        "REVERSE",
+        "HIGHLIGHT",
+        "id:",
+        "type:",
+        "tag:",
+        "parent:",
+        "showBranches:",
+        "showCommitLabel:",
+        "mainBranchName:",
+        "mainBranchOrder:",
+        "parallelCommits:",
+        "rotateCommitLabel:",
+        "order:",
+        "LR:",
+        "TB:",
+        "BT:",
+        "git0",
+        "git1",
+        "git2",
+        "git3",
+        "git4",
+        "git5",
+        "git6",
+        "git7",
+        "gitBranchLabel0",
+        "gitBranchLabel1",
+        "gitBranchLabel2",
+        "gitBranchLabel3",
+        "gitBranchLabel4",
+        "gitBranchLabel5",
+        "gitBranchLabel6",
+        "gitBranchLabel7",
+        "gitInv0",
+        "gitInv1",
+        "gitInv2",
+        "gitInv3",
+        "gitInv4",
+        "gitInv5",
+        "gitInv6",
+        "gitInv7",
+        "commitLabelColor",
+        "commitLabelBackground",
+        "commitLabelFontSize",
+        "tagLabelFontSize",
+        "tagLabelColor",
+        "tagLabelBackground",
+        "tagLabelBorder",
+    ];
+
+    #endregion GitGraph
+
+    #region Kanban
+
+    /// <summary>
+    /// Contains keywords specific to Kanban diagrams.
+    /// See: https://mermaid.js.org/syntax/kanban.html
+    /// </summary>
+    private static readonly string[] _kanbanKeywords =
+    [
+        DiagramTypeNames.Kanban,
+        "todo",
+        "assigned:",
+        "ticket:",
+        "priority:",
+        "ticketBaseUrl:"
+    ];
+
+    #endregion Kanban
+
+    #region Mindmap
+
+    /// <summary>
+    /// Contains keywords specific to Mindmap diagrams.
+    /// See: https://mermaid.js.org/syntax/mindmap.html
+    /// </summary>
+    private static readonly string[] _mindmapKeywords =
+    [
+        DiagramTypeNames.Mindmap,
+        "root",
+        "tidy-tree"
+    ];
+
+    #endregion Mindmap
+
+    #region Packet
+
+    /// <summary>
+    /// Contains keywords specific to Packet diagrams.
+    /// See: https://mermaid.js.org/syntax/packet.html
+    /// </summary>
+    private static readonly string[] _packetKeywords =
+    [
+        DiagramTypeNames.Packet,
+        GeneralElementNames.Title,
+        "rowHeight:",
+        "bitWidth:",
+        "bitsPerRow:",
+        "showBits:",
+        "paddingX:",
+        "paddingY:"
+    ];
+
+    #endregion Packet
+
+    #region Pie Charts
+
+    /// <summary>
+    /// Contains keywords specific to Pie charts.
+    /// See: https://mermaid.js.org/syntax/pie.html
+    /// </summary>
+    private static readonly string[] _pieChartKeywords =
+    [
+        DiagramTypeNames.Pie,
+        "showData",
+        GeneralElementNames.Title,
+        "textPosition:",
+        // Pie Chart Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#pie-diagram-variables
+        "pieTitleTextSize:",
+        "pieTitleTextColor:",
+        "pieSectionTextSize:",
+        "pieSectionTextColor:",
+        "pieLegendTextSize:",
+        "pieLegendTextColor:",
+        "pieStrokeColor:",
+        "pieStrokeWidth:",
+        "pieOuterStrokeWidth:",
+        "pieOuterStrokeColor:",
+        "pieOpacity:",
+    ];
+
+    #endregion Pie Charts
+
+    #region Quadrant Diagrams
+
+    /// <summary>
+    /// Contains keywords specific to Quadrant Chart diagrams.
+    /// See: https://mermaid.js.org/syntax/quadrantChart.html
+    /// </summary>
+    private static readonly string[] _quadrantChartKeywords =
+    [
+        DiagramTypeNames.QuadrantChart,
+        GeneralElementNames.Title,
+        "x-axis",
+        "y-axis",
+        "quadrant-1",
+        "quadrant-2",
+        "quadrant-3",
+        "quadrant-4",
+        // Quadrant Theming: https://mermaid.js.org/syntax/quadrantChart.html#chart-configurations
+        "chartWidth:",
+        "chartHeight:",
+        "titlePadding:",
+        "titleFontSize:",
+        "quadrantPadding:",
+        "quadrantTextTopPadding:",
+        "quadrantLabelFontSize:",
+        "quadrantInternalBorderStrokeWidth:",
+        "quadrantExternalBorderStrokeWidth:",
+        "xAxisLabelPadding:",
+        "xAxisLabelFontSize:",
+        "xAxisPosition:",
+        "yAxisLabelPadding:",
+        "yAxisLabelFontSize:",
+        "yAxisPosition:",
+        "pointTextPadding:",
+        "pointLabelFontSize:",
+        "pointRadius:",
+        "quadrant1Fill:",
+        "quadrant2Fill:",
+        "quadrant3Fill:",
+        "quadrant4Fill:",
+        "quadrant1TextFill:",
+        "quadrant2TextFill:",
+        "quadrant3TextFill:",
+        "quadrant4TextFill:",
+        "quadrantPointFill:",
+        "quadrantPointTextFill:",
+        "quadrantXAxisTextFill:",
+        "quadrantYAxisTextFill:",
+        "quadrantInternalBorderStrokeFill:",
+        "quadrantExternalBorderStrokeFill:",
+        "quadrantTitleFill:",
+        CssStyles.Color,
+        CssStyles.Radius,
+        CssStyles.StrokeWidth,
+        CssStyles.StrokeColor,
+    ];
+
+    #endregion Quadrant Diagrams
+
+    #region Radar Charts
+
+    /// <summary>
+    /// Contains keywords specific to Radar charts (radar-beta).
+    /// See: https://mermaid.js.org/syntax/radar.html
+    /// </summary>
+    private static readonly string[] _radarChartKeywords =
+    [
+        DiagramTypeNames.RadarBeta,
+        GeneralElementNames.Title,
+        "axis",
+        ShapeNames.Curve,
+        "showLegend",
+        "max",
+        "min",
+        "graticule",
+        ShapeNames.Circle,
+        ShapeNames.Polygon,
+        "ticks",
+        // Radar Chart Theming: https://mermaid.js.org/syntax/radar.html#configuration
+        CssStyles.Width,
+        CssStyles.Height,
+        CssStyles.MarginTop,
+        CssStyles.MarginBottom,
+        CssStyles.MarginLeft,
+        CssStyles.MarginRight,
+        "axisScaleFactor:",
+        "axisLabelFactor:",
+        "curveTension:",
+        // Radar Chart Global Theming: https://mermaid.js.org/syntax/radar.html#global-theme-variables
+        CssStyles.FontSize,
+        CssStyles.TitleColor,
+        "cScale",
+        "axisColor:",
+        "axisStrokeWidth:",
+        "axisLabelFontSize:",
+        "curveOpacity:",
+        "curveStrokeWidth:",
+        "graticuleColor:",
+        "graticuleOpacity:",
+        "graticuleStrokeWidth:",
+        "legendBoxSize:",
+        "legendFontSize:",
+    ];
+
+    #endregion Radar Charts
+
+    #region Requirement Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Requirement diagrams.
+    /// See: https://mermaid.js.org/syntax/requirementDiagram.html
+    /// </summary>
+    private static readonly string[] _requirementDiagramKeywords =
+    [
+        DiagramTypeNames.RequirementDiagram,
+        RequirementDiagram.BlockTypes.Requirement,
+        RequirementDiagram.BlockTypes.Element,
+        RequirementDiagram.BlockTypes.FunctionalRequirement,
+        RequirementDiagram.BlockTypes.InterfaceRequirement,
+        RequirementDiagram.BlockTypes.PerformanceRequirement,
+        RequirementDiagram.BlockTypes.PhysicalRequirement,
+        RequirementDiagram.BlockTypes.DesignConstraint,
+        "id:",
+        "risk:",
+        "text:",
+        "type:",
+        "verifymethod:",
+        "docref:",
+        "analysis",
+        "inspection",
+        "test",
+        "demonstration",
+        GeneralElementNames.Direction,
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.LeftToRight,
+        DirectionNames.RightToLeft,
+        "simulation",
+        GeneralElementNames.Style,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
+    ];
+
+    #endregion Requirement Diagram
+
+    #region Sankey
+
+    /// <summary>
+    /// Contains keywords specific to Sankey diagrams (sankey).
+    /// See: https://mermaid.js.org/syntax/sankey.html
+    /// </summary>
+    private static readonly string[] _sankeyKeywords =
+    [
+        DiagramTypeNames.Sankey,
+        "source",
+        "target",
+        "value",
+        CssStyles.Width,
+        CssStyles.Height,
+        "linkColor:",
+        "nodeAlignment:",
+        "gradient",
+        "justify",
+        "center",
+        "left",
+        "right"
+    ];
+
+    #endregion Sankey
+
+    #region Sequence Diagram
+
+    /// <summary>
+    /// Contains keywords specific to Sequence diagrams.
+    /// See: https://mermaid.js.org/syntax/sequenceDiagram.html
+    /// </summary>
+    private static readonly string[] _sequenceDiagramKeywords =
+    [
+        DiagramTypeNames.SequenceDiagram,
+        SequenceDiagram.ParticipantTypes.Participant,
+        SequenceDiagram.ParticipantTypes.Actor,
+        SequenceDiagram.ParticipantTypes.Boundary,
+        SequenceDiagram.ParticipantTypes.Control,
+        SequenceDiagram.ParticipantTypes.Entity,
+        SequenceDiagram.ParticipantTypes.Database,
+        "collections",
+        "queue",
+        "as",
+        "create",
+        "destroy",
+        "activate",
+        "deactivate",
+        "note",
+        GeneralElementNames.HtmlBreak,
+        // Arrows: https://mermaid.js.org/syntax/sequenceDiagram.html#messages
+        "->",
+        "-->",
+        "->>",
+        "-->>",
+        "<<->>",
+        "<<-->>",
+        "-x",
+        "--x",
+        "-)",
+        "--)",
+        "box",
+        SequenceDiagram.BlockOpenerNames.Loop,
+        GeneralElementNames.End,
+        SequenceDiagram.BlockOpenerNames.Alt,
+        SequenceDiagram.BlockOpenerNames.Else,
+        SequenceDiagram.BlockOpenerNames.Opt,
+        SequenceDiagram.BlockOpenerNames.Par,
+        SequenceDiagram.BlockOpenerNames.And,
+        SequenceDiagram.BlockOpenerNames.Critical,
+        SequenceDiagram.BlockOpenerNames.Break,
+        ShapeNames.Rect,
+        "rgb",
+        "rgba",
+        "autonumber",
+        GeneralElementNames.Link,
+        "links",
+        // Styling: https://mermaid.js.org/syntax/sequenceDiagram.html#classes-used
+        "actor",
+        "actor-top",
+        "actor-bottom",
+        "text.actor",
+        "text.actor-box",
+        "text.actor-man",
+        "actor-line",
+        "messageLine0",
+        "messageLine1",
+        "messageText",
+        "labelBox",
+        "labelText",
+        "loopText",
+        "loopLine",
+        "note",
+        "noteText",
+        // Configuration: https://mermaid.js.org/syntax/sequenceDiagram.html#configuration
+        "diagramMarginX:",
+        "diagramMarginY:",
+        "boxTextMargin:",
+        "noteMargin:",
+        "messageMargin:",
+        // https://mermaid.js.org/syntax/sequenceDiagram.html#possible-configuration-parameters
+        "mirrorActors:",
+        "bottomMarginAdj:",
+        "actorFontSize:",
+        "actorFontFamily:",
+        "actorFontWeight:",
+        "noteFontSize:",
+        "noteFontFamily:",
+        "noteFontWeight:",
+        "noteAlign:",
+        "messageFontSize:",
+        "messageFontFamily:",
+        "messageFontWeight:",
+        // Sequence Diagram Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#sequence-diagram-variables
+        "actorBkg:",
+        "actorBorder:",
+        "actorTextColor:",
+        "actorLineColor:",
+        "signalColor:",
+        "signalTextColor:",
+        "labelBoxBkgColor:",
+        "labelBoxBorderColor:",
+        "labelTextColor:",
+        "loopTextColor:",
+        "activationBorderColor:",
+        "activationBkgColor:",
+        "sequenceNumberColor:",
+        // Sequence Numbers: https://mermaid.js.org/syntax/sequenceDiagram.html#sequencenumbers
+        "showSequenceNumbers:",
+    ];
+
+    #endregion Sequence Diagram
+
+    #region State Diagrams
+
+    /// <summary>
+    /// Contains keywords specific to State diagrams (stateDiagram, stateDiagram-v2).
+    /// See: https://mermaid.js.org/syntax/stateDiagram.html
+    /// </summary>
+    private static readonly string[] _stateDiagramKeywords =
+    [
+        DiagramTypeNames.StateDiagram,
+        DiagramTypeNames.StateDiagramV2,
+        StateDiagram.BlockOpenerNames.State,
+        "as",
+        "note",
+        "end note",
+        "[*]",
+        "--",
+        "-->",
+        ":::",
+        "<<choice>>",
+        "<<fork>>",
+        "<<join>>",
+        GeneralElementNames.Direction,
+        GeneralElementNames.Class,
+        GeneralElementNames.ClassDef,
+        DirectionNames.TopToBottom,
+        DirectionNames.BottomToTop,
+        DirectionNames.RightToLeft,
+        DirectionNames.LeftToRight,
+        // State Diagram Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#state-colors
+        "labelColor:",
+        "altBackground:",
+    ];
+
+    #endregion State Diagrams
+
+    #region Timeline
+
+    /// <summary>
+    /// Contains keywords specific to Timeline diagrams.
+    /// See: https://mermaid.js.org/syntax/timeline.html
+    /// </summary>
+    private static readonly string[] _timelineKeywords =
+    [
+        DiagramTypeNames.Timeline,
+        GeneralElementNames.Title,
+        GeneralElementNames.Section,
+        GeneralElementNames.HtmlBreak,
+        "disableMultiColor:",
+        "cScale",
+        "cScaleLabel"
+    ];
+
+    #endregion Timeline
+
+    #region Treemap
+
+    /// <summary>
+    /// Contains keywords specific to Treemap diagrams (treemap).
+    /// See: https://mermaid.js.org/syntax/treemap.html
+    /// </summary>
+    private static readonly string[] _treemapKeywords =
+    [
+        DiagramTypeNames.Treemap,
+        GeneralElementNames.Title,
+        GeneralElementNames.ClassDef,
+        // Treemap Theming: https://mermaid.js.org/syntax/treemap.html#diagram-padding
+        "diagramPadding:",
+        // https://mermaid.js.org/syntax/treemap.html#configuration-options
+        Frontmatter.UseMaxWidth,
+        CssStyles.Padding,
+        "showValues:",
+        "nodeWidth:",
+        "nodeHeight:",
+        CssStyles.BorderWidth,
+        "valueFontSize:",
+        "labelFontSize:",
+        "valueFormat:"
+    ];
+
+    #endregion Treemap
+
+    #region UserJourney
+
+    /// <summary>
+    /// Contains keywords specific to User Journey diagrams.
+    /// See: https://mermaid.js.org/syntax/userJourney.html
+    /// </summary>
+    private static readonly string[] _userJourneyKeywords =
+    [
+        DiagramTypeNames.UserJourney,
+        GeneralElementNames.Section,
+        GeneralElementNames.Title,
+        // Journey Theming: https://github.com/mermaid-js/mermaid/blob/develop/docs/config/theming.md#user-journey-colors
+        "fillType0:",
+        "fillType1:",
+        "fillType2:",
+        "fillType3:",
+        "fillType4:",
+        "fillType5:",
+        "fillType6:",
+        "fillType7:"
+    ];
+
+    #endregion UserJourney
+
+    #region XY Chart
+
+    /// <summary>
+    /// Contains keywords specific to XY Chart diagrams (xychart).
+    /// See: https://mermaid.js.org/syntax/xyChart.html
+    /// </summary>
+    private static readonly string[] _xyChartKeywords =
+    [
+        DiagramTypeNames.XYChart,
+        GeneralElementNames.Title,
+        "x-axis",
+        "y-axis",
+        "series",
+        "type",
+        "line",
+        "bar",
+        "horizontal",
+        "vertical",
+        "max",
+        "min",
+        "-->",
+        // XY Chart Config: https://mermaid.js.org/syntax/xyChart.html#chart-configurations
+        CssStyles.Width,
+        CssStyles.Height,
+        "showTitle:",
+        "chartOrientation:",
+        "plotReservedSpacePercent:",
+        "showDataLabel:",
+        // XY Chart AxisConfig: https://mermaid.js.org/syntax/xyChart.html#axisconfig
+        "showLabel:",
+        "labelFontSize:",
+        "labelPadding:",
+        "titleFontSize:",
+        "titlePadding:",
+        "showTick:",
+        "tickLength:",
+        "tickWidth:",
+        "showAxisLine:",
+        "axisLineWidth:",
+        // Chart Theme Variables: https://mermaid.js.org/syntax/xyChart.html#chart-theme-variables
+        CssStyles.BackgroundColor,
+        CssStyles.TitleColor,
+        "xAxisLabelColor:",
+        "xAxisTitleColor:",
+        "xAxisTickColor:",
+        "xAxisLineColor:",
+        "yAxisLabelColor:",
+        "yAxisTitleColor:",
+        "yAxisTickColor:",
+        "yAxisLineColor:",
+        "plotColorPalette:",
+    ];
+
+    #endregion XY Chart
+
+    /// <summary>
+    /// Contains all keyword source arrays used for chart and diagram parsing.
+    /// </summary>
+    /// <remarks>Each inner array represents the set of keywords associated with a specific chart or diagram
+    /// type. This field is intended for internal use to facilitate keyword lookups and categorization.</remarks>
+    private static readonly string[][] _allSourceArrays =
+    [
+        _frontmatterKeywords,
+        _themingGeneralKeywords,
+        _cssStylesKeywords,
+        _architectureDiagramKeywords,
+        _blockDiagramKeywords,
+        _c4DiagramKeywords,
+        _classDiagramKeywords,
+        _erDiagramKeywords,
+        _flowchartKeywords,
+        _ganttChartKeywords,
+        _gitGraphKeywords,
+        _kanbanKeywords,
+        _mindmapKeywords,
+        _packetKeywords,
+        _pieChartKeywords,
+        _quadrantChartKeywords,
+        _radarChartKeywords,
+        _requirementDiagramKeywords,
+        _sankeyKeywords,
+        _sequenceDiagramKeywords,
+        _stateDiagramKeywords,
+        _timelineKeywords,
+        _treemapKeywords,
+        _userJourneyKeywords,
+        _xyChartKeywords
+    ];
+
+    /// <summary>
+    /// Gets an array containing all distinct keywords aggregated from the available source arrays.
+    /// </summary>
+    /// <remarks>The returned array contains only unique keyword values, with duplicates removed. The order of
+    /// keywords in the array is not guaranteed.</remarks>
+    internal static readonly string[] AggregatedDistinctKeywords = FlattenToDistinctKeywords(_allSourceArrays);
+
+    #endregion Keyword String Arrays
+
+    /// <summary>
+    /// Retrieves context-aware completion data for the specified <paramref name="diagramType"/>
+    /// </summary>
+    /// <param name="diagramType">The type of Mermaid diagram being edited.</param>
+    /// <param name="context">The document context providing additional information for keyword retrieval.</param>
+    /// <returns>An array of completion data specific to the diagram type, or all keywords if type is Unknown.</returns>
+    internal static IntellisenseCompletionData[] GetKeywordsForDiagramType(DiagramType diagramType, DocumentContext context)
+    {
+        // Handle Frontmatter context first
+        if (context is DocumentContext.Frontmatter or DocumentContext.FrontmatterStart)
+        {
+            string[] frontmatterKeywords = FlattenToDistinctKeywords([
+                _frontmatterKeywords,
+                _themingGeneralKeywords,
+                _cssStylesKeywords
+            ]);
+            return CreateCompletionData(frontmatterKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+        }
+
+        // Handle Diagram context
+        string[] diagramKeywords = diagramType switch
+        {
+            DiagramType.Flowchart or DiagramType.FlowchartElk or DiagramType.Graph =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _flowchartKeywords),
+
+            DiagramType.Sequence =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _sequenceDiagramKeywords),
+
+            DiagramType.State or DiagramType.StateV2 =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _stateDiagramKeywords),
+
+            DiagramType.Class or DiagramType.ClassV2 =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _classDiagramKeywords),
+
+            DiagramType.C4Context or DiagramType.C4Container or DiagramType.C4Component or
+            DiagramType.C4Deployment or DiagramType.C4Dynamic =>
+                FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _c4DiagramKeywords),
+
+            DiagramType.ERDiagram => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _erDiagramKeywords),
+            DiagramType.Gantt => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _ganttChartKeywords),
+            DiagramType.Pie => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _pieChartKeywords),
+            DiagramType.Mindmap => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _mindmapKeywords),
+            DiagramType.Timeline => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _timelineKeywords),
+            DiagramType.UserJourney => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _userJourneyKeywords),
+            DiagramType.GitGraph => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _gitGraphKeywords),
+            DiagramType.ArchitectureBeta => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _architectureDiagramKeywords),
+            DiagramType.Block => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _blockDiagramKeywords),
+            DiagramType.Requirement => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _requirementDiagramKeywords),
+            DiagramType.Sankey => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _sankeyKeywords),
+            DiagramType.XYChart => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _xyChartKeywords),
+            DiagramType.QuadrantChart => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _quadrantChartKeywords),
+            DiagramType.Packet => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _packetKeywords),
+            DiagramType.Kanban => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _kanbanKeywords),
+            DiagramType.RadarBeta => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _radarChartKeywords),
+            DiagramType.Treemap => FlattenToDistinctKeywords(_themingGeneralKeywords, _cssStylesKeywords, _treemapKeywords),
+
+            // Fallback for Unknown or unhandled types
+            _ => AggregatedDistinctKeywords
+        };
+
+        return CreateCompletionData(diagramKeywords, priority: 0, IntellisenseCompletionData.AbcIcon);
+    }
+
+    /// <summary>
+    /// Creates an array of <see cref="IntellisenseCompletionData"/> objects from the specified keywords, assigning each a priority
+    /// and optional icon.
+    /// </summary>
+    /// <param name="keywords">An array of keyword strings to be used for creating completion data. Cannot be null or empty.</param>
+    /// <param name="priority">The priority value to assign to each completion data item. Defaults to 0.</param>
+    /// <param name="icon">An optional icon to associate with each completion data item. If null, no icon is assigned.</param>
+    /// <returns>An array of <see cref="IntellisenseCompletionData"/> objects corresponding to the provided keywords. Returns an empty array if
+    /// no keywords are specified.</returns>
+    private static IntellisenseCompletionData[] CreateCompletionData(string[] keywords, int priority = 0, RenderTargetBitmap? icon = null)
+    {
+        if (keywords.Length == 0)
+        {
+#pragma warning disable IDE0301     // IDE0301:Use collection expression for empty. Prefer explicit intent with Array.Empty<T>() in this context
+            return Array.Empty<IntellisenseCompletionData>();
+#pragma warning restore IDE0301
+        }
+
+        IntellisenseCompletionData[] result = new IntellisenseCompletionData[keywords.Length];
+        for (int i = 0; i < keywords.Length; i++)
+        {
+            result[i] = new IntellisenseCompletionData(keywords[i], priority, icon);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Combines multiple arrays of keywords into a single array containing unique keywords.
+    /// </summary>
+    /// <remarks>
+    /// <para>This array contains only unique keyword values, preserving no particular order. The
+    /// aggregation avoids repeated resizing and copying by flattening and de-duplicating the source arrays
+    /// efficiently.</para>
+    /// <para>This SelectMany approach avoids the costly <see cref="List{T}"/> resizing and copying
+    /// associated with calling <see cref="List{T}.AddRange"/> multiple times.</para>
+    /// </remarks>
+    /// <param name="keywordArrays">An array of keyword arrays to be combined. Each inner
+    /// array contains keywords to include in the result. Cannot
+    /// be null; inner arrays may be empty.</param>
+    /// <returns>An array of strings containing all distinct keywords from the provided arrays.
+    /// The array will be empty if no keywords are supplied.</returns>
+    private static string[] FlattenToDistinctKeywords(params string[][] keywordArrays)
+    {
+        return keywordArrays
+            // No need to sort here; we sort later in PopulateCompletionData
+            .SelectMany(static arr => arr)
+            .Distinct()
+            .ToArray();     // Using array for better memory locality and keeping this data immutable
+    }
+}

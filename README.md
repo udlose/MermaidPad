@@ -9,7 +9,32 @@
 [![Issues Closed](https://img.shields.io/github/issues-closed-raw/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/issues?q=is%3Aissue+is%3Aclosed)
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
-[![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
+
+---
+
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Supported Diagrams & Examples](#supported-diagrams--examples)
+- [Requirements](#requirements)
+- [Technologies Used](#technologies-used)
+- [Installation](#installation)
+  - [Windows](#windows)
+  - [macOS](#macos)
+  - [Linux](#linux)
+  - [Advanced Users / Developers](#advanced-users--developers)
+- [Downloads](#downloads)
+- [Usage](#usage)
+- [Distribution & Build Process](#distribution--build-process)
+- [Building & Publishing](#building--publishing)
+- [JavaScript/HTML Linting (ESLint v9)](#javascripthtml-linting-eslint-v9)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Third Party Libraries](#third-party-libraries)
+- [Support](#support)
+- [Contact](#contact)
 
 ---
 
@@ -91,7 +116,7 @@ architecture-beta
 <summary>Block Diagrams</summary>
 
 ```
-block-beta
+block
 columns 1
   db(("DB"))
   blockArrowId6<["&nbsp;&nbsp;&nbsp;"]>(down)
@@ -149,10 +174,54 @@ C4Context
 </details>
 
 <details>
-<summary>Class Diagrams</summary>
+<summary>Class Diagrams (including v2)</summary>
 
+    BiRel(customerA, SystemAA, "Uses")
+    BiRel(SystemAA, SystemE, "Uses")
+    Rel(SystemAA, SystemC, "Sends e-mails", "SMTP")
+    Rel(SystemC, customerA, "Sends e-mails to")
 ```
 classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +String breed
+        +bark()
+    }
+    Animal <|-- Dog
+    class Cat {
+        +String color
+        +meow()
+    }
+    Animal <|-- Cat
+    class Bird {
+        +String species
+        +fly()
+    }
+    Animal <|-- Bird
+    class Fish {
+        +String type
+        +swim()
+    }
+    Animal <|-- Fish
+    class Reptile {
+        +String habitat
+        +crawl()
+    }
+    Animal <|-- Reptile
+    class Insect {
+        +String wingspan
+        +buzz()
+    }
+    Animal <|-- Insect
+```
+
+Class Diagram v2:
+```
+classDiagram-v2
     class Animal {
         +String name
         +int age
@@ -471,7 +540,7 @@ mindmap
 ---
 title: "TCP Packet"
 ---
-packet-beta
+packet
 0-15: "Source Port"
 16-31: "Destination Port"
 32-63: "Sequence Number"
@@ -574,7 +643,7 @@ config:
   sankey:
     showValues: false
 ---
-sankey-beta
+sankey
   Agricultural 'waste',Bio-conversion,124.729
   Bio-conversion,Liquid,0.597
   Bio-conversion,Losses,26.862
@@ -666,7 +735,7 @@ sequenceDiagram
 </details>
 
 <details>
-<summary>State Diagrams</summary>
+<summary>State Diagrams (including v2)</summary>
 
 ```
 stateDiagram
@@ -676,6 +745,33 @@ stateDiagram
     Processing --> Error : fail
     Completed --> Idle : reset
     Error --> Idle : reset
+```
+
+State Diagram v2:
+```
+stateDiagram-v2
+    [*] --> First
+
+    state First {
+        [*] --> Second
+
+        state Second {
+            [*] --> second
+            second --> Third
+
+            state Third {
+                [*] --> third
+                third --> [*]
+            }
+        }
+    }
+
+stateDiagram-v2
+    state if_state <<choice>>
+    [*] --> IsPositive
+    IsPositive --> if_state
+    if_state --> False: if n < 0
+    if_state --> True : if n >= 0
 ```
 <img width="2320" height="1361" alt="State Diagram Example" src="https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be" />
 </details>
@@ -699,7 +795,7 @@ timeline
 <summary>Tree Maps</summary>
 
 ```
-treemap-beta
+treemap
 "Section 1"
     "Leaf 1.1": 12
     "Section 1.2"
@@ -738,7 +834,7 @@ journey
 <summary>XY Charts</summary>
 
 ```
-xychart-beta
+xychart
   title "Performance Improvements"
   x-axis ["2020","2021","2022","2023","2024","2025"]
   y-axis "Requests per second" 0 --> 1200
@@ -747,6 +843,7 @@ xychart-beta
   bar [200,300,400,500,600,700]
 ```
 </details>
+
 ---
 
 ## Requirements
