@@ -235,7 +235,17 @@ internal sealed class MermaidIndentationStrategy : DefaultIndentationStrategy
             return;
         }
 
-        desiredIndentation = CalculateDiagramIndentation(document, previousLine, diagramType);
+        // Defensive check: if the previous line is the frontmatter end delimiter,
+        // ensure we start at column 0 regardless of any malformed delimiter indentation.
+        if (frontmatterEndLine > 0 && previousLine.LineNumber == frontmatterEndLine)
+        {
+            desiredIndentation = string.Empty;
+        }
+        else
+        {
+            desiredIndentation = CalculateDiagramIndentation(document, previousLine, diagramType);
+        }
+
         desiredIndentation = AdjustForCurrentLineKeywords(document, line, desiredIndentation, diagramType);
 
         ApplyIndentation(document, line, desiredIndentation);
