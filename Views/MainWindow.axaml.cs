@@ -192,11 +192,6 @@ public sealed partial class MainWindow : Window
         IDisposable dSelection = Disposable.Create(UnsubscribeEditorSelectionChanged);
         AddOrDisposeSubscription(dSelection);
 
-        // Editor caret position changed -> ViewModel synchronization
-        Editor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
-        IDisposable dCaret = Disposable.Create(UnsubscribeEditorCaretPositionChanged);
-        AddOrDisposeSubscription(dCaret);
-
         // ViewModel -> Editor synchronization
         _vm.PropertyChanged += OnViewModelPropertyChanged;
         IDisposable dVm = Disposable.Create(UnsubscribeViewModelPropertyChanged);
@@ -381,6 +376,7 @@ public sealed partial class MainWindow : Window
     /// </remarks>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>
+    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnActivated(object? sender, EventArgs e)
     {
         BringFocusToEditor();
@@ -499,76 +495,6 @@ public sealed partial class MainWindow : Window
     /// <param name="e">The event data associated with the Click event.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
-
-    /// <summary>
-    /// Unsubscribes all event handlers that were previously attached to window and editor events.
-    /// </summary>
-    /// <remarks>Call this method to detach all event handlers managed by the instance, typically during
-    /// cleanup or disposal. After calling this method, the instance will no longer respond to the associated events
-    /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
-    private void UnsubscribeAllEventHandlers()
-    {
-        if (_openedHandler is not null)
-        {
-            Opened -= _openedHandler;
-            _openedHandler = null;
-        }
-
-        if (_closingHandler is not null)
-        {
-            Closing -= _closingHandler;
-            _closingHandler = null;
-        }
-
-        if (_activatedHandler is not null)
-        {
-            Activated -= _activatedHandler;
-            _activatedHandler = null;
-        }
-
-        if (_themeChangedHandler is not null)
-        {
-            ActualThemeVariantChanged -= _themeChangedHandler;
-            _themeChangedHandler = null;
-        }
-
-        if (_editorTextChangedHandler is not null)
-        {
-            Editor.TextChanged -= _editorTextChangedHandler;
-            _editorTextChangedHandler = null;
-        }
-
-        if (_editorSelectionChangedHandler is not null)
-        {
-            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
-            _editorSelectionChangedHandler = null;
-        }
-
-        if (_editorCaretPositionChangedHandler is not null)
-        {
-            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
-            _editorCaretPositionChangedHandler = null;
-        }
-
-        if (_viewModelPropertyChangedHandler is not null)
-        {
-            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
-            _viewModelPropertyChangedHandler = null;
-        }
-
-        _logger.LogInformation("All event handlers unsubscribed successfully");
-    }
-
-
-    private async Task OnClosingAsync()
-    {
-        _logger.LogInformation("Window closing, cleaning up...");
-
-        // Dispose of the context menu semaphore here, as all operations using it have completed
-        _contextMenuSemaphore.Dispose();
-
-        _logger.LogInformation("All event handlers unsubscribed successfully");
-    }
 
     //TODO - DaveBlack: consider re-adding this method for close prompt functionality if we need it
     /*
@@ -731,7 +657,7 @@ public sealed partial class MainWindow : Window
 
         _applicationThemeMenuItems.Clear();
         _editorThemeMenuItems.Clear();
-        
+
         // Dispose of the context menu semaphore here, as all operations using it have completed
         _contextMenuSemaphore.Dispose();
 
@@ -1520,8 +1446,8 @@ public sealed partial class MainWindow : Window
         ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
         _applicationThemeMenuItems.Clear();
 
-    // Initialize previous theme tracker
-    _previousApplicationTheme = currentTheme;
+        // Initialize previous theme tracker
+        _previousApplicationTheme = currentTheme;
 
         //TODO - DaveBlack: this is ridiculous to first get the enum value and then go get the name separately
         foreach (ApplicationTheme theme in _vm.GetAvailableApplicationThemes())
@@ -1533,52 +1459,52 @@ public sealed partial class MainWindow : Window
                 IsChecked = theme == currentTheme
             };
 
-        // Add Bind Command and CommandParameter so we can avoid Click handlers
-        BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetApplicationThemeCommand), theme);
+            // Add Bind Command and CommandParameter so we can avoid Click handlers
+            BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetApplicationThemeCommand), theme);
 
-        // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
-        if (theme == currentTheme)
-        {
-            menuItem.Icon = CreateCheckmarkIcon();
+            // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
+            if (theme == currentTheme)
+            {
+                menuItem.Icon = CreateCheckmarkIcon();
+            }
+
+            // Track menu item checkmark updates
+            _applicationThemeMenuItems[theme] = menuItem;
+
+            parentMenu.Items.Add(menuItem);
         }
 
-        // Track menu item checkmark updates
-        _applicationThemeMenuItems[theme] = menuItem;
-
-        parentMenu.Items.Add(menuItem);
+        _logger.LogInformation("Application theme menu populated with {Count} themes using MVVM Command binding", _applicationThemeMenuItems.Count);
     }
 
-    _logger.LogInformation("Application theme menu populated with {Count} themes using MVVM Command binding", _applicationThemeMenuItems.Count);
-}
-
-/// <summary>
-/// Updates the checkmark states of application theme menu items to reflect the currently selected theme.
-/// </summary>
-/// <remarks>This method ensures that only the menu item corresponding to the active application theme is
-/// checked, and any previously checked theme menu item is unchecked. It should be called whenever the application
-/// theme changes to keep the menu UI in sync with the current theme selection.</remarks>
-private void UpdateApplicationThemeCheckmarks()
-{
-    ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
-
-    // Uncheck the previously selected theme (if it exists and changed)
-    if (_previousApplicationTheme.HasValue && _previousApplicationTheme.Value != currentTheme &&
-        _applicationThemeMenuItems.TryGetValue(_previousApplicationTheme.Value, out MenuItem? previousItem))
+    /// <summary>
+    /// Updates the checkmark states of application theme menu items to reflect the currently selected theme.
+    /// </summary>
+    /// <remarks>This method ensures that only the menu item corresponding to the active application theme is
+    /// checked, and any previously checked theme menu item is unchecked. It should be called whenever the application
+    /// theme changes to keep the menu UI in sync with the current theme selection.</remarks>
+    private void UpdateApplicationThemeCheckmarks()
     {
-        previousItem.IsChecked = false;
-        previousItem.Icon = null; // Remove checkmark
-    }
+        ApplicationTheme currentTheme = _vm.CurrentApplicationTheme;
 
-    // Check the currently selected theme
-    if (_applicationThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
-    {
-        currentItem.IsChecked = true;
-        currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
-    }
+        // Uncheck the previously selected theme (if it exists and changed)
+        if (_previousApplicationTheme.HasValue && _previousApplicationTheme.Value != currentTheme &&
+            _applicationThemeMenuItems.TryGetValue(_previousApplicationTheme.Value, out MenuItem? previousItem))
+        {
+            previousItem.IsChecked = false;
+            previousItem.Icon = null; // Remove checkmark
+        }
 
-    // Update tracker for next change
-    _previousApplicationTheme = currentTheme;
-}
+        // Check the currently selected theme
+        if (_applicationThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
+        {
+            currentItem.IsChecked = true;
+            currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
+        }
+
+        // Update tracker for next change
+        _previousApplicationTheme = currentTheme;
+    }
 
     /// <summary>
     /// Populates the specified menu with items representing available editor themes, enabling users to select and apply
@@ -1593,8 +1519,8 @@ private void UpdateApplicationThemeCheckmarks()
         ThemeName currentTheme = _vm.CurrentEditorTheme;
         _editorThemeMenuItems.Clear();
 
-    // Initialize previous theme tracker
-    _previousEditorTheme = currentTheme;
+        // Initialize previous theme tracker
+        _previousEditorTheme = currentTheme;
 
         //TODO - DaveBlack: this is ridiculous to first get the enum value and then go get the name separately
         foreach (ThemeName theme in _vm.GetAvailableEditorThemes())
@@ -1606,303 +1532,299 @@ private void UpdateApplicationThemeCheckmarks()
                 IsChecked = theme == currentTheme
             };
 
-        // Add Bind Command and CommandParameter so we can avoid Click handlers
-        BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetEditorThemeCommand), theme);
+            // Add Bind Command and CommandParameter so we can avoid Click handlers
+            BindMenuItemCommand(menuItem, nameof(MainWindowViewModel.SetEditorThemeCommand), theme);
 
-        // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
-        if (theme == currentTheme)
-        {
-            menuItem.Icon = CreateCheckmarkIcon();
+            // Add checkmark icon for checked state (Avalonia MenuItem displays Icon when IsChecked is true)
+            if (theme == currentTheme)
+            {
+                menuItem.Icon = CreateCheckmarkIcon();
+            }
+
+            // Track menu item for checkmark updates
+            _editorThemeMenuItems[theme] = menuItem;
+
+            parentMenu.Items.Add(menuItem);
         }
 
-        // Track menu item for checkmark updates
-        _editorThemeMenuItems[theme] = menuItem;
-
-        parentMenu.Items.Add(menuItem);
+        _logger.LogInformation("Editor theme menu populated with {Count} themes using MVVM Command binding", _editorThemeMenuItems.Count);
     }
 
-    _logger.LogInformation("Editor theme menu populated with {Count} themes using MVVM Command binding", _editorThemeMenuItems.Count);
-}
-
-/// <summary>
-/// Updates the checkmark states of editor theme menu items to reflect the currently selected theme.
-/// </summary>
-/// <remarks>This method ensures that only the menu item corresponding to the active editor theme is
-/// checked, and any previously checked theme is unchecked. It should be called whenever the editor theme changes to
-/// keep the menu state in sync with the application's theme selection.</remarks>
-private void UpdateEditorThemeCheckmarks()
-{
-    ThemeName currentTheme = _vm.CurrentEditorTheme;
-
-    // Uncheck the previously selected theme (if it exists and changed)
-    if (_previousEditorTheme.HasValue && _previousEditorTheme.Value != currentTheme &&
-        _editorThemeMenuItems.TryGetValue(_previousEditorTheme.Value, out MenuItem? previousItem))
+    /// <summary>
+    /// Updates the checkmark states of editor theme menu items to reflect the currently selected theme.
+    /// </summary>
+    /// <remarks>This method ensures that only the menu item corresponding to the active editor theme is
+    /// checked, and any previously checked theme is unchecked. It should be called whenever the editor theme changes to
+    /// keep the menu state in sync with the application's theme selection.</remarks>
+    private void UpdateEditorThemeCheckmarks()
     {
-        previousItem.IsChecked = false;
-        previousItem.Icon = null; // Remove checkmark
-    }
+        ThemeName currentTheme = _vm.CurrentEditorTheme;
 
-    // Check the currently selected theme
-    if (_editorThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
-    {
-        currentItem.IsChecked = true;
-        currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
-    }
-
-    // Update tracker for next change
-    _previousEditorTheme = currentTheme;
-}
-
-/// <summary>
-/// Creates a new checkmark icon as a PathIcon with predefined geometry and size.
-/// </summary>
-/// <returns>A PathIcon representing a checkmark, with a width of 14 and height of 12 units.</returns>
-private static PathIcon CreateCheckmarkIcon()
-{
-    // Create a fresh PathIcon instance each time (controls cannot be shared across the visual tree).
-    return new PathIcon
-    {
-        Data = _checkmarkGeometry,
-        Width = 14,
-        Height = 12,
-        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-        VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-        IsHitTestVisible = false        // Prevents icon from intercepting input events
-    };
-}
-
-/// <summary>
-/// Binds a command to the specified menu item using the provided command name and sets the command parameter.
-/// </summary>
-/// <remarks>This method sets up data binding for the menu item's command, enabling command-based handling
-/// of menu actions in MVVM scenarios. Ensure that the command name matches a property in the menu item's data
-/// context that implements the ICommand interface.</remarks>
-/// <param name="menuItem">The menu item to which the command will be bound. Cannot be null.</param>
-/// <param name="commandName">The name of the command property to bind to the menu item. Must correspond to a valid command property in the
-/// data context.</param>
-/// <param name="parameter">An optional parameter to pass to the command when it is executed. Can be null if no parameter is required.</param>
-private static void BindMenuItemCommand(MenuItem menuItem, string commandName, object? parameter)
-{
-    // Explicit OneWay binding avoids unintended updates if DataContext changes (pitfall: unintended TwoWay)
-    menuItem.Bind(MenuItem.CommandProperty, new Binding(commandName) { Mode = BindingMode.OneWay });
-    menuItem.CommandParameter = parameter;
-}
-
-#endregion Theme methods
-
-#region Window overrides
-
-/// <summary>
-/// Raises the Opened event and initiates any additional asynchronous operations when the window is opened.
-/// This is where we can kick off long-running async initialization (e.g., WebView setup), command state updates, focus changes.
-/// </summary>
-/// <remarks>Overrides the base window's OnOpened method to perform custom logic when the window is
-/// opened. Asynchronous operations started by this method are not awaited and exceptions are logged
-/// internally.</remarks>
-/// <param name="e">An <see cref="EventArgs"/> instance that contains the event data.</param>
-protected override void OnOpened(EventArgs e)
-{
-    base.OnOpened(e);
-
-    OnOpenedCoreAsync()
-        .SafeFireAndForget(onException: ex =>
+        // Uncheck the previously selected theme (if it exists and changed)
+        if (_previousEditorTheme.HasValue && _previousEditorTheme.Value != currentTheme &&
+            _editorThemeMenuItems.TryGetValue(_previousEditorTheme.Value, out MenuItem? previousItem))
         {
-            _logger.LogError(ex, "Unhandled exception in OnOpened");
+            previousItem.IsChecked = false;
+            previousItem.Icon = null; // Remove checkmark
+        }
 
-            // Surface the error to the ViewModel and show a simple modal error dialog on the UI thread.
-            Dispatcher.UIThread.InvokeAsync(async () =>
+        // Check the currently selected theme
+        if (_editorThemeMenuItems.TryGetValue(currentTheme, out MenuItem? currentItem))
+        {
+            currentItem.IsChecked = true;
+            currentItem.Icon = CreateCheckmarkIcon(); // Add checkmark
+        }
+
+        // Update tracker for next change
+        _previousEditorTheme = currentTheme;
+    }
+
+    /// <summary>
+    /// Creates a new checkmark icon as a PathIcon with predefined geometry and size.
+    /// </summary>
+    /// <returns>A PathIcon representing a checkmark, with a width of 14 and height of 12 units.</returns>
+    private static PathIcon CreateCheckmarkIcon()
+    {
+        // Create a fresh PathIcon instance each time (controls cannot be shared across the visual tree).
+        return new PathIcon
+        {
+            Data = _checkmarkGeometry,
+            Width = 14,
+            Height = 12,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            IsHitTestVisible = false        // Prevents icon from intercepting input events
+        };
+    }
+
+    /// <summary>
+    /// Binds a command to the specified menu item using the provided command name and sets the command parameter.
+    /// </summary>
+    /// <remarks>This method sets up data binding for the menu item's command, enabling command-based handling
+    /// of menu actions in MVVM scenarios. Ensure that the command name matches a property in the menu item's data
+    /// context that implements the ICommand interface.</remarks>
+    /// <param name="menuItem">The menu item to which the command will be bound. Cannot be null.</param>
+    /// <param name="commandName">The name of the command property to bind to the menu item. Must correspond to a valid command property in the
+    /// data context.</param>
+    /// <param name="parameter">An optional parameter to pass to the command when it is executed. Can be null if no parameter is required.</param>
+    private static void BindMenuItemCommand(MenuItem menuItem, string commandName, object? parameter)
+    {
+        // Explicit OneWay binding avoids unintended updates if DataContext changes (pitfall: unintended TwoWay)
+        menuItem.Bind(MenuItem.CommandProperty, new Binding(commandName) { Mode = BindingMode.OneWay });
+        menuItem.CommandParameter = parameter;
+    }
+
+    #endregion Theme methods
+
+    #region Window overrides
+
+    /// <summary>
+    /// Raises the Opened event and initiates any additional asynchronous operations when the window is opened.
+    /// This is where we can kick off long-running async initialization (e.g., WebView setup), command state updates, focus changes.
+    /// </summary>
+    /// <remarks>Overrides the base window's OnOpened method to perform custom logic when the window is
+    /// opened. Asynchronous operations started by this method are not awaited and exceptions are logged
+    /// internally.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> instance that contains the event data.</param>
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        OnOpenedCoreAsync()
+            .SafeFireAndForget(onException: ex =>
             {
-                try
+                _logger.LogError(ex, "Unhandled exception in OnOpened");
+
+                // Surface the error to the ViewModel and show a simple modal error dialog on the UI thread.
+                Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    // Communicate error to the ViewModel so bound UI elements can react
-                    const string errorMessage = "An error occurred while opening the application. Please try again.";
-                    _vm.LastError = errorMessage;
-
-                    // Build a minimal, self-contained error dialog so we don't depend on external packages
-                    StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
-                    messagePanel.Children.Add(new TextBlock
+                    try
                     {
-                        Text = errorMessage,
-                        TextWrapping = TextWrapping.Wrap
-                    });
-                    messagePanel.Children.Add(new TextBlock
+                        // Communicate error to the ViewModel so bound UI elements can react
+                        const string errorMessage = "An error occurred while opening the application. Please try again.";
+                        _vm.LastError = errorMessage;
+
+                        // Build a minimal, self-contained error dialog so we don't depend on external packages
+                        StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
+                        messagePanel.Children.Add(new TextBlock
+                        {
+                            Text = errorMessage,
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        messagePanel.Children.Add(new TextBlock
+                        {
+                            Text = ex.Message,
+                            Foreground = Brushes.Red,
+                            Margin = new Thickness(0, 8, 0, 0),
+                            TextWrapping = TextWrapping.Wrap
+                        });
+
+                        Button okButton = new Button
+                        {
+                            Content = "OK",
+                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                            Width = 80,
+                            Margin = new Thickness(0, 12, 0, 0)
+                        };
+                        messagePanel.Children.Add(okButton);
+
+                        Window dialog = new Window
+                        {
+                            Title = "Error",
+                            Width = 380,
+                            Height = 180,
+                            Content = messagePanel,
+                            CanResize = false,
+                            WindowStartupLocation = WindowStartupLocation.CenterOwner
+                        };
+
+                        okButton.Click += (_, _) => dialog.Close();
+
+                        await dialog.ShowDialog(this);
+                    }
+                    catch (Exception uiEx)
                     {
-                        Text = ex.Message,
-                        Foreground = Brushes.Red,
-                        Margin = new Thickness(0, 8, 0, 0),
-                        TextWrapping = TextWrapping.Wrap
-                    });
-
-                    Button okButton = new Button
-                    {
-                        Content = "OK",
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                        Width = 80,
-                        Margin = new Thickness(0, 12, 0, 0)
-                    };
-                    messagePanel.Children.Add(okButton);
-
-                    Window dialog = new Window
-                    {
-                        Title = "Error",
-                        Width = 380,
-                        Height = 180,
-                        Content = messagePanel,
-                        CanResize = false,
-                        WindowStartupLocation = WindowStartupLocation.CenterOwner
-                    };
-
-                    okButton.Click += (_, _) => dialog.Close();
-
-                    await dialog.ShowDialog(this);
-                }
-                catch (Exception uiEx)
-                {
-                    _logger.LogError(uiEx, "Failed to show error dialog after OnOpened failure");
-                }
-            }, DispatcherPriority.Normal)
-            .SafeFireAndForget(onException: uiEx => _logger.LogError(uiEx, "Failed to marshal error dialog to UI thread"));
-        });
-}
-
-/// <summary>
-/// Handles the core logic to be executed when the window is opened asynchronously.
-/// </summary>
-/// <remarks>This method logs the window open event, invokes additional asynchronous operations,  and ensures the
-/// editor receives focus. It is intended to be called as part of the  window opening lifecycle.</remarks>
-/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-private async Task OnOpenedCoreAsync()
-{
-    _suppressEditorStateSync = true;
-    try
-    {
-        await OnOpenedAsync();
-        BringFocusToEditor();
-    }
-    finally
-    {
-        _suppressEditorStateSync = false;
-    }
-}
-
-/// <summary>
-/// Handles the window closing event, performing cleanup and persisting state before the window is closed.
-/// </summary>
-/// <remarks>If the closing operation is cancelled by another handler or the system, no cleanup or state
-/// persistence occurs. Cleanup actions and state persistence are only performed when the window is actually
-/// closing. Exceptions during cleanup are logged and rethrown to ensure higher-level handlers are
-/// notified.</remarks>
-/// <param name="e">The event data for the window closing operation. If <paramref name="e"/>.Cancel is <see langword="true"/>, the
-/// closing process is aborted and cleanup is not performed.</param>
-[SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "WindowClosingEventArgs is provided by the framework")]
-protected override void OnClosing(WindowClosingEventArgs e)
-{
-    // Since the DiagramText is saved when the VM is persisted, there is no need to prompt the user here
-
-    // Reset approval flag if it was set
-    if (_isClosingApproved)
-    {
-        _isClosingApproved = false;
+                        _logger.LogError(uiEx, "Failed to show error dialog after OnOpened failure");
+                    }
+                }, DispatcherPriority.Normal)
+                .SafeFireAndForget(onException: uiEx => _logger.LogError(uiEx, "Failed to marshal error dialog to UI thread"));
+            });
     }
 
-    // Check if close was cancelled by another handler or the system
-    if (e.Cancel)
+    /// <summary>
+    /// Handles the core logic to be executed when the window is opened asynchronously.
+    /// </summary>
+    /// <remarks>This method logs the window open event, invokes additional asynchronous operations,  and ensures the
+    /// editor receives focus. It is intended to be called as part of the  window opening lifecycle.</remarks>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    private async Task OnOpenedCoreAsync()
     {
+        _suppressEditorStateSync = true;
+        try
+        {
+            await OnOpenedAsync();
+            BringFocusToEditor();
+        }
+        finally
+        {
+            _suppressEditorStateSync = false;
+        }
+    }
+
+    /// <summary>
+    /// Handles the window closing event, performing cleanup and persisting state before the window is closed.
+    /// </summary>
+    /// <remarks>If the closing operation is cancelled by another handler or the system, no cleanup or state
+    /// persistence occurs. Cleanup actions and state persistence are only performed when the window is actually
+    /// closing. Exceptions during cleanup are logged and rethrown to ensure higher-level handlers are
+    /// notified.</remarks>
+    /// <param name="e">The event data for the window closing operation. If <paramref name="e"/>.Cancel is <see langword="true"/>, the
+    /// closing process is aborted and cleanup is not performed.</param>
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "WindowClosingEventArgs is provided by the framework")]
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        // Since the DiagramText is saved when the VM is persisted, there is no need to prompt the user here
+
+        // Reset approval flag if it was set
+        if (_isClosingApproved)
+        {
+            _isClosingApproved = false;
+        }
+
+        // Check if close was cancelled by another handler or the system
+        if (e.Cancel)
+        {
+            base.OnClosing(e);
+            return; // Don't clean up - window is not actually closing
+        }
+
+        try
+        {
+            // Save state
+            _vm.Persist();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during window closing cleanup");
+
+            // I don't want silent failures here - rethrow to let higher-level handlers know
+            throw;
+        }
+
+        // Cleanup to prevent resource leaks just in case OnUnloaded was not called
+        PerformUnloadCleanup();
+
+        // Call base.OnClosing(e) last to ensure this class's cleanup logic runs before the base class's logic
         base.OnClosing(e);
-        return; // Don't clean up - window is not actually closing
     }
 
-    try
+    /// <summary>
+    /// Handles the Loaded event for the control, applying the saved editor theme and initializing theme selection menus.
+    /// This is where we perform work that requires the visual tree (e.g., applying editor theme, populating menus, accessing Editor parts).
+    /// </summary>
+    /// <remarks>This method is called when the control is loaded into the visual tree. It ensures that the
+    /// editor theme is applied and that theme selection menus are populated if their controls are available. If a theme
+    /// menu control is not found, a warning is logged.</remarks>
+    /// <param name="e">The event data associated with the Loaded event.</param>
+    protected override void OnLoaded(RoutedEventArgs e)
     {
-        // Save state
-        _vm.Persist();
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error during window closing cleanup");
+        base.OnLoaded(e);
 
-        // I don't want silent failures here - rethrow to let higher-level handlers know
-        throw;
-    }
-
-    // Cleanup to prevent resource leaks just in case OnUnloaded was not called
-    PerformUnloadCleanup();
-
-    ILogger<MainWindow> logger = _logger;
-    OnClosingAsync()
-        .SafeFireAndForget(onException: ex => logger.LogError(ex, "Failed during window close cleanup"));
-
-    // Call base.OnClosing(e) last to ensure this class's cleanup logic runs before the base class's logic
-    base.OnClosing(e);
-}
-
-/// <summary>
-/// Handles the Loaded event for the control, applying the saved editor theme and initializing theme selection menus.
-/// This is where we perform work that requires the visual tree (e.g., applying editor theme, populating menus, accessing Editor parts).
-/// </summary>
-/// <remarks>This method is called when the control is loaded into the visual tree. It ensures that the
-/// editor theme is applied and that theme selection menus are populated if their controls are available. If a theme
-/// menu control is not found, a warning is logged.</remarks>
-/// <param name="e">The event data associated with the Loaded event.</param>
-protected override void OnLoaded(RoutedEventArgs e)
-{
-    base.OnLoaded(e);
-
-    // Subscribe to theme variant changes using the event (compiles in this Avalonia version)
-    ActualThemeVariantChanged += OnThemeVariantChanged;
-    IDisposable dThemeVariant = Disposable.Create(UnsubscribeThemeVariantChanged);
-    AddOrDisposeSubscription(dThemeVariant);
+        // Subscribe to theme variant changes using the event (compiles in this Avalonia version)
+        ActualThemeVariantChanged += OnThemeVariantChanged;
+        IDisposable dThemeVariant = Disposable.Create(UnsubscribeThemeVariantChanged);
+        AddOrDisposeSubscription(dThemeVariant);
 
         // Apply saved editor theme (ThemeService.Initialize() loaded it but couldn't apply since editor was not created yet)
         _themeService.ApplyEditorTheme(Editor, _vm.CurrentEditorTheme);
         _logger.LogInformation("Applied saved editor theme: {EditorTheme}", _vm.CurrentEditorTheme);
 
-    // Initialize theme menus
-    if (ApplicationThemeMenu is not null)
-    {
-        PopulateApplicationThemeMenu(ApplicationThemeMenu);
-    }
-    else
-    {
-        _logger.LogWarning("ApplicationThemeMenu control not found");
-    }
+        // Initialize theme menus
+        if (ApplicationThemeMenu is not null)
+        {
+            PopulateApplicationThemeMenu(ApplicationThemeMenu);
+        }
+        else
+        {
+            _logger.LogWarning("ApplicationThemeMenu control not found");
+        }
 
-    if (EditorThemeMenu is not null)
-    {
-        PopulateEditorThemeMenu(EditorThemeMenu);
-    }
-    else
-    {
-        _logger.LogWarning("EditorThemeMenu control not found");
-    }
-}
-
-/// <summary>
-/// Handles the Unloaded event by performing cleanup of theme menu items and related resources.
-/// This is where we unsubscribe from event handlers and dispose to avoid leaks.
-/// </summary>
-/// <remarks>This method clears application and editor theme menu item collections when the control is
-/// unloaded. Command bindings are automatically cleaned up by Avalonia. Override this method to implement
-/// additional cleanup logic if necessary.</remarks>
-/// <param name="e">The event data associated with the Unloaded event.</param>
-protected override void OnUnloaded(RoutedEventArgs e)
-{
-    base.OnUnloaded(e);
-
-    // Ensure cleanup runs on the UI thread to avoid races with subscription additions.
-    // If we're not on the UI thread, post the cleanup and return immediately.
-    if (!Dispatcher.UIThread.CheckAccess())
-    {
-        Dispatcher.UIThread.Post(PerformUnloadCleanup, DispatcherPriority.Normal);
-        return;
+        if (EditorThemeMenu is not null)
+        {
+            PopulateEditorThemeMenu(EditorThemeMenu);
+        }
+        else
+        {
+            _logger.LogWarning("EditorThemeMenu control not found");
+        }
     }
 
-    PerformUnloadCleanup();
-}
+    /// <summary>
+    /// Handles the Unloaded event by performing cleanup of theme menu items and related resources.
+    /// This is where we unsubscribe from event handlers and dispose to avoid leaks.
+    /// </summary>
+    /// <remarks>This method clears application and editor theme menu item collections when the control is
+    /// unloaded. Command bindings are automatically cleaned up by Avalonia. Override this method to implement
+    /// additional cleanup logic if necessary.</remarks>
+    /// <param name="e">The event data associated with the Unloaded event.</param>
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
 
-#endregion Window overrides
+        // Ensure cleanup runs on the UI thread to avoid races with subscription additions.
+        // If we're not on the UI thread, post the cleanup and return immediately.
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(PerformUnloadCleanup, DispatcherPriority.Normal);
+            return;
+        }
 
-#region Named handlers (method groups) for editor-side events
+        PerformUnloadCleanup();
+    }
+
+    #endregion Window overrides
+
+    #region Named handlers (method groups) for editor-side events
 
     /// <summary>
     /// Handles the event that occurs when the text in the editor control changes.
@@ -1926,54 +1848,39 @@ protected override void OnUnloaded(RoutedEventArgs e)
             return;
         }
 
-    // Debounce to avoid excessive updates
-    _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-    {
-        if (_vm.DiagramText != Editor.Text)
+        // Debounce to avoid excessive updates
+        _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
         {
-            _suppressEditorStateSync = true;
-            try
+            if (_vm.DiagramText != Editor.Text)
             {
-                _vm.DiagramText = Editor.Text;
+                _suppressEditorStateSync = true;
+                try
+                {
+                    _vm.DiagramText = Editor.Text;
+                }
+                finally
+                {
+                    _suppressEditorStateSync = false;
+                }
             }
-            finally
-            {
-                _suppressEditorStateSync = false;
-            }
+        },
+        DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Handles the event that occurs when the editor's selection changes.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the editor control whose selection has changed.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void OnEditorSelectionChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEditorStateSync)
+        {
+            return;
         }
-    },
-    DispatcherPriority.Background);
-}
 
-/// <summary>
-/// Handles the event that occurs when the editor's selection changes.
-/// </summary>
-/// <param name="sender">The source of the event, typically the editor control whose selection has changed.</param>
-/// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
-private void OnEditorSelectionChanged(object? sender, EventArgs e)
-{
-    if (_suppressEditorStateSync)
-    {
-        return;
+        ScheduleEditorStateSyncIfNeeded();
     }
-
-    ScheduleEditorStateSyncIfNeeded();
-}
-
-/// <summary>
-/// Handles the event that occurs when the caret position in the editor changes.
-/// </summary>
-/// <param name="sender">The source of the event, typically the editor control whose caret position has changed.</param>
-/// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
-private void OnEditorCaretPositionChanged(object? sender, EventArgs e)
-{
-    if (_suppressEditorStateSync)
-    {
-        return;
-    }
-
-    ScheduleEditorStateSyncIfNeeded();
-}
 
     #endregion Named handlers (method groups) for editor-side events
 }
