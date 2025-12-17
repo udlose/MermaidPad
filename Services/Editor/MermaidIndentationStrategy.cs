@@ -24,9 +24,7 @@ using AvaloniaEdit.Indentation;
 using MermaidPad.Models;
 using MermaidPad.Models.Constants;
 using MermaidPad.Models.Editor;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 
 namespace MermaidPad.Services.Editor;
 
@@ -68,16 +66,17 @@ namespace MermaidPad.Services.Editor;
 ///     <item>sankey, packet (flat structure)</item>
 /// </list>
 /// </para>
+/// <para>
+/// Document structure analysis (frontmatter boundaries, diagram type detection) is delegated to
+/// <see cref="DocumentAnalyzer"/> which maintains a shared cache across all editor features.
+/// </para>
 /// </remarks>
 #pragma warning disable IDE0078
 [SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
 [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
 #pragma warning disable S3267 // Loops should be simplified with "LINQ" expressions. This code is performance-sensitive.
-public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrategy
+internal sealed class MermaidIndentationStrategy : DefaultIndentationStrategy
 {
-    internal const int OneBasedFirstLineNumber = 1;
-
-    private const string SingleSpaceString = " ";
     private const char SpaceChar = ' ';
     private const char TabChar = '\t';
     private const char LeftParen = '(';
@@ -90,18 +89,10 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     private const char Percent = '%';
     private const int MaxPreAllocatedIndentLevels = 20;
     private const int MaxFrontmatterScanLines = 100;
+
+    private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly string _indentationString;
     private readonly int _indentationSize;
-
-    // Diagram declaration caching
-    private int _cachedDeclarationLineNumber; // 0 = not cached
-    private string? _cachedDeclarationContent; // null = not cached
-    private DiagramType _cachedDiagramType = DiagramType.Unknown;
-
-    // Frontmatter boundary caching
-    private int _cachedFrontmatterStartLine = -1; // -1 means no frontmatter
-    private int _cachedFrontmatterEndLine = -1; // -1 means frontmatter not closed
-    private ITextSourceVersion? _cachedFrontmatterVersion;
 
     #region Pre-allocated indentation strings
 
@@ -122,32 +113,23 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
 
     #endregion Pre-allocated indentation strings
 
-    #region Regex patterns
-
-    /// <summary>
-    /// Provides a compiled regular expression that matches one or more whitespace characters.
-    /// </summary>
-    /// <remarks>
-    /// This is used for normalizing diagram declaration lines for stable caching (collapsing repeated whitespace).
-    /// </remarks>
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceNormalizationRegex();
-
-    #endregion Regex patterns
-
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidIndentationStrategy"/> class using the specified editor options.
     /// </summary>
+    /// <param name="documentAnalyzer">The document analyzer for determining line context (frontmatter vs. diagram). Cannot be null.</param>
     /// <param name="options">The text editor options containing indentation settings. Cannot be <see langword="null"/>.</param>
     /// <remarks>
     /// This constructor respects the user's configured indentation preferences from the editor options,
     /// including whether to use tabs or spaces and the indentation size.
     /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="documentAnalyzer"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="options"/> is <see langword="null"/>.</exception>
-    public MermaidIndentationStrategy(TextEditorOptions options)
+    internal MermaidIndentationStrategy(DocumentAnalyzer documentAnalyzer, TextEditorOptions options)
     {
+        ArgumentNullException.ThrowIfNull(documentAnalyzer);
         ArgumentNullException.ThrowIfNull(options);
 
+        _documentAnalyzer = documentAnalyzer;
         _indentationString = options.IndentationString;
         _indentationSize = options.IndentationSize;
     }
@@ -169,9 +151,14 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(line);
 
-        UpdateFrontmatterCache(document);
-        DiagramType diagramType = GetCachedDiagramType(document);
-        IndentLineInternal(document, line, diagramType);
+        // Get frontmatter boundaries once (warms the cache in DocumentAnalyzer)
+        int frontmatterStartLine = _documentAnalyzer.GetFrontmatterStartLine(document);
+        int frontmatterEndLine = _documentAnalyzer.GetFrontmatterEndLine(document);
+
+        // Get diagram type from analyzer (uses shared cache)
+        DiagramType diagramType = _documentAnalyzer.GetDiagramType(document);
+
+        IndentLineInternal(document, line, diagramType, frontmatterStartLine, frontmatterEndLine);
     }
 
     /// <summary>
@@ -187,26 +174,27 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        beginLine = Math.Max(OneBasedFirstLineNumber, beginLine);
+        beginLine = Math.Max(DocumentAnalyzer.OneBasedFirstLineNumber, beginLine);
         endLine = Math.Min(document.LineCount, endLine);
         if (beginLine > endLine)
         {
             return;
         }
 
-        // Update caches once (hot path).
-        UpdateFrontmatterCache(document);
+        // Get frontmatter boundaries ONCE for the batch (warms the cache in DocumentAnalyzer)
+        int frontmatterStartLine = _documentAnalyzer.GetFrontmatterStartLine(document);
+        int frontmatterEndLine = _documentAnalyzer.GetFrontmatterEndLine(document);
 
         // Keep YAML valid (low-risk formatting; does not parse YAML and does not remove comments).
-        EnsureYamlSpacingInFrontmatter(document, beginLine, endLine);
+        EnsureYamlSpacingInFrontmatter(document, beginLine, endLine, frontmatterStartLine, frontmatterEndLine);
 
-        // Cache diagram type once for the batch.
-        DiagramType diagramType = GetCachedDiagramType(document);
+        // Get diagram type from analyzer (uses shared cache)
+        DiagramType diagramType = _documentAnalyzer.GetDiagramType(document);
 
         for (int lineNumber = beginLine; lineNumber <= endLine; lineNumber++)
         {
             DocumentLine line = document.GetLineByNumber(lineNumber);
-            IndentLineInternal(document, line, diagramType);
+            IndentLineInternal(document, line, diagramType, frontmatterStartLine, frontmatterEndLine);
         }
     }
 
@@ -218,9 +206,13 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <param name="document">The text document being edited.</param>
     /// <param name="line">The current line to indent.</param>
     /// <param name="diagramType">The cached diagram type for the document.</param>
-    private void IndentLineInternal(TextDocument document, DocumentLine line, DiagramType diagramType)
+    /// <param name="frontmatterStartLine">The cached frontmatter start line (-1 if no frontmatter).</param>
+    /// <param name="frontmatterEndLine">The cached frontmatter end line (-1 if unclosed).</param>
+    private void IndentLineInternal(TextDocument document, DocumentLine line, DiagramType diagramType,
+        int frontmatterStartLine, int frontmatterEndLine)
     {
-        DocumentContext context = DetermineContextFromCache(line.LineNumber);
+        // Use DocumentAnalyzer for context determination (cache is already warm)
+        DocumentContext context = _documentAnalyzer.DetermineLineContext(document, line.LineNumber);
 
         // Delimiters must be at column 0 (production rule).
         if (context == DocumentContext.FrontmatterStart || context == DocumentContext.FrontmatterEnd)
@@ -238,7 +230,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         string desiredIndentation;
         if (context == DocumentContext.Frontmatter)
         {
-            desiredIndentation = CalculateFrontmatterIndentation(document, line);
+            desiredIndentation = CalculateFrontmatterIndentation(document, line, frontmatterStartLine);
             ApplyIndentation(document, line, desiredIndentation);
             return;
         }
@@ -287,16 +279,17 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// </remarks>
     /// <param name="document">The text document.</param>
     /// <param name="currentLine">The current line whose indentation is being computed.</param>
+    /// <param name="frontmatterStartLine">The cached frontmatter start line.</param>
     /// <returns>The indentation string for the current frontmatter line.</returns>
-    private string CalculateFrontmatterIndentation(TextDocument document, DocumentLine currentLine)
+    private string CalculateFrontmatterIndentation(TextDocument document, DocumentLine currentLine, int frontmatterStartLine)
     {
-        DocumentLine? effectivePrev = FindEffectivePreviousNonBlankLineInFrontmatter(document, currentLine);
+        DocumentLine? effectivePrev = FindEffectivePreviousNonBlankLineInFrontmatter(document, currentLine, frontmatterStartLine);
         if (effectivePrev is null)
         {
             return string.Empty;
         }
 
-        if (effectivePrev.LineNumber == _cachedFrontmatterStartLine)
+        if (effectivePrev.LineNumber == frontmatterStartLine)
         {
             // After opening delimiter, indent one level.
             return _indentationString;
@@ -324,19 +317,21 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// </summary>
     /// <param name="document">The document containing the frontmatter.</param>
     /// <param name="currentLine">The current line (within frontmatter).</param>
+    /// <param name="frontmatterStartLine">The cached frontmatter start line.</param>
     /// <returns>The effective previous line, or null if none exists.</returns>
-    private DocumentLine? FindEffectivePreviousNonBlankLineInFrontmatter(TextDocument document, DocumentLine currentLine)
+    private static DocumentLine? FindEffectivePreviousNonBlankLineInFrontmatter(TextDocument document, DocumentLine currentLine,
+        int frontmatterStartLine)
     {
         DocumentLine? scan = currentLine.PreviousLine;
         while (scan is not null)
         {
             int scanLineNumber = scan.LineNumber;
-            if (_cachedFrontmatterStartLine > 0 && scanLineNumber <= _cachedFrontmatterStartLine)
+            if (frontmatterStartLine > 0 && scanLineNumber <= frontmatterStartLine)
             {
                 return scan;
             }
 
-            if (!IsLineWhitespaceOnly(document, scan))
+            if (!DocumentAnalyzer.IsLineBlank(document, scan))
             {
                 return scan;
             }
@@ -360,7 +355,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // Mermaid-style comments sometimes appear in mixed content.
-        return trimmedStart[0] == Hash || StartsWithChars(trimmedStart, Percent, Percent);
+        return trimmedStart[0] == Hash || DocumentAnalyzer.StartsWithChars(trimmedStart, Percent, Percent);
     }
 
     /// <summary>
@@ -410,7 +405,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
             return true;
         }
 
-        return StartsWithChars(afterColon, Percent, Percent);
+        return DocumentAnalyzer.StartsWithChars(afterColon, Percent, Percent);
     }
 
     /// <summary>
@@ -424,19 +419,21 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// <param name="document">The document containing the frontmatter.</param>
     /// <param name="beginLine">The inclusive start line to format.</param>
     /// <param name="endLine">The inclusive end line to format.</param>
-    private void EnsureYamlSpacingInFrontmatter(TextDocument document, int beginLine, int endLine)
+    /// <param name="frontmatterStartLine">The cached frontmatter start line (-1 if no frontmatter).</param>
+    /// <param name="frontmatterEndLine">The cached frontmatter end line (-1 if unclosed).</param>
+    private static void EnsureYamlSpacingInFrontmatter(TextDocument document, int beginLine, int endLine,
+        int frontmatterStartLine, int frontmatterEndLine)
     {
-        if (_cachedFrontmatterStartLine < 0)
+        if (frontmatterStartLine < 0)
         {
             return;
         }
 
-        int frontmatterStart = _cachedFrontmatterStartLine;
-        int frontmatterEnd = _cachedFrontmatterEndLine > 0
-            ? _cachedFrontmatterEndLine
+        int frontmatterEnd = frontmatterEndLine > 0
+            ? frontmatterEndLine
             : Math.Min(document.LineCount, MaxFrontmatterScanLines);
 
-        int from = Math.Max(beginLine, frontmatterStart + 1);
+        int from = Math.Max(beginLine, frontmatterStartLine + 1);
         int to = Math.Min(endLine, frontmatterEnd - 1);
         if (from > to)
         {
@@ -508,7 +505,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         // Absolute insert offset: line.Offset + start-of-trimmedStart + prefixAdvance + colonIndex + 1
         int trimmedStartIndexInSpan = span.Length - trimmedStart.Length;
         int insertOffset = line.Offset + trimmedStartIndexInSpan + prefixAdvance + colonIndex + 1;
-        document.Insert(insertOffset, SingleSpaceString);
+        document.Insert(insertOffset, DocumentAnalyzer.SingleSpaceString);
     }
 
     #endregion YAML frontmatter
@@ -534,7 +531,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ReadOnlySpan<char> previousTrimmed = previousSpan.TrimStart();
 
         string previousIndentation = GetIndentationString(previousSpan);
-        if (previousTrimmed.IsEmpty || StartsWithChars(previousTrimmed, Percent, Percent))
+        if (previousTrimmed.IsEmpty || DocumentAnalyzer.StartsWithChars(previousTrimmed, Percent, Percent))
         {
             return previousIndentation;
         }
@@ -680,7 +677,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // state X { ... }
-        if (!EndsWithChar(lineTrimmed, LeftBrace))
+        if (!DocumentAnalyzer.EndsWithChar(lineTrimmed, LeftBrace))
         {
             return false;
         }
@@ -704,7 +701,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // namespace/class blocks always have "{"
-        if (!EndsWithChar(lineTrimmed, LeftBrace))
+        if (!DocumentAnalyzer.EndsWithChar(lineTrimmed, LeftBrace))
         {
             return false;
         }
@@ -801,11 +798,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     /// for the given diagram type; otherwise, false.</returns>
     private static bool IsC4BoundaryOpener(DiagramType diagramType, ReadOnlySpan<char> firstWord)
     {
-        if (diagramType != DiagramType.C4Context &&
-            diagramType != DiagramType.C4Container &&
-            diagramType != DiagramType.C4Component &&
-            diagramType != DiagramType.C4Dynamic &&
-            diagramType != DiagramType.C4Deployment)
+        if (!DiagramTypeLookups.C4DiagramTypes.Contains(diagramType))
         {
             return false;
         }
@@ -852,7 +845,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         // ER entity blocks: "ENTITY {"
-        if (!EndsWithChar(lineTrimmed, LeftBrace))
+        if (!DocumentAnalyzer.EndsWithChar(lineTrimmed, LeftBrace))
         {
             return false;
         }
@@ -904,426 +897,6 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     }
 
     #endregion Mermaid diagram indentation
-
-    #region Diagram type caching
-
-    /// <summary>
-    /// Gets the cached diagram type for the document, detecting it if necessary.
-    /// </summary>
-    /// <remarks>
-    /// This implements a two-tier caching strategy:
-    /// <list type="number">
-    /// <item><description>Fast path: re-check the previously cached declaration line content.</description></item>
-    /// <item><description>Slow path: scan for the declaration line and reparse diagram type if it changed.</description></item>
-    /// </list>
-    /// </remarks>
-    /// <param name="document">The text document.</param>
-    /// <returns>The detected diagram type (or Unknown if not found).</returns>
-    internal DiagramType GetCachedDiagramType(TextDocument document)
-    {
-        if (_cachedDeclarationLineNumber > 0 && _cachedDeclarationLineNumber <= document.LineCount)
-        {
-            DocumentLine cachedLine = document.GetLineByNumber(_cachedDeclarationLineNumber);
-            string currentContent = GetNormalizedDeclarationText(document, cachedLine);
-
-            if (IsValidDeclaration(currentContent) && currentContent == _cachedDeclarationContent)
-            {
-                return _cachedDiagramType;
-            }
-        }
-
-        (int lineNumber, string content) = FindDeclarationLine(document);
-        if (lineNumber == 0)
-        {
-            _cachedDeclarationLineNumber = 0;
-            _cachedDeclarationContent = null;
-            _cachedDiagramType = DiagramType.Unknown;
-            return DiagramType.Unknown;
-        }
-
-        bool contentChanged = content != _cachedDeclarationContent;
-        if (contentChanged)
-        {
-            _cachedDiagramType = ParseDiagramTypeFromDeclaration(content);
-        }
-
-        _cachedDeclarationLineNumber = lineNumber;
-        _cachedDeclarationContent = content;
-        return _cachedDiagramType;
-    }
-
-    /// <summary>
-    /// Finds the diagram declaration line in the document.
-    /// </summary>
-    /// <remarks>
-    /// This method scans for the first non-blank, non-comment line after any frontmatter region.
-    /// </remarks>
-    /// <param name="document">The document to scan.</param>
-    /// <returns>Tuple of (lineNumber, normalizedText), or (0, empty) if not found.</returns>
-    private (int LineNumber, string Content) FindDeclarationLine(TextDocument document)
-    {
-        int startLine = OneBasedFirstLineNumber;
-
-        // Use cached boundaries (updated by UpdateFrontmatterCache).
-        if (_cachedFrontmatterEndLine > 0)
-        {
-            startLine = _cachedFrontmatterEndLine + 1;
-        }
-
-        for (int lineNumber = startLine; lineNumber <= document.LineCount; lineNumber++)
-        {
-            DocumentLine line = document.GetLineByNumber(lineNumber);
-            string content = GetNormalizedDeclarationText(document, line);
-            if (IsValidDeclaration(content))
-            {
-                return (lineNumber, content);
-            }
-        }
-
-        return (0, string.Empty);
-    }
-
-    /// <summary>
-    /// Gets normalized text for a potential declaration line (trim + collapse whitespace).
-    /// </summary>
-    /// <param name="document">The document containing the line.</param>
-    /// <param name="line">The line to read.</param>
-    /// <returns>Normalized line text.</returns>
-    private static string GetNormalizedDeclarationText(TextDocument document, DocumentLine line)
-    {
-        //TODO - this method allocates at least 3 different times:
-        // 1. call to GetText
-        // 2. Trim() creates a new string if there is leading/trailing whitespace
-        // 3. Regex.Replace creates a new string if there is internal whitespace to collapse
-        string text = document.GetText(line.Offset, line.Length).Trim();
-        if (text.Length > 0)
-        {
-            text = WhitespaceNormalizationRegex().Replace(text, SingleSpaceString);
-        }
-
-        return text;
-    }
-
-    /// <summary>
-    /// Determines whether the specified text represents a valid declaration line, excluding lines that are empty, null,
-    /// or Mermaid comment lines.
-    /// </summary>
-    /// <remarks>A valid declaration line is any non-empty, non-null string that does not begin with the
-    /// Mermaid comment prefix ("%%").</remarks>
-    /// <param name="text">The text to evaluate as a potential declaration line. Cannot be null or empty.</param>
-    /// <returns>true if the text is a valid declaration line; otherwise, false.</returns>
-    private static bool IsValidDeclaration(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return false;
-        }
-
-        // Mermaid comment lines start with %%
-        return !StartsWithChars(text, Percent, Percent);
-    }
-
-    /// <summary>
-    /// Parses the diagram type from the specified declaration string.
-    /// </summary>
-    /// <param name="declaration">The declaration string from which to determine the diagram type. Cannot be null.</param>
-    /// <returns>A value of the <see cref="DiagramType"/> enumeration that represents the diagram type specified in the
-    /// declaration. Returns <see cref="DiagramType.Unknown"/> if the declaration is empty.</returns>
-    private static DiagramType ParseDiagramTypeFromDeclaration(string declaration)
-    {
-        ReadOnlySpan<char> declarationSpan = declaration.AsSpan();
-        if (declarationSpan.IsEmpty)
-        {
-            return DiagramType.Unknown;
-        }
-
-        return ParseDiagramType(declarationSpan);
-    }
-
-    /// <summary>
-    /// Parses the diagram type keyword from the specified line of text and returns the
-    /// corresponding <see cref="DiagramType"/> value.
-    /// </summary>
-    /// <param name="lineText">A read-only span of characters containing the line of text to parse.
-    /// The diagram type keyword is expected at the start of the line.</param>
-    /// <returns>A <see cref="DiagramType"/> value corresponding to the recognized diagram type keyword.
-    /// Returns <see cref="DiagramType.Unknown"/> if the keyword is not recognized or is empty.</returns>
-    private static DiagramType ParseDiagramType(ReadOnlySpan<char> lineText)
-    {
-        int spaceIndex = lineText.IndexOf(SpaceChar);
-        ReadOnlySpan<char> keyword = spaceIndex > 0 ? lineText[..spaceIndex] : lineText;
-        if (keyword.IsEmpty)
-        {
-            return DiagramType.Unknown;
-        }
-
-        if (DiagramTypeLookups.DiagramNameToTypeMappingLookup.TryGetValue(keyword, out DiagramType diagramType))
-        {
-            return diagramType;
-        }
-
-        return keyword switch
-        {
-            // StartsWith gives us a little performance boost by narrowing down the checks
-            _ when keyword.StartsWith(DiagramTypeNames.Flowchart, StringComparison.Ordinal) ||
-                     keyword.StartsWith(DiagramTypeNames.Graph, StringComparison.Ordinal) => GetFlowchartDiagramType(keyword),
-
-            _ when keyword.StartsWith("C4", StringComparison.Ordinal) => GetC4DiagramType(keyword),
-
-            _ when keyword.Equals(DiagramTypeNames.ArchitectureBeta, StringComparison.Ordinal) => DiagramType.ArchitectureBeta,
-
-            _ => DiagramType.Unknown
-        };
-    }
-
-    /// <summary>
-    /// Determines the <see cref="DiagramType"/> corresponding to the specified flowchart-related keyword.
-    /// </summary>
-    /// <param name="keyword">A read-only span of characters representing the diagram type keyword to evaluate.</param>
-    /// <returns>A <see cref="DiagramType"/> value that matches the specified keyword.
-    /// Returns <see cref="DiagramType.Unknown"/> if the keyword does not correspond to a known <see cref="DiagramType"/>.</returns>
-    private static DiagramType GetFlowchartDiagramType(ReadOnlySpan<char> keyword)
-    {
-        return keyword switch
-        {
-            _ when keyword.Equals(DiagramTypeNames.Flowchart, StringComparison.Ordinal) => DiagramType.Flowchart,
-            _ when keyword.Equals(DiagramTypeNames.FlowchartElk, StringComparison.Ordinal) => DiagramType.FlowchartElk,
-            _ when keyword.Equals(DiagramTypeNames.Graph, StringComparison.Ordinal) => DiagramType.Graph,
-            _ => DiagramType.Unknown,
-        };
-    }
-
-    /// <summary>
-    /// Determines the C4 diagram type that corresponds to the specified keyword.
-    /// </summary>
-    /// <param name="keyword">A read-only span of characters representing the diagram type keyword to evaluate. The comparison is
-    /// case-sensitive and must match one of the predefined C4 diagram type names.</param>
-    /// <returns>A value of the <see cref="DiagramType"/> enumeration that matches the specified keyword.
-    /// Returns <see cref="DiagramType.Unknown"/> if the keyword does not correspond to a known C4 diagram type.</returns>
-    private static DiagramType GetC4DiagramType(ReadOnlySpan<char> keyword)
-    {
-        return keyword switch
-        {
-            _ when keyword.Equals(DiagramTypeNames.C4Context, StringComparison.Ordinal) => DiagramType.C4Context,
-            _ when keyword.Equals(DiagramTypeNames.C4Container, StringComparison.Ordinal) => DiagramType.C4Container,
-            _ when keyword.Equals(DiagramTypeNames.C4Component, StringComparison.Ordinal) => DiagramType.C4Component,
-            _ when keyword.Equals(DiagramTypeNames.C4Deployment, StringComparison.Ordinal) => DiagramType.C4Deployment,
-            _ when keyword.Equals(DiagramTypeNames.C4Dynamic, StringComparison.Ordinal) => DiagramType.C4Dynamic,
-            _ => DiagramType.Unknown,
-        };
-    }
-
-    #endregion Diagram type caching
-
-    #region Frontmatter caching / context
-
-    /// <summary>
-    /// Determines the document context (frontmatter or diagram) for the specified line.
-    /// </summary>
-    /// <remarks>
-    /// This method uses cached frontmatter boundaries for O(1) lookup and updates the cache when needed.
-    /// </remarks>
-    /// <param name="document">The document to evaluate.</param>
-    /// <param name="lineNumber">One-based line number.</param>
-    /// <returns>The <see cref="DocumentContext"/> of the specified line.</returns>
-    internal DocumentContext DetermineContext(TextDocument document, int lineNumber)
-    {
-        UpdateFrontmatterCache(document);
-        return DetermineContextFromCache(lineNumber);
-    }
-
-    /// <summary>
-    /// Determines the <see cref="DocumentContext"/> for a specified line number based on cached frontmatter boundaries.
-    /// </summary>
-    /// <remarks>This method uses cached values for the frontmatter start and end lines to efficiently
-    /// determine the context of a line. If the frontmatter boundaries are not set, the method treats all lines as part
-    /// of the diagram context.</remarks>
-    /// <param name="lineNumber">The one-based line number for which to determine the document context.</param>
-    /// <returns>A value from the <see cref="DocumentContext"/> enumeration indicating the context of the specified line.
-    /// Returns <see cref="DocumentContext.Diagram"/>,  <see cref="DocumentContext.FrontmatterStart"/>,
-    /// <see cref="DocumentContext.FrontmatterEnd"/>, or <see cref="DocumentContext.Frontmatter"/>
-    /// depending on the line's position relative to the cached
-    /// frontmatter start and end lines.</returns>
-    private DocumentContext DetermineContextFromCache(int lineNumber)
-    {
-        if (_cachedFrontmatterStartLine < 0)
-        {
-            return DocumentContext.Diagram;
-        }
-
-        if (lineNumber == _cachedFrontmatterStartLine)
-        {
-            return DocumentContext.FrontmatterStart;
-        }
-
-        if (_cachedFrontmatterEndLine > 0 && lineNumber == _cachedFrontmatterEndLine)
-        {
-            return DocumentContext.FrontmatterEnd;
-        }
-
-        if (lineNumber > _cachedFrontmatterStartLine &&
-            (_cachedFrontmatterEndLine < 0 || lineNumber < _cachedFrontmatterEndLine))
-        {
-            return DocumentContext.Frontmatter;
-        }
-
-        return DocumentContext.Diagram;
-    }
-
-    /// <summary>
-    /// Updates the cached frontmatter boundaries for the specified text document if the cache is out of date.
-    /// </summary>
-    /// <remarks>This method checks whether the frontmatter cache for the given document can be reused based
-    /// on the current document version and scan limits. If the cache is invalid or outdated, it rescans the document to
-    /// update the cached frontmatter boundaries.</remarks>
-    /// <param name="document">The text document for which to update the frontmatter cache. Cannot be null.</param>
-    private void UpdateFrontmatterCache(TextDocument document)
-    {
-        ITextSourceVersion? currentVersion = document.Version;
-        if (CanReuseFrontmatterCache(currentVersion, MaxFrontmatterScanLines, document))
-        {
-            return;
-        }
-
-        RescanFrontmatterBoundaries(document, MaxFrontmatterScanLines);
-        _cachedFrontmatterVersion = currentVersion;
-    }
-
-    /// <summary>
-    /// Determines whether the cached frontmatter can be reused for the specified document version and scan range.
-    /// </summary>
-    /// <remarks>The cache is considered reusable only if the document version matches or if there are no
-    /// changes detected in the frontmatter region within the specified scan range. If the cache is reused after
-    /// confirming no changes, the cached version is updated to the current version.</remarks>
-    /// <param name="currentVersion">The current version of the text source to compare against the cached
-    /// frontmatter version. Can be null.</param>
-    /// <param name="maxFrontmatterScanLines">The maximum number of lines to scan for frontmatter changes. Must be non-negative.</param>
-    /// <param name="document">The text document to check for frontmatter changes.</param>
-    /// <returns>true if the cached frontmatter is valid for the specified document version and scan range; otherwise, false.</returns>
-    private bool CanReuseFrontmatterCache(ITextSourceVersion? currentVersion, int maxFrontmatterScanLines, TextDocument document)
-    {
-        if (_cachedFrontmatterVersion is null || currentVersion is null)
-        {
-            return false;
-        }
-
-        if (!_cachedFrontmatterVersion.BelongsToSameDocumentAs(currentVersion))
-        {
-            return false;
-        }
-
-        if (_cachedFrontmatterVersion.CompareAge(currentVersion) == 0)
-        {
-            return true;
-        }
-
-        bool frontmatterChanged = HasChangesInFrontmatterRegion(currentVersion, maxFrontmatterScanLines, document);
-        if (!frontmatterChanged)
-        {
-            _cachedFrontmatterVersion = currentVersion;
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Determines whether there are any changes in the frontmatter region between the cached version and the specified
-    /// text source version.
-    /// </summary>
-    /// <remarks>The frontmatter region is determined based on a cached end line or the specified maximum scan
-    /// lines. If an error occurs while checking for changes, the method conservatively returns true to indicate that
-    /// changes may be present.</remarks>
-    /// <param name="currentVersion">The current version of the text source to compare against the cached frontmatter version.</param>
-    /// <param name="maxFrontmatterScanLines">The maximum number of lines to scan when determining the extent of the frontmatter region. Must be greater than
-    /// zero.</param>
-    /// <param name="document">The text document containing the content to be analyzed for frontmatter changes.</param>
-    /// <returns>true if any changes are detected within the frontmatter region; otherwise, false. Returns true if an error
-    /// occurs during change detection.</returns>
-    private bool HasChangesInFrontmatterRegion(ITextSourceVersion currentVersion, int maxFrontmatterScanLines, TextDocument document)
-    {
-        bool hasCachedEndLine = _cachedFrontmatterEndLine > 0;
-        int regionEndLine = hasCachedEndLine
-            ? _cachedFrontmatterEndLine
-            : Math.Min(maxFrontmatterScanLines, document.LineCount);
-
-        try
-        {
-            // Avoid LINQ allocations in a hot-ish path by using a foreach loop instead of .Any()
-            foreach (TextChangeEventArgs change in _cachedFrontmatterVersion!.GetChangesTo(currentVersion))
-            {
-                if (IsChangeInFrontmatterRegion(change, regionEndLine, document))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-        catch (Exception ex)
-        {
-            // Keep this single trace for diagnostics; treat as changed to be safe.
-            Debug.WriteLine($"[MermaidIndentationStrategy]:HasChangesInFrontmatterRegion: Error checking frontmatter changes: {ex}");
-            return true;
-        }
-    }
-
-    /// <summary>
-    /// Determines whether the specified text change affects the frontmatter region of the document.
-    /// </summary>
-    /// <param name="change">The text change event data containing the offset and length of the change.</param>
-    /// <param name="frontmatterRegionEndLine">The one-based line number indicating the end of the frontmatter region.</param>
-    /// <param name="document">The text document in which the change occurred.</param>
-    /// <returns>true if the change overlaps with the frontmatter region; otherwise, false.</returns>
-    private static bool IsChangeInFrontmatterRegion(TextChangeEventArgs change, int frontmatterRegionEndLine, TextDocument document)
-    {
-        int changeStartLine = document.GetLineByOffset(change.Offset).LineNumber;
-        int changeEndOffset = change.Offset + change.RemovalLength;
-
-        int changeEndLine = changeEndOffset < document.TextLength
-            ? document.GetLineByOffset(changeEndOffset).LineNumber
-            : document.LineCount;
-
-        return changeStartLine <= frontmatterRegionEndLine && changeEndLine >= OneBasedFirstLineNumber;
-    }
-
-    /// <summary>
-    /// Scans the specified document to identify the start and end line numbers of the frontmatter section, up to a
-    /// maximum number of lines.
-    /// </summary>
-    /// <remarks>This method updates cached values for the frontmatter start and end line numbers based on the
-    /// presence of delimiter lines. Only the first two delimiter lines found within the specified scan range are
-    /// considered as the frontmatter boundaries.</remarks>
-    /// <param name="document">The text document to scan for frontmatter boundaries.</param>
-    /// <param name="maxFrontmatterScanLines">The maximum number of lines to scan from the beginning
-    /// of the document when searching for frontmatter delimiters. Must be greater than zero.</param>
-    private void RescanFrontmatterBoundaries(TextDocument document, int maxFrontmatterScanLines)
-    {
-        _cachedFrontmatterStartLine = -1;
-        _cachedFrontmatterEndLine = -1;
-
-        int maxLinesToScan = Math.Min(document.LineCount, maxFrontmatterScanLines);
-        for (int i = OneBasedFirstLineNumber; i <= maxLinesToScan; i++)
-        {
-            DocumentLine scanLine = document.GetLineByNumber(i);
-            if (!IsFrontmatterDelimiterLine(document, scanLine))
-            {
-                continue;
-            }
-
-            if (_cachedFrontmatterStartLine < 0)
-            {
-                _cachedFrontmatterStartLine = i;
-            }
-            else
-            {
-                _cachedFrontmatterEndLine = i;
-                break;
-            }
-        }
-    }
-
-    #endregion Frontmatter caching / context
 
     #region Whitespace and indentation helpers
 
@@ -1420,7 +993,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ReadOnlySpan<char> indentSpan = lineSpan[..indentLength];
 
         // Pure tabs
-        if (indentSpan[0] == TabChar && IsAllSameChar(indentSpan, TabChar))
+        if (indentSpan[0] == TabChar && DocumentAnalyzer.IsAllSameChar(indentSpan, TabChar))
         {
             int tabCount = indentLength;
             if (tabCount < _preAllocatedIndentsTab.Length)
@@ -1429,7 +1002,7 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
             }
         }
         // Pure spaces
-        else if (indentSpan[0] == SpaceChar && IsAllSameChar(indentSpan, SpaceChar))
+        else if (indentSpan[0] == SpaceChar && DocumentAnalyzer.IsAllSameChar(indentSpan, SpaceChar))
         {
             if (indentLength % 2 == 0)
             {
@@ -1479,55 +1052,6 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
     }
 
     /// <summary>
-    /// Determines whether all characters in the specified span are equal to the given character.
-    /// </summary>
-    /// <param name="span">The span of characters to examine.</param>
-    /// <param name="c">The character to compare each element of the span against.</param>
-    /// <returns>true if every character in the span is equal to the specified character; otherwise, false.</returns>
-    private static bool IsAllSameChar(ReadOnlySpan<char> span, char c)
-    {
-        for (int i = 0; i < span.Length; i++)
-        {
-            if (span[i] != c)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Determines whether the specified span begins with the given two characters in order.
-    /// </summary>
-    /// <param name="span">The span of characters to examine.</param>
-    /// <param name="first">The character to compare to the first character of the span.</param>
-    /// <param name="second">The character to compare to the second character of the span.</param>
-    /// <returns><see langword="true"/> if the span is at least two characters long and its first two characters match <paramref
-    /// name="first"/> and <paramref name="second"/> respectively; otherwise, <see langword="false"/>.</returns>
-    private static bool StartsWithChars(ReadOnlySpan<char> span, char first, char second)
-    {
-        return span.Length >= 2 && span[0] == first && span[1] == second;
-    }
-
-    /// <summary>
-    /// Determines whether the specified read-only character span ends with the specified character.
-    /// </summary>
-    /// <param name="span">The read-only span of characters to examine.</param>
-    /// <param name="c">The character to compare to the last character of the span.</param>
-    /// <returns>true if the last character of the span equals the specified character; otherwise, false. Returns false if the
-    /// span is empty.</returns>
-    private static bool EndsWithChar(ReadOnlySpan<char> span, char c)
-    {
-        if (span.IsEmpty)
-        {
-            return false;
-        }
-
-        return span[^1] == c;
-    }
-
-    /// <summary>
     /// Creates a cache of indentation strings for each indentation level up to the specified maximum.
     /// </summary>
     /// <param name="indent">A single indentation unit (e.g., 2 spaces or a tab).</param>
@@ -1544,65 +1068,6 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         }
 
         return cache;
-    }
-
-    /// <summary>
-    /// Determines whether a document line contains only whitespace characters (excluding line delimiters).
-    /// </summary>
-    /// <remarks>
-    /// Uses <see cref="TextUtilities.GetLeadingWhitespace(TextDocument, DocumentLine)"/> to avoid allocating strings
-    /// for "blank line" checks.
-    /// </remarks>
-    private static bool IsLineWhitespaceOnly(TextDocument document, DocumentLine line)
-    {
-        // DocumentLine.Length excludes the line delimiter, so this correctly detects lines that are only spaces/tabs.
-        return TextUtilities.GetLeadingWhitespace(document, line).Length == line.Length;
-    }
-
-    /// <summary>
-    /// Determines whether the specified line in the document consists solely of the frontmatter delimiter, ignoring
-    /// leading and trailing whitespace.
-    /// </summary>
-    /// <remarks>This method is typically used to identify lines that mark the start or end of a frontmatter
-    /// section, such as lines containing only '---' in Markdown documents. Whitespace before or after the delimiter is
-    /// ignored.</remarks>
-    /// <param name="document">The text document containing the line to evaluate.</param>
-    /// <param name="line">The line within the document to check for the frontmatter delimiter.</param>
-    /// <returns>true if the trimmed content of the line matches the frontmatter delimiter; otherwise, false.</returns>
-    private static bool IsFrontmatterDelimiterLine(TextDocument document, DocumentLine line)
-    {
-        // Match document.GetText(...).AsSpan().Trim().SequenceEqual(Frontmatter.Delimiter) without allocations.
-        int offset = line.Offset;
-        int length = line.Length;
-
-        int start = 0;
-        while (start < length && char.IsWhiteSpace(document.GetCharAt(offset + start)))
-        {
-            start++;
-        }
-
-        int end = length - 1;
-        while (end >= start && char.IsWhiteSpace(document.GetCharAt(offset + end)))
-        {
-            end--;
-        }
-
-        int trimmedLen = end - start + 1;
-        if (trimmedLen != Frontmatter.Delimiter.Length)
-        {
-            return false;
-        }
-
-        // Frontmatter.Delimiter is expected to be "---"
-        for (int i = 0; i < trimmedLen; i++)
-        {
-            if (document.GetCharAt(offset + start + i) != Frontmatter.Delimiter[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -1712,40 +1177,17 @@ public sealed partial class MermaidIndentationStrategy : DefaultIndentationStrat
         ReadOnlySpan<char> elseKw = SequenceDiagram.BlockOpenerNames.Else.AsSpan();
         ReadOnlySpan<char> andKw = SequenceDiagram.BlockOpenerNames.And.AsSpan();
 
-        if (wordLen == elseKw.Length && MatchWord(document, offset + start, elseKw))
+        if (wordLen == elseKw.Length && DocumentAnalyzer.MatchWord(document, offset + start, elseKw))
         {
             return true;
         }
 
-        if (wordLen == andKw.Length && MatchWord(document, offset + start, andKw))
+        if (wordLen == andKw.Length && DocumentAnalyzer.MatchWord(document, offset + start, andKw))
         {
             return true;
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Determines whether the specified span of characters in the document matches the given word exactly.
-    /// </summary>
-    /// <remarks>The comparison is case-sensitive and requires an exact match of all characters in the
-    /// specified span. No normalization or culture-specific comparison is performed.</remarks>
-    /// <param name="document">The text document to search within.</param>
-    /// <param name="startOffset">The zero-based character offset in the document at which to begin matching.</param>
-    /// <param name="word">The word to compare against the document content, represented as a read-only span of characters.</param>
-    /// <returns>true if the sequence of characters in the document at the specified offset matches the given word; otherwise,
-    /// false.</returns>
-    private static bool MatchWord(TextDocument document, int startOffset, ReadOnlySpan<char> word)
-    {
-        for (int i = 0; i < word.Length; i++)
-        {
-            if (document.GetCharAt(startOffset + i) != word[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     #endregion Whitespace and indentation helpers
