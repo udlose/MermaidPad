@@ -258,8 +258,7 @@ public sealed class ExportService
             int depth = 0;
             bool skipElement = false;
             int skipDepth = 0;
-            const string svgXmlNamespace = "http://www.w3.org/2000/svg";
-
+            const string svgXmlNamespace = "http://www.w3.org/2000/svg";// DevSkim: ignore DS137138
             while (await xmlReader.ReadAsync().ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -521,7 +520,7 @@ public sealed class ExportService
     /// JavaScript function to perform the export operation. The export process is handled asynchronously.</remarks>
     /// <param name="options">The options that define the scale, DPI, and background color for the PNG export. The <see
     /// cref="PngExportOptions.BackgroundColor"/> property can be set to <c>null</c> to use a transparent background.</param>
-    /// <returns></returns>
+    /// <returns>A task that represents the asynchronous operation of starting the PNG export in the browser context.</returns>
     private async Task StartBrowserExportAsync(PngExportOptions options)
     {
         string exportOptionsJson = JsonSerializer.Serialize(new
@@ -547,7 +546,7 @@ public sealed class ExportService
     /// <param name="progress">An optional progress reporter that receives updates about the export operation's progress.</param>
     /// <param name="timeout">The maximum amount of time to wait for the export operation to complete.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests, which can be used to terminate the wait operation prematurely.</param>
-    /// <returns></returns>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task WaitForExportCompletionAsync(IProgress<ExportProgress>? progress, TimeSpan timeout, CancellationToken cancellationToken)
     {
         TaskCompletionSource<bool> completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);

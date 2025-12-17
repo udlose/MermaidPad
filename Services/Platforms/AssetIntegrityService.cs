@@ -156,20 +156,7 @@ public sealed class AssetIntegrityService
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedHash);
 
-        (bool isSecure, string? reason) = _securityService.IsFilePathSecure(filePath);
-        if (!isSecure && !string.IsNullOrEmpty(reason))
-        {
-            string errorMessage = $"Insecure file path detected: {filePath}. Reason: {reason}";
-            _logger.LogError("Insecure file path detected: {FilePath}. Reason: {Reason}", filePath, reason);
-            throw new SecurityException(errorMessage);
-        }
-
-        await using FileStream stream = _securityService.CreateSecureFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using SHA256 sha256 = SHA256.Create();
-        byte[] hashBytes = await sha256.ComputeHashAsync(stream)
-            .ConfigureAwait(false);
-
-        string actualHash = Convert.ToHexString(hashBytes);
+        string actualHash = await ComputeFileHashAsync(filePath);
 
         bool isValid = string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
         string fileName = Path.GetFileName(filePath);
