@@ -1,11 +1,15 @@
-﻿# Remove the line below if you want to inherit .editorconfig settings from higher directories
+# Remove the line below if you want to inherit .editorconfig settings from higher directories
 root = true
 
-[*.{yml,yaml}]
+[*]
 indent_style = space
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{yml,yaml}]
 indent_size = 2
 tab_width = 2
-insert_final_newline = true
 
 [*.cs]
 
@@ -15,12 +19,10 @@ insert_final_newline = true
 file_header_template = MIT License\nCopyright (c) 2025 Dave Black\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the "Software"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.
 # Indentation and spacing
 indent_size = 4
-indent_style = space
 tab_width = 4
 
 # New line preferences
 end_of_line = crlf
-insert_final_newline = true
 
 #### .NET Code Actions ####
 
@@ -111,6 +113,11 @@ dotnet_diagnostic.VSTHRD114.severity = error
 dotnet_diagnostic.VSTHRD115.severity = error
 dotnet_diagnostic.VSTHRD200.severity = error
 dotnet_diagnostic.SYSLIB1045.severity = error
+csharp_style_unused_value_assignment_preference = discard_variable:error
+dotnet_diagnostic.RCS1163.severity = error
+dotnet_diagnostic.RCS1164.severity = error
+dotnet_diagnostic.RCS1213.severity = warning
+dotnet_diagnostic.RCS1228.severity = warning
 
 [*.{cs,vb}]
 #### Naming styles ####
@@ -177,7 +184,7 @@ dotnet_style_prefer_inferred_tuple_names = true:suggestion
 dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
 dotnet_style_prefer_compound_assignment = true:warning
 dotnet_style_prefer_simplified_interpolation = true:suggestion
-dotnet_style_prefer_collection_expression = false:suggestion
+dotnet_style_prefer_collection_expression = never:suggestion
 dotnet_diagnostic.IDE0301.severity = none
 dotnet_diagnostic.IDE0305.severity = none
 dotnet_style_namespace_match_folder = true:suggestion
@@ -200,3 +207,4 @@ dotnet_diagnostic.CA2215.severity = error
 dotnet_diagnostic.CA1816.severity = warning
 dotnet_diagnostic.CA1513.severity = warning
 dotnet_diagnostic.CA1822.severity = warning
+dotnet_code_quality_unused_parameters = all:warning
