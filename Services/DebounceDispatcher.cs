@@ -145,7 +145,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
     /// <param name="delay">The amount of time to wait before executing the action.</param>
     /// <param name="cts">The <see cref="CancellationTokenSource"/> used to cancel the operation.</param>
     /// <param name="action">The action to execute after the delay, if the operation is not canceled.</param>
-    /// <returns></returns>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task RunAsync(string key, TimeSpan delay, CancellationTokenSource cts, Action action)
     {
         try

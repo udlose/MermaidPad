@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -209,7 +209,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// dimensions  using the image conversion service. If the dimensions are successfully retrieved and valid, they are
     /// stored internally and used to update estimates. If the operation fails or the dimensions are invalid,  default
     /// dimensions of 800x600 are used as a fallback.</remarks>
-    /// <returns></returns>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task LoadActualSvgDimensionsAsync()
     {
         //TODO - DaveBlack: what should i do with this?
