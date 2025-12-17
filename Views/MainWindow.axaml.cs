@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
     private readonly MermaidUpdateService _updateService;
     private readonly SyntaxHighlightingService _syntaxHighlightingService;
     private readonly IDebounceDispatcher _editorDebouncer;
+    private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly ILogger<MainWindow> _logger;
 
     private bool _isClosingApproved;
@@ -94,6 +95,7 @@ public sealed partial class MainWindow : Window
         _vm = sp.GetRequiredService<MainWindowViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
         _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
+        _documentAnalyzer = sp.GetRequiredService<DocumentAnalyzer>();
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
         DataContext = _vm;
 
@@ -161,7 +163,7 @@ public sealed partial class MainWindow : Window
             Editor.Options.ConvertTabsToSpaces = true;
             Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
-            Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(Editor.Options);
+            Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(_documentAnalyzer, Editor.Options);
 
             _logger.LogInformation("Editor state set with {CharacterCount} characters", textLength);
         }

@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -233,15 +233,12 @@ public partial class MainWindow
 
             TextDocument document = Editor.Document;
 
-            // Detect current diagram type using the indentation strategy cache
-            MermaidIndentationStrategy? indentationStrategy = Editor.TextArea.IndentationStrategy as MermaidIndentationStrategy;
-            DiagramType currentDiagramType = indentationStrategy?.GetCachedDiagramType(document)
-                ?? DiagramType.Unknown;
+            // Detect current diagram type using DocumentAnalyzer
+            DiagramType currentDiagramType = _documentAnalyzer.GetDiagramType(document);
 
             // Get the line number where the cursor is to determine document context - Frontmatter vs Diagram
             int currentLineNumber = document.GetLineByOffset(Editor.CaretOffset).LineNumber;
-            DocumentContext currentContext = indentationStrategy?.DetermineContext(document, currentLineNumber)
-                ?? DocumentContext.Diagram;
+            DocumentContext currentContext = _documentAnalyzer.DetermineLineContext(document, currentLineNumber);
 
             // Get context-aware keywords based on diagram type and context
             IntellisenseCompletionData[] contextKeywords =
