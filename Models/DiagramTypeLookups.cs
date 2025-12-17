@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -76,6 +76,20 @@ internal static class DiagramTypeLookups
     ], StringComparer.Ordinal);
 
     /// <summary>
+    /// Represents a read-only set containing the names of all supported C4 diagram types.
+    /// </summary>
+    /// <remarks>This set includes the names for C4 Context, Container, Component, Deployment, and Dynamic
+    /// diagrams. The set is case-sensitive and uses ordinal string comparison.</remarks>
+    private static readonly FrozenSet<string> _c4DiagramTypeNames = FrozenSet.ToFrozenSet(
+    [
+        DiagramTypeNames.C4Context,
+        DiagramTypeNames.C4Container,
+        DiagramTypeNames.C4Component,
+        DiagramTypeNames.C4Deployment,
+        DiagramTypeNames.C4Dynamic
+    ], StringComparer.Ordinal);
+
+    /// <summary>
     /// Represents a set of keywords that indicate the opening of a sequence block in the parsed language. The set is
     /// case-sensitive.
     /// </summary>
@@ -94,6 +108,20 @@ internal static class DiagramTypeLookups
         // 'else' is a continuation keyword, not block opener
         // 'and' is a continuation keyword, not block opener
     ], StringComparer.Ordinal);
+
+    /// <summary>
+    /// Provides a mapping from C4 diagram name strings to their corresponding <see cref="DiagramType"/> values.
+    /// </summary>
+    /// <remarks>The dictionary uses case-sensitive ordinal string comparison for keys. The mapping is
+    /// immutable and optimized for fast lookups.</remarks>
+    private static readonly FrozenDictionary<string, DiagramType> _c4DiagramNameToTypeMapping = new Dictionary<string, DiagramType>
+    {
+        [DiagramTypeNames.C4Context] = DiagramType.C4Context,
+        [DiagramTypeNames.C4Container] = DiagramType.C4Container,
+        [DiagramTypeNames.C4Component] = DiagramType.C4Component,
+        [DiagramTypeNames.C4Deployment] = DiagramType.C4Deployment,
+        [DiagramTypeNames.C4Dynamic] = DiagramType.C4Dynamic
+    }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
     /// Maps exact diagram type keywords to their corresponding <see cref="DiagramType"/> values.
@@ -118,11 +146,7 @@ internal static class DiagramTypeLookups
         [DiagramTypeNames.RequirementDiagram] = DiagramType.Requirement,
         [DiagramTypeNames.GitGraph] = DiagramType.GitGraph,
 
-        [DiagramTypeNames.C4Context] = DiagramType.C4Context,
-        [DiagramTypeNames.C4Container] = DiagramType.C4Container,
-        [DiagramTypeNames.C4Component] = DiagramType.C4Component,
-        [DiagramTypeNames.C4Deployment] = DiagramType.C4Deployment,
-        [DiagramTypeNames.C4Dynamic] = DiagramType.C4Dynamic,
+        // C4 diagrams are concatenated inline to avoid duplication
 
         [DiagramTypeNames.Mindmap] = DiagramType.Mindmap,
         [DiagramTypeNames.Timeline] = DiagramType.Timeline,
@@ -135,7 +159,9 @@ internal static class DiagramTypeLookups
         [DiagramTypeNames.ArchitectureBeta] = DiagramType.ArchitectureBeta,
         [DiagramTypeNames.RadarBeta] = DiagramType.RadarBeta,
         [DiagramTypeNames.Treemap] = DiagramType.Treemap
-    }.ToFrozenDictionary(StringComparer.Ordinal);
+    }
+    .Concat(_c4DiagramNameToTypeMapping) // Merge C4 mappings
+    .ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>
     /// Represents a set of C4 model boundary type names used for case-sensitive comparisons.
@@ -202,6 +228,16 @@ internal static class DiagramTypeLookups
         _diagramNameToTypeMapping.GetAlternateLookup<ReadOnlySpan<char>>();
 
     /// <summary>
+    /// Provides an alternate lookup for mapping C4 diagram names, represented as read-only character spans, to their
+    /// corresponding diagram types.
+    /// </summary>
+    /// <remarks>This lookup enables efficient, case-insensitive retrieval of diagram types using C4 diagram
+    /// names without allocating new strings. It is intended for scenarios where performance and memory efficiency are
+    /// important, such as parsing or validating diagram definitions.</remarks>
+    internal static readonly FrozenDictionary<string, DiagramType>.AlternateLookup<ReadOnlySpan<char>> C4DiagramNameToTypeMappingLookup =
+        _c4DiagramNameToTypeMapping.GetAlternateLookup<ReadOnlySpan<char>>();
+
+    /// <summary>
     /// Provides an alternate lookup for C4 boundary types using a read-only character span as the key.
     /// </summary>
     /// <remarks>This lookup enables efficient, allocation-free searches for boundary types by allowing
@@ -219,5 +255,28 @@ internal static class DiagramTypeLookups
     internal static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> RequirementBlockTypesLookup =
         _requirementBlockTypes.GetAlternateLookup<ReadOnlySpan<char>>();
 
+    /// <summary>
+    /// Provides an alternate lookup for C4 diagram type names using a read-only span of characters as the key.
+    /// </summary>
+    /// <remarks>This lookup enables efficient, allocation-free searches for C4 diagram type names when the
+    /// input is available as a <see cref="ReadOnlySpan{char}"/>, such as when parsing text or processing substrings. The lookup is
+    /// case-sensitive and matches the behavior of the underlying FrozenSet.</remarks>
+    internal static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> C4DiagramTypeNamesLookup =
+        _c4DiagramTypeNames.GetAlternateLookup<ReadOnlySpan<char>>();
+
     #endregion Allocation-free AlternateLookups
+
+    /// <summary>
+    /// Represents a frozen set containing all supported C4 diagram types.
+    /// </summary>
+    /// <remarks>This set includes context, container, component, deployment, and dynamic C4 diagram types.
+    /// The set is immutable and optimized for fast lookups.</remarks>
+    internal static readonly FrozenSet<DiagramType> C4DiagramTypes = FrozenSet.ToFrozenSet(
+    [
+        DiagramType.C4Context,
+        DiagramType.C4Container,
+        DiagramType.C4Component,
+        DiagramType.C4Deployment,
+        DiagramType.C4Dynamic
+    ]);
 }
