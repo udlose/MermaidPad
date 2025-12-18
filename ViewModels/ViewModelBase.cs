@@ -31,7 +31,7 @@ namespace MermaidPad.ViewModels;
 /// <remarks>Inherit from this class to implement view models that require observable properties and integration
 /// with Avalonia's application and window lifetime management. This class is intended for use in MVVM architectures
 /// within Avalonia desktop applications.</remarks>
-public abstract class ViewModelBase : ObservableObject
+public abstract partial class ViewModelBase : ObservableObject
 {
     /// <summary>
     /// Retrieves the main window of the current desktop-style Avalonia application, if available.
