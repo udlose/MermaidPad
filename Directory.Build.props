@@ -1,38 +1,75 @@
 <Project>
-	<PropertyGroup>
-		<!-- Assembly and Package Metadata -->
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
-		<Version>1.0.0-beta</Version>
-		<Authors>Dave Black (https://github.com/udlose)</Authors>
+    <PropertyGroup>
+        <!-- Assembly and Package Metadata -->
+        <AssemblyVersion>1.0.0</AssemblyVersion>
+        <Version>1.0.0-localdev</Version>
+
+        <Authors>Dave Black (https://github.com/udlose)</Authors>
         <Copyright>Copyright 2025-$([System.DateTime]::Now.ToString('yyyy')) &#169; Dave Black</Copyright>
-		<Company>udlose</Company>
-		<PackageId>MermaidPad</PackageId>
-		<Product>MermaidPad</Product>
-		<RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
+        <Company>udlose</Company>
+        <PackageId>MermaidPad</PackageId>
+        <Product>MermaidPad</Product>
+        <RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
 
-		<TargetFramework>net9.0</TargetFramework>
-		<Platforms>arm64;x64</Platforms>
-		<!-- Supported Runtime Identifiers for Cross-Platform Publish -->
-		<RuntimeIdentifiers>win-x64;win-arm64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+        <!-- Keep git SHA appended to InformationalVersion (Product version in Explorer) -->
+        <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
 
-		<!-- Publishing Configuration - Framework Dependent Single File -->
-		<PublishSingleFile>false</PublishSingleFile>
-		<PublishSelfContained>false</PublishSelfContained>
-		<PublishTrimmed>false</PublishTrimmed>
-		<!--
-		  If publishing as single-file or self-contained in the future,
-		  set IncludeNativeLibrariesForSelfExtract to true to ensure native libraries are extracted at runtime.
-		-->
-		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
 
-		<!--
-			Note:
-			Publishing and cross-platform artifact creation is handled via 'dotnet publish' using the specified RuntimeIdentifiers.
-			No additional publish configuration is needed in this file.
-		-->
+        <TargetFramework>net9.0</TargetFramework>
+        <Platforms>arm64;x64</Platforms>
 
-		<!-- Embed build target RID as compile-time constant for platform compatibility checking -->
-		<DefineConstants Condition="'$(RuntimeIdentifier)' != ''">$(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace("-", "_").ToUpperInvariant())</DefineConstants>
-	</PropertyGroup>
+        <!-- Supported Runtime Identifiers for Cross-Platform Publish -->
+        <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+
+        <!-- Publishing Configuration - Framework Dependent Single File -->
+        <PublishSingleFile>false</PublishSingleFile>
+        <PublishSelfContained>false</PublishSelfContained>
+        <PublishTrimmed>false</PublishTrimmed>
+        <!--
+          If publishing as single-file or self-contained in the future,
+          set IncludeNativeLibrariesForSelfExtract to true to ensure native libraries are extracted at runtime.
+        -->
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+        <!--
+            Note:
+            Publishing and cross-platform artifact creation is handled via 'dotnet publish' using the specified RuntimeIdentifiers.
+            No additional publish configuration is needed in this file.
+        -->
+        <!-- Embed build target RID as compile-time constant for platform compatibility checking -->
+        <DefineConstants Condition="'$(RuntimeIdentifier)' != ''">
+            $(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace("-", "_").ToUpperInvariant())
+        </DefineConstants>
+    </PropertyGroup>
+
+    <!-- CI-stamped metadata (only present when the workflow passes these properties) -->
+    <ItemGroup Condition="'$(MermaidPadBuildDate)' != ''">
+        <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+            <_Parameter1>BuildDate</_Parameter1>
+            <_Parameter2>$(MermaidPadBuildDate)</_Parameter2>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(MermaidPadCommitSha)' != ''">
+        <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+            <_Parameter1>CommitSha</_Parameter1>
+            <_Parameter2>$(MermaidPadCommitSha)</_Parameter2>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Explorer: File description -->
+        <AssemblyAttribute Include="System.Reflection.AssemblyTitleAttribute">
+            <_Parameter1>MermaidPad — live Mermaid diagram editor</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(MermaidPadBuildDate)' != ''">
+        <!-- Explorer: Comments -->
+        <AssemblyAttribute Include="System.Reflection.AssemblyDescriptionAttribute">
+            <_Parameter1>MermaidPad - a live Mermaid diagram editor with preview and export. Built $(MermaidPadBuildDate)</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
 </Project>
