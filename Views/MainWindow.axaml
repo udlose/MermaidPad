@@ -4,6 +4,7 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:converters="clr-namespace:MermaidPad.Converters"
   xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  xmlns:local="clr-namespace:MermaidPad"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   Title="{Binding WindowTitle}"
@@ -158,7 +159,7 @@
       <TextBlock
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
-        Text="{Binding CurrentMermaidPadVersion}" />
+        Text="{Binding Source={x:Static local:AppMetadata.FileVersion}, Mode=OneTime}" />
       <TextBlock
         Margin="12,0,0,0"
         VerticalAlignment="Center"
