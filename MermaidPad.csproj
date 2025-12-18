@@ -10,7 +10,6 @@
 		<UseAvalonia>true</UseAvalonia>
 		<ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
 		<AssemblyTitle>MermaidPad</AssemblyTitle>
-		<AssemblyDescription>Live Mermaid Chart Editor</AssemblyDescription>
 		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
 		<EnableDefaultItems>true</EnableDefaultItems>
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
