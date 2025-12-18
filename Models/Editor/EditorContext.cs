@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -67,4 +67,49 @@ public sealed record EditorContext(
     /// Gets the ending line number of the selection (1-based).
     /// </summary>
     public int EndLine => Document?.GetLineByOffset(SelectionStart + SelectionLength).LineNumber ?? 0;
+
+    /// <summary>
+    /// Ends the update operation on the specified document and undoes changes if the operation did not succeed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// CRITICAL: This method must be called after every update operation, regardless of success or failure.
+    /// Failing to call this method may leave the document in a locked state.
+    /// </para>
+    /// <para>
+    /// The document update mechanism is not a traditional transaction - <see cref="TextDocument.EndUpdate"/>
+    /// must be called even if an error occurs. There is no Cancel/Rollback/UndoUpdate method.
+    /// Without calling <see cref="TextDocument.EndUpdate"/>, the editor remains locked and unusable.
+    /// </para>
+    /// <para>
+    /// If the operation was not successful, this method performs an immediate undo operation to revert
+    /// any partial changes, ensuring the document returns to its original state.
+    /// </para>
+    /// </remarks>
+    /// <param name="isSuccess">A value indicating whether the update operation completed successfully.
+    /// If <see langword="false"/>, the changes are undone.</param>
+    /// <exception cref="InvalidOperationException">Thrown if <see cref="Document"/> is null.</exception>
+    public void EndUpdateAndUndoIfFailed(bool isSuccess)
+    {
+        if (Document is null)
+        {
+            throw new InvalidOperationException($"Unable to end update: {nameof(Document)} is null.");
+        }
+
+        // Only end the update if we are actually in update mode
+        if (Document.IsInUpdate)
+        {
+            // NOTE: this is not like a transaction. If the Editor is in the process of updating,
+            // EndUpdate must be called even if an error occurred.
+            // There isn't a Cancel/Rollback/UndoUpdate. Without calling EndUpdate, the editor stays locked!
+            Document.EndUpdate();
+        }
+
+        // If it failed, immediately undo the partial changes to revert to original state
+        if (!isSuccess)
+        {
+            // There is no need to restore caret/selection/etc. here because the undo operation will do that.
+            Document.UndoStack.Undo();
+        }
+    }
 }
