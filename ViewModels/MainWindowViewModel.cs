@@ -37,7 +37,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Text;
 
 namespace MermaidPad.ViewModels;
@@ -97,12 +96,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     public partial string? LatestMermaidVersion { get; set; }
-
-    /// <summary>
-    /// Gets or sets the current installed version of MermaidPad.
-    /// </summary>
-    [ObservableProperty]
-    public partial string? CurrentMermaidPadVersion { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether live preview is enabled.
@@ -315,8 +308,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _fileService = services.GetRequiredService<IFileService>();
         _commentingStrategy = services.GetRequiredService<CommentingStrategy>();
         _logger = logger;
-
-        InitializeCurrentMermaidPadVersion();
 
         // Initialize properties from settings
         DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
@@ -1495,31 +1486,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
             LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         });
-    }
-
-    /// <summary>
-    /// Initializes the current version of the MermaidPad application by retrieving the version information from the
-    /// executing assembly.
-    /// </summary>
-    /// <remarks>This method attempts to retrieve the version number of the executing assembly and formats it
-    /// as a string in the format "Major.Minor.Build". If the version cannot be determined, the <see
-    /// cref="CurrentMermaidPadVersion"/> property is set to "Unknown".</remarks>
-    private void InitializeCurrentMermaidPadVersion()
-    {
-        try
-        {
-            Version? version = Assembly.GetExecutingAssembly().GetName().Version;
-            if (version is not null)
-            {
-                // Display 3 version fields as Major.Minor.Build (e.g., 1.2.3)
-                CurrentMermaidPadVersion = version.ToString(3);
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Failed to get current MermaidPad version: {ex}");
-            CurrentMermaidPadVersion = "Unknown";
-        }
     }
 
     /// <summary>
