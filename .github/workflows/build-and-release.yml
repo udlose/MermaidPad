@@ -30,12 +30,13 @@ jobs:
           fi
 
   get-version:
-    name: Get Version
+    name: Get Version and Build Date
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      build_date: ${{ steps.version.outputs.build_date }}
     steps:
-      - name: Extract version
+      - name: Extract version + build date
         id: version
         shell: bash
         run: |
@@ -51,6 +52,9 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
+
+          # One timestamp for the whole release (UTC)
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
   # Build matrix for all platforms
   build:
@@ -96,7 +100,23 @@ jobs:
         run: dotnet restore MermaidPad.csproj
 
       - name: Publish
-        run: dotnet publish MermaidPad.csproj -c Release -r ${{ matrix.rid }} -o ./publish -p:Version=${{ needs.get-version.outputs.version }} -p:AssemblyVersion=${{ needs.get-version.outputs.version }} -p:FileVersion=${{ needs.get-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          args=(
+            "publish" "MermaidPad.csproj"
+            "-c" "Release"
+            "-r" "${{ matrix.rid }}"
+            "-o" "./publish"
+            "-p:Version=${{ needs.get-version.outputs.version }}"
+            "-p:AssemblyVersion=${{ needs.get-version.outputs.version }}"
+            "-p:FileVersion=${{ needs.get-version.outputs.version }}"
+            "-p:MermaidPadBuildDate=${{ needs.get-version.outputs.build_date }}"
+            "-p:MermaidPadCommitSha=${{ github.sha }}"
+          )
+
+          dotnet "${args[@]}"
       
       # # Add ad-hoc code signing for macOS binaries
       # - name: Ad-hoc Sign macOS Binary
