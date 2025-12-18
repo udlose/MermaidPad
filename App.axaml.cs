@@ -27,6 +27,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using MermaidPad.Infrastructure;
+using MermaidPad.ViewModels;
 using MermaidPad.Views;
 using Serilog;
 using System.Diagnostics;
@@ -111,7 +112,18 @@ public sealed partial class App : Application, IDisposable
             // Avoid duplicate validations from both Avalonia and the CommunityToolkit.
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
-            desktop.MainWindow = new MainWindow();      // Set the main window for desktop applications
+
+            SplashWindowViewModel splashWindowViewModel = new SplashWindowViewModel();
+
+            // Show splash screen first, then main window
+            desktop.MainWindow = new SplashWindow(splashWindowViewModel, () =>
+            {
+                MainWindow mainWindow = new MainWindow();
+                mainWindow.Show();
+                mainWindow.Focus();
+
+                desktop.MainWindow = mainWindow;
+            });
 
             // Hook up cleanup on application exit
             desktop.ShutdownRequested += OnShutdownRequested;

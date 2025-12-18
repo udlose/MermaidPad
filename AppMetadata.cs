@@ -58,6 +58,13 @@ public static class AppMetadata
     public static string? CommitSha => GetMetadata("CommitSha") ?? GetMetadata("SourceRevisionId");
 
     /// <summary>
+    /// Gets the copyright information for the current assembly.
+    /// </summary>
+    /// <remarks>If the assembly does not define a copyright attribute, a default copyright notice is
+    /// returned.</remarks>
+    public static string Copyright => _asm.Value.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? "Copyright © MermaidPad";
+
+    /// <summary>
     /// Gets the file version of the currently executing assembly.
     /// </summary>
     /// <remarks>If the assembly does not define an explicit file version, this property returns the
