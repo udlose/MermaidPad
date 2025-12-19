@@ -1,4 +1,4 @@
-﻿# MermaidPad
+# MermaidPad
 
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
@@ -49,7 +49,7 @@ MermaidPad offers a streamlined experience for editing, previewing, and exportin
 
 ## Features
 
-- 23 different chart and diagram types supported (see examples below)
+- 24 different chart and diagram types supported (see examples below)
 - Edit Mermaid markup and preview diagrams in real-time
 - "Live Preview" for instant rendering
 - Includes bundled `mermaid.min.js` and other JavaScript assets for offline use
@@ -1060,9 +1060,11 @@ npx eslint "Assets/**/*.{html,js,ts}"
 - ✅ Highlight connectors on hover (completed)
 - ✅ Performance optimizations (completed)
 - ✅ Syntax highlighting (completed)
+- ✅ Smart Indenting for Mermaid Markdown (completed) [#230](https://github.com/udlose/MermaidPad/issues/230)
 - 🚀 Dockable panels for editor/preview (coming soon) [#207](https://github.com/udlose/MermaidPad/issues/207)
 - 🚀 Theming for Editor and Application (coming soon) [#187](https://github.com/udlose/MermaidPad/issues/187)
-- 🚀 Smart Indenting for Mermaid Markdown (coming soon) [#230](https://github.com/udlose/MermaidPad/issues/230)
+- 🚀 Editor Formatting and Folding (coming soon) [#264](https://github.com/udlose/MermaidPad/issues/264),[#265](https://github.com/udlose/MermaidPad/issues/265)
+- 🚀 Support for [ZenUML diagrams](https://mermaid.js.org/syntax/zenuml.html) (coming soon) [#259](https://github.com/udlose/MermaidPad/issues/259)
 - 🚀 Pan/Zoom support (coming soon) [#32](https://github.com/udlose/MermaidPad/issues/32)
 - 🚀 Installation via Chocolatey [#126](https://github.com/udlose/MermaidPad/issues/126)
 - 🚀 Installation via Microsoft Store [#125](https://github.com/udlose/MermaidPad/issues/125)
