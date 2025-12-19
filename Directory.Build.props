@@ -58,13 +58,6 @@
         </AssemblyAttribute>
     </ItemGroup>
 
-    <ItemGroup>
-        <!-- Explorer: File description -->
-        <AssemblyAttribute Include="System.Reflection.AssemblyTitleAttribute">
-            <_Parameter1>MermaidPad — live Mermaid diagram editor</_Parameter1>
-        </AssemblyAttribute>
-    </ItemGroup>
-
     <ItemGroup Condition="'$(MermaidPadBuildDate)' != ''">
         <!-- Explorer: Comments -->
         <AssemblyAttribute Include="System.Reflection.AssemblyDescriptionAttribute">
