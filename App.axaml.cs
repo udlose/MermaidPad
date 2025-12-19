@@ -113,17 +113,26 @@ public sealed partial class App : Application, IDisposable
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
 
-            SplashWindowViewModel splashWindowViewModel = new SplashWindowViewModel();
-
-            // Show splash screen first, then main window
-            desktop.MainWindow = new SplashWindow(splashWindowViewModel, () =>
+            try
             {
-                MainWindow mainWindow = new MainWindow();
-                mainWindow.Show();
-                mainWindow.Focus();
+                SplashWindowViewModel splashWindowViewModel = new SplashWindowViewModel();
 
-                desktop.MainWindow = mainWindow;
-            });
+                // Show splash screen first, then main window
+                desktop.MainWindow = new SplashWindow(splashWindowViewModel, () =>
+                {
+                    MainWindow mainWindow = new MainWindow();
+                    mainWindow.Show();
+                    mainWindow.Focus();
+                    desktop.MainWindow = mainWindow;
+                });
+            }
+            catch (Exception ex)
+            {
+                const string errorMessage = "An error occurred during application initialization.";
+                //TODO - this doesn't work. need to figure out how to show a dialog before main window exists
+                //ShowErrorDialog(ex, errorMessage);
+                Log.Error(ex, errorMessage);
+            }
 
             // Hook up cleanup on application exit
             desktop.ShutdownRequested += OnShutdownRequested;
@@ -529,7 +538,7 @@ public sealed partial class App : Application, IDisposable
     /// <param name="threadContext">A string representing the logical context or name of the thread where the exception occurred - e.g. "UI Thread", "Background Thread", "ThreadPool Thread".</param>
     private static void LogExceptionWithContext(string message, Exception exception, string threadContext)
     {
-        StringBuilder logEntry = new StringBuilder();
+        StringBuilder logEntry = new StringBuilder(256);
         logEntry.AppendLine("---------------------------------------------------------------");
         logEntry.AppendLine($"EXCEPTION: {message}");
         logEntry.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
@@ -548,8 +557,7 @@ public sealed partial class App : Application, IDisposable
         logEntry.AppendLine(BuildExceptionDetails(exception));
         logEntry.AppendLine("---------------------------------------------------------------");
 
-        Log.Error(exception, "EXCEPTION: {Message} | Time: {Time} | Thread Context: {ThreadContext} | Thread ID: {ThreadId}",
-            message, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"), threadContext, Environment.CurrentManagedThreadId);
+        Log.Error(exception, "{LogEntry}", logEntry.ToString());
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -95,7 +95,7 @@ public static class AppMetadata
     /// Gets the descriptive tagline for the product, used for display in user interfaces and metadata.
     /// </summary>
     public static string Tagline =>
-        Comments ?? Title ?? $"{Product} — a live Mermaid diagram editor with preview and export.";
+        Comments ?? Title ?? "MermaidPad - a live Mermaid diagram editor with preview and export.";
 
     /// <summary>
     /// Gets the title of the assembly, as specified by the <see cref="AssemblyTitleAttribute"/>.

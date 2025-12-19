@@ -53,9 +53,6 @@ public sealed partial class SplashWindow : Window
 
         _vm = new SplashWindowViewModel();
         DataContext = _vm;
-
-        IServiceProvider sp = App.Services;
-        _logger = sp.GetRequiredService<ILogger<SplashWindow>>();
     }
 
     /// <summary>
@@ -72,6 +69,9 @@ public sealed partial class SplashWindow : Window
         ArgumentNullException.ThrowIfNull(splashWindowViewModel);
         ArgumentNullException.ThrowIfNull(mainAction);
 
+        IServiceProvider sp = App.Services;
+        _logger = sp.GetRequiredService<ILogger<SplashWindow>>();
+
         _mainAction = mainAction;
 
         // Set the DataContext to the provided ViewModel and override the default one
@@ -85,15 +85,8 @@ public sealed partial class SplashWindow : Window
     /// <param name="e">The event data associated with the loaded event.</param>
     protected override void OnLoaded(RoutedEventArgs e)
     {
-        try
-        {
-            LoadAsync()
-                .SafeFireAndForget(ex => _logger?.LogError(ex, "Error loading splash screen"));
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "Error during splash screen load");
-        }
+        LoadAsync()
+            .SafeFireAndForget(ex => _logger?.LogError(ex, "Error loading splash screen"));
     }
 
     /// <summary>

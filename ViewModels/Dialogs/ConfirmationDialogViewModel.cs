@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -54,17 +54,17 @@ public sealed class ConfirmationDialogViewModel : ViewModelBase
     /// <summary>
     /// Gets or sets the text for the Yes button.
     /// </summary>
-    public string YesButtonText { get; set; } = "Yes";
+    public string YesButtonText { get; set; } = "_Yes";
 
     /// <summary>
     /// Gets or sets the text for the No button.
     /// </summary>
-    public string NoButtonText { get; set; } = "No";
+    public string NoButtonText { get; set; } = "_No";
 
     /// <summary>
     /// Gets or sets the text for the Cancel button.
     /// </summary>
-    public string CancelButtonText { get; set; } = "Cancel";
+    public string CancelButtonText { get; set; } = "_Cancel";
 }
 
 /// <summary>
