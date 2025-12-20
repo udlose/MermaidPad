@@ -121,7 +121,7 @@
         <MenuItem x:Name="EditorThemeMenu" Header="E_ditor Theme" />
       </MenuItem>
       <MenuItem Header="_Help">
-        <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
+        <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
       </MenuItem>
     </Menu>
 
@@ -161,16 +161,6 @@
       Classes="StatusBar"
       DockPanel.Dock="Bottom">
       <TextBlock
-        Margin="8,0"
-        HorizontalAlignment="Right"
-        VerticalAlignment="Center"
-        DockPanel.Dock="Right"
-        Text="{Binding CurrentMermaidPadVersion}" />
-      <TextBlock
-        Margin="8,0"
-        VerticalAlignment="Center"
-        Text="{Binding StatusText}" />
-      <TextBlock
         Margin="4,0,0,0"
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
@@ -178,7 +168,6 @@
       <TextBlock
         Margin="12,0,0,0"
         VerticalAlignment="Center"
-        Foreground="Gray"
         Text="{Binding StatusText}" />
     </DockPanel>
 

@@ -30,6 +30,7 @@ using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
+using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
