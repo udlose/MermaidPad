@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@ using AsyncAwaitBestPractices;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MermaidPad.Infrastructure;
@@ -588,12 +589,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             }
 
             ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+            confirmViewModel.ShowCancelButton = true;
             confirmViewModel.Title = "Unsaved Changes";
 
             string fileName = !string.IsNullOrEmpty(CurrentFilePath)
                 ? Path.GetFileName(CurrentFilePath)
                 : "Untitled";
-
             confirmViewModel.Message = $"Do you want to save changes to {fileName}?";
             confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
             confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
@@ -868,15 +869,93 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanClear))]
     private async Task ClearAsync()
     {
-        // These property updates must happen on UI thread
-        DiagramText = string.Empty;
-        EditorSelectionStart = 0;
-        EditorSelectionLength = 0;
-        EditorCaretOffset = 0;
-        LastError = null;
+        // Display a confirmation dialog before clearing
+        try
+        {
+            Window? mainWindow = GetParentWindow();
+            if (mainWindow is null)
+            {
+                return;
+            }
 
-        // NO ConfigureAwait(false) - renderer needs UI context
-        await _renderer.RenderAsync(string.Empty);
+            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+            confirmViewModel.ShowCancelButton = false;
+            confirmViewModel.Title = "Clear Editor?";
+            confirmViewModel.Message = "Are you sure you want to clear the source code and diagram? To undo your changes, click Edit, then Undo.";
+            confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
+            confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
+            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+            ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
+            if (result == ConfirmationResult.Yes)
+            {
+                if (Dispatcher.UIThread.CheckAccess())
+                {
+                    await ClearCoreAsync();
+                }
+                else
+                {
+                    await Dispatcher.UIThread.InvokeAsync(ClearCoreAsync);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show confirmation dialog");
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously clears the contents of the current editor document and updates the UI to reflect the cleared
+    /// state.
+    /// </summary>
+    /// <remarks>This method must be called on the UI thread, as it updates UI-bound properties and triggers
+    /// rendering. If the editor context or document is invalid, the method logs a warning and performs no action. The
+    /// operation is batched to ensure a single undo step is created. Undo functionality is preserved if the operation
+    /// fails.</remarks>
+    /// <returns>A task that represents the asynchronous clear operation.</returns>
+    private async Task ClearCoreAsync()
+    {
+        // These property updates must happen on UI thread
+        // Get the current editor context on-demand to ensure fresh state
+        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
+
+        // Make sure the EditorContext is valid
+        if (editorContext?.IsValid != true)
+        {
+            _logger.LogWarning("{MethodName} called with invalid editor context", nameof(ClearCoreAsync));
+            return;
+        }
+
+        TextDocument? document = editorContext.Document;
+        if (document is null)
+        {
+            _logger.LogWarning("{MethodName} called with null Document", nameof(ClearCoreAsync));
+            return;
+        }
+
+        bool isSuccess = false;
+        try
+        {
+            // Begin document update to batch changes together so that only one undo step is created
+            document.BeginUpdate();
+
+            // Important: operate only on the TextDocument to ensure undo works correctly.
+            // DO NOT set DiagramText or any other editor-related VM properties directly here!
+            document.Text = string.Empty;
+
+            // NO ConfigureAwait(false) - renderer needs UI context
+            await _renderer.RenderAsync(string.Empty);
+
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clear diagram");
+        }
+        finally
+        {
+            editorContext.EndUpdateAndUndoIfFailed(isSuccess);
+        }
     }
 
     /// <summary>

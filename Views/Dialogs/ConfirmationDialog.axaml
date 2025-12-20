@@ -39,7 +39,8 @@
         Click="OnCancelClick"
         Content="{Binding CancelButtonText}"
         HotKey="Alt+C"
-        IsCancel="True" />
+        IsCancel="True"
+        IsVisible="{Binding ShowCancelButton}" />
     </StackPanel>
 
     <Grid>
