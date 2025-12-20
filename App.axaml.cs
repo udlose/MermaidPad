@@ -26,6 +26,7 @@ using Avalonia.Data.Core.Plugins;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using AvaloniaWebView;
 using MermaidPad.Infrastructure;
 using MermaidPad.ViewModels;
 using MermaidPad.Views;
@@ -143,6 +144,18 @@ public sealed partial class App : Application, IDisposable
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Registers application services required for web view functionality.
+    /// </summary>
+    /// <remarks>This method initializes services necessary for Avalonia WebView integration. It should be
+    /// called during application startup to ensure that web view components are properly configured.</remarks>
+    public override void RegisterServices()
+    {
+        base.RegisterServices();
+
+        AvaloniaWebViewBuilder.Initialize(null);
     }
 
     /// <summary>
