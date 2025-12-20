@@ -65,6 +65,11 @@ public sealed class ConfirmationDialogViewModel : ViewModelBase
     /// Gets or sets the text for the Cancel button.
     /// </summary>
     public string CancelButtonText { get; set; } = "_Cancel";
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the Cancel button is visible in the user interface.
+    /// </summary>
+    public bool ShowCancelButton { get; set; }
 }
 
 /// <summary>
