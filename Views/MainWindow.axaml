@@ -146,7 +146,7 @@
         FlowDirection="RightToLeft"
         IsChecked="{Binding LivePreviewEnabled}"
         IsEnabled="{Binding IsWebViewReady}"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="Toggle Live Preview" />
       <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
       <TextBlock Text="{Binding BundledMermaidVersion}" />
       <TextBlock Margin="12,0,4,0" Text="Latest:" />
