@@ -131,15 +131,15 @@
         Width="90"
         Command="{Binding RenderCommand}"
         Content="Render"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="Render Diagram" />
       <Button
         Command="{Binding ClearCommand}"
         Content="Clear"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="Clear All (Source + Diagram)" />
       <Button
         Command="{Binding ExportCommand}"
         Content="Export"
-        ToolTip.Tip="{Binding !IsWebViewReady, Converter={StaticResource BoolToTooltipConverter}}" />
+        ToolTip.Tip="Export Diagram" />
       <CheckBox
         Margin="12,0,0,0"
         Content="Live Preview:"
@@ -195,10 +195,10 @@
               <MenuItem Command="{Binding CopyCommand}" Header="Copy" />
               <MenuItem Command="{Binding PasteCommand}" Header="Paste" />
               <Separator />
-              <MenuItem Command="{Binding SelectAllCommand}" Header="Select All" />
-              <Separator />
               <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
               <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
+              <Separator />
+              <MenuItem Command="{Binding SelectAllCommand}" Header="Select All" />
               <Separator />
               <MenuItem Command="{Binding CommentSelectionCommand}" Header="Comment Selection" />
               <MenuItem Command="{Binding UncommentSelectionCommand}" Header="Uncomment Selection" />
