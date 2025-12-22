@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using AvaloniaEdit.Document;
+using MermaidPad.Extensions;
 using MermaidPad.Models.Constants;
 using MermaidPad.Models.Editor;
 using Microsoft.Extensions.Logging;
@@ -65,12 +66,8 @@ internal sealed class CommentingStrategy
     /// </summary>
     /// <param name="documentAnalyzer">The document analyzer for determining line context (frontmatter vs. diagram). Cannot be null.</param>
     /// <param name="logger">The logger to use for recording diagnostic and operational messages. Cannot be null.</param>
-    /// <exception cref="ArgumentNullException">Thrown if <paramref name="documentAnalyzer"/> or <paramref name="logger"/> is null.</exception>
     public CommentingStrategy(DocumentAnalyzer documentAnalyzer, ILogger<CommentingStrategy> logger)
     {
-        ArgumentNullException.ThrowIfNull(documentAnalyzer);
-        ArgumentNullException.ThrowIfNull(logger);
-
         _documentAnalyzer = documentAnalyzer;
         _logger = logger;
     }
@@ -151,11 +148,12 @@ internal sealed class CommentingStrategy
         }
         catch (Exception ex)
         {
+            isSuccess = false;
             _logger.LogError(ex, "Failed to comment selection");
         }
         finally
         {
-            editorContext.EndUpdateAndUndoIfFailed(isSuccess);
+            document.EndUpdateAndUndoIfFailed(isSuccess);
         }
     }
 
@@ -234,11 +232,12 @@ internal sealed class CommentingStrategy
         }
         catch (Exception ex)
         {
+            isSuccess = false;
             _logger.LogError(ex, "Failed to uncomment selection");
         }
         finally
         {
-            editorContext.EndUpdateAndUndoIfFailed(isSuccess);
+            document.EndUpdateAndUndoIfFailed(isSuccess);
         }
     }
 }

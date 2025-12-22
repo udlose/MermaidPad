@@ -21,18 +21,12 @@
 using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using AvaloniaEdit.Document;
-using AvaloniaEdit.Editing;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
-using MermaidPad.Models.Editor;
 using MermaidPad.Services;
-using MermaidPad.Services.Editor;
-using MermaidPad.Services.Highlighting;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -43,10 +37,19 @@ using System.Diagnostics.CodeAnalysis;
 namespace MermaidPad.Views;
 
 /// <summary>
-/// Main application window that contains the editor and preview WebView.
-/// Manages synchronization between the editor control and the <see cref="MainWindowViewModel"/>,
-/// initializes and manages the <see cref="MermaidRenderer"/>, and handles window lifecycle events.
+/// Main application window that contains the MermaidEditorView and preview WebView.
+/// Manages window lifecycle events, WebView initialization, and coordinates the MermaidRenderer.
 /// </summary>
+/// <remarks>
+/// Editor-specific functionality (clipboard, intellisense, syntax highlighting, etc.) has been
+/// moved to the MermaidEditorView UserControl. This class focuses on window-level concerns:
+/// <list type="bullet">
+///     <item><description>Window lifecycle (opening, closing, activation)</description></item>
+///     <item><description>WebView initialization and management</description></item>
+///     <item><description>File save prompts on close</description></item>
+///     <item><description>Coordinating the MermaidRenderer</description></item>
+/// </list>
+/// </remarks>
 #pragma warning disable IDE0078
 [SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
 [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
@@ -55,15 +58,10 @@ public sealed partial class MainWindow : Window
     private readonly MainWindowViewModel _vm;
     private readonly MermaidRenderer _renderer;
     private readonly MermaidUpdateService _updateService;
-    private readonly SyntaxHighlightingService _syntaxHighlightingService;
-    private readonly IDebounceDispatcher _editorDebouncer;
-    private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly ILogger<MainWindow> _logger;
 
     private bool _isClosingApproved;
-    private bool _suppressEditorTextChanged;
-    private bool _suppressEditorStateSync; // Prevent circular updates
-    private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
+    private bool _areAllEventHandlersCleanedUp;
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
@@ -71,40 +69,26 @@ public sealed partial class MainWindow : Window
     private EventHandler? _activatedHandler;
     private EventHandler? _openedHandler;
     private EventHandler<WindowClosingEventArgs>? _closingHandler;
-    private EventHandler? _editorTextChangedHandler;
-    private EventHandler? _editorSelectionChangedHandler;
-    private EventHandler? _editorCaretPositionChangedHandler;
-    private EventHandler? _themeChangedHandler;
-    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
     /// </summary>
     /// <remarks>
-    /// The constructor resolves required services from the application's DI container,
-    /// initializes the editor state from the view model, and hooks up synchronization and lifecycle handlers.
-    /// No long-running or blocking work is performed here; heavier initialization happens during the window open sequence.
+    /// The constructor resolves required services from the application's DI container and sets up
+    /// window lifecycle event handlers. Editor-specific initialization is handled by MermaidEditorView.
     /// </remarks>
     public MainWindow()
     {
         InitializeComponent();
 
         IServiceProvider sp = App.Services;
-        _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
         _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainWindowViewModel>();
         _updateService = sp.GetRequiredService<MermaidUpdateService>();
-        _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
-        _documentAnalyzer = sp.GetRequiredService<DocumentAnalyzer>();
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
         DataContext = _vm;
 
         _logger.LogInformation("=== MainWindow Initialization Started ===");
-
-        // Initialize syntax highlighting before wiring up OnThemeChanged
-        InitializeSyntaxHighlighting();
-
-        InitializeIntellisense();
 
         // Store event handlers for proper cleanup
         _openedHandler = OnOpened;
@@ -113,323 +97,26 @@ public sealed partial class MainWindow : Window
         _closingHandler = OnClosing;
         Closing += _closingHandler;
 
-        _themeChangedHandler = OnThemeChanged;
-        ActualThemeVariantChanged += _themeChangedHandler;
-
         _activatedHandler = OnActivated;
         Activated += _activatedHandler;
 
-        // Initialize editor with ViewModel data using validation
-        SetEditorStateWithValidation(
-            _vm.DiagramText,
-            _vm.EditorSelectionStart,
-            _vm.EditorSelectionLength,
-            _vm.EditorCaretOffset
-        );
-
-        // Set up two-way synchronization between Editor and ViewModel
-        SetupEditorViewModelSync();
-
-        // Wire up clipboard and edit actions to ViewModel
-        WireUpEditorActions();
-
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
-    }
-
-    /// <summary>
-    /// Sets the editor text, selection, and caret position while validating bounds and preventing circular updates.
-    /// </summary>
-    /// <param name="text">The text to set into the editor. Must not be <see langword="null"/>.</param>
-    /// <param name="selectionStart">Requested selection start index.</param>
-    /// <param name="selectionLength">Requested selection length.</param>
-    /// <param name="caretOffset">Requested caret offset.</param>
-    private void SetEditorStateWithValidation(string text, int selectionStart, int selectionLength, int caretOffset)
-    {
-        _suppressEditorStateSync = true; // Prevent circular updates during initialization
-        try
-        {
-            Editor.Text = text;
-
-            // Ensure selection bounds are valid
-            int textLength = text.Length;
-            int validSelectionStart = Math.Max(0, Math.Min(selectionStart, textLength));
-            int validSelectionLength = Math.Max(0, Math.Min(selectionLength, textLength - validSelectionStart));
-            int validCaretOffset = Math.Max(0, Math.Min(caretOffset, textLength));
-            Editor.SelectionStart = validSelectionStart;
-            Editor.SelectionLength = validSelectionLength;
-            Editor.CaretOffset = validCaretOffset;
-
-            // Since this is yaml/diagram text, convert tabs to spaces for correct rendering
-            Editor.Options.ConvertTabsToSpaces = true;
-            Editor.Options.HighlightCurrentLine = true;
-            Editor.Options.IndentationSize = 2;
-            Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(_documentAnalyzer, Editor.Options);
-
-            _logger.LogInformation("Editor state set with {CharacterCount} characters", textLength);
-        }
-        finally
-        {
-            _suppressEditorStateSync = false;
-        }
-    }
-
-    /// <summary>
-    /// Wires up synchronization between the editor control and the view model.
-    /// </summary>
-    /// <remarks>
-    /// - Subscribes to editor text/selection/caret events and updates the view model using a debounce dispatcher.
-    /// - Subscribes to view model property changes and applies them to the editor.
-    /// - Suppresses reciprocal updates to avoid feedback loops.
-    /// </remarks>
-    private void SetupEditorViewModelSync()
-    {
-        // Editor -> ViewModel synchronization (text)
-        _editorTextChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorTextChanged)
-            {
-                return;
-            }
-
-            // Update undo/redo states immediately (not debounced)
-            _vm.CanUndo = Editor.CanUndo;
-            _vm.CanRedo = Editor.CanRedo;
-            _vm.CanSelectAll = CanSelectAll;
-
-            // Notify commands that their CanExecute state may have changed
-            _vm.UndoCommand.NotifyCanExecuteChanged();
-            _vm.RedoCommand.NotifyCanExecuteChanged();
-            _vm.SelectAllCommand.NotifyCanExecuteChanged();
-
-            // Debounce to avoid excessive updates
-            _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-            {
-                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
-                string text = Editor.Text;
-                if (_vm.DiagramText != text)
-                {
-                    _suppressEditorStateSync = true;
-                    try
-                    {
-                        _vm.DiagramText = text;
-                    }
-                    finally
-                    {
-                        _suppressEditorStateSync = false;
-                    }
-                }
-            },
-            DispatcherPriority.Background);
-        };
-        Editor.TextChanged += _editorTextChangedHandler;
-
-        // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
-        _editorSelectionChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorStateSync)
-            {
-                return;
-            }
-
-            // Update cut/copy states immediately based on selection
-            bool hasSelection = Editor.SelectionLength > 0;
-            _vm.CanCutClipboard = hasSelection;
-            _vm.CanCopyClipboard = hasSelection;
-
-            // Notify commands that their CanExecute state may have changed
-            _vm.CutCommand.NotifyCanExecuteChanged();
-            _vm.CopyCommand.NotifyCanExecuteChanged();
-
-            ScheduleEditorStateSyncIfNeeded();
-        };
-        Editor.TextArea.SelectionChanged += _editorSelectionChangedHandler;
-
-        _editorCaretPositionChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorStateSync)
-            {
-                return;
-            }
-
-            ScheduleEditorStateSyncIfNeeded();
-        };
-        Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
-
-        // ViewModel -> Editor synchronization
-        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
-        _vm.PropertyChanged += _viewModelPropertyChangedHandler;
-    }
-
-    /// <summary>
-    /// Coalesces caret and selection updates and schedules a debounced update of the view model's editor state.
-    /// </summary>
-    /// <remarks>
-    /// The method compares the current editor state with the view model and only schedules an update
-    /// when a change is detected. Values are read again at the time the debounced action runs to coalesce
-    /// multiple rapid events into a single update.
-    /// </remarks>
-    private void ScheduleEditorStateSyncIfNeeded()
-    {
-        int selectionStart = Editor.SelectionStart;
-        int selectionLength = Editor.SelectionLength;
-        int caretOffset = Editor.CaretOffset;
-
-        if (selectionStart == _vm.EditorSelectionStart &&
-            selectionLength == _vm.EditorSelectionLength &&
-            caretOffset == _vm.EditorCaretOffset)
-        {
-            return; // nothing changed
-        }
-
-        _editorDebouncer.DebounceOnUI("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
-        {
-            _suppressEditorStateSync = true;
-            try
-            {
-                // Take the latest values at execution time to coalesce multiple events
-                _vm.EditorSelectionStart = Editor.SelectionStart;
-                _vm.EditorSelectionLength = Editor.SelectionLength;
-                _vm.EditorCaretOffset = Editor.CaretOffset;
-            }
-            finally
-            {
-                _suppressEditorStateSync = false;
-            }
-        },
-        DispatcherPriority.Background);
-    }
-
-    /// <summary>
-    /// Handles property changes on the view model and synchronizes relevant values to the editor control.
-    /// </summary>
-    /// <param name="sender">The object raising the property changed event (typically the view model).</param>
-    /// <param name="e">Property changed event arguments describing which property changed.</param>
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (_suppressEditorStateSync)
-        {
-            return;
-        }
-
-        switch (e.PropertyName)
-        {
-            case nameof(_vm.DiagramText):
-                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
-                string currentText = Editor.Text;
-                if (currentText != _vm.DiagramText)
-                {
-                    _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-                    {
-                        _suppressEditorTextChanged = true;
-                        _suppressEditorStateSync = true;
-                        try
-                        {
-                            Editor.Text = _vm.DiagramText;
-                        }
-                        finally
-                        {
-                            _suppressEditorTextChanged = false;
-                            _suppressEditorStateSync = false;
-                        }
-                    },
-                    DispatcherPriority.Background);
-                }
-                break;
-
-            case nameof(_vm.EditorSelectionStart):
-            case nameof(_vm.EditorSelectionLength):
-            case nameof(_vm.EditorCaretOffset):
-                _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
-                {
-                    _suppressEditorStateSync = true;
-                    try
-                    {
-                        // Validate bounds before setting
-                        int textLength = Editor.Document.TextLength;
-                        int validSelectionStart = Math.Max(0, Math.Min(_vm.EditorSelectionStart, textLength));
-                        int validSelectionLength = Math.Max(0, Math.Min(_vm.EditorSelectionLength, textLength - validSelectionStart));
-                        int validCaretOffset = Math.Max(0, Math.Min(_vm.EditorCaretOffset, textLength));
-
-                        if (Editor.SelectionStart != validSelectionStart ||
-                            Editor.SelectionLength != validSelectionLength ||
-                            Editor.CaretOffset != validCaretOffset)
-                        {
-                            Editor.SelectionStart = validSelectionStart;
-                            Editor.SelectionLength = validSelectionLength;
-                            Editor.CaretOffset = validCaretOffset;
-                        }
-                    }
-                    finally
-                    {
-                        _suppressEditorStateSync = false;
-                    }
-                },
-                DispatcherPriority.Background);
-                break;
-        }
     }
 
     /// <summary>
     /// Handles the window activated event, bringing focus to the editor and updating clipboard state.
     /// </summary>
     /// <remarks>
-    /// Updates the CanPasteClipboard state when the window gains focus, allowing the app to
+    /// Updates the CanPaste state when the window gains focus, allowing the app to
     /// detect if the user copied text from another application.
     /// </remarks>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>
     private void OnActivated(object? sender, EventArgs e)
     {
-        BringFocusToEditor();
-
-        // Update clipboard state when window gains focus (user might have copied from another app)
-        UpdateCanPasteClipboardAsync()
-            .SafeFireAndForget(onException: ex =>
-                _logger.LogError(ex, "Failed to update clipboard state on activation"));
-    }
-
-    /// <summary>
-    /// Brings focus to the editor control and adjusts visuals for caret and selection.
-    /// </summary>
-    /// <remarks>
-    /// This method executes on the UI thread via the dispatcher and temporarily suppresses
-    /// editor <see cref="_suppressEditorStateSync"/> to avoid generating spurious model updates.
-    /// </remarks>
-    private void BringFocusToEditor()
-    {
-        // Check if we're on the ui thread first
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            SetFocusToEditor();
-            return;
-        }
-
-        Dispatcher.UIThread.Post(SetFocusToEditor, DispatcherPriority.Input);
-
-        void SetFocusToEditor()
-        {
-            if (Editor?.TextArea is not null)
-            {
-                // Suppress event reactions during programmatic focus/caret adjustments
-                _suppressEditorStateSync = true;
-                try
-                {
-                    // Make sure caret is visible:
-                    Editor.TextArea.Caret.CaretBrush = Brushes.Red;
-                    // Ensure selection is visible
-                    Editor.TextArea.SelectionBrush = Brushes.SteelBlue;
-                    if (!Editor.IsFocused)
-                    {
-                        Editor.Focus();
-                    }
-                    Editor.TextArea.Caret.BringCaretToView();
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            }
-        }
+        // Delegate focus and clipboard state updates to the MermaidEditorView
+        MermaidEditor.BringFocusToEditor();
+        MermaidEditor.UpdateClipboardStateOnActivation();
     }
 
     /// <summary>
@@ -506,21 +193,13 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Handles the core logic to be executed when the window is opened asynchronously.
     /// </summary>
-    /// <remarks>This method logs the window open event, invokes additional asynchronous operations,  and ensures the
-    /// editor receives focus. It is intended to be called as part of the  window opening lifecycle.</remarks>
+    /// <remarks>This method logs the window open event, invokes additional asynchronous operations, and ensures the
+    /// editor receives focus. It is intended to be called as part of the window opening lifecycle.</remarks>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task OnOpenedCoreAsync()
     {
-        _suppressEditorStateSync = true;
-        try
-        {
-            await OnOpenedAsync();
-            BringFocusToEditor();
-        }
-        finally
-        {
-            _suppressEditorStateSync = false;
-        }
+        await OnOpenedAsync();
+        MermaidEditor.BringFocusToEditor();
     }
 
     /// <summary>
@@ -643,67 +322,46 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Unsubscribes all event handlers that were previously attached to window and editor events.
+    /// Unsubscribes all event handlers that were previously attached to window events.
     /// </summary>
     /// <remarks>Call this method to detach all event handlers managed by the instance, typically during
     /// cleanup or disposal. After calling this method, the instance will no longer respond to the associated events
     /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
     private void UnsubscribeAllEventHandlers()
     {
-        if (_openedHandler is not null)
+        // Delegate to MermaidEditorView for editor-specific cleanup
+        // MermaidEditorView handles its own event subscriptions internally to protect against double-unsubscribe
+        MermaidEditor.UnsubscribeAllEventHandlers();
+
+        // Prevent double-unsubscribe
+        if (!_areAllEventHandlersCleanedUp)
         {
-            Opened -= _openedHandler;
-            _openedHandler = null;
-        }
+            if (_openedHandler is not null)
+            {
+                Opened -= _openedHandler;
+                _openedHandler = null;
+            }
 
-        if (_closingHandler is not null)
+            if (_closingHandler is not null)
+            {
+                Closing -= _closingHandler;
+                _closingHandler = null;
+            }
+
+            if (_activatedHandler is not null)
+            {
+                Activated -= _activatedHandler;
+                _activatedHandler = null;
+            }
+
+            _logger.LogInformation("All MainWindow event handlers unsubscribed successfully");
+
+            _areAllEventHandlersCleanedUp = true;
+        }
+        else
         {
-            Closing -= _closingHandler;
-            _closingHandler = null;
+            _logger.LogWarning($"{nameof(UnsubscribeAllEventHandlers)} called multiple times; skipping subsequent call");
         }
-
-        if (_activatedHandler is not null)
-        {
-            Activated -= _activatedHandler;
-            _activatedHandler = null;
-        }
-
-        if (_themeChangedHandler is not null)
-        {
-            ActualThemeVariantChanged -= _themeChangedHandler;
-            _themeChangedHandler = null;
-        }
-
-        if (_editorTextChangedHandler is not null)
-        {
-            Editor.TextChanged -= _editorTextChangedHandler;
-            _editorTextChangedHandler = null;
-        }
-
-        if (_editorSelectionChangedHandler is not null)
-        {
-            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
-            _editorSelectionChangedHandler = null;
-        }
-
-        if (_editorCaretPositionChangedHandler is not null)
-        {
-            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
-            _editorCaretPositionChangedHandler = null;
-        }
-
-        if (_viewModelPropertyChangedHandler is not null)
-        {
-            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
-            _viewModelPropertyChangedHandler = null;
-        }
-
-        UnsubscribeIntellisenseEventHandlers();
-
-        // Dispose of the context menu semaphore here, as all operations using it have completed
-        _contextMenuSemaphore.Dispose();
-
-        _logger.LogInformation("All event handlers unsubscribed successfully");
     }
 
     /// <summary>
@@ -820,748 +478,4 @@ public sealed partial class MainWindow : Window
             });
         }
     }
-
-    #region Clipboard and Edit Methods
-
-    /// <summary>
-    /// Wires up the clipboard and edit action delegates in the ViewModel to their implementations.
-    /// </summary>
-    /// <remarks>
-    /// This method connects the ViewModel's Action properties to the actual implementation methods,
-    /// enabling proper MVVM separation while allowing the View to implement UI-specific operations.
-    /// </remarks>
-    private void WireUpEditorActions()
-    {
-        _vm.CutAction = CutToClipboardAsync;
-        _vm.CopyAction = CopyToClipboardAsync;
-        _vm.PasteAction = PasteFromClipboardAsync;
-        _vm.UndoAction = UndoEdit;
-        _vm.RedoAction = RedoEdit;
-        _vm.SelectAllAction = SelectAllText;
-        _vm.OpenFindAction = OpenFindPanel;
-        _vm.FindNextAction = FindNextMatch;
-        _vm.FindPreviousAction = FindPreviousMatch;
-        _vm.GetCurrentEditorContextFunc = GetCurrentEditorContext;
-    }
-
-    /// <summary>
-    /// Asynchronously cuts the selected text to the clipboard and removes it from the editor.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This method performs a two-phase atomic operation:
-    /// 1. Copy selected text to clipboard (awaits completion)
-    /// 2. Remove text from editor only if clipboard operation succeeded
-    /// </para>
-    /// <para>
-    /// The entire operation is atomic - the command won't complete until both phases finish,
-    /// preventing race conditions where selection might change mid-operation.
-    /// </para>
-    /// <para>
-    /// THREADING: Avalonia's Clipboard.SetTextAsync must be called on the UI thread.
-    /// The operation runs entirely on UI thread to avoid cross-thread access issues.
-    /// </para>
-    /// </remarks>
-    /// <returns>A task representing the asynchronous cut operation.</returns>
-    private async Task CutToClipboardAsync()
-    {
-        try
-        {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
-            {
-                await Dispatcher.UIThread.InvokeAsync(CutToClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
-            }
-
-            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await CutToClipboardCoreAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to cut text to clipboard");
-            // Don't re-throw - keep method safe for command handlers
-            // The text remains in the editor, which is the safe fallback
-        }
-    }
-
-    /// <summary>
-    /// Core logic for cutting text to clipboard. Must be called on the UI thread.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task CutToClipboardCoreAsync()
-    {
-        // UI thread validation checks
-        string selectedText = Editor.SelectedText;
-        if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(selectedText) || Clipboard is null)
-        {
-            return;
-        }
-
-        // Since this operation is asynchronous but should be atomic, we need to
-        // store the selection position before the async operation and verify it hasn't changed
-        int selectionStart = Editor.SelectionStart;
-        int selectionLength = Editor.SelectionLength;
-
-        try
-        {
-            // Phase 1: Copy to clipboard (async operation on UI thread)
-            await Clipboard.SetTextAsync(selectedText);
-
-            // Phase 2: Remove text only if:
-            // - Clipboard operation succeeded (we got here)
-            // - Selection hasn't changed
-            // - Document is still large enough (boundary validation)
-            if (Editor.SelectionStart == selectionStart &&
-                Editor.SelectionLength == selectionLength &&
-                selectionStart + selectionLength <= Editor.Document.TextLength)
-            {
-                Editor.Document.Remove(selectionStart, selectionLength);
-                _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
-
-                // We just put text on clipboard, so paste *should* be enabled.
-                // For our purpose, we'll optimistically assume it is.
-                _vm.CanPasteClipboard = true;
-                _vm.PasteCommand.NotifyCanExecuteChanged();
-            }
-            else
-            {
-                // Log why we didn't remove the text
-                if (Editor.SelectionStart != selectionStart || Editor.SelectionLength != selectionLength)
-                {
-                    _logger.LogWarning(
-                        "Selection changed during cut operation (was {Start}:{Length}, now {NewStart}:{NewLength}) - text not removed",
-                        selectionStart, selectionLength, Editor.SelectionStart, Editor.SelectionLength);
-                }
-                else if (selectionStart + selectionLength > Editor.Document.TextLength)
-                {
-                    _logger.LogWarning(
-                        "Document size changed during cut operation (was {OldLength}, now {NewLength}) - text not removed to prevent exception",
-                        selectionStart + selectionLength, Editor.Document.TextLength);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to cut text to clipboard");
-            // Don't re-throw - keep method safe for command handlers
-            // The text remains in the editor, which is the safe fallback
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously copies the selected text to the clipboard.
-    /// </summary>
-    /// <remarks>
-    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
-    /// </remarks>
-    /// <returns>A task representing the asynchronous copy operation.</returns>
-    private async Task CopyToClipboardAsync()
-    {
-        try
-        {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
-            {
-                await Dispatcher.UIThread.InvokeAsync(CopyToClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
-            }
-
-            // Now safe to check UI properties - we're guaranteed to be on UI thread
-            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await CopyToClipboardCoreAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to copy text to clipboard");
-        }
-    }
-
-    /// <summary>
-    /// Core logic for copying text to clipboard. Must be called on the UI thread.
-    /// </summary>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task CopyToClipboardCoreAsync()
-    {
-        // UI thread validation checks
-        string selectedText = Editor.SelectedText;
-        if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(selectedText) || Clipboard is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await Clipboard.SetTextAsync(selectedText);
-            _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
-
-            // We just put text on clipboard, so paste *should* be enabled.
-            // For our purpose, we'll optimistically assume it is.
-            _vm.CanPasteClipboard = true;
-            _vm.PasteCommand.NotifyCanExecuteChanged();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to copy text to clipboard");
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously pastes text from the clipboard into the current context, if available.
-    /// </summary>
-    /// <remarks>This method ensures thread safety by dispatching clipboard operations to the UI thread when
-    /// necessary. If the clipboard is unavailable, the method completes without performing any action. Exceptions are
-    /// logged but not propagated, making this method safe to use in command handlers.</remarks>
-    /// <returns>A task that represents the asynchronous paste operation. The task completes when the clipboard content has been
-    /// processed.</returns>
-    private async Task PasteFromClipboardAsync()
-    {
-        try
-        {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
-            {
-                await Dispatcher.UIThread.InvokeAsync(PasteFromClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
-            }
-
-            if (Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await PasteFromClipboardCoreAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to paste text from clipboard");
-            // Don't re-throw - keep method safe for command handlers
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously pastes text from the clipboard at the current caret position.
-    /// </summary>
-    /// <remarks>
-    /// This method must be called on the UI thread as it accesses both the TextEditor and the clipboard.
-    /// The pasted text replaces any current selection, and the caret moves to the end of the pasted text.
-    /// </remarks>
-    /// <returns>A task representing the asynchronous paste operation.</returns>
-    private async Task PasteFromClipboardCoreAsync()
-    {
-        // UI thread validation checks
-        if (Clipboard is null)
-        {
-            return;
-        }
-
-        try
-        {
-            string? clipboardText = await GetTextFromClipboardAsync(this);
-            if (string.IsNullOrEmpty(clipboardText))
-            {
-                return;
-            }
-
-            int insertPosition = Editor.SelectionStart;
-            int removeLength = Editor.SelectionLength;
-
-            // Replace selection with clipboard text
-            Editor.Document.Replace(insertPosition, removeLength, clipboardText);
-
-            // Move caret to end of pasted text (standard behavior)
-            Editor.CaretOffset = insertPosition + clipboardText.Length;
-
-            _logger.LogInformation("Pasted {CharCount} characters from clipboard", clipboardText.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to paste text from clipboard");
-        }
-    }
-
-    /// <summary>
-    /// Undoes the last edit operation in the editor.
-    /// </summary>
-    /// <remarks>
-    /// This method calls the AvaloniaEdit TextEditor's built-in Undo functionality.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void UndoEdit()
-    {
-        try
-        {
-            if (Editor.CanUndo)
-            {
-                Editor.Undo();
-                _logger.LogInformation("Undo operation performed");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to perform undo operation");
-        }
-    }
-
-    /// <summary>
-    /// Redoes the last undone edit operation in the editor.
-    /// </summary>
-    /// <remarks>
-    /// This method calls the AvaloniaEdit TextEditor's built-in Redo functionality.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void RedoEdit()
-    {
-        try
-        {
-            if (Editor.CanRedo)
-            {
-                Editor.Redo();
-                _logger.LogInformation("Redo operation performed");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to perform redo operation");
-        }
-    }
-
-    /// <summary>
-    /// Selects all text in the editor.
-    /// </summary>
-    /// <remarks>
-    /// This method calls the AvaloniaEdit TextEditor's built-in SelectAll functionality.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void SelectAllText()
-    {
-        try
-        {
-            //TODO: there is a known issue where SelectAll does not update. See: https://github.com/AvaloniaUI/AvaloniaEdit/issues/512
-            // we need to monitor that issue for a new release and remove this comment when it is fixed.
-            // I am tracking it here: https://github.com/udlose/MermaidPad/issues/258
-            //Editor.SelectAll();
-
-            // As a temporary workaround, we manually create the selection.
-            Selection selection = Selection.Create(Editor.TextArea, 0, Editor.Document.TextLength);
-            Editor.TextArea.Selection = selection;
-            Editor.CaretOffset = Editor.Document.TextLength;
-
-            // Make sure caret is visible after selection
-            Editor.TextArea.Caret.BringCaretToView();
-
-            _logger.LogInformation("Select all operation performed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to perform select all operation");
-        }
-    }
-
-    /// <summary>
-    /// Gets a value indicating whether the Select All operation can be performed in the editor.
-    /// </summary>
-    private bool CanSelectAll => Editor?.Document?.TextLength > 0;
-
-    /// <summary>
-    /// Opens the find panel in the editor.
-    /// </summary>
-    /// <remarks>
-    /// This method opens the AvaloniaEdit TextEditor's built-in SearchPanel.
-    /// If text is currently selected, it pre-fills the search pattern with the selected text.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void OpenFindPanel()
-    {
-        try
-        {
-            // The maximum length of selected text to pre-fill the search pattern in the find panel.
-            // This limit prevents excessively long selections from being used as the search pattern.
-            const int maxSearchPatternPrefillLength = 100;
-
-            // Pre-fill search with selected text if available
-            if (Editor.SelectionLength is > 0 and < maxSearchPatternPrefillLength)
-            {
-                Editor.SearchPanel.SearchPattern = Editor.SelectedText;
-            }
-
-            Editor.SearchPanel.Open();
-            _logger.LogInformation("Find panel opened");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to open find panel");
-        }
-    }
-
-    /// <summary>
-    /// Finds the next match in the editor using the current search pattern.
-    /// </summary>
-    /// <remarks>
-    /// This method calls the AvaloniaEdit TextEditor's SearchPanel FindNext functionality.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void FindNextMatch()
-    {
-        try
-        {
-            Editor.SearchPanel.FindNext();
-            _logger.LogInformation("Find next operation performed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to perform find next operation");
-        }
-    }
-
-    /// <summary>
-    /// Finds the previous match in the editor using the current search pattern.
-    /// </summary>
-    /// <remarks>
-    /// This method calls the AvaloniaEdit TextEditor's SearchPanel FindPrevious functionality.
-    /// Must be called on the UI thread.
-    /// </remarks>
-    private void FindPreviousMatch()
-    {
-        try
-        {
-            Editor.SearchPanel.FindPrevious();
-            _logger.LogInformation("Find previous operation performed");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to perform find previous operation");
-        }
-    }
-
-    /// <summary>
-    /// Ensures context-menu commands (Copy, Cut, Undo, Redo, Paste) are enabled/disabled based on the
-    /// current editor selection and clipboard contents when the context menu opens.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This is an async-void event handler; it is safe here because:
-    ///     1. It is an event handler (the only valid use of async void).
-    ///     2. All exceptions are caught and logged.
-    ///     3. It performs an awaited clipboard read so the menu doesn't render with stale state.
-    /// </para>
-    /// <para>
-    /// Synchronization semantics:
-    ///     * Uses a non-blocking, async-aware semaphore acquire (<c>_contextMenuSemaphore.WaitAsync(TimeSpan.Zero)</c>)
-    ///       to implement "skip-on-busy" behavior: if a state-check is already running, new invocations
-    ///       return immediately to keep the UI responsive.
-    ///     * A local <c>acquired</c> flag tracks whether the 'acquire' succeeded; <c>Release()</c> is called
-    ///       in the <c>finally</c> block only when the semaphore was actually acquired.
-    /// </para>
-    /// <para>
-    /// Threading and safety:
-    ///     * The method assumes it starts on the UI thread (context-menu open event) but is defensive:
-    ///       all ViewModel updates are marshaled to the UI thread when required.
-    ///     * The semaphore prevents overlapping starts; it does not serialize callers that were never granted the semaphore.
-    /// </para>
-    /// <para>
-    /// Trade-offs and when to change:
-    ///     * Skip-on-busy (current) is fast and avoids allocations/queueing, but callers can be dropped and the menu
-    ///       may occasionally render with slightly stale state. This is acceptable for cheap, infrequent clipboard checks.
-    ///     * If you must guarantee every invocation runs (no drops) replace the try-acquire with a full
-    ///       <c>await _contextMenuSemaphore.WaitAsync()</c> so callers queue and are executed in order.
-    /// </para>
-    /// <para>
-    /// Diagnostics:
-    ///     * Unexpected semaphore release errors are surfaced via <c>Debug.Fail</c> in DEBUG and logged as Error in RELEASE.
-    /// </para>
-    /// </remarks>
-    /// <param name="sender">Source of the event (may be null).</param>
-    /// <param name="e">CancelEventArgs for the opening event; if <see cref="CancelEventArgs.Cancel"/> is true no work is done.</param>
-    [SuppressMessage("ReSharper", "AsyncVoidEventHandlerMethod", Justification = "This is an event handler, so async void is appropriate here.")]
-    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "This is an event handler, so async void is appropriate here.")]
-    private async void GetContextMenuState(object? sender, CancelEventArgs e)
-    {
-        if (e.Cancel)
-        {
-            return; // nothing to do
-        }
-
-        // We want to avoid overlapping executions of this method if the user somehow triggers multiple context menu openings quickly
-        bool acquired = false;
-        try
-        {
-            // Non-blocking try-acquire: prefer skip-on-busy semantics (no UI blocking)
-            acquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero);
-            if (!acquired)
-            {
-                return; // skip if busy
-            }
-
-            // We should already be on the UI thread since this method is an event handler,
-            // but be defensive: marshal ViewModel updates when not on UI thread.
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
-                _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
-                _vm.CanUndo = Editor.CanUndo;
-                _vm.CanRedo = Editor.CanRedo;
-                _vm.CanSelectAll = CanSelectAll;
-            }
-            else
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    _vm.CanCopyClipboard = _vm.EditorSelectionLength > 0;
-                    _vm.CanCutClipboard = _vm.EditorSelectionLength > 0;
-                    _vm.CanUndo = Editor.CanUndo;
-                    _vm.CanRedo = Editor.CanRedo;
-                    _vm.CanSelectAll = CanSelectAll;
-                }, DispatcherPriority.Normal);
-            }
-
-            string? clipboardText = null;
-            try
-            {
-                // AWAIT the async clipboard check to minimize the possibility of the menu rendering with a stale state
-                clipboardText = await GetTextFromClipboardAsync(this);
-            }
-            catch (Exception ex)
-            {
-                // Treat as no text available
-                _logger.LogDebug(ex, "Clipboard read failed in context menu state check");
-            }
-
-            // We should be able to paste whitespace, so only check for null or empty
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText);
-            }
-            else
-            {
-                await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = !string.IsNullOrEmpty(clipboardText), DispatcherPriority.Normal);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update CanPasteClipboard in context menu");
-        }
-        finally
-        {
-            // Only release if we acquired the semaphore.
-            if (acquired)
-            {
-                try
-                {
-                    _contextMenuSemaphore.Release();
-                }
-                catch (SemaphoreFullException ex)
-                {
-#if DEBUG
-                    Debug.Fail("Context menu semaphore released without a matching WaitAsync", ex.ToString());
-                    Debugger.Break();
-#else
-                    // Log as error for triage but avoid re-throwing here because it will crash the process from an async-void
-                    _logger.LogError(ex, "Context menu semaphore release failed (already released) - indicates a logic bug");
-#endif
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously retrieves the current text content from the clipboard associated with the specified window.
-    /// </summary>
-    /// <remarks>If the clipboard is unavailable or does not contain text, the method returns null. The
-    /// operation is performed on the appropriate UI thread as required by the window's clipboard
-    /// implementation.</remarks>
-    /// <param name="window">The window whose clipboard is accessed to retrieve text. Must not be null.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains the clipboard text if available;
-    /// otherwise, null.</returns>
-    private static async Task<string?> GetTextFromClipboardAsync(Window window)
-    {
-        // Get Window.Clipboard on UI thread when necessary; don't capture caller context for the dispatch.
-        // If we end up on a background thread, we need to ensure we await Dispatcher calls without capturing the UI context
-        // If caller is on UI thread, read directly and resume on UI thread.
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            IClipboard? clipboard = window.Clipboard;
-            if (clipboard is null)
-            {
-                return null;
-            }
-
-            // If caller is on UI thread, allow resuming on UI thread.
-            return await clipboard.TryGetTextAsync();
-        }
-
-        // Off-UI caller: get the clipboard reference on the UI thread (synchronous lambda),
-        // then perform the async read without capturing the UI context to avoid deadlocks.
-        // If we don't await Dispatcher calls *in this case*, we run into possible race conditions where the Clipboard property isn't ready yet.
-        IClipboard? uiClipboard = await Dispatcher.UIThread.InvokeAsync(() => window.Clipboard, DispatcherPriority.Background);
-        if (uiClipboard is null)
-        {
-            return null;
-        }
-
-        // If caller is background, avoid capturing the UI context to reduce deadlock risk.
-        return await uiClipboard.TryGetTextAsync()
-            .ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
-    /// </summary>
-    /// <remarks>This method reads the clipboard text off the UI thread and updates the CanPasteClipboard
-    /// property on the ViewModel. If clipboard access fails or the clipboard is empty,
-    /// <see cref="MainWindowViewModel.CanPasteClipboard"/> is set to false.
-    /// The update is marshaled back to the UI thread to ensure thread safety.</remarks>
-    /// <returns>
-    /// A <see cref="Task"/> that represents the asynchronous operation of updating the ViewModel's
-    /// <see cref="MainWindowViewModel.CanPasteClipboard"/> property based on the current clipboard contents.
-    /// The task completes when the property has been updated.
-    /// </returns>
-    private async Task UpdateCanPasteClipboardAsync()
-    {
-        string? clipboardText = null;
-
-        try
-        {
-            // Perform clipboard I/O off the UI context
-            clipboardText = await GetTextFromClipboardAsync(this)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            // Log and treat as no pasteable text
-            _logger.LogError(ex, "Error reading clipboard text");
-        }
-
-        // We should be able to paste whitespace, so only check for null or empty
-        bool canPaste = !string.IsNullOrEmpty(clipboardText);
-
-        // Marshal back to UI thread to update the ViewModel property
-        await Dispatcher.UIThread.InvokeAsync(() => _vm.CanPasteClipboard = canPaste, DispatcherPriority.Normal);
-    }
-
-    /// <summary>
-    /// Extracts the current editor context from the TextEditor control.
-    /// </summary>
-    /// <remarks>
-    /// This method retrieves the current state of the editor including the document, selection,
-    /// and caret position. It validates the editor state and returns null if the editor is not
-    /// in a valid state for commenting operations. This is called on-demand by the ViewModel
-    /// when comment/uncomment commands execute, ensuring fresh, accurate state.
-    /// </remarks>
-    /// <returns>
-    /// An <see cref="EditorContext"/> containing the current editor state if valid; otherwise, null.
-    /// </returns>
-    private EditorContext? GetCurrentEditorContext()
-    {
-        // Validate editor is loaded and has a document
-        if (!Editor.IsLoaded)
-        {
-            _logger.LogWarning("{MethodName}: Editor is not loaded", nameof(GetCurrentEditorContext));
-            return null;
-        }
-
-        TextDocument? document = Editor.Document;
-        if (document is null)
-        {
-            _logger.LogWarning("{MethodName}: Editor document is null", nameof(GetCurrentEditorContext));
-            return null;
-        }
-
-        // Extract current editor state
-        int selectionStart = Editor.SelectionStart;
-        int selectionLength = Editor.SelectionLength;
-        int caretOffset = Editor.CaretOffset;
-
-        // Validate selection and caret are within bounds
-        if (selectionStart < 0 || selectionLength < 0 || caretOffset < 0 || (selectionStart + selectionLength) > document.TextLength)
-        {
-            _logger.LogWarning("{MethodName}: Invalid editor state - SelectionStart={SelectionStart}, SelectionLength={SelectionLength}, CaretOffset={CaretOffset}, TextLength={TextLength}",
-                nameof(GetCurrentEditorContext), selectionStart, selectionLength, caretOffset, document.TextLength);
-
-            return new EditorContext(document, selectionStart, selectionLength, caretOffset)
-            {
-                IsValid = false
-            };
-        }
-
-        // Emulate what AvaloniaEdit.TextEditor.SelectedText does - see: https://github.com/AvaloniaUI/AvaloniaEdit/blob/8dea781b49b09dedcf98ee7496d4e4a10b410ef0/src/AvaloniaEdit/TextEditor.cs#L971-L978
-        // We'll get the text from the whole surrounding segment. This is done to ensure that SelectedText.Length == SelectionLength.
-        string selectedText = string.Empty;
-        if (!Editor.TextArea.Selection.IsEmpty)
-        {
-            selectedText = Editor.TextArea.Document.GetText(Editor.TextArea.Selection.SurroundingSegment);
-        }
-
-        return new EditorContext(document, selectionStart, selectionLength, caretOffset)
-        {
-            SelectedText = selectedText,
-            IsValid = true
-        };
-    }
-
-    #endregion Clipboard and Edit Methods
-
-    #region Syntax Highlighting methods
-
-    /// <summary>
-    /// Initializes syntax highlighting for the text editor.
-    /// </summary>
-    /// <remarks>
-    /// This method initializes the syntax highlighting service and applies Mermaid syntax highlighting
-    /// to the editor. The theme is automatically selected based on the current Avalonia theme variant.
-    /// </remarks>
-    private void InitializeSyntaxHighlighting()
-    {
-        try
-        {
-            // Initialize the service (verifies grammar resources exist)
-            _syntaxHighlightingService.Initialize();
-
-            // Apply Mermaid syntax highlighting with automatic theme detection
-            _syntaxHighlightingService.ApplyTo(Editor);
-
-            _logger.LogInformation("Syntax highlighting initialized successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to initialize syntax highlighting");
-            // Non-fatal: Continue without syntax highlighting rather than crash the application
-        }
-    }
-
-    /// <summary>
-    /// Handles theme variant changes to update syntax highlighting theme.
-    /// </summary>
-    /// <param name="sender">The event sender.</param>
-    /// <param name="e">The event arguments.</param>
-    [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
-    private void OnThemeChanged(object? sender, EventArgs e)
-    {
-        try
-        {
-            // Get syntax highlighting service from App.Services
-            bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
-
-            // Update syntax highlighting theme to match
-            _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error handling theme change");
-            // Non-fatal: Continue with current theme
-        }
-    }
-
-    #endregion Syntax Highlighting methods
 }
