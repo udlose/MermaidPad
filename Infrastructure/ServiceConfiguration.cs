@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Factories;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
@@ -106,7 +107,16 @@ public static class ServiceConfiguration
         services.AddSingleton<DocumentAnalyzer>();
         services.AddSingleton<CommentingStrategy>();
 
-        // Main ViewModel: transient (one per window)
+        // Generic ViewModel Factory: creates new instances with DI support
+        // Using factory pattern instead of direct transient registration because:
+        // 1. Makes instance creation explicit - callers know they're getting a new instance
+        // 2. Supports MDI scenarios where each document/tab needs its own ViewModel
+        // 3. Allows passing additional constructor parameters at creation time
+        // 4. Avalonia doesn't have built-in scoped DI like ASP.NET Core
+        services.AddSingleton<IViewModelFactory, ViewModelFactory>();
+
+        // Main ViewModel: transient (one per window). This doesn't need to be created
+        // via factory because there's only one MainWindowViewModel per window
         services.AddTransient<MainWindowViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
@@ -119,7 +129,6 @@ public static class ServiceConfiguration
         // They are created directly with 'new' since they need special initialization
         // Only their ViewModels are created through DI
 
-        Log.Information("Building Service Provider");
         ServiceProvider serviceProvider = services.BuildServiceProvider();
         Log.Information("=== MermaidPad Service Configuration Completed ===");
         return serviceProvider;

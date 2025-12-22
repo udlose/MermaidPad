@@ -25,12 +25,14 @@ using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MermaidPad.Extensions;
+using MermaidPad.Factories;
 using MermaidPad.Infrastructure;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
-using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.UserControls;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -55,8 +57,9 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class MainWindowViewModel : ViewModelBase
+internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned by DI container and disposed by the container")]
     private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
@@ -64,9 +67,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
-    private readonly CommentingStrategy _commentingStrategy;
     private readonly ILogger<MainWindowViewModel> _logger;
 
+    private bool _isDisposed;
     private const string DebounceRenderKey = "render";
 
     /// <summary>
@@ -74,11 +77,59 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     private bool _isLoadingFile;
 
+    #region Editor ViewModel
+
+    /// <summary>
+    /// Gets the editor view model that manages text editing, clipboard, and related operations.
+    /// </summary>
+    /// <remarks>
+    /// This view model is exposed for binding to the MermaidEditorView UserControl and for
+    /// menu command binding (e.g., Edit menu items bind to Editor.CutCommand, Editor.CopyCommand, etc.).
+    /// </remarks>
+    public MermaidEditorViewModel Editor { get; }
+
     /// <summary>
     /// Gets or sets the current diagram text.
     /// </summary>
-    [ObservableProperty]
-    public partial string DiagramText { get; set; } = string.Empty;
+    /// <remarks>
+    /// <para>
+    /// This property delegates to <see cref="Editor"/>.Text to maintain a single source of truth.
+    /// It is kept for backward compatibility with existing bindings and for file/render operations.
+    /// </para>
+    /// <para>
+    /// The setter explicitly raises PropertyChanged notifications as a defensive measure.
+    /// While the <see cref="OnEditorPropertyChanged"/> handler also raises these notifications,
+    /// direct notification ensures reliability if the subscription fails or is delayed.
+    /// </para>
+    /// </remarks>
+    public string DiagramText
+    {
+        get => Editor.Text;
+        set
+        {
+            if (Editor.Text == value)
+            {
+                return;
+            }
+
+            Editor.Text = value;
+
+            // Defensive: Raise notifications directly in addition to the subscription-based approach.
+            // This ensures bindings update even if the Editor.PropertyChanged subscription has issues.
+            OnPropertyChanged(nameof(DiagramText));
+            OnPropertyChanged(nameof(HasText));
+        }
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether there is text in the editor.
+    /// </summary>
+    /// <remarks>
+    /// This property delegates to <see cref="Editor"/>.HasText to maintain a single source of truth.
+    /// </remarks>
+    public bool HasText => Editor.HasText;
+
+    #endregion Editor ViewModel
 
     /// <summary>
     /// Gets or sets the last error message, if any.
@@ -105,148 +156,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public partial bool LivePreviewEnabled { get; set; }
 
     /// <summary>
-    /// Gets or sets the selection start index in the editor.
-    /// </summary>
-    [ObservableProperty]
-    public partial int EditorSelectionStart { get; set; }
-
-    /// <summary>
-    /// Gets or sets the selection length in the editor.
-    /// </summary>
-    [ObservableProperty]
-    public partial int EditorSelectionLength { get; set; }
-
-    /// <summary>
-    /// Gets or sets the caret offset in the editor.
-    /// </summary>
-    [ObservableProperty]
-    public partial int EditorCaretOffset { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether the WebView is ready for rendering operations.
     /// </summary>
     [ObservableProperty]
     public partial bool IsWebViewReady { get; set; }
-
-    #region Clipboard and Edit Properties
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the current content can be cut to the clipboard.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanCutClipboard { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether there is available content to copy to the clipboard.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanCopyClipboard { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether there is available content in the clipboard to paste.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanPasteClipboard { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether undo is available.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanUndo { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether redo is available.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanRedo { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the 'Select All' operation is available.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool CanSelectAll { get; set; }
-
-    #endregion Clipboard and Edit Properties
-
-    #region Clipboard and Edit Actions
-
-    /// <summary>
-    /// Gets or sets the function to invoke when cutting text to the clipboard.
-    /// </summary>
-    /// <remarks>
-    /// This function is set by MainWindow to implement the actual async clipboard operation.
-    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
-    /// otherwise, there is a risk of race conditions with clipboard state.
-    /// </remarks>
-    public Func<Task>? CutAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when copying text to the clipboard.
-    /// </summary>
-    /// <remarks>
-    /// This function is set by MainWindow to implement the actual async clipboard operation.
-    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
-    /// otherwise, there is a risk of race conditions with clipboard state.
-    /// </remarks>
-    public Func<Task>? CopyAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when pasting text from the clipboard.
-    /// </summary>
-    /// <remarks>
-    /// This function is set by MainWindow to implement the actual async clipboard operation.
-    /// IMPORTANT: Returns a Task to ensure the operation completes atomically before allowing other operations -
-    /// otherwise, there is a risk of race conditions with clipboard state.
-    /// </remarks>
-    public Func<Task>? PasteAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when undoing the last edit.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual undo operation.</remarks>
-    public Action? UndoAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when redoing the last undone edit.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual redo operation.</remarks>
-    public Action? RedoAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when selecting all text.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to implement the actual select all operation.</remarks>
-    public Action? SelectAllAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when opening the find panel.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to open the TextEditor's built-in search panel.</remarks>
-    public Action? OpenFindAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when finding the next match.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to find the next match using the TextEditor's search panel.</remarks>
-    public Action? FindNextAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the action to invoke when finding the previous match.
-    /// </summary>
-    /// <remarks>This action is set by MainWindow to find the previous match using the TextEditor's search panel.</remarks>
-    public Action? FindPreviousAction { get; internal set; }
-
-    /// <summary>
-    /// Gets or sets the function to invoke when retrieving the current editor context for comment/uncomment operations.
-    /// </summary>
-    /// <remarks>
-    /// This function is set by MainWindow to extract the current editor state (document, selection, caret position) on-demand.
-    /// This ensures fresh, accurate editor state is always used. Returns null if the editor is not in a valid state.
-    /// </remarks>
-    /// <returns>A new <see cref="EditorContext"/> instance or null if invalid.</returns>
-    public Func<EditorContext?>? GetCurrentEditorContextFunc { get; internal set; }
-
-    #endregion Clipboard and Edit Actions
 
     /// <summary>
     /// Gets or sets the current file path being edited.
@@ -276,17 +189,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Gets the list of recent files for the menu.
     /// </summary>
     [ObservableProperty]
-    public partial ObservableCollection<string> RecentFiles { get; set; } = [];
+    public partial ObservableCollection<string> RecentFiles { get; set; } = new ObservableCollection<string>();
 
     /// <summary>
     /// Gets a value indicating whether the Save command can execute.
     /// </summary>
     public bool CanSave => HasText && IsDirty;
-
-    /// <summary>
-    /// Gets a value indicating whether there is text in the editor.
-    /// </summary>
-    public bool HasText => !string.IsNullOrWhiteSpace(DiagramText);
 
     /// <summary>
     /// Gets a value indicating whether there are recent files.
@@ -296,10 +204,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
+    /// <param name="viewModelFactory">The factory for creating view model instances.</param>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
-    public MainWindowViewModel(IServiceProvider services, ILogger<MainWindowViewModel> logger)
+    /// <remarks>
+    /// The <paramref name="viewModelFactory"/> is used to create a new <see cref="MermaidEditorViewModel"/>
+    /// instance that is owned by this MainWindowViewModel. This ensures each window/document has its
+    /// own independent editor state. In future MDI scenarios, each document tab would create its own
+    /// editor via the factory.
+    /// </remarks>
+    public MainWindowViewModel(IViewModelFactory viewModelFactory, IServiceProvider services, ILogger<MainWindowViewModel> logger)
     {
+        Editor = viewModelFactory.Create<MermaidEditorViewModel>();
         _renderer = services.GetRequiredService<MermaidRenderer>();
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
@@ -307,21 +223,79 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
-        _commentingStrategy = services.GetRequiredService<CommentingStrategy>();
         _logger = logger;
 
         // Initialize properties from settings
-        DiagramText = _settingsService.Settings.LastDiagramText ?? SampleText;
+        Editor.Text = _settingsService.Settings.LastDiagramText ?? SampleText;
+        Editor.SelectionStart = _settingsService.Settings.EditorSelectionStart;
+        Editor.SelectionLength = _settingsService.Settings.EditorSelectionLength;
+        Editor.CaretOffset = _settingsService.Settings.EditorCaretOffset;
+
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
-        EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
-        EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
-        EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
+
+        // Subscribe to Editor.PropertyChanged to forward Text changes
+        Editor.PropertyChanged += OnEditorPropertyChanged;
 
         UpdateRecentFiles();
         UpdateWindowTitle();
+    }
+
+    /// <summary>
+    /// Handles property changes from the Editor ViewModel.
+    /// </summary>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The property changed event arguments.</param>
+    private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(Editor.Text):
+                // Forward Text property changes as DiagramText changes
+                OnPropertyChanged(nameof(DiagramText));
+                OnPropertyChanged(nameof(HasText));
+                OnPropertyChanged(nameof(CanSave));
+
+                // Mark as dirty when text changes (ONLY if we're not loading a file)
+                if (!_isLoadingFile)
+                {
+                    IsDirty = true;
+                }
+
+                // Trigger debounced render if live preview is enabled
+                if (LivePreviewEnabled)
+                {
+                    _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+                    {
+                        try
+                        {
+                            // SafeFireAndForget handles its own context
+                            _renderer.RenderAsync(DiagramText)
+                                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error while rendering diagram text.");
+
+                            // If we hit an exception here, rethrow on the UI thread to avoid silent failures
+                            throw;
+                        }
+                    });
+                }
+
+                // Update command states - these are UI operations
+                RenderCommand.NotifyCanExecuteChanged();
+                ClearCommand.NotifyCanExecuteChanged();
+                ExportCommand.NotifyCanExecuteChanged();
+                break;
+
+            case nameof(Editor.HasText):
+                OnPropertyChanged(nameof(HasText));
+                OnPropertyChanged(nameof(CanSave));
+                break;
+        }
     }
 
     #region File Open/Save
@@ -917,7 +891,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         // These property updates must happen on UI thread
         // Get the current editor context on-demand to ensure fresh state
-        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
+        EditorContext? editorContext = Editor.GetCurrentEditorContextFunc?.Invoke();
 
         // Make sure the EditorContext is valid
         if (editorContext?.IsValid != true)
@@ -926,6 +900,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // Snapshot and capture the current state to avoid races if the editor changes during async operation
         TextDocument? document = editorContext.Document;
         if (document is null)
         {
@@ -941,6 +916,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
             // Important: operate only on the TextDocument to ensure undo works correctly.
             // DO NOT set DiagramText or any other editor-related VM properties directly here!
+            // The OnEditorPropertyChanged event handler will take care of updating everything else.
             document.Text = string.Empty;
 
             // NO ConfigureAwait(false) - renderer needs UI context
@@ -950,11 +926,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            isSuccess = false;
             _logger.LogError(ex, "Failed to clear diagram");
         }
         finally
         {
-            editorContext.EndUpdateAndUndoIfFailed(isSuccess);
+            document.EndUpdateAndUndoIfFailed(isSuccess);
         }
     }
 
@@ -1257,166 +1234,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    #region Clipboard and Edit Commands
-
-    /// <summary>
-    /// Performs a cut operation by removing the selected content and placing it on the clipboard asynchronously.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This async command ensures the cut operation completes atomically, preventing race conditions
-    /// where the selection might change before the operation finishes.
-    /// </para>
-    /// <para>
-    /// This command is typically used in clipboard or editing scenarios to implement cut
-    /// functionality. The operation is only performed if a cut action is defined. The ability to execute this command
-    /// is determined by the <see cref="CanCutClipboard"/> property or method.
-    /// </para>
-    /// </remarks>
-    /// <returns>A task that represents the asynchronous cut operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanCutClipboard))]
-    private async Task CutAsync()
-    {
-        if (CutAction is not null)
-        {
-            await CutAction();
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously copies the current content to the clipboard if a copy action is available.
-    /// </summary>
-    /// <remarks>This method performs no action if no copy action is defined. Use the <see cref="CanCopyClipboard"/>
-    /// property to determine whether copying is currently possible before invoking this method.</remarks>
-    /// <returns>A task that represents the asynchronous copy operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanCopyClipboard))]
-    private async Task CopyAsync()
-    {
-        if (CopyAction is not null)
-        {
-            await CopyAction();
-        }
-    }
-
-    /// <summary>
-    /// Executes the paste operation asynchronously if a paste action is available.
-    /// </summary>
-    /// <remarks>This method is intended to be used as a command handler for paste actions, typically in
-    /// response to user interface events. The method does nothing if no paste action is defined.</remarks>
-    /// <returns>A task that represents the asynchronous paste operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanPasteClipboard))]
-    private async Task PasteAsync()
-    {
-        if (PasteAction is not null)
-        {
-            await PasteAction();
-        }
-    }
-
-    /// <summary>
-    /// Undoes the last edit operation.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(CanUndo))]
-    private void Undo() => UndoAction?.Invoke();
-
-    /// <summary>
-    /// Redoes the last undone edit operation.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(CanRedo))]
-    private void Redo() => RedoAction?.Invoke();
-
-    /// <summary>
-    /// Selects all text in the editor.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(CanSelectAll))]
-    private void SelectAll() => SelectAllAction?.Invoke();
-
-    /// <summary>
-    /// Opens the find panel in the editor.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
-    private void OpenFind() => OpenFindAction?.Invoke();
-
-    /// <summary>
-    /// Finds the next match in the editor.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
-    private void FindNext() => FindNextAction?.Invoke();
-
-    /// <summary>
-    /// Finds the previous match in the editor.
-    /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
-    private void FindPrevious() => FindPreviousAction?.Invoke();
-
-    #region Comment/Uncomment Selection Commands
-
-    /// <summary>
-    /// Comments the currently selected text in the editor, if a selection is present and commenting is allowed.
-    /// It uses the commenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
-    /// </summary>
-    /// <remarks>
-    /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
-    /// the most current selection state is used. This command is enabled only when there is text in the editor.
-    /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasText))]
-    private void CommentSelection()
-    {
-        // Make sure the GetCurrentEditorContextFunc is defined
-        if (GetCurrentEditorContextFunc is null)
-        {
-            _logger.LogWarning("{MethodName} called with undefined {Property}. Initialize this property in MainWindow.WireUpEditorActions.", nameof(CommentSelection), nameof(GetCurrentEditorContextFunc));
-            return;
-        }
-
-        // Get the current editor context on-demand to ensure fresh state
-        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
-
-        // Make sure the EditorContext is valid
-        if (editorContext?.IsValid != true)
-        {
-            _logger.LogWarning("{MethodName} called with invalid editor context", nameof(CommentSelection));
-            return;
-        }
-
-        _commentingStrategy.CommentSelection(editorContext);
-    }
-
-    /// <summary>
-    /// Removes comments from the currently selected text in the editor, if a selection is present and uncommenting is allowed.
-    /// It uses the uncommenting strategy defined for the editor defined in <see cref="CommentingStrategy"/>.
-    /// </summary>
-    /// <remarks>
-    /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
-    /// the most current selection state is used. This command is enabled only when there is text in the editor.
-    /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasText))]
-    private void UncommentSelection()
-    {
-        // Make sure the GetCurrentEditorContextFunc is defined
-        if (GetCurrentEditorContextFunc is null)
-        {
-            _logger.LogWarning("{MethodName} called with undefined {Property}. Initialize this property in MainWindow.WireUpEditorActions.", nameof(UncommentSelection), nameof(GetCurrentEditorContextFunc));
-            return;
-        }
-
-        // Get the current editor context on-demand to ensure fresh state
-        EditorContext? editorContext = GetCurrentEditorContextFunc?.Invoke();
-
-        // Make sure the EditorContext is valid
-        if (editorContext?.IsValid != true)
-        {
-            _logger.LogWarning("{MethodName} called with invalid editor context", nameof(UncommentSelection));
-            return;
-        }
-
-        _commentingStrategy.UncommentSelection(editorContext);
-    }
-
-    #endregion Comment/Uncomment Selection Commands
-
-    #endregion Clipboard and Edit Commands
-
     #region Event handlers
 
     /// <summary>
@@ -1434,48 +1251,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         RenderCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
-    }
-
-    /// <summary>
-    /// Handles changes to the diagram text and triggers appropriate updates, such as rendering the diagram and updating
-    /// command states.
-    /// </summary>
-    /// <remarks>If live preview is enabled, this method debounces rendering operations to optimize
-    /// performance.  It also ensures that related commands update their execution states to reflect the current
-    /// context.</remarks>
-    /// <param name="value">The new value of the diagram text.</param>
-    partial void OnDiagramTextChanged(string value)
-    {
-        // Mark as dirty when text changes (ONLY if we're not loading a file)
-        if (!_isLoadingFile)
-        {
-            IsDirty = true;
-        }
-
-        if (LivePreviewEnabled)
-        {
-            _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-            {
-                try
-                {
-                    // SafeFireAndForget handles its own context
-                    _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: static e => Debug.WriteLine(e));
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(ex);
-                }
-            });
-        }
-
-        // Update command states - these are UI operations
-        RenderCommand.NotifyCanExecuteChanged();
-        ClearCommand.NotifyCanExecuteChanged();
-        ExportCommand.NotifyCanExecuteChanged();
-        CommentSelectionCommand.NotifyCanExecuteChanged();
-        UncommentSelectionCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(CanSave));
-        OnPropertyChanged(nameof(HasText));
     }
 
     /// <summary>
@@ -1580,11 +1355,27 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
-        _settingsService.Settings.EditorSelectionStart = EditorSelectionStart;
-        _settingsService.Settings.EditorSelectionLength = EditorSelectionLength;
-        _settingsService.Settings.EditorCaretOffset = EditorCaretOffset;
+        _settingsService.Settings.EditorSelectionStart = Editor.SelectionStart;
+        _settingsService.Settings.EditorSelectionLength = Editor.SelectionLength;
+        _settingsService.Settings.EditorCaretOffset = Editor.CaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
+    }
+
+    /// <summary>
+    /// Releases resources used by the object and unsubscribes from property change notifications.
+    /// </summary>
+    /// <remarks>Do NOT call this method directly. The <see cref="MainWindowViewModel"/> is owned by the dependency injection container and
+    /// its <see cref="IDisposable"/> implementation will be called by the container when the object is no longer needed.
+    /// This method does not dispose of dependencies managed by the dependency injection container.</remarks>
+    public void Dispose()
+    {
+        if (!_isDisposed)
+        {
+            // MermaidRenderer is owned by DI container, do not dispose here
+            Editor.PropertyChanged -= OnEditorPropertyChanged;
+            _isDisposed = true;
+        }
     }
 
     /// <summary>
@@ -1592,6 +1383,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// </summary>
     /// <returns>A string containing the sample Mermaid diagram text.</returns>
     private static string SampleText => """
+---
+config:
+  layout: elk
+---
 graph TD
   A[Start] --> B{Decision}
   B -->|Yes| C[Render Diagram]

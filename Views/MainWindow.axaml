@@ -2,9 +2,8 @@
   x:Class="MermaidPad.Views.MainWindow"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:converters="clr-namespace:MermaidPad.Converters"
-  xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
   xmlns:local="clr-namespace:MermaidPad"
+  xmlns:uc="clr-namespace:MermaidPad.Views.UserControls"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   Title="{Binding WindowTitle}"
@@ -12,20 +11,6 @@
   Height="800"
   x:DataType="vm:MainWindowViewModel"
   Icon="/Assets/AppIcon.ico">
-
-  <Window.Resources>
-    <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
-  </Window.Resources>
-
-  <Window.Styles>
-    <Style Selector="edit|TextEditor ScrollBar[Orientation=Vertical]">
-      <Setter Property="Width" Value="15" />
-    </Style>
-
-    <Style Selector="edit|TextEditor ScrollBar[Orientation=Horizontal]">
-      <Setter Property="Height" Value="15" />
-    </Style>
-  </Window.Styles>
 
   <DockPanel>
     <!--  Menu Bar  -->
@@ -68,51 +53,51 @@
       </MenuItem>
       <MenuItem Header="_Edit">
         <MenuItem
-          Command="{Binding CutCommand}"
+          Command="{Binding Editor.CutCommand}"
           Header="Cu_t"
           InputGesture="Ctrl+X" />
         <MenuItem
-          Command="{Binding CopyCommand}"
+          Command="{Binding Editor.CopyCommand}"
           Header="_Copy"
           InputGesture="Ctrl+C" />
         <MenuItem
-          Command="{Binding PasteCommand}"
+          Command="{Binding Editor.PasteCommand}"
           Header="_Paste"
           InputGesture="Ctrl+V" />
         <Separator />
         <MenuItem
-          Command="{Binding UndoCommand}"
+          Command="{Binding Editor.UndoCommand}"
           Header="_Undo"
           InputGesture="Ctrl+Z" />
         <MenuItem
-          Command="{Binding RedoCommand}"
+          Command="{Binding Editor.RedoCommand}"
           Header="_Redo"
           InputGesture="Ctrl+Y" />
         <Separator />
         <MenuItem
-          Command="{Binding SelectAllCommand}"
+          Command="{Binding Editor.SelectAllCommand}"
           Header="Select _All"
           InputGesture="Ctrl+A" />
         <Separator />
         <MenuItem
-          Command="{Binding OpenFindCommand}"
+          Command="{Binding Editor.OpenFindCommand}"
           Header="_Find..."
           InputGesture="Ctrl+F" />
         <MenuItem
-          Command="{Binding FindNextCommand}"
+          Command="{Binding Editor.FindNextCommand}"
           Header="Find _Next"
           InputGesture="F3" />
         <MenuItem
-          Command="{Binding FindPreviousCommand}"
+          Command="{Binding Editor.FindPreviousCommand}"
           Header="Find Pre_vious"
           InputGesture="Shift+F3" />
         <Separator />
         <MenuItem
-          Command="{Binding CommentSelectionCommand}"
+          Command="{Binding Editor.CommentSelectionCommand}"
           Header="_Comment Selection"
           InputGesture="Ctrl+Shift+C" />
         <MenuItem
-          Command="{Binding UncommentSelectionCommand}"
+          Command="{Binding Editor.UncommentSelectionCommand}"
           Header="_Uncomment Selection"
           InputGesture="Ctrl+Shift+U" />
       </MenuItem>
@@ -175,37 +160,12 @@
         <ColumnDefinition Width="2*" />
       </Grid.ColumnDefinitions>
 
-      <!--  Text Editor Panel  -->
-      <Border
+      <!--  Mermaid Editor UserControl  -->
+      <uc:MermaidEditorView
+        x:Name="MermaidEditor"
         Grid.Column="0"
         Margin="6,0,0,6"
-        BorderBrush="LightGray"
-        BorderThickness="1"
-        CornerRadius="4">
-        <edit:TextEditor
-          x:Name="Editor"
-          FontFamily="Consolas"
-          HorizontalScrollBarVisibility="Auto"
-          LineNumbersForeground="Lime"
-          ShowLineNumbers="True"
-          VerticalScrollBarVisibility="Auto">
-          <edit:TextEditor.ContextMenu>
-            <ContextMenu Opening="GetContextMenuState">
-              <MenuItem Command="{Binding CutCommand}" Header="Cut" />
-              <MenuItem Command="{Binding CopyCommand}" Header="Copy" />
-              <MenuItem Command="{Binding PasteCommand}" Header="Paste" />
-              <Separator />
-              <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
-              <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
-              <Separator />
-              <MenuItem Command="{Binding SelectAllCommand}" Header="Select All" />
-              <Separator />
-              <MenuItem Command="{Binding CommentSelectionCommand}" Header="Comment Selection" />
-              <MenuItem Command="{Binding UncommentSelectionCommand}" Header="Uncomment Selection" />
-            </ContextMenu>
-          </edit:TextEditor.ContextMenu>
-        </edit:TextEditor>
-      </Border>
+        DataContext="{Binding Editor}" />
 
       <!--  GridSplitter  -->
       <GridSplitter

@@ -30,25 +30,59 @@ using Microsoft.Extensions.ObjectPool;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
-namespace MermaidPad.Views;
+namespace MermaidPad.Views.UserControls;
 
 /// <summary>
-/// Represents the main application window that provides the editor interface and manages IntelliSense features for
-/// authoring Mermaid diagrams.
+/// Partial class for MermaidEditorView containing IntelliSense/code completion functionality.
 /// </summary>
-/// <remarks>The MainWindow class is responsible for initializing and coordinating code completion (IntelliSense)
+/// <remarks>
+/// This partial class is responsible for initializing and coordinating code completion (IntelliSense)
 /// within the editor, including handling user input events, displaying completion suggestions, and managing related
 /// resources. It integrates with AvaloniaEdit to provide a responsive editing experience tailored for Mermaid diagram
-/// syntax. This class is typically instantiated as the primary window of the application and should be used as the
-/// entry point for editor-related functionality.</remarks>
+/// syntax.
+/// </remarks>
 #pragma warning disable IDE0078
 [SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
 [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
-public partial class MainWindow
+public partial class MermaidEditorView
 {
     private const char Underscore = '_';
     private const int LookupTableSize = 128;
+    private bool _areIntellisenseHandlersCleanedUp;
     private CompletionWindow? _completionWindow;
+
+    /// <summary>
+    /// Shared object pool for reusable <see cref="HashSet{T}"/> buffers used during IntelliSense scanning.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This pool is intentionally static (shared across all <see cref="MermaidEditorView"/> instances) because:
+    /// </para>
+    /// <list type="number">
+    ///     <item>
+    ///         <description>
+    ///             <see cref="DefaultObjectPool{T}"/> from Microsoft.Extensions.ObjectPool is thread-safe by design,
+    ///             using lock-free algorithms for concurrent access.
+    ///         </description>
+    ///     </item>
+    ///     <item>
+    ///         <description>
+    ///             Memory efficiency: A shared pool across all editor instances (in future MDI scenarios)
+    ///             is more memory-efficient than per-instance pools.
+    ///         </description>
+    ///     </item>
+    ///     <item>
+    ///         <description>
+    ///             Usage pattern: Only one IntelliSense popup is active at a time per editor, and users
+    ///             typically interact with one editor at a time, so contention is minimal.
+    ///         </description>
+    ///     </item>
+    /// </list>
+    /// <para>
+    ///     If profiling in MDI scenarios shows contention (unlikely), consider switching to per-instance pools
+    ///     or increasing the pool's maximum retained count.
+    /// </para>
+    /// </remarks>
     private static readonly ObjectPool<HashSet<string>> _nodeBufferPool =
         new DefaultObjectPool<HashSet<string>>(new HashSetPooledObjectPolicy());
 
@@ -76,6 +110,7 @@ public partial class MainWindow
     {
         Editor.TextArea.TextEntered += TextArea_TextEntered;
         Editor.TextArea.TextEntering += TextArea_TextEntering;
+        _areIntellisenseHandlersCleanedUp = false;
     }
 
     /// <summary>
@@ -387,17 +422,23 @@ public partial class MainWindow
     /// behavior from lingering event subscriptions.</remarks>
     private void UnsubscribeIntellisenseEventHandlers()
     {
-        if (Editor is not null)
+        // Prevent double-unsubscribe
+        if (!_areIntellisenseHandlersCleanedUp)
         {
-            Editor.TextArea.TextEntered -= TextArea_TextEntered;
-            Editor.TextArea.TextEntering -= TextArea_TextEntering;
-        }
+            if (Editor is not null)
+            {
+                Editor.TextArea.TextEntered -= TextArea_TextEntered;
+                Editor.TextArea.TextEntering -= TextArea_TextEntering;
+            }
 
-        if (_completionWindow is not null)
-        {
-            _completionWindow.Closed -= CompletionWindow_Closed;
-            _completionWindow.Close();
-            _completionWindow = null;
+            if (_completionWindow is not null)
+            {
+                _completionWindow.Closed -= CompletionWindow_Closed;
+                _completionWindow.Close();
+                _completionWindow = null;
+            }
+
+            _areIntellisenseHandlersCleanedUp = true;
         }
     }
 }

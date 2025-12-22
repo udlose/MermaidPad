@@ -1,0 +1,54 @@
+<UserControl
+  x:Class="MermaidPad.Views.UserControls.MermaidEditorView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:edit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels.UserControls"
+  d:DesignHeight="450"
+  d:DesignWidth="400"
+  x:DataType="vm:MermaidEditorViewModel"
+  mc:Ignorable="d">
+
+  <UserControl.Styles>
+    <!--  ScrollBar styling for the TextEditor  -->
+    <Style Selector="edit|TextEditor ScrollBar[Orientation=Vertical]">
+      <Setter Property="Width" Value="15" />
+    </Style>
+
+    <Style Selector="edit|TextEditor ScrollBar[Orientation=Horizontal]">
+      <Setter Property="Height" Value="15" />
+    </Style>
+  </UserControl.Styles>
+
+  <!--  Text Editor Panel with Border  -->
+  <Border
+    BorderBrush="LightGray"
+    BorderThickness="1"
+    CornerRadius="4">
+    <edit:TextEditor
+      x:Name="Editor"
+      FontFamily="Consolas"
+      HorizontalScrollBarVisibility="Auto"
+      LineNumbersForeground="Lime"
+      ShowLineNumbers="True"
+      VerticalScrollBarVisibility="Auto">
+      <edit:TextEditor.ContextMenu>
+        <ContextMenu Opening="GetContextMenuState">
+          <MenuItem Command="{Binding CutCommand}" Header="Cut" />
+          <MenuItem Command="{Binding CopyCommand}" Header="Copy" />
+          <MenuItem Command="{Binding PasteCommand}" Header="Paste" />
+          <Separator />
+          <MenuItem Command="{Binding UndoCommand}" Header="Undo" />
+          <MenuItem Command="{Binding RedoCommand}" Header="Redo" />
+          <Separator />
+          <MenuItem Command="{Binding SelectAllCommand}" Header="Select All" />
+          <Separator />
+          <MenuItem Command="{Binding CommentSelectionCommand}" Header="Comment Selection" />
+          <MenuItem Command="{Binding UncommentSelectionCommand}" Header="Uncomment Selection" />
+        </ContextMenu>
+      </edit:TextEditor.ContextMenu>
+    </edit:TextEditor>
+  </Border>
+</UserControl>
