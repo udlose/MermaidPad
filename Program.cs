@@ -21,7 +21,6 @@
 using Avalonia;
 using Avalonia.WebView.Desktop;
 using MermaidPad.Services.Platforms;
-using ReactiveUI.Avalonia;
 
 namespace MermaidPad;
 
@@ -50,6 +49,5 @@ internal static class Program
         AppBuilder.Configure(static () => new App())
             .UsePlatformDetect()
             .UseDesktopWebView() // this handles cross-platform WebView support
-            .UseReactiveUI()
             .LogToTrace();
 }
