@@ -163,10 +163,14 @@ public sealed partial class MainWindow : Window
                             WindowStartupLocation = WindowStartupLocation.CenterOwner
                         };
 
-                        // No reason to unsubscribe - dialog is a local variable and will be disposed after close
-                        okButton.Click += (_, _) => dialog.Close();
-
+                        okButton.Click += OnOkButtonClick;
                         await dialog.ShowDialog(this);
+
+                        void OnOkButtonClick(object? s, RoutedEventArgs _)
+                        {
+                            okButton.Click -= OnOkButtonClick;
+                            dialog.Close();
+                        }
                     }
                     catch (Exception uiEx)
                     {
