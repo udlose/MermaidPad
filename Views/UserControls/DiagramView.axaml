@@ -1,0 +1,35 @@
+<UserControl
+  x:Class="MermaidPad.Views.UserControls.DiagramView"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels.UserControls"
+  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
+  d:DesignHeight="450"
+  d:DesignWidth="800"
+  x:DataType="vm:DiagramViewModel"
+  mc:Ignorable="d">
+
+  <!--  WebView Panel with Border  -->
+  <Border
+    BorderBrush="LightGray"
+    BorderThickness="1"
+    CornerRadius="4">
+    <Grid>
+      <!--  WebView for rendering Mermaid diagrams  -->
+      <wv:WebView x:Name="Preview" />
+
+      <!--  Error overlay displayed when LastError is set  -->
+      <TextBlock
+        Margin="10"
+        HorizontalAlignment="Left"
+        VerticalAlignment="Top"
+        FontSize="11"
+        Foreground="Red"
+        IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
+        Text="{Binding LastError}"
+        TextWrapping="Wrap" />
+    </Grid>
+  </Border>
+</UserControl>

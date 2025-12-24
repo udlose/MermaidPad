@@ -43,6 +43,7 @@ namespace MermaidPad.Services;
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 public sealed class MermaidRenderer : IAsyncDisposable
 {
+    private const string WebviewNotInitializedMessage = "WebView not initialized";
     private readonly ILogger<MermaidRenderer> _logger;
     private readonly AssetService _assetService;
 
@@ -58,10 +59,10 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private int _serverPort;
     private Task? _serverTask;
     private bool _isWebViewReady;
+    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
+
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private HttpListener? _httpListener;
-
-    private readonly SemaphoreSlim _serverReadySemaphore = new SemaphoreSlim(0, 1);
 
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private CancellationTokenSource? _serverCancellation;
@@ -138,7 +139,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         if (_webView is null)
         {
-            throw new InvalidOperationException("WebView not initialized");
+            throw new InvalidOperationException(WebviewNotInitializedMessage);
         }
 
         return _isWebViewReady ? Task.CompletedTask : EnsureFirstRenderReadyCoreAsync(timeout);
@@ -154,6 +155,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="timeout">The maximum amount of time to wait for the first render to complete. Must be a positive <see cref="TimeSpan"/>.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <exception cref="TimeoutException">Thrown if the first render is not signaled within the specified timeout period.</exception>
+    [SuppressMessage("Maintainability", "S1994:Use 'for' statement instead of 'while' statement",
+        Justification = "This retry loop intentionally uses attemptCount for tracking/logging while using stopwatch.Elapsed as the actual exit condition. This is a valid pattern for timeout-based retry logic with attempt counting.")]
     private async Task EnsureFirstRenderReadyCoreAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -270,7 +273,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                     throw new InvalidOperationException($"Failed to start HTTP server after {maxRetries} attempts.", ex);
                 }
 
-                _logger.LogWarning("Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
+                _logger.LogWarning(ex, "Port {ServerPort} became unavailable, retrying... (attempt {Attempt}/{MaxRetries})",
                     _serverPort, attempt + 1, maxRetries);
             }
         }
@@ -486,7 +489,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         if (_webView is null)
         {
-            throw new InvalidOperationException("WebView not initialized");
+            throw new InvalidOperationException(WebviewNotInitializedMessage);
         }
 
         string serverUrl = $"http://localhost:{_serverPort}/";
@@ -617,7 +620,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         ThrowIfDisposed();
         if (_webView is null)
         {
-            _logger.LogError("WebView not initialized");
+            _logger.LogError(WebviewNotInitializedMessage);
             return;
         }
 
@@ -715,7 +718,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
         ArgumentException.ThrowIfNullOrEmpty(script);
         if (_webView is null)
         {
-            throw new InvalidOperationException("WebView not initialized");
+            throw new InvalidOperationException(WebviewNotInitializedMessage);
         }
 
         return ExecuteScriptCoreAsync(script);
