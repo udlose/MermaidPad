@@ -59,8 +59,6 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
-    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Owned by DI container and disposed by the container")]
-    private readonly MermaidRenderer _renderer;
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
     private readonly IDebounceDispatcher _editorDebouncer;
@@ -77,6 +75,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     private bool _isLoadingFile;
 
+    /// <summary>
+    /// Tracks if we've already warned the user about WebView being unready during live preview.
+    /// Prevents log/error spam on every keystroke.
+    /// </summary>
+    private bool _hasWarnedAboutUnreadyWebView;
+
     #region Editor ViewModel
 
     /// <summary>
@@ -89,53 +93,28 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     public MermaidEditorViewModel Editor { get; }
 
     /// <summary>
-    /// Gets or sets the current diagram text.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This property delegates to <see cref="Editor"/>.Text to maintain a single source of truth.
-    /// It is kept for backward compatibility with existing bindings and for file/render operations.
-    /// </para>
-    /// <para>
-    /// The setter explicitly raises PropertyChanged notifications as a defensive measure.
-    /// While the <see cref="OnEditorPropertyChanged"/> handler also raises these notifications,
-    /// direct notification ensures reliability if the subscription fails or is delayed.
-    /// </para>
-    /// </remarks>
-    public string DiagramText
-    {
-        get => Editor.Text;
-        set
-        {
-            if (Editor.Text == value)
-            {
-                return;
-            }
-
-            Editor.Text = value;
-
-            // Defensive: Raise notifications directly in addition to the subscription-based approach.
-            // This ensures bindings update even if the Editor.PropertyChanged subscription has issues.
-            OnPropertyChanged(nameof(DiagramText));
-            OnPropertyChanged(nameof(HasText));
-        }
-    }
-
-    /// <summary>
     /// Gets a value indicating whether there is text in the editor.
     /// </summary>
     /// <remarks>
     /// This property delegates to <see cref="Editor"/>.HasText to maintain a single source of truth.
+    /// It is kept for convenience in command CanExecute logic.
     /// </remarks>
-    public bool HasText => Editor.HasText;
+    public bool EditorHasText => Editor.HasText;
 
     #endregion Editor ViewModel
 
+    #region Diagram ViewModel
+
     /// <summary>
-    /// Gets or sets the last error message, if any.
+    /// Gets the diagram view model that manages WebView rendering and related operations.
     /// </summary>
-    [ObservableProperty]
-    public partial string? LastError { get; set; }
+    /// <remarks>
+    /// This view model is exposed for binding to the DiagramView UserControl.
+    /// It encapsulates all WebView-related state and operations.
+    /// </remarks>
+    public DiagramViewModel Diagram { get; }
+
+    #endregion Diagram ViewModel
 
     /// <summary>
     /// Gets or sets the version of the bundled Mermaid.js.
@@ -154,12 +133,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     [ObservableProperty]
     public partial bool LivePreviewEnabled { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the WebView is ready for rendering operations.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsWebViewReady { get; set; }
 
     /// <summary>
     /// Gets or sets the current file path being edited.
@@ -194,7 +167,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Gets a value indicating whether the Save command can execute.
     /// </summary>
-    public bool CanSave => HasText && IsDirty;
+    public bool CanSave => EditorHasText && IsDirty;
 
     /// <summary>
     /// Gets a value indicating whether there are recent files.
@@ -208,15 +181,16 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <remarks>
-    /// The <paramref name="viewModelFactory"/> is used to create a new <see cref="MermaidEditorViewModel"/>
-    /// instance that is owned by this MainWindowViewModel. This ensures each window/document has its
-    /// own independent editor state. In future MDI scenarios, each document tab would create its own
-    /// editor via the factory.
+    /// The <paramref name="viewModelFactory"/> is used to create new <see cref="MermaidEditorViewModel"/>
+    /// and <see cref="DiagramViewModel"/> instances that are owned by this MainWindowViewModel.
+    /// This ensures each window/document has its own independent editor and diagram state.
     /// </remarks>
     public MainWindowViewModel(IViewModelFactory viewModelFactory, IServiceProvider services, ILogger<MainWindowViewModel> logger)
     {
+        //TODO - DaveBlack: In future MDI scenarios, each document tab would create its own ViewModels via the factory.
         Editor = viewModelFactory.Create<MermaidEditorViewModel>();
-        _renderer = services.GetRequiredService<MermaidRenderer>();
+        Diagram = viewModelFactory.Create<DiagramViewModel>();
+
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
         _editorDebouncer = services.GetRequiredService<IDebounceDispatcher>();
@@ -236,8 +210,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
 
-        // Subscribe to Editor.PropertyChanged to forward Text changes
+        // Subscribe to Editor.PropertyChanged to forward Text/HasText changes
         Editor.PropertyChanged += OnEditorPropertyChanged;
+
+        // Subscribe to Diagram.PropertyChanged to update command states when IsReady changes
+        Diagram.PropertyChanged += OnDiagramPropertyChanged;
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -253,9 +230,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         switch (e.PropertyName)
         {
             case nameof(Editor.Text):
-                // Forward Text property changes as DiagramText changes
-                OnPropertyChanged(nameof(DiagramText));
-                OnPropertyChanged(nameof(HasText));
+                // Forward HasText property changes for CanSave binding
+                OnPropertyChanged(nameof(EditorHasText));
                 OnPropertyChanged(nameof(CanSave));
 
                 // Mark as dirty when text changes (ONLY if we're not loading a file)
@@ -267,12 +243,25 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 // Trigger debounced render if live preview is enabled
                 if (LivePreviewEnabled)
                 {
+                    // Defensive: Check if WebView is ready before attempting to render
+                    if (!Diagram.IsReady)
+                    {
+                        // Only warn once to avoid log/error spam on every keystroke
+                        if (!_hasWarnedAboutUnreadyWebView)
+                        {
+                            _logger.LogWarning("Live preview disabled - WebView is not ready");
+                            Diagram.LastError = "Live preview is initializing. Please wait for the preview to load, or click Render to manually update the diagram.";
+                            _hasWarnedAboutUnreadyWebView = true;
+                        }
+                        return;
+                    }
+
                     _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
                         try
                         {
                             // SafeFireAndForget handles its own context
-                            _renderer.RenderAsync(DiagramText)
+                            Diagram.RenderAsync(Editor.Text)
                                 .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
                         }
                         catch (Exception ex)
@@ -290,13 +279,54 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 ClearCommand.NotifyCanExecuteChanged();
                 ExportCommand.NotifyCanExecuteChanged();
                 break;
+        }
+    }
 
-            case nameof(Editor.HasText):
-                OnPropertyChanged(nameof(HasText));
-                OnPropertyChanged(nameof(CanSave));
+    /// <summary>
+    /// Handles property changes from the Diagram ViewModel.
+    /// </summary>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The property changed event arguments.</param>
+    private void OnDiagramPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(Diagram.IsReady):
+                // Update command states when WebView ready state changes
+                _logger.LogInformation("Diagram.IsReady changed to: {IsReady}", Diagram.IsReady);
+                RenderCommand.NotifyCanExecuteChanged();
+                ClearCommand.NotifyCanExecuteChanged();
+                ExportCommand.NotifyCanExecuteChanged();
+
+                // Reset warning flag when WebView becomes ready
+                // This ensures the flag is cleared even if the user isn't typing
+                if (Diagram.IsReady && _hasWarnedAboutUnreadyWebView)
+                {
+                    _logger.LogInformation("Live preview re-enabled - WebView is now ready");
+                    Diagram.LastError = null;
+                    _hasWarnedAboutUnreadyWebView = false;
+                }
                 break;
         }
     }
+
+    #region Diagram Initialization
+
+    /// <summary>
+    /// Initializes the diagram view asynchronously.
+    /// </summary>
+    /// <returns>A task representing the asynchronous initialization operation.</returns>
+    /// <remarks>
+    /// This method delegates to the <see cref="DiagramViewModel.InitializeAsync"/> method,
+    /// which in turn invokes the InitializeAction set by the DiagramView.
+    /// </remarks>
+    public Task InitializeDiagramAsync()
+    {
+        string mermaidSource = Editor.Text;
+        return Diagram.InitializeAsync(mermaidSource);
+    }
+
+    #endregion Diagram Initialization
 
     #region File Open/Save
 
@@ -364,15 +394,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 _isLoadingFile = true;
                 try
                 {
-                    DiagramText = content;
+                    Editor.Text = content;
                     CurrentFilePath = filePath;
                     IsDirty = false;
                     UpdateRecentFiles();
 
                     // Render the newly loaded content if WebView is ready
-                    if (IsWebViewReady)
+                    if (Diagram.IsReady)
                     {
-                        await _renderer.RenderAsync(DiagramText);
+                        await Diagram.RenderAsync(Editor.Text);
                     }
 
                     _logger.LogInformation("Opened file: {FilePath}", filePath);
@@ -435,7 +465,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            string? savedPath = await _fileService.SaveFileAsync(storageProvider, CurrentFilePath, DiagramText);
+            string? savedPath = await _fileService.SaveFileAsync(storageProvider, CurrentFilePath, Editor.Text);
             if (savedPath is not null)
             {
                 CurrentFilePath = savedPath;
@@ -479,7 +509,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand(CanExecute = nameof(HasText))]    // Can only 'Save As' if there is text to save, even if not dirty
+    [RelayCommand(CanExecute = nameof(EditorHasText))]    // Can only 'Save As' if there is text to save, even if not dirty
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -503,7 +533,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 ? Path.GetFileName(CurrentFilePath)
                 : null;
 
-            string? savedPath = await _fileService.SaveFileAsAsync(storageProvider, DiagramText, suggestedName);
+            string? savedPath = await _fileService.SaveFileAsAsync(storageProvider, Editor.Text, suggestedName);
             if (savedPath is not null)
             {
                 CurrentFilePath = savedPath;
@@ -534,7 +564,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        if (!IsDirty || string.IsNullOrWhiteSpace(DiagramText))
+        if (!IsDirty || string.IsNullOrWhiteSpace(Editor.Text))
         {
             return Task.FromResult(true); // No unsaved changes, continue
         }
@@ -660,7 +690,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             _isLoadingFile = true;
             try
             {
-                DiagramText = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+                Editor.Text = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
                 CurrentFilePath = filePath;
                 IsDirty = false;
 
@@ -669,9 +699,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 UpdateRecentFiles();
 
                 // Render the newly loaded content if WebView is ready
-                if (IsWebViewReady)
+                if (Diagram.IsReady)
                 {
-                    await _renderer.RenderAsync(DiagramText);
+                    await Diagram.RenderAsync(Editor.Text);
                 }
 
                 _logger.LogInformation("Opened recent file: {FilePath}", filePath);
@@ -739,8 +769,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open log directory: {LogDirectory}", logDirectory);
-            // Consider showing an error message to the user here if this command is expected to fail silently.
-            // For now, we rely on logging.
+
+            ShowErrorMessageAsync("Failed to open log directory. " + ex.Message)
+                .SafeFireAndForget(onException: logEx => _logger.LogError(logEx, "Failed to show error message dialog."));
         }
     }
 
@@ -820,10 +851,10 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(CanRender))]
     private async Task RenderAsync()
     {
-        LastError = null;
+        Diagram.LastError = null;
 
-        // NO ConfigureAwait(false) here - MermaidRenderer may need UI context
-        await _renderer.RenderAsync(DiagramText);
+        // NO ConfigureAwait(false) here - Diagram.RenderAsync needs UI context
+        await Diagram.RenderAsync(Editor.Text);
     }
 
     /// <summary>
@@ -831,7 +862,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null or whitespace; otherwise, <see
     /// langword="false"/>.</returns>
-    private bool CanRender() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanRender() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
 
     /// <summary>
     /// Clears the diagram text, resets the editor selection and caret position, and removes the last error.
@@ -920,7 +951,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             document.Text = string.Empty;
 
             // NO ConfigureAwait(false) - renderer needs UI context
-            await _renderer.RenderAsync(string.Empty);
+            await Diagram.RenderAsync(string.Empty);
 
             isSuccess = true;
         }
@@ -940,7 +971,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanClear() => IsWebViewReady && HasText;
+    private bool CanClear() => Diagram.IsReady && EditorHasText;
 
     /// <summary>
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
@@ -961,7 +992,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             Window? window = GetParentWindow();
             if (window is null)
             {
-                LastError = "Unable to access main window for export dialog";
+                Diagram.LastError = "Unable to access main window for export dialog";
                 return;
             }
 
@@ -994,7 +1025,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             _logger.LogError(ex, "Export failed");
 
             // Setting LastError updates UI, must be on UI thread
-            LastError = $"Export failed: {ex.Message}";
+            Diagram.LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
         }
     }
@@ -1004,7 +1035,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanExport() => IsWebViewReady && !string.IsNullOrWhiteSpace(DiagramText);
+    private bool CanExport() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
 
     /// <summary>
     /// Exports data to a specified file format, optionally displaying a progress dialog during the operation.
@@ -1196,7 +1227,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             _logger.LogError(ex, "Export failed");
 
             // Setting LastError updates UI, must be on UI thread
-            LastError = $"Export failed: {ex.Message}";
+            Diagram.LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
         }
     }
@@ -1237,48 +1268,31 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     #region Event handlers
 
     /// <summary>
-    /// Handles changes to the WebView readiness state.
-    /// </summary>
-    /// <remarks>This method updates the state of related commands based on the WebView readiness state. When
-    /// the WebView becomes ready, associated commands are enabled.</remarks>
-    /// <param name="value">A boolean value indicating the new readiness state of the WebView.  <see langword="true"/> if the WebView is
-    /// ready; otherwise, <see langword="false"/>.</param>
-    partial void OnIsWebViewReadyChanged(bool value)
-    {
-        _logger.LogInformation("IsWebViewReady changed to: {IsWebViewReady}", value);
-
-        // Update command states when WebView ready state changes
-        RenderCommand.NotifyCanExecuteChanged();
-        ClearCommand.NotifyCanExecuteChanged();
-        ExportCommand.NotifyCanExecuteChanged();
-    }
-
-    /// <summary>
     /// Handles changes to the live preview enabled state.
     /// </summary>
     /// <param name="value">The new value indicating whether live preview is enabled.</param>
     partial void OnLivePreviewEnabledChanged(bool value)
     {
         // If we can't render yet, just return
-        if (!IsWebViewReady)
+        if (!Diagram.IsReady)
         {
             return;
         }
 
         if (value)
         {
-            if (string.IsNullOrWhiteSpace(DiagramText))
+            if (string.IsNullOrWhiteSpace(Editor.Text))
             {
                 return;
             }
 
             // SafeFireAndForget handles context, but the error handler updates UI
-            _renderer.RenderAsync(DiagramText).SafeFireAndForget(onException: ex =>
+            Diagram.RenderAsync(Editor.Text).SafeFireAndForget(onException: ex =>
             {
                 // Even though SafeFireAndForget has a continueOnCapturedContext param, it doesn't guarantee UI thread here
                 Dispatcher.UIThread.Post(() =>
                 {
-                    LastError = $"Failed to render diagram: {ex.Message}";
+                    Diagram.LastError = $"Failed to render diagram: {ex.Message}";
                     Debug.WriteLine(ex);
                     _logger.LogError(ex, "Live preview render failed");
                 });
@@ -1312,6 +1326,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// enabling save functionality.</remarks>
     /// <param name="value">A value indicating whether the object is now considered dirty. <see langword="true"/> if the object has unsaved
     /// changes; otherwise, <see langword="false"/>.</param>
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Parameter is required for partial method signature.")]
     partial void OnIsDirtyChanged(bool value)
     {
         UpdateWindowTitle();
@@ -1351,7 +1366,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// sessions.</remarks>
     public void Persist()
     {
-        _settingsService.Settings.LastDiagramText = DiagramText;
+        _settingsService.Settings.LastDiagramText = Editor.Text;
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
@@ -1374,6 +1389,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             // MermaidRenderer is owned by DI container, do not dispose here
             Editor.PropertyChanged -= OnEditorPropertyChanged;
+            Diagram.PropertyChanged -= OnDiagramPropertyChanged;
             _isDisposed = true;
         }
     }

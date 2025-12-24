@@ -1,201 +1,209 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<OutputType>WinExe</OutputType>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<RootNamespace>MermaidPad</RootNamespace>
-		<AssemblyName>MermaidPad</AssemblyName>
-		<UseAvalonia>true</UseAvalonia>
-		<ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
-		<AssemblyTitle>MermaidPad</AssemblyTitle>
-		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-		<EnableDefaultItems>true</EnableDefaultItems>
-		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-		<LangVersion>preview</LangVersion>
-		<Configurations>Debug;Release;</Configurations>
-	</PropertyGroup>
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>MermaidPad</RootNamespace>
+        <AssemblyName>MermaidPad</AssemblyName>
+        <UseAvalonia>true</UseAvalonia>
+        <ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
+        <AssemblyTitle>MermaidPad</AssemblyTitle>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <EnableDefaultItems>true</EnableDefaultItems>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+        <LangVersion>preview</LangVersion>
+        <Configurations>Debug;Release;</Configurations>
+    </PropertyGroup>
 
-	<PropertyGroup Label="Avalonia">
-		<AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
-		<!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
-		<AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
-	</PropertyGroup>
+    <PropertyGroup Label="Avalonia">
+        <AvaloniaXamlVerboseExceptions>True</AvaloniaXamlVerboseExceptions>
+        <!--<AvaloniaXamlIlDebuggerLaunch>True</AvaloniaXamlIlDebuggerLaunch>-->
+        <AvaloniaXamlReportImportance>Normal</AvaloniaXamlReportImportance>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
-		<PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
-		<PackageReference Include="Avalonia" Version="11.3.10" />
-		<PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
-		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.10" />
-		<PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
-		<PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
-		<!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
-		<PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.308" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
-		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.11" />
-		<PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
-		<PackageReference Include="Serilog" Version="4.3.0" />
-		<PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
-		<PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
-		<PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
-		<PackageReference Include="Serilog.Exceptions" Version="8.4.0" />
-		<PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
-		<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
-		<PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
-		<PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
-		<PackageReference Include="SkiaSharp" Version="3.119.1" />
-		<PackageReference Include="Svg.Skia" Version="3.2.1" />
-		<PackageReference Include="TextMateSharp" Version="1.0.70" />
-		<PackageReference Include="TextMateSharp.Grammars" Version="1.0.70" />
-		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
-		<PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
-		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
-		<PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
-		<PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
-		<PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
-	</ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="AsyncAwaitBestPractices" Version="9.0.0" />
+        <PackageReference Include="AsyncAwaitBestPractices.MVVM" Version="9.0.0" />
+        <PackageReference Include="Avalonia" Version="11.3.10" />
+        <PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
+        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.10" />
+        <PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
+        <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+        <!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
+        <PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.308" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.11" />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.11" />
+        <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Serilog" Version="4.3.0" />
+        <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+        <PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
+        <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+        <PackageReference Include="Serilog.Exceptions" Version="8.4.0" />
+        <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
+        <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
+        <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+        <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+        <PackageReference Include="SerilogAnalyzer" Version="0.15.0" />
+        <PackageReference Include="SkiaSharp" Version="3.119.1" />
+        <PackageReference Include="Svg.Skia" Version="3.2.1" />
+        <PackageReference Include="TextMateSharp" Version="1.0.70" />
+        <PackageReference Include="TextMateSharp.Grammars" Version="1.0.70" />
+        <PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
+        <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
+        <PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
+        <PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
+        <PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />
+        <PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
+    </ItemGroup>
 
-	<!-- Only include Avalonia.Diagnostics in Debug builds -->
-	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
-		<PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
-	</ItemGroup>
+    <!-- Only include Avalonia.Diagnostics in Debug builds -->
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
-		<!--        This line important -->
-		<AvaloniaXaml Remove="**/*.axaml" />
-		<AvaloniaXaml Remove="node_modules/**" />
-		<Compile Remove="node_modules/**" />
-		<EmbeddedResource Remove="node_modules/**" />
-		<None Remove="node_modules/**" />
-		<!--        This line important -->
-	</ItemGroup>
-	<ItemGroup>
-		<AvaloniaResource Include="Assets/AppIcon.ico" />
-		<AvaloniaResource Include="Assets/SplashScreen.png" />
-		<AdditionalFiles Include="**/*.xaml" />
-		<AdditionalFiles Include="**/*.axaml" />
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Include="Assets/index.html">
-			<LogicalName>MermaidPad.Assets.index.html</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Assets/mermaid.min.js">
-			<LogicalName>MermaidPad.Assets.mermaid.min.js</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Assets/js-yaml.min.js">
-			<LogicalName>MermaidPad.Assets.js-yaml.min.js</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs">
-			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.mermaid-layout-elk.esm.min.mjs</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/chunk-SP2CHFBE.mjs">
-			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.chunk-SP2CHFBE.mjs</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/render-AVRWSH4D.mjs">
-			<LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.render-AVRWSH4D.mjs</LogicalName>
-		</EmbeddedResource>
-		<EmbeddedResource Include="Resources/Grammars/mermaid.tmLanguage.json">
-			<LogicalName>MermaidPad.Resources.Grammars.mermaid.tmLanguage.json</LogicalName>
-		</EmbeddedResource>
-	</ItemGroup>
+    <ItemGroup>
+        <!-- https://github.com/AvaloniaUI/Avalonia/issues/5877#issuecomment-833426154 -->
+        <!--        This line important -->
+        <AvaloniaXaml Remove="**/*.axaml" />
+        <AvaloniaXaml Remove="node_modules/**" />
+        <Compile Remove="node_modules/**" />
+        <EmbeddedResource Remove="node_modules/**" />
+        <None Remove="node_modules/**" />
+        <!--        This line important -->
+    </ItemGroup>
+    <ItemGroup>
+        <AvaloniaResource Include="Assets/AppIcon.ico" />
+        <AvaloniaResource Include="Assets/SplashScreen.png" />
+        <AdditionalFiles Include="**/*.xaml" />
+        <AdditionalFiles Include="**/*.axaml" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Assets/index.html">
+            <LogicalName>MermaidPad.Assets.index.html</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets/mermaid.min.js">
+            <LogicalName>MermaidPad.Assets.mermaid.min.js</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets/js-yaml.min.js">
+            <LogicalName>MermaidPad.Assets.js-yaml.min.js</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets/mermaid-elk-layout/mermaid-layout-elk.esm.min.mjs">
+            <LogicalName>MermaidPad.Assets.mermaid-elk-layout.mermaid-layout-elk.esm.min.mjs</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/chunk-SP2CHFBE.mjs">
+            <LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.chunk-SP2CHFBE.mjs</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Assets/mermaid-elk-layout/chunks/mermaid-layout-elk.esm.min/render-AVRWSH4D.mjs">
+            <LogicalName>MermaidPad.Assets.mermaid-elk-layout.chunks.mermaid-layout-elk.esm.min.render-AVRWSH4D.mjs</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Resources/Grammars/mermaid.tmLanguage.json">
+            <LogicalName>MermaidPad.Resources.Grammars.mermaid.tmLanguage.json</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
 
-	<ItemGroup>
-		<Compile Update="**/*.xaml.cs">
-			<DependentUpon>%(Filename)</DependentUpon>
-		</Compile>
-		<Compile Update="**/*.axaml.cs">
-			<DependentUpon>%(Filename)</DependentUpon>
-		</Compile>
-		<AvaloniaResource Include="**/*.xaml">
-			<SubType>Designer</SubType>
-		</AvaloniaResource>
-		<AvaloniaResource Include="**/*.axaml">
-			<SubType>Designer</SubType>
-		</AvaloniaResource>
-	</ItemGroup>
+    <ItemGroup>
+        <Compile Update="**/*.xaml.cs">
+            <DependentUpon>%(Filename)</DependentUpon>
+        </Compile>
+        <Compile Update="**/*.axaml.cs">
+            <DependentUpon>%(Filename)</DependentUpon>
+        </Compile>
+        <AvaloniaResource Include="**/*.xaml">
+            <SubType>Designer</SubType>
+        </AvaloniaResource>
+        <AvaloniaResource Include="**/*.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaResource>
+    </ItemGroup>
 
-	<ItemGroup>
-		<AdditionalFiles Remove="node_modules/**" />
-		<AvaloniaResource Remove="**/*.axaml" />
-		<AvaloniaResource Remove="node_modules/**" />
-	</ItemGroup>
+    <ItemGroup>
+        <AdditionalFiles Remove="node_modules/**" />
+        <AvaloniaResource Remove="**/*.axaml" />
+        <AvaloniaResource Remove="node_modules/**" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<AvaloniaXaml Include="**/*.axaml" />
-	</ItemGroup>
+    <ItemGroup>
+        <AvaloniaXaml Include="**/*.axaml" />
+    </ItemGroup>
 
-	<ItemGroup>
-	  <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
-	  <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
-	  <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
-	  <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
-	  <AdditionalFiles Remove="Views/SplashWindow.axaml" />
-	</ItemGroup>
+    <ItemGroup>
+        <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
+        <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
+        <AdditionalFiles Remove="Views/UserControls/DiagramView.axaml" />
+        <AdditionalFiles Remove="Views/UserControls/MermaidEditorView.axaml" />
+        <AdditionalFiles Remove="Views/SplashWindow.axaml" />
+    </ItemGroup>
 
-	<ItemGroup>
-	  <None Remove="Assets/SplashScreen.png" />
-	  <None Remove="Resources/Grammars/mermaid.tmLanguage.json" />
-	</ItemGroup>
+    <ItemGroup>
+        <None Remove="Assets/SplashScreen.png" />
+        <None Remove="Resources/Grammars/mermaid.tmLanguage.json" />
+    </ItemGroup>
 
-	<ItemGroup>
-		<None Include=".github/workflows/build-and-release.yml" />
-		<None Include=".github/workflows/codeql.yml" />
-		<None Include=".github/workflows/enforce-pr-targets.yml" />
-		<None Include=".github/workflows/first-interaction.yml" />
-		<None Include=".github/workflows/macos-universal-dmg.yml" />
-		<None Include=".github/workflows/macos-bundle.yml" />
-		<None Include=".github/workflows/README.md" />
+    <ItemGroup>
+        <None Include=".github/workflows/build-and-release.yml" />
+        <None Include=".github/workflows/codeql.yml" />
+        <None Include=".github/workflows/enforce-pr-targets.yml" />
+        <None Include=".github/workflows/first-interaction.yml" />
+        <None Include=".github/workflows/macos-universal-dmg.yml" />
+        <None Include=".github/workflows/macos-bundle.yml" />
+        <None Include=".github/workflows/README.md" />
         <None Include=".github/pull_request_template.md" />
         <None Include=".github/ISSUE_TEMPLATE/config.yml" />
-		<None Include=".github/ISSUE_TEMPLATE/feature-request.yml" />
-		<None Include=".github/ISSUE_TEMPLATE/bug-report.yml" />
-	</ItemGroup>
+        <None Include=".github/ISSUE_TEMPLATE/feature-request.yml" />
+        <None Include=".github/ISSUE_TEMPLATE/bug-report.yml" />
+    </ItemGroup>
 
-	<!-- macOS app bundle support -->
-	<ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'">
-		<None Include="Info.plist" CopyToOutputDirectory="PreserveNewest" />
-		<None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
-	</ItemGroup>
-	<ItemGroup>
-	  <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-	  <AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-	  <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
-	    <SubType>Designer</SubType>
-	  </AvaloniaXaml>
-		<AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
-			<SubType>Designer</SubType>
-		</AvaloniaXaml>
-		<AvaloniaXaml Update="Views/SplashWindow.axaml">
-			<SubType>Designer</SubType>
-		</AvaloniaXaml>
-	</ItemGroup>
+    <!-- macOS app bundle support -->
+    <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'">
+        <None Include="Info.plist" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+    <ItemGroup>
+        <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/UserControls/DiagramView.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/UserControls/MermaidEditorView.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/SplashWindow.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+    </ItemGroup>
 
-	<!-- Import custom targets for asset hash generation -->
-	<Import Project="MermaidPad.Build.targets" />
-	<ItemGroup>
-		<!-- No need to explicitly include generated asset hash file in compilation -->
-		<!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
-		<!--<Compile Include="Generated/AssetHashes.cs" Condition="Exists('Generated/AssetHashes.cs')" />-->
-	
-	  <None Update="LICENSE.TXT">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
-	</ItemGroup>
+    <!-- Import custom targets for asset hash generation -->
+    <Import Project="MermaidPad.Build.targets" />
+    <ItemGroup>
+        <!-- No need to explicitly include generated asset hash file in compilation -->
+        <!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
+        <!--<Compile Include="Generated/AssetHashes.cs" Condition="Exists('Generated/AssetHashes.cs')" />-->
+
+        <None Update="LICENSE.TXT">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 </Project>
