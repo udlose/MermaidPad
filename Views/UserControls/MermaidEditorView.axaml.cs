@@ -140,11 +140,12 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Sets up bindings and event handlers between the View and ViewModel.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void SetupViewModelBindings()
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(SetupViewModelBindings)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         // Initialize editor with ViewModel data using validation
@@ -209,11 +210,12 @@ public sealed partial class MermaidEditorView : UserControl
     /// - Subscribes to view model property changes and applies them to the editor.
     /// - Suppresses reciprocal updates to avoid feedback loops.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void SetupEditorViewModelSync()
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(SetupEditorViewModelSync)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         // Editor -> ViewModel synchronization (text)
@@ -312,7 +314,7 @@ public sealed partial class MermaidEditorView : UserControl
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(ScheduleEditorStateSyncIfNeeded)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         int selectionStart = Editor.SelectionStart;
@@ -361,72 +363,103 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
-        switch (e.PropertyName)
+        if (e.PropertyName == nameof(_vm.Text))
         {
-            case nameof(_vm.Text):
-                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
-                string currentText = Editor.Text;
-                if (currentText != _vm.Text)
-                {
-                    _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-                    {
-                        if (_vm is null)
-                        {
-                            return;
-                        }
-
-                        _suppressEditorTextChanged = true;
-                        _suppressEditorStateSync = true;
-                        try
-                        {
-                            Editor.Text = _vm.Text;
-                        }
-                        finally
-                        {
-                            _suppressEditorTextChanged = false;
-                            _suppressEditorStateSync = false;
-                        }
-                    },
-                    DispatcherPriority.Background);
-                }
-                break;
-
-            case nameof(_vm.SelectionStart):
-            case nameof(_vm.SelectionLength):
-            case nameof(_vm.CaretOffset):
-                _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
-                {
-                    if (_vm is null)
-                    {
-                        return;
-                    }
-
-                    _suppressEditorStateSync = true;
-                    try
-                    {
-                        // Validate bounds before setting
-                        int textLength = Editor.Document.TextLength;
-                        int validSelectionStart = Math.Max(0, Math.Min(_vm.SelectionStart, textLength));
-                        int validSelectionLength = Math.Max(0, Math.Min(_vm.SelectionLength, textLength - validSelectionStart));
-                        int validCaretOffset = Math.Max(0, Math.Min(_vm.CaretOffset, textLength));
-
-                        if (Editor.SelectionStart != validSelectionStart ||
-                            Editor.SelectionLength != validSelectionLength ||
-                            Editor.CaretOffset != validCaretOffset)
-                        {
-                            Editor.SelectionStart = validSelectionStart;
-                            Editor.SelectionLength = validSelectionLength;
-                            Editor.CaretOffset = validCaretOffset;
-                        }
-                    }
-                    finally
-                    {
-                        _suppressEditorStateSync = false;
-                    }
-                },
-                DispatcherPriority.Background);
-                break;
+            HandleTextPropertyChanged();
+            return;
         }
+
+        if (IsSelectionOrCaretProperty(e.PropertyName))
+        {
+            HandleSelectionOrCaretPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Handles synchronization when the Text property changes.
+    /// </summary>
+    private void HandleTextPropertyChanged()
+    {
+        string currentText = Editor.Text;
+        if (currentText == _vm?.Text)
+        {
+            return;
+        }
+
+        _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+        {
+            if (_vm is null)
+            {
+                return;
+            }
+
+            _suppressEditorTextChanged = true;
+            _suppressEditorStateSync = true;
+            try
+            {
+                Editor.Text = _vm.Text;
+            }
+            finally
+            {
+                _suppressEditorTextChanged = false;
+                _suppressEditorStateSync = false;
+            }
+        },
+        DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Handles synchronization when selection or caret properties change.
+    /// </summary>
+    private void HandleSelectionOrCaretPropertyChanged()
+    {
+        if (_vm is null)
+        {
+            return;
+        }
+
+        _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+        {
+            if (_vm is null)
+            {
+                return;
+            }
+
+            _suppressEditorStateSync = true;
+            try
+            {
+                int textLength = Editor.Document.TextLength;
+                int validSelectionStart = Math.Max(0, Math.Min(_vm.SelectionStart, textLength));
+                int validSelectionLength = Math.Max(0, Math.Min(_vm.SelectionLength, textLength - validSelectionStart));
+                int validCaretOffset = Math.Max(0, Math.Min(_vm.CaretOffset, textLength));
+
+                if (Editor.SelectionStart != validSelectionStart ||
+                    Editor.SelectionLength != validSelectionLength ||
+                    Editor.CaretOffset != validCaretOffset)
+                {
+                    Editor.SelectionStart = validSelectionStart;
+                    Editor.SelectionLength = validSelectionLength;
+                    Editor.CaretOffset = validCaretOffset;
+                }
+            }
+            finally
+            {
+                _suppressEditorStateSync = false;
+            }
+        },
+        DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Determines if the property name is related to selection or caret.
+    /// </summary>
+    /// <param name="propertyName">The property name to check.</param>
+    /// <returns>True if the property is selection or caret related; otherwise, false.</returns>
+    private static bool IsSelectionOrCaretProperty(string? propertyName)
+    {
+        return propertyName == nameof(MermaidEditorViewModel.SelectionStart)
+            || propertyName == nameof(MermaidEditorViewModel.SelectionLength)
+            || propertyName == nameof(MermaidEditorViewModel.CaretOffset);
     }
 
     #region Editor Actions Wiring
@@ -438,11 +471,12 @@ public sealed partial class MermaidEditorView : UserControl
     /// This method connects the ViewModel's Action properties to the actual implementation methods,
     /// enabling proper MVVM separation while allowing the View to implement UI-specific operations.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void WireUpEditorActions()
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(WireUpEditorActions)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         _vm.CutAction = CutToClipboardAsync;
@@ -759,11 +793,12 @@ public sealed partial class MermaidEditorView : UserControl
     /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private async Task UpdateCanPasteAsync()
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(UpdateCanPasteAsync)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         string? clipboardText = null;
@@ -781,7 +816,15 @@ public sealed partial class MermaidEditorView : UserControl
         bool canPaste = !string.IsNullOrEmpty(clipboardText);
 
         // Marshal back to UI thread to update the ViewModel property
-        await Dispatcher.UIThread.InvokeAsync(() => _vm?.CanPaste = canPaste, DispatcherPriority.Normal);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+#pragma warning disable IDE0031
+            if (_vm is not null)
+#pragma warning restore IDE0031
+            {
+                _vm.CanPaste = canPaste;
+            }
+        }, DispatcherPriority.Normal);
     }
 
     /// <summary>
@@ -1005,30 +1048,17 @@ public sealed partial class MermaidEditorView : UserControl
                 return;
             }
 
-            if (Dispatcher.UIThread.CheckAccess())
+            // Capture ViewModel reference in case it changes during awaits
+            MermaidEditorViewModel? editorViewModel = _vm;
+            if (editorViewModel is null)
             {
-                _vm.CanCopy = _vm.SelectionLength > 0;
-                _vm.CanCut = _vm.SelectionLength > 0;
-                _vm.CanUndo = Editor.CanUndo;
-                _vm.CanRedo = Editor.CanRedo;
-                _vm.CanSelectAll = CanSelectAllInEditor;
+                return;
             }
-            else
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (_vm is null)
-                    {
-                        return;
-                    }
 
-                    _vm.CanCopy = _vm.SelectionLength > 0;
-                    _vm.CanCut = _vm.SelectionLength > 0;
-                    _vm.CanUndo = Editor.CanUndo;
-                    _vm.CanRedo = Editor.CanRedo;
-                    _vm.CanSelectAll = CanSelectAllInEditor;
-                }, DispatcherPriority.Normal);
-            }
+            bool canUndo = Editor.CanUndo;
+            bool canRedo = Editor.CanRedo;
+            bool canSelectAllInEditor = CanSelectAllInEditor;
+            await UpdateContextMenuStateExceptPasteAsync(editorViewModel, canUndo, canRedo, canSelectAllInEditor);
 
             string? clipboardText = null;
             try
@@ -1040,14 +1070,9 @@ public sealed partial class MermaidEditorView : UserControl
                 _logger.LogDebug(ex, "Clipboard read failed in context menu state check");
             }
 
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                _vm.CanPaste = !string.IsNullOrEmpty(clipboardText);
-            }
-            else
-            {
-                await Dispatcher.UIThread.InvokeAsync(() => _vm?.CanPaste = !string.IsNullOrEmpty(clipboardText), DispatcherPriority.Normal);
-            }
+            // Capture a simple boolean for the lambda capture instead of the clipboardText variable which could be large
+            bool hasClipboardText = !string.IsNullOrEmpty(clipboardText);
+            await UpdateContextMenuStatePasteOnlyAsync(editorViewModel, hasClipboardText);
         }
         catch (Exception ex)
         {
@@ -1074,6 +1099,63 @@ public sealed partial class MermaidEditorView : UserControl
         }
     }
 
+    /// <summary>
+    /// Asynchronously updates the state of context menu commands, except for the Paste command, based on the current
+    /// editor state.
+    /// </summary>
+    /// <remarks>This method ensures that context menu state updates are performed on the UI thread. The Copy
+    /// and Cut commands are enabled only if there is a selection in the editor. The Paste command is not affected by
+    /// this method.</remarks>
+    /// <param name="editorViewModel">The view model representing the Mermaid editor whose context menu state will be updated. Cannot be null.</param>
+    /// <param name="canUndo">A value indicating whether the Undo command should be enabled in the context menu.</param>
+    /// <param name="canRedo">A value indicating whether the Redo command should be enabled in the context menu.</param>
+    /// <param name="canSelectAllInEditor">A value indicating whether the Select All command should be enabled in the context menu.</param>
+    /// <returns>A task that represents the asynchronous operation of updating the context menu state.</returns>
+    private static async Task UpdateContextMenuStateExceptPasteAsync(MermaidEditorViewModel editorViewModel, bool canUndo, bool canRedo, bool canSelectAllInEditor)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            UpdateContextMenuStateExceptPaste(editorViewModel, canUndo, canRedo, canSelectAllInEditor);
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                UpdateContextMenuStateExceptPaste(editorViewModel, canUndo, canRedo, canSelectAllInEditor), DispatcherPriority.Normal);
+        }
+
+        static void UpdateContextMenuStateExceptPaste(MermaidEditorViewModel editorViewModel, bool canUndo, bool canRedo, bool canSelectAllInEditor)
+        {
+            bool hasSelection = editorViewModel.SelectionLength > 0;
+            editorViewModel.CanCopy = hasSelection;
+            editorViewModel.CanCut = hasSelection;
+            editorViewModel.CanUndo = canUndo;
+            editorViewModel.CanRedo = canRedo;
+            editorViewModel.CanSelectAll = canSelectAllInEditor;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously updates the paste command state in the context menu to reflect whether clipboard text is
+    /// available.
+    /// </summary>
+    /// <remarks>This method ensures that the paste command in the editor's context menu is enabled only when
+    /// clipboard text is available. The update is performed on the UI thread to maintain thread safety.</remarks>
+    /// <param name="editorViewModel">The view model representing the editor whose context menu state will be updated. Cannot be null.</param>
+    /// <param name="hasClipboardText">A value indicating whether the clipboard currently contains text. If <see langword="true"/>, the paste command
+    /// will be enabled; otherwise, it will be disabled.</param>
+    /// <returns>A task that represents the asynchronous operation of updating the context menu state.</returns>
+    private static async Task UpdateContextMenuStatePasteOnlyAsync(MermaidEditorViewModel editorViewModel, bool hasClipboardText)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            editorViewModel.CanPaste = hasClipboardText;
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                editorViewModel.CanPaste = hasClipboardText, DispatcherPriority.Normal);
+        }
+    }
     #endregion Context Menu State
 
     #region Syntax Highlighting
