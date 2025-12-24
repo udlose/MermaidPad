@@ -61,23 +61,20 @@ public sealed partial class DiagramView : UserControl
 
         IServiceProvider sp = App.Services;
         _logger = sp.GetRequiredService<ILogger<DiagramView>>();
-
-        _logger.LogInformation("=== DiagramView Initialization Started ===");
-
-        // Subscribe to DataContext changes to wire up the ViewModel
-        DataContextChanged += OnDataContextChanged;
-
-        _logger.LogInformation("=== DiagramView Initialization Completed ===");
     }
 
+    #region Overrides
+
     /// <summary>
-    /// Handles changes to the DataContext, setting up or tearing down ViewModel bindings.
+    /// Handles changes to the data context by updating event subscriptions and bindings to the associated view model.
     /// </summary>
-    /// <param name="sender">The source of the event.</param>
-    /// <param name="e">The event arguments.</param>
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    /// <remarks>This method ensures that event handlers and bindings are correctly updated when the data
+    /// context changes, preventing memory leaks and ensuring the view reflects the current view model. It is typically
+    /// called by the framework when the data context of the control changes.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
+    protected override void OnDataContextChanged(EventArgs e)
     {
-        // Unsubscribe from previous ViewModel
+        // Unsubscribe from previous ViewModel first
         if (_vm is not null)
         {
             UnsubscribeViewModelEventHandlers();
@@ -93,7 +90,12 @@ public sealed partial class DiagramView : UserControl
         {
             _vm = null;
         }
+
+        // Call base method last
+        base.OnDataContextChanged(e);
     }
+
+    #endregion Overrides
 
     /// <summary>
     /// Sets up bindings and action delegates between the View and ViewModel.
@@ -107,7 +109,8 @@ public sealed partial class DiagramView : UserControl
         }
 
         // Wire up action delegates
-        _vm.InitializeActionAsync ??= InitializeWebViewAsync;
+        _vm.InitializeActionAsync = null; // Clear any existing delegate
+        _vm.InitializeActionAsync = InitializeWebViewAsync;
 
         _areViewModelEventHandlersCleanedUp = false;
     }
@@ -182,8 +185,6 @@ public sealed partial class DiagramView : UserControl
         if (!_areAllEventHandlersCleanedUp)
         {
             UnsubscribeViewModelEventHandlers();
-
-            DataContextChanged -= OnDataContextChanged;
 
             _logger.LogInformation("All DiagramView event handlers unsubscribed successfully");
             _areAllEventHandlersCleanedUp = true;
