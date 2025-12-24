@@ -98,19 +98,18 @@ public sealed partial class DiagramView : UserControl
     /// <summary>
     /// Sets up bindings and action delegates between the View and ViewModel.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void SetupViewModelBindings()
     {
         if (_vm is null)
         {
-            return;
+            throw new InvalidOperationException($"{nameof(SetupViewModelBindings)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         // Wire up action delegates
-        _vm.InitializeActionAsync = InitializeWebViewAsync;
+        _vm.InitializeActionAsync ??= InitializeWebViewAsync;
 
         _areViewModelEventHandlersCleanedUp = false;
-
-        _logger.LogInformation("ViewModel bindings established for DiagramView");
     }
 
     #region WebView Initialization
@@ -126,12 +125,12 @@ public sealed partial class DiagramView : UserControl
     /// <exception cref="OperationCanceledException">Propagated if initialization is canceled.</exception>
     /// <exception cref="AssetIntegrityException">Propagated for asset integrity errors.</exception>
     /// <exception cref="MissingAssetException">Propagated when required assets are missing.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private async Task InitializeWebViewAsync(string mermaidSource)
     {
         if (_vm is null)
         {
-            _logger.LogWarning($"{nameof(InitializeWebViewAsync)} called with null ViewModel");
-            return;
+            throw new InvalidOperationException($"{nameof(InitializeWebViewAsync)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
         _logger.LogInformation("=== WebView Initialization Started ===");
