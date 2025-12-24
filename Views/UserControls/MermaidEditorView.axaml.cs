@@ -363,7 +363,7 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
-        if (e.PropertyName == nameof(_vm.Text))
+        if (e.PropertyName == nameof(MermaidEditorViewModel.Text))
         {
             HandleTextPropertyChanged();
             return;
@@ -376,10 +376,17 @@ public sealed partial class MermaidEditorView : UserControl
     }
 
     /// <summary>
-    /// Handles synchronization when the Text property changes.
+    /// Synchronizes the editor's text with the view model when the view model's <see cref="MermaidEditorViewModel.Text"/> property changes.
     /// </summary>
+    /// <remarks>
+    /// This method updates the editor's text to match the current value of the view model's <see cref="MermaidEditorViewModel.Text"/> property,
+    /// using a debounce mechanism to avoid unnecessary updates. It prevents recursive change notifications during
+    /// the update process and is intended to be invoked from the view model's <see cref="INotifyPropertyChanged.PropertyChanged"/>
+    /// handler when the <see cref="MermaidEditorViewModel.Text"/> property changes, ensuring consistency from the view model to the editor.
+    /// </remarks>
     private void HandleTextPropertyChanged()
     {
+        // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
         string currentText = Editor.Text;
         if (currentText == _vm?.Text)
         {
@@ -409,8 +416,12 @@ public sealed partial class MermaidEditorView : UserControl
     }
 
     /// <summary>
-    /// Handles synchronization when selection or caret properties change.
+    /// Synchronizes the editor's selection and caret position with the current view model state, applying debouncing to
+    /// avoid excessive updates.
     /// </summary>
+    /// <remarks>This method ensures that the editor's selection and caret offset reflect the latest values
+    /// from the view model, correcting any out-of-bounds values as needed. Updates are debounced to improve performance
+    /// and prevent rapid, repeated changes from causing unnecessary UI updates.</remarks>
     private void HandleSelectionOrCaretPropertyChanged()
     {
         if (_vm is null)
@@ -428,6 +439,7 @@ public sealed partial class MermaidEditorView : UserControl
             _suppressEditorStateSync = true;
             try
             {
+                // Validate bounds before setting
                 int textLength = Editor.Document.TextLength;
                 int validSelectionStart = Math.Max(0, Math.Min(_vm.SelectionStart, textLength));
                 int validSelectionLength = Math.Max(0, Math.Min(_vm.SelectionLength, textLength - validSelectionStart));
