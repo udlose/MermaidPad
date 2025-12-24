@@ -24,10 +24,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
-using MermaidPad.Services;
 using MermaidPad.ViewModels;
+using MermaidPad.Views.UserControls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel;
@@ -37,33 +36,26 @@ using System.Diagnostics.CodeAnalysis;
 namespace MermaidPad.Views;
 
 /// <summary>
-/// Main application window that contains the MermaidEditorView and preview WebView.
-/// Manages window lifecycle events, WebView initialization, and coordinates the MermaidRenderer.
+/// Main application window that contains the <see cref="MermaidEditorView"/> and <see cref="DiagramView"/>.
+/// Manages window lifecycle events and coordinates between the editor and diagram preview.
 /// </summary>
 /// <remarks>
 /// Editor-specific functionality (clipboard, intellisense, syntax highlighting, etc.) has been
-/// moved to the MermaidEditorView UserControl. This class focuses on window-level concerns:
+/// moved to the <see cref="MermaidEditorView"/> UserControl. WebView-specific functionality (initialization,
+/// rendering) has been moved to the <see cref="DiagramView"/> UserControl. This class focuses on window-level concerns:
 /// <list type="bullet">
 ///     <item><description>Window lifecycle (opening, closing, activation)</description></item>
-///     <item><description>WebView initialization and management</description></item>
 ///     <item><description>File save prompts on close</description></item>
-///     <item><description>Coordinating the MermaidRenderer</description></item>
+///     <item><description>Coordinating initialization between child UserControls</description></item>
 /// </list>
 /// </remarks>
-#pragma warning disable IDE0078
-[SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
-[SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
 public sealed partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _vm;
-    private readonly MermaidRenderer _renderer;
-    private readonly MermaidUpdateService _updateService;
     private readonly ILogger<MainWindow> _logger;
 
     private bool _isClosingApproved;
     private bool _areAllEventHandlersCleanedUp;
-
-    private const int WebViewReadyTimeoutSeconds = 30;
 
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
@@ -75,16 +67,15 @@ public sealed partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// The constructor resolves required services from the application's DI container and sets up
-    /// window lifecycle event handlers. Editor-specific initialization is handled by MermaidEditorView.
+    /// window lifecycle event handlers. Editor-specific initialization is handled by <see cref="MermaidEditorView"/>.
+    /// WebView-specific initialization is handled by <see cref="DiagramView"/>.
     /// </remarks>
     public MainWindow()
     {
         InitializeComponent();
 
         IServiceProvider sp = App.Services;
-        _renderer = sp.GetRequiredService<MermaidRenderer>();
         _vm = sp.GetRequiredService<MainWindowViewModel>();
-        _updateService = sp.GetRequiredService<MermaidUpdateService>();
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
         DataContext = _vm;
 
@@ -123,7 +114,7 @@ public sealed partial class MainWindow : Window
     /// Handles the event that occurs when the window has been opened.
     /// </summary>
     /// <remarks>If an error occurs during the window opening process, an error is logged and a modal error
-    /// dialog is displayed to the user. The error is also communicated to the ViewModel for UI updates.</remarks>
+    /// dialog is displayed to the user.</remarks>
     /// <param name="sender">The source of the event. This is typically the window instance that was opened.</param>
     /// <param name="e">An object that contains the event data.</param>
     private void OnOpened(object? sender, EventArgs e)
@@ -133,20 +124,16 @@ public sealed partial class MainWindow : Window
             {
                 _logger.LogError(ex, "Unhandled exception in OnOpened");
 
-                // Surface the error to the ViewModel and show a simple modal error dialog on the UI thread.
+                // Show a simple modal error dialog on the UI thread.
                 Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     try
                     {
-                        // Communicate error to the ViewModel so bound UI elements can react
-                        const string errorMessage = "An error occurred while opening the application. Please try again.";
-                        _vm.LastError = errorMessage;
-
                         // Build a minimal, self-contained error dialog so we don't depend on external packages
                         StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
                         messagePanel.Children.Add(new TextBlock
                         {
-                            Text = errorMessage,
+                            Text = "An error occurred while opening the application. Please try again.",
                             TextWrapping = TextWrapping.Wrap
                         });
                         messagePanel.Children.Add(new TextBlock
@@ -203,13 +190,13 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Performs the longer-running open sequence: check for updates, initialize the WebView, and update command states.
+    /// Performs the longer-running open sequence: check for updates, initialize the DiagramView, and update command states.
     /// </summary>
     /// <returns>A task representing the asynchronous open sequence.</returns>
     /// <exception cref="InvalidOperationException">Thrown if required update assets cannot be resolved.</exception>
     /// <remarks>
     /// This method logs timing information, performs an update check by calling <see cref="MainWindowViewModel.CheckForMermaidUpdatesAsync"/>,
-    /// initializes the renderer via <see cref="InitializeWebViewAsync"/>, and notifies commands to refresh their CanExecute state.
+    /// initializes the diagram view via <see cref="MainWindowViewModel.InitializeDiagramAsync"/>, and notifies commands to refresh their CanExecute state.
     /// Exceptions are propagated for higher-level handling.
     /// </remarks>
     private async Task OnOpenedAsync()
@@ -218,6 +205,7 @@ public sealed partial class MainWindow : Window
 
         _logger.LogInformation("=== Window Opened Sequence Started ===");
 
+        bool isSuccess = false;
         try
         {
             // TODO - re-enable this once a more complete update mechanism is in place
@@ -226,18 +214,23 @@ public sealed partial class MainWindow : Window
             //await _vm.CheckForMermaidUpdatesAsync();
             //_logger.LogInformation("Mermaid update check completed");
 
-            // Step 2: Initialize WebView (editor state is already synchronized via constructor)
-            _logger.LogInformation("Step 2: Initializing WebView...");
-            string? assetsPath = Path.GetDirectoryName(_updateService.BundledMermaidPath);
-            if (assetsPath is null)
-            {
-                const string error = "BundledMermaidPath does not contain a directory component";
-                _logger.LogError(error);
-                throw new InvalidOperationException(error);
-            }
+            // Initialize DiagramView (WebView initialization is now encapsulated there)
+            _logger.LogInformation($"Initializing {nameof(DiagramView)}...");
 
-            // Needs to be on UI thread
-            await InitializeWebViewAsync();
+            // Temporarily disable live preview during initialization
+            bool originalLivePreview = _vm.LivePreviewEnabled;
+            _vm.LivePreviewEnabled = false;
+
+            try
+            {
+                // Initialize and render the diagram view through the ViewModel
+                await _vm.InitializeDiagramAsync();
+            }
+            finally
+            {
+                // Re-enable live preview after initialization
+                _vm.LivePreviewEnabled = originalLivePreview;
+            }
 
             // Step 3: Update command states
             await Dispatcher.UIThread.InvokeAsync(() =>
@@ -246,16 +239,19 @@ public sealed partial class MainWindow : Window
                 _vm.ClearCommand.NotifyCanExecuteChanged();
             });
 
-            stopwatch.Stop();
-            _logger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: true);
             _logger.LogInformation("=== Window Opened Sequence Completed Successfully ===");
+            isSuccess = true;
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            _logger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: false);
+            isSuccess = false;
             _logger.LogError(ex, "Window opened sequence failed");
             throw;
+        }
+        finally
+        {
+            stopwatch.Stop();
+            _logger.LogTiming("Window opened sequence", stopwatch.Elapsed, success: isSuccess);
         }
     }
 
@@ -280,7 +276,7 @@ public sealed partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         // Check for unsaved changes (only if not already approved)
-        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.DiagramText))
+        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text))
         {
             e.Cancel = true;
             PromptAndCloseAsync()
@@ -332,6 +328,10 @@ public sealed partial class MainWindow : Window
         // Delegate to MermaidEditorView for editor-specific cleanup
         // MermaidEditorView handles its own event subscriptions internally to protect against double-unsubscribe
         MermaidEditor.UnsubscribeAllEventHandlers();
+
+        // Delegate to DiagramView for diagram-specific cleanup
+        // DiagramView handles its own event subscriptions internally to protect against double-unsubscribe
+        DiagramPreview.UnsubscribeAllEventHandlers();
 
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
@@ -390,92 +390,6 @@ public sealed partial class MainWindow : Window
             _logger.LogError(ex, "Error during close prompt");
             _isClosingApproved = false; // Reset on exception
             throw;
-        }
-    }
-
-    /// <summary>
-    /// Initializes the WebView and performs the initial render of the current diagram text.
-    /// </summary>
-    /// <returns>A task that completes when initialization and initial render have finished.</returns>
-    /// <exception cref="OperationCanceledException">Propagated if initialization is canceled.</exception>
-    /// <exception cref="AssetIntegrityException">Propagated for asset integrity errors.</exception>
-    /// <exception cref="MissingAssetException">Propagated when required assets are missing.</exception>
-    /// <remarks>
-    /// Temporarily disables live preview while initialization is in progress to prevent unwanted renders.
-    /// Performs renderer initialization, waits briefly for content to load, and then triggers an initial render.
-    /// Re-enables the live preview setting in a finally block to ensure UI state consistency.
-    /// </remarks>
-    private async Task InitializeWebViewAsync()
-    {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        _logger.LogInformation("=== WebView Initialization Started ===");
-
-        // Temporarily disable live preview during WebView initialization
-        bool originalLivePreview = await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            bool current = _vm.LivePreviewEnabled;
-            _vm.LivePreviewEnabled = false;
-            _logger.LogInformation("Temporarily disabled live preview (was: {Current})", current);
-            return current;
-        }, DispatcherPriority.Normal);
-
-        bool success = false;
-        try
-        {
-            // Step 1: Initialize renderer (starts HTTP server + navigate)
-            await _renderer.InitializeAsync(Preview);
-
-            // Step 2: Kick first render; index.html sets globalThis.__renderingComplete__ in hideLoadingIndicator()
-            await _renderer.RenderAsync(_vm.DiagramText);
-
-            // Step 3: Await readiness
-            try
-            {
-                await _renderer.EnsureFirstRenderReadyAsync(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds));
-                await Dispatcher.UIThread.InvokeAsync(() => _vm.IsWebViewReady = true);
-                _logger.LogInformation("WebView readiness observed");
-            }
-            catch (TimeoutException)
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    _vm.IsWebViewReady = true;
-                    _vm.LastError = $"WebView initialization timed out after {WebViewReadyTimeoutSeconds} seconds. Some features may not work correctly.";
-                });
-                _logger.LogWarning("WebView readiness timed out after {TimeoutSeconds}s; enabling commands with warning", WebViewReadyTimeoutSeconds);
-            }
-
-            success = true;
-            _logger.LogInformation("=== WebView Initialization Completed Successfully ===");
-        }
-        catch (OperationCanceledException)
-        {
-            // Treat cancellations distinctly; still propagate
-            _logger.LogInformation("WebView initialization was canceled.");
-            throw;
-        }
-        catch (Exception ex) when (ex is AssetIntegrityException or MissingAssetException)
-        {
-            // Let asset-related exceptions bubble up for higher-level handling
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // Log and rethrow so OnOpenedAsync observes the failure and can abort the sequence
-            _logger.LogError(ex, "WebView initialization failed");
-            throw;
-        }
-        finally
-        {
-            stopwatch.Stop();
-            _logger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
-
-            // Re-enable live preview after WebView is ready (or on failure)
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                _vm.LivePreviewEnabled = originalLivePreview;
-                _logger.LogInformation("Re-enabled live preview: {OriginalLivePreview}", originalLivePreview);
-            });
         }
     }
 }

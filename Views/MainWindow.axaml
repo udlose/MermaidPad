@@ -5,7 +5,6 @@
   xmlns:local="clr-namespace:MermaidPad"
   xmlns:uc="clr-namespace:MermaidPad.Views.UserControls"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
-  xmlns:wv="clr-namespace:AvaloniaWebView;assembly=Avalonia.WebView"
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
@@ -130,7 +129,7 @@
         Content="Live Preview:"
         FlowDirection="RightToLeft"
         IsChecked="{Binding LivePreviewEnabled}"
-        IsEnabled="{Binding IsWebViewReady}"
+        IsEnabled="{Binding Diagram.IsReady}"
         ToolTip.Tip="Toggle Live Preview" />
       <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
       <TextBlock Text="{Binding BundledMermaidVersion}" />
@@ -152,7 +151,7 @@
         Text="{Binding StatusText}" />
     </StackPanel>
 
-    <!--  Main Content (your existing GridSplitter, Editor, WebView)  -->
+    <!--  Main Content (GridSplitter, Editor, DiagramView)  -->
     <Grid DockPanel.Dock="Top">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
@@ -174,26 +173,12 @@
         Background="Transparent"
         ResizeDirection="Columns" />
 
-      <!--  WebView Panel  -->
-      <Border
+      <!--  Diagram View UserControl  -->
+      <uc:DiagramView
+        x:Name="DiagramPreview"
         Grid.Column="2"
         Margin="0,0,6,6"
-        BorderBrush="LightGray"
-        BorderThickness="1"
-        CornerRadius="4">
-        <Grid>
-          <wv:WebView Name="Preview" />
-          <TextBlock
-            Margin="10"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Top"
-            FontSize="11"
-            Foreground="Red"
-            IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
-            Text="{Binding LastError}"
-            TextWrapping="Wrap" />
-        </Grid>
-      </Border>
+        DataContext="{Binding Diagram}" />
     </Grid>
   </DockPanel>
 </Window>
