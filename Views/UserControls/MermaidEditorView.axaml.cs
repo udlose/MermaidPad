@@ -120,25 +120,42 @@ public sealed partial class MermaidEditorView : UserControl
     /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
     protected override void OnDataContextChanged(EventArgs e)
     {
-        // Unsubscribe from previous ViewModel first
-        if (_vm is not null)
+        try
         {
-            UnsubscribeViewModelEventHandlers();
-        }
+            MermaidEditorViewModel? oldViewModel = _vm;
+            MermaidEditorViewModel? newViewModel = DataContext as MermaidEditorViewModel;
 
-        // Set up new ViewModel
-        if (DataContext is MermaidEditorViewModel vm)
-        {
-            _vm = vm;
-            SetupViewModelBindings();
-        }
-        else
-        {
-            _vm = null;
-        }
+            if (oldViewModel is not null)
+            {
+                // Ensure UnsubscribeViewModelEventHandlers() operates on the old VM
+                _vm = oldViewModel;
 
-        // Call base method last
-        base.OnDataContextChanged(e);
+                // Unsubscribe from previous ViewModel first
+                UnsubscribeViewModelEventHandlers();
+            }
+
+            _vm = newViewModel;
+
+            if (_vm is not null)
+            {
+                try
+                {
+                    SetupViewModelBindings();
+                }
+                catch
+                {
+                    // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
+                    UnsubscribeViewModelEventHandlers();
+                    _vm = null;
+                    throw;
+                }
+            }
+        }
+        finally
+        {
+            // Call base method last
+            base.OnDataContextChanged(e);
+        }
     }
 
     #endregion Overrides
@@ -154,6 +171,9 @@ public sealed partial class MermaidEditorView : UserControl
             throw new InvalidOperationException($"{nameof(SetupViewModelBindings)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
+        // Reset cleanup flag early so a failure mid-setup doesn't cause "double-unsubscribe" logic to skip cleanup.
+        _areViewModelEventHandlersCleanedUp = false;
+
         // Initialize editor with ViewModel data using validation
         SetEditorStateWithValidation(
             _vm.Text,
@@ -167,9 +187,6 @@ public sealed partial class MermaidEditorView : UserControl
 
         // Wire up clipboard and edit actions to ViewModel
         WireUpEditorActions();
-
-        // Reset cleanup flag
-        _areViewModelEventHandlersCleanedUp = false;
 
         _logger.LogInformation("ViewModel bindings established for MermaidEditorView");
     }
@@ -393,9 +410,14 @@ public sealed partial class MermaidEditorView : UserControl
     /// </remarks>
     private void HandleTextPropertyChanged()
     {
+        if (_vm is null)
+        {
+            return;
+        }
+
         // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
         string currentText = Editor.Text;
-        if (currentText == _vm?.Text)
+        if (currentText == _vm.Text)
         {
             return;
         }
@@ -1275,49 +1297,51 @@ public sealed partial class MermaidEditorView : UserControl
     private void UnsubscribeViewModelEventHandlers()
     {
         // Prevent double-unsubscribe
-        if (!_areViewModelEventHandlersCleanedUp)
+        if (_areViewModelEventHandlersCleanedUp)
         {
-            if (_editorTextChangedHandler is not null)
-            {
-                Editor.TextChanged -= _editorTextChangedHandler;
-                _editorTextChangedHandler = null;
-            }
-
-            if (_editorSelectionChangedHandler is not null)
-            {
-                Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
-                _editorSelectionChangedHandler = null;
-            }
-
-            if (_editorCaretPositionChangedHandler is not null)
-            {
-                Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
-                _editorCaretPositionChangedHandler = null;
-            }
-
-            if (_viewModelPropertyChangedHandler is not null && _vm is not null)
-            {
-                _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
-                _viewModelPropertyChangedHandler = null;
-            }
-
-            // Clear action delegates
-            if (_vm is not null)
-            {
-                _vm.CutAction = null;
-                _vm.CopyAction = null;
-                _vm.PasteAction = null;
-                _vm.UndoAction = null;
-                _vm.RedoAction = null;
-                _vm.SelectAllAction = null;
-                _vm.OpenFindAction = null;
-                _vm.FindNextAction = null;
-                _vm.FindPreviousAction = null;
-                _vm.GetCurrentEditorContextFunc = null;
-            }
-
-            _areViewModelEventHandlersCleanedUp = true;
+            return;
         }
+
+        if (_editorTextChangedHandler is not null)
+        {
+            Editor.TextChanged -= _editorTextChangedHandler;
+            _editorTextChangedHandler = null;
+        }
+
+        if (_editorSelectionChangedHandler is not null)
+        {
+            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
+            _editorSelectionChangedHandler = null;
+        }
+
+        if (_editorCaretPositionChangedHandler is not null)
+        {
+            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
+            _editorCaretPositionChangedHandler = null;
+        }
+
+        if (_viewModelPropertyChangedHandler is not null && _vm is not null)
+        {
+            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
+            _viewModelPropertyChangedHandler = null;
+        }
+
+        // Clear action delegates
+        if (_vm is not null)
+        {
+            _vm.CutAction = null;
+            _vm.CopyAction = null;
+            _vm.PasteAction = null;
+            _vm.UndoAction = null;
+            _vm.RedoAction = null;
+            _vm.SelectAllAction = null;
+            _vm.OpenFindAction = null;
+            _vm.FindNextAction = null;
+            _vm.FindPreviousAction = null;
+            _vm.GetCurrentEditorContextFunc = null;
+        }
+
+        _areViewModelEventHandlersCleanedUp = true;
     }
 
     /// <summary>

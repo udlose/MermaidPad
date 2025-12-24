@@ -74,25 +74,41 @@ public sealed partial class DiagramView : UserControl
     /// <param name="e">An <see cref="EventArgs"/> object that contains the event data.</param>
     protected override void OnDataContextChanged(EventArgs e)
     {
-        // Unsubscribe from previous ViewModel first
-        if (_vm is not null)
+        try
         {
-            UnsubscribeViewModelEventHandlers();
-        }
+            DiagramViewModel? oldViewModel = _vm;
+            DiagramViewModel? newViewModel = DataContext as DiagramViewModel;
+            if (oldViewModel is not null)
+            {
+                // Ensure UnsubscribeViewModelEventHandlers() operates on the old VM
+                _vm = oldViewModel;
 
-        // Set up new ViewModel
-        if (DataContext is DiagramViewModel vm)
-        {
-            _vm = vm;
-            SetupViewModelBindings();
-        }
-        else
-        {
-            _vm = null;
-        }
+                // Unsubscribe from previous ViewModel first
+                UnsubscribeViewModelEventHandlers();
+            }
 
-        // Call base method last
-        base.OnDataContextChanged(e);
+            _vm = newViewModel;
+
+            if (_vm is not null)
+            {
+                try
+                {
+                    SetupViewModelBindings();
+                }
+                catch
+                {
+                    // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
+                    UnsubscribeViewModelEventHandlers();
+                    _vm = null;
+                    throw;
+                }
+            }
+        }
+        finally
+        {
+            // Call base method last
+            base.OnDataContextChanged(e);
+        }
     }
 
     #endregion Overrides
@@ -164,16 +180,20 @@ public sealed partial class DiagramView : UserControl
     private void UnsubscribeViewModelEventHandlers()
     {
         // Prevent double-unsubscribe
-        if (!_areViewModelEventHandlersCleanedUp)
+        if (_areViewModelEventHandlersCleanedUp)
         {
-            if (_vm?.InitializeActionAsync is not null)
-            {
-                // Clear action delegates
-                _vm.InitializeActionAsync = null;
-            }
-
-            _areViewModelEventHandlersCleanedUp = true;
+            return;
         }
+
+#pragma warning disable IDE0031
+        if (_vm is not null)
+#pragma warning restore IDE0031
+        {
+            // Clear action delegates
+            _vm.InitializeActionAsync = null;
+        }
+
+        _areViewModelEventHandlersCleanedUp = true;
     }
 
     /// <summary>
