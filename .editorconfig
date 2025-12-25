@@ -119,6 +119,17 @@ dotnet_diagnostic.RCS1164.severity = error
 dotnet_diagnostic.RCS1213.severity = warning
 dotnet_diagnostic.RCS1228.severity = warning
 dotnet_diagnostic.CA1851.severity = error
+csharp_style_conditional_delegate_call = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:suggestion
+dotnet_diagnostic.RCS1020.severity = warning
+dotnet_diagnostic.RCS1113.severity = error
+dotnet_diagnostic.RCS1166.severity = error
+dotnet_diagnostic.RCS1199.severity = warning
+dotnet_diagnostic.RCS1202.severity = warning
+dotnet_diagnostic.RCS1210.severity = error
+dotnet_diagnostic.RCS1221.severity = warning
+dotnet_diagnostic.RCS1248.severity = error
+dotnet_diagnostic.RCS1165.severity = warning
 
 [*.{cs,vb}]
 #### Naming styles ####
@@ -211,3 +222,7 @@ dotnet_diagnostic.CA1822.severity = warning
 dotnet_code_quality_unused_parameters = all:warning
 dotnet_diagnostic.CA1826.severity = error
 dotnet_diagnostic.CA2009.severity = error
+dotnet_diagnostic.CA1510.severity = warning
+dotnet_diagnostic.CA1871.severity = error
+dotnet_diagnostic.CA2265.severity = error
+dotnet_diagnostic.CA2264.severity = error
