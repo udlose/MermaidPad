@@ -24,6 +24,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using MermaidPad.Extensions;
@@ -66,17 +67,10 @@ public sealed partial class MermaidEditorView : UserControl
     private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly ILogger<MermaidEditorView> _logger;
 
-    private bool _areViewModelEventHandlersCleanedUp;
     private bool _areAllEventHandlersCleanedUp;
     private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync;
     private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
-
-    // Event handlers stored for proper cleanup
-    private EventHandler? _editorTextChangedHandler;
-    private EventHandler? _editorSelectionChangedHandler;
-    private EventHandler? _editorCaretPositionChangedHandler;
-    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorView"/> class.
@@ -126,18 +120,16 @@ public sealed partial class MermaidEditorView : UserControl
             MermaidEditorViewModel? oldViewModel = _vm;
             MermaidEditorViewModel? newViewModel = DataContext as MermaidEditorViewModel;
 
-            if (oldViewModel is not null)
-            {
-                // Ensure UnsubscribeViewModelEventHandlers() operates on the old VM
-                _vm = oldViewModel;
-
-                // Unsubscribe from previous ViewModel first
-                UnsubscribeViewModelEventHandlers();
-            }
+            // Always unwind previous wiring first.
+            // NOTE: This also removes editor event handlers, which is safe even if they were never subscribed.
+            UnsubscribeViewModelEventHandlers(oldViewModel);
 
             _vm = newViewModel;
 
-            if (_vm is not null)
+            // Avoid double-initialization on first load:
+            // - When the control is not yet attached, OnAttachedToVisualTree will do the binding.
+            // - When the control is already attached (runtime VM swap), bind immediately.
+            if (_vm is not null && this.IsAttachedToVisualTree())
             {
                 try
                 {
@@ -146,7 +138,7 @@ public sealed partial class MermaidEditorView : UserControl
                 catch
                 {
                     // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
-                    UnsubscribeViewModelEventHandlers();
+                    UnsubscribeViewModelEventHandlers(_vm);
                     _vm = null;
                     throw;
                 }
@@ -171,6 +163,7 @@ public sealed partial class MermaidEditorView : UserControl
     {
         try
         {
+            // Keep this validation in the try block to ensure base is always called
             // If this was "hard cleaned up", this control instance is not reusable (semaphore disposed, theme unsubscribed, etc.).
             if (_areAllEventHandlersCleanedUp)
             {
@@ -183,23 +176,15 @@ public sealed partial class MermaidEditorView : UserControl
                 return;
             }
 
-            // Re-establish VM reference if we cleared it during detach.
+            // If the VM changed (or we cleared it during detach), unwind old wiring and adopt the new VM reference.
             if (!ReferenceEquals(_vm, dataContextViewModel))
             {
-                // Defensive: if something left a previous vm reference, unwind it.
-                if (_vm is not null)
-                {
-                    UnsubscribeViewModelEventHandlers();
-                }
-
+                UnsubscribeViewModelEventHandlers(_vm);
                 _vm = dataContextViewModel;
             }
 
-            // The key: if we previously detached (or partially cleaned up), restore bindings.
-            if (_areViewModelEventHandlersCleanedUp)
-            {
-                SetupViewModelBindings();
-            }
+            // Always "ensure bindings" on attach; wiring is idempotent.
+            SetupViewModelBindings();
         }
         catch (Exception ex)
         {
@@ -208,7 +193,7 @@ public sealed partial class MermaidEditorView : UserControl
             // Best-effort: avoid leaving partially wired state around.
             try
             {
-                UnsubscribeViewModelEventHandlers();
+                UnsubscribeViewModelEventHandlers(_vm);
             }
             catch (Exception cleanupEx)
             {
@@ -235,12 +220,15 @@ public sealed partial class MermaidEditorView : UserControl
     {
         try
         {
-            if (!_areAllEventHandlersCleanedUp && _vm is not null)
+            // Keep this validation in the try block to ensure base is always called
+            if (_areAllEventHandlersCleanedUp)
             {
-                // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
-                UnsubscribeViewModelEventHandlers();
-                _vm = null;
+                return;
             }
+
+            // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
+            UnsubscribeViewModelEventHandlers(_vm);
+            _vm = null;
         }
         finally
         {
@@ -261,24 +249,43 @@ public sealed partial class MermaidEditorView : UserControl
             throw new InvalidOperationException($"{nameof(SetupViewModelBindings)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
-        // Reset cleanup flag early so a failure mid-setup doesn't cause "double-unsubscribe" logic to skip cleanup.
-        _areViewModelEventHandlersCleanedUp = false;
+        bool isEditorStateMatchingViewModel = false;
+        int viewModelTextLength = _vm.Text.Length;
+        int editorTextLength = Editor.Document.TextLength;
 
-        // Initialize editor with ViewModel data using validation
-        SetEditorStateWithValidation(
-            _vm.Text,
-            _vm.SelectionStart,
-            _vm.SelectionLength,
-            _vm.CaretOffset
-        );
+        if (viewModelTextLength == editorTextLength)
+        {
+            // NOTE: Accessing Editor.Text allocates a string (AvaloniaEdit API).
+            // Only do it when lengths match to minimize allocations.
+            string editorText = Editor.Text;
 
-        // Set up two-way synchronization between Editor and ViewModel
+            if (string.Equals(editorText, _vm.Text, StringComparison.Ordinal) &&
+                Editor.SelectionStart == _vm.SelectionStart &&
+                Editor.SelectionLength == _vm.SelectionLength &&
+                Editor.CaretOffset == _vm.CaretOffset)
+            {
+                isEditorStateMatchingViewModel = true;
+            }
+        }
+
+        if (!isEditorStateMatchingViewModel)
+        {
+            // Initialize editor with ViewModel data using validation
+            SetEditorStateWithValidation(
+                _vm.Text,
+                _vm.SelectionStart,
+                _vm.SelectionLength,
+                _vm.CaretOffset
+            );
+        }
+
+        // Set up two-way synchronization between Editor and ViewModel (idempotent subscriptions)
         SetupEditorViewModelSync();
 
-        // Wire up clipboard and edit actions to ViewModel
+        // Wire up clipboard and edit actions to ViewModel (idempotent assignments)
         WireUpEditorActions();
 
-        _logger.LogInformation("ViewModel bindings established for MermaidEditorView");
+        _logger.LogInformation("ViewModel bindings established for {ViewName}", nameof(MermaidEditorView));
     }
 
     /// <summary>
@@ -329,7 +336,7 @@ public sealed partial class MermaidEditorView : UserControl
     /// - Subscribes to view model property changes and applies them to the editor.
     /// - Suppresses reciprocal updates to avoid feedback loops.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if the ViewModel has not been initialized prior to calling this method.</exception>
     private void SetupEditorViewModelSync()
     {
         if (_vm is null)
@@ -338,86 +345,122 @@ public sealed partial class MermaidEditorView : UserControl
         }
 
         // Editor -> ViewModel synchronization (text)
-        _editorTextChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorTextChanged || _vm is null)
-            {
-                return;
-            }
-
-            // Update undo/redo states immediately (not debounced)
-            _vm.CanUndo = Editor.CanUndo;
-            _vm.CanRedo = Editor.CanRedo;
-            _vm.CanSelectAll = CanSelectAllInEditor;
-
-            // Notify commands that their CanExecute state may have changed
-            _vm.UndoCommand.NotifyCanExecuteChanged();
-            _vm.RedoCommand.NotifyCanExecuteChanged();
-            _vm.SelectAllCommand.NotifyCanExecuteChanged();
-
-            // Debounce to avoid excessive updates
-            _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-            {
-                if (_vm is null)
-                {
-                    return;
-                }
-
-                // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
-                string text = Editor.Text;
-                if (_vm.Text != text)
-                {
-                    _suppressEditorStateSync = true;
-                    try
-                    {
-                        _vm.Text = text;
-                    }
-                    finally
-                    {
-                        _suppressEditorStateSync = false;
-                    }
-                }
-            },
-            DispatcherPriority.Background);
-        };
-        Editor.TextChanged += _editorTextChangedHandler;
+        Editor.TextChanged -= OnEditorTextChanged;
+        Editor.TextChanged += OnEditorTextChanged;
 
         // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
-        _editorSelectionChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorStateSync || _vm is null)
-            {
-                return;
-            }
+        Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
+        Editor.TextArea.SelectionChanged += OnEditorSelectionChanged;
 
-            // Update cut/copy states immediately based on selection
-            bool hasSelection = Editor.SelectionLength > 0;
-            _vm.CanCut = hasSelection;
-            _vm.CanCopy = hasSelection;
+        Editor.TextArea.Caret.PositionChanged -= OnEditorCaretPositionChanged;
+        Editor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
 
-            // Notify commands that their CanExecute state may have changed
-            _vm.CutCommand.NotifyCanExecuteChanged();
-            _vm.CopyCommand.NotifyCanExecuteChanged();
-
-            ScheduleEditorStateSyncIfNeeded();
-        };
-        Editor.TextArea.SelectionChanged += _editorSelectionChangedHandler;
-
-        _editorCaretPositionChangedHandler = (_, _) =>
-        {
-            if (_suppressEditorStateSync)
-            {
-                return;
-            }
-
-            ScheduleEditorStateSyncIfNeeded();
-        };
-        Editor.TextArea.Caret.PositionChanged += _editorCaretPositionChangedHandler;
-
-        // ViewModel -> Editor synchronization
-        _viewModelPropertyChangedHandler = OnViewModelPropertyChanged;
-        _vm.PropertyChanged += _viewModelPropertyChangedHandler;
+        // ViewModel -> Editor synchronization (idempotent)
+        _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        _vm.PropertyChanged += OnViewModelPropertyChanged;
     }
+
+    #region TextEditor delegates
+
+    /// <summary>
+    /// Handles the event when the text in the editor changes, updating related command states and synchronizing the
+    /// view model's text property.
+    /// </summary>
+    /// <remarks>This method immediately updates undo, redo, and select-all command states, then debounces
+    /// synchronization of the editor's text with the view model to optimize performance and avoid excessive updates. If
+    /// text changes are suppressed or the view model is unavailable, the method exits without performing
+    /// updates.</remarks>
+    /// <param name="sender">The source of the event, typically the text editor control whose content has changed.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void OnEditorTextChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEditorTextChanged || _vm is null)
+        {
+            return;
+        }
+
+        // Update undo/redo states immediately (not debounced)
+        _vm.CanUndo = Editor.CanUndo;
+        _vm.CanRedo = Editor.CanRedo;
+        _vm.CanSelectAll = CanSelectAllInEditor;
+
+        // Notify commands that their CanExecute state may have changed
+        _vm.UndoCommand.NotifyCanExecuteChanged();
+        _vm.RedoCommand.NotifyCanExecuteChanged();
+        _vm.SelectAllCommand.NotifyCanExecuteChanged();
+
+        // Debounce to avoid excessive updates
+        _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+        {
+            if (_vm is null)
+            {
+                return;
+            }
+
+            // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
+            string text = Editor.Text;
+
+            // Only update the ViewModel when the text has actually changed
+            if (_vm.Text != text)
+            {
+                _suppressEditorStateSync = true;
+                try
+                {
+                    _vm.Text = text;
+                }
+                finally
+                {
+                    _suppressEditorStateSync = false;
+                }
+            }
+        },
+        DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Handles changes to the editor's selection and updates related command states accordingly.
+    /// </summary>
+    /// <remarks>This method updates the cut and copy command availability based on the current selection in
+    /// the editor. It also notifies associated commands to refresh their executable state. If editor state
+    /// synchronization is suppressed or the view model is unavailable, no action is taken.</remarks>
+    /// <param name="sender">The source of the event, typically the editor control whose selection has changed.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void OnEditorSelectionChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEditorStateSync || _vm is null)
+        {
+            return;
+        }
+
+        // Update cut/copy states immediately based on selection
+        bool hasSelection = Editor.SelectionLength > 0;
+        _vm.CanCut = hasSelection;
+        _vm.CanCopy = hasSelection;
+
+        // Notify commands that their CanExecute state may have changed
+        _vm.CutCommand.NotifyCanExecuteChanged();
+        _vm.CopyCommand.NotifyCanExecuteChanged();
+
+        ScheduleEditorStateSyncIfNeeded();
+    }
+
+    /// <summary>
+    /// Handles the event triggered when the caret position in the editor changes, and schedules synchronization of the
+    /// editor state if required.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the editor control whose caret position has changed.</param>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
+    private void OnEditorCaretPositionChanged(object? sender, EventArgs e)
+    {
+        if (_suppressEditorStateSync || _vm is null)
+        {
+            return;
+        }
+
+        ScheduleEditorStateSyncIfNeeded();
+    }
+
+    #endregion TextEditor delegates
 
     /// <summary>
     /// Coalesces caret and selection updates and schedules a debounced update of the view model's editor state.
@@ -438,9 +481,12 @@ public sealed partial class MermaidEditorView : UserControl
         int selectionLength = Editor.SelectionLength;
         int caretOffset = Editor.CaretOffset;
 
-        if (selectionStart == _vm.SelectionStart &&
+        bool isCursorStateUnchanged =
+            selectionStart == _vm.SelectionStart &&
             selectionLength == _vm.SelectionLength &&
-            caretOffset == _vm.CaretOffset)
+            caretOffset == _vm.CaretOffset;
+
+        if (isCursorStateUnchanged)
         {
             return;
         }
@@ -455,10 +501,20 @@ public sealed partial class MermaidEditorView : UserControl
             _suppressEditorStateSync = true;
             try
             {
-                // Take the latest values at execution time to coalesce multiple events
-                _vm.SelectionStart = Editor.SelectionStart;
-                _vm.SelectionLength = Editor.SelectionLength;
-                _vm.CaretOffset = Editor.CaretOffset;
+                int textLength = Editor.Document.TextLength;
+
+                // Take the latest values at execution time to coalesce multiple events.
+                int rawSelectionStart = Editor.SelectionStart;
+                int rawSelectionLength = Editor.SelectionLength;
+                int rawCaretOffset = Editor.CaretOffset;
+
+                int validSelectionStart = Math.Max(0, Math.Min(rawSelectionStart, textLength));
+                int validSelectionLength = Math.Max(0, Math.Min(rawSelectionLength, textLength - validSelectionStart));
+                int validCaretOffset = Math.Max(0, Math.Min(rawCaretOffset, textLength));
+
+                _vm.SelectionStart = validSelectionStart;
+                _vm.SelectionLength = validSelectionLength;
+                _vm.CaretOffset = validCaretOffset;
             }
             finally
             {
@@ -1387,54 +1443,33 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Unsubscribes all ViewModel-related event handlers.
     /// </summary>
-    private void UnsubscribeViewModelEventHandlers()
+    /// <param name="viewModel">The ViewModel instance to unsubscribe from.</param>
+    private void UnsubscribeViewModelEventHandlers(MermaidEditorViewModel? viewModel)
     {
-        // Prevent double-unsubscribe
-        if (_areViewModelEventHandlersCleanedUp)
+        // Editor event handlers (safe even if never subscribed)
+        Editor.TextChanged -= OnEditorTextChanged;
+        Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
+        Editor.TextArea.Caret.PositionChanged -= OnEditorCaretPositionChanged;
+
+        if (viewModel is null)
         {
             return;
         }
 
-        if (_editorTextChangedHandler is not null)
-        {
-            Editor.TextChanged -= _editorTextChangedHandler;
-            _editorTextChangedHandler = null;
-        }
-
-        if (_editorSelectionChangedHandler is not null)
-        {
-            Editor.TextArea.SelectionChanged -= _editorSelectionChangedHandler;
-            _editorSelectionChangedHandler = null;
-        }
-
-        if (_editorCaretPositionChangedHandler is not null)
-        {
-            Editor.TextArea.Caret.PositionChanged -= _editorCaretPositionChangedHandler;
-            _editorCaretPositionChangedHandler = null;
-        }
-
-        if (_viewModelPropertyChangedHandler is not null && _vm is not null)
-        {
-            _vm.PropertyChanged -= _viewModelPropertyChangedHandler;
-            _viewModelPropertyChangedHandler = null;
-        }
+        // ViewModel event handlers
+        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
 
         // Clear action delegates
-        if (_vm is not null)
-        {
-            _vm.CutAction = null;
-            _vm.CopyAction = null;
-            _vm.PasteAction = null;
-            _vm.UndoAction = null;
-            _vm.RedoAction = null;
-            _vm.SelectAllAction = null;
-            _vm.OpenFindAction = null;
-            _vm.FindNextAction = null;
-            _vm.FindPreviousAction = null;
-            _vm.GetCurrentEditorContextFunc = null;
-        }
-
-        _areViewModelEventHandlersCleanedUp = true;
+        viewModel.CutAction = null;
+        viewModel.CopyAction = null;
+        viewModel.PasteAction = null;
+        viewModel.UndoAction = null;
+        viewModel.RedoAction = null;
+        viewModel.SelectAllAction = null;
+        viewModel.OpenFindAction = null;
+        viewModel.FindNextAction = null;
+        viewModel.FindPreviousAction = null;
+        viewModel.GetCurrentEditorContextFunc = null;
     }
 
     /// <summary>
@@ -1445,14 +1480,15 @@ public sealed partial class MermaidEditorView : UserControl
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
         {
-            UnsubscribeViewModelEventHandlers();
-            UnsubscribeIntellisenseEventHandlers();
+            UnsubscribeViewModelEventHandlers(_vm);
+            _vm = null;
 
+            UnsubscribeIntellisenseEventHandlers();
             ActualThemeVariantChanged -= OnThemeChanged;
 
             _contextMenuSemaphore.Dispose();
 
-            _logger.LogInformation("All MermaidEditorView event handlers unsubscribed successfully");
+            _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(MermaidEditorView));
             _areAllEventHandlersCleanedUp = true;
         }
         else

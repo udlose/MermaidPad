@@ -20,6 +20,7 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
 using MermaidPad.ViewModels.UserControls;
@@ -46,7 +47,6 @@ public sealed partial class DiagramView : UserControl
     private DiagramViewModel? _vm;
     private readonly ILogger<DiagramView> _logger;
 
-    private bool _areViewModelEventHandlersCleanedUp;
     private bool _areAllEventHandlersCleanedUp;
 
     /// <summary>
@@ -79,18 +79,16 @@ public sealed partial class DiagramView : UserControl
         {
             DiagramViewModel? oldViewModel = _vm;
             DiagramViewModel? newViewModel = DataContext as DiagramViewModel;
-            if (oldViewModel is not null)
-            {
-                // Ensure UnsubscribeViewModelEventHandlers() operates on the old VM
-                _vm = oldViewModel;
 
-                // Unsubscribe from previous ViewModel first
-                UnsubscribeViewModelEventHandlers();
-            }
+            // Unsubscribe from previous ViewModel first
+            UnsubscribeViewModelEventHandlers(oldViewModel);
 
             _vm = newViewModel;
 
-            if (_vm is not null)
+            // Avoid double-initialization on first load:
+            // - When the control is not yet attached, OnAttachedToVisualTree will do the binding.
+            // - When the control is already attached (runtime VM swap), bind immediately.
+            if (_vm is not null && this.IsAttachedToVisualTree())
             {
                 try
                 {
@@ -99,7 +97,7 @@ public sealed partial class DiagramView : UserControl
                 catch
                 {
                     // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
-                    UnsubscribeViewModelEventHandlers();
+                    UnsubscribeViewModelEventHandlers(_vm);
                     _vm = null;
                     throw;
                 }
@@ -124,6 +122,8 @@ public sealed partial class DiagramView : UserControl
     {
         try
         {
+            // Keep this validation in the try block to ensure base is always called
+            // If this was "hard cleaned up", this control instance is not reusable (semaphore disposed, theme unsubscribed, etc.).
             if (_areAllEventHandlersCleanedUp)
             {
                 _logger.LogWarning("{ViewName} attached after hard cleanup; skipping rebind.", nameof(DiagramView));
@@ -135,28 +135,24 @@ public sealed partial class DiagramView : UserControl
                 return;
             }
 
+            // If the VM changed (or we cleared it during detach), unwind old wiring and adopt the new VM reference.
             if (!ReferenceEquals(_vm, dataContextViewModel))
             {
-                if (_vm is not null)
-                {
-                    UnsubscribeViewModelEventHandlers();
-                }
-
+                UnsubscribeViewModelEventHandlers(_vm);
                 _vm = dataContextViewModel;
             }
 
-            if (_areViewModelEventHandlersCleanedUp)
-            {
-                SetupViewModelBindings();
-            }
+            // Always ensure bindings on attach; wiring is idempotent.
+            SetupViewModelBindings();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error rebinding {ViewName} on attach.", nameof(DiagramView));
 
+            // Best-effort: avoid leaving partially wired state around.
             try
             {
-                UnsubscribeViewModelEventHandlers();
+                UnsubscribeViewModelEventHandlers(_vm);
             }
             catch (Exception cleanupEx)
             {
@@ -183,12 +179,15 @@ public sealed partial class DiagramView : UserControl
     {
         try
         {
-            if (!_areAllEventHandlersCleanedUp && _vm is not null)
+            // Keep this validation in the try block to ensure base is always called
+            if (_areAllEventHandlersCleanedUp)
             {
-                // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
-                UnsubscribeViewModelEventHandlers();
-                _vm = null;
+                return;
             }
+
+            // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
+            UnsubscribeViewModelEventHandlers(_vm);
+            _vm = null;
         }
         finally
         {
@@ -212,8 +211,6 @@ public sealed partial class DiagramView : UserControl
         // Wire up action delegates
         _vm.InitializeActionAsync = null; // Clear any existing delegate
         _vm.InitializeActionAsync = InitializeWebViewAsync;
-
-        _areViewModelEventHandlersCleanedUp = false;
     }
 
     #region WebView Initialization
@@ -262,23 +259,16 @@ public sealed partial class DiagramView : UserControl
     /// <summary>
     /// Unsubscribes all ViewModel-related event handlers and clears action delegates.
     /// </summary>
-    private void UnsubscribeViewModelEventHandlers()
+    /// <param name="viewModel">The ViewModel instance to unsubscribe from.</param>
+    private static void UnsubscribeViewModelEventHandlers(DiagramViewModel? viewModel)
     {
-        // Prevent double-unsubscribe
-        if (_areViewModelEventHandlersCleanedUp)
+        if (viewModel is null)
         {
             return;
         }
 
-#pragma warning disable IDE0031
-        if (_vm is not null)
-#pragma warning restore IDE0031
-        {
-            // Clear action delegates
-            _vm.InitializeActionAsync = null;
-        }
-
-        _areViewModelEventHandlersCleanedUp = true;
+        // Clear action delegates
+        viewModel.InitializeActionAsync = null;
     }
 
     /// <summary>
@@ -289,9 +279,10 @@ public sealed partial class DiagramView : UserControl
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
         {
-            UnsubscribeViewModelEventHandlers();
+            UnsubscribeViewModelEventHandlers(_vm);
+            _vm = null;
 
-            _logger.LogInformation("All DiagramView event handlers unsubscribed successfully");
+            _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(DiagramView));
             _areAllEventHandlersCleanedUp = true;
         }
         else
