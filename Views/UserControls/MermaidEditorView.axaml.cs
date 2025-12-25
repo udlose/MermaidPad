@@ -290,16 +290,18 @@ public sealed partial class MermaidEditorView : UserControl
     /// <param name="caretOffset">Requested caret offset.</param>
     private void SetEditorStateWithValidation(string text, int selectionStart, int selectionLength, int caretOffset)
     {
+        _suppressEditorTextChanged = true;
         _suppressEditorStateSync = true;
         try
         {
             Editor.Text = text;
 
             // Ensure selection bounds are valid
-            int textLength = text.Length;
+            int textLength = Editor.Document.TextLength;
             int validSelectionStart = Math.Max(0, Math.Min(selectionStart, textLength));
             int validSelectionLength = Math.Max(0, Math.Min(selectionLength, textLength - validSelectionStart));
             int validCaretOffset = Math.Max(0, Math.Min(caretOffset, textLength));
+
             Editor.SelectionStart = validSelectionStart;
             Editor.SelectionLength = validSelectionLength;
             Editor.CaretOffset = validCaretOffset;
@@ -314,6 +316,7 @@ public sealed partial class MermaidEditorView : UserControl
         }
         finally
         {
+            _suppressEditorTextChanged = false;
             _suppressEditorStateSync = false;
         }
     }
