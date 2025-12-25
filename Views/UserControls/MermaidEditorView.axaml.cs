@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using AsyncAwaitBestPractices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Media;
@@ -155,6 +156,95 @@ public sealed partial class MermaidEditorView : UserControl
         {
             // Call base method last
             base.OnDataContextChanged(e);
+        }
+    }
+
+    /// <summary>
+    /// Handles logic that occurs when the control is attached to the visual tree.
+    /// </summary>
+    /// <remarks>This method restores necessary bindings and event handlers when the control is reattached to
+    /// the visual tree, provided the control has not been fully cleaned up. If the control was previously detached and
+    /// partially cleaned up, this method ensures that the view model bindings are re-established. If the control has
+    /// undergone a full cleanup, no re-binding occurs.</remarks>
+    /// <param name="e">The event data associated with the visual tree attachment event.</param>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        try
+        {
+            // If this was "hard cleaned up", this control instance is not reusable (semaphore disposed, theme unsubscribed, etc.).
+            if (_areAllEventHandlersCleanedUp)
+            {
+                _logger.LogWarning("{ViewName} attached after hard cleanup; skipping rebind.", nameof(MermaidEditorView));
+                return;
+            }
+
+            if (DataContext is not MermaidEditorViewModel dataContextViewModel)
+            {
+                return;
+            }
+
+            // Re-establish VM reference if we cleared it during detach.
+            if (!ReferenceEquals(_vm, dataContextViewModel))
+            {
+                // Defensive: if something left a previous vm reference, unwind it.
+                if (_vm is not null)
+                {
+                    UnsubscribeViewModelEventHandlers();
+                }
+
+                _vm = dataContextViewModel;
+            }
+
+            // The key: if we previously detached (or partially cleaned up), restore bindings.
+            if (_areViewModelEventHandlersCleanedUp)
+            {
+                SetupViewModelBindings();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rebinding {ViewName} on attach.", nameof(MermaidEditorView));
+
+            // Best-effort: avoid leaving partially wired state around.
+            try
+            {
+                UnsubscribeViewModelEventHandlers();
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger.LogError(cleanupEx, "Error during {ViewName} attach cleanup.", nameof(MermaidEditorView));
+            }
+
+            _vm = null;
+            throw;
+        }
+        finally
+        {
+            base.OnAttachedToVisualTree(e);
+        }
+    }
+
+    /// <summary>
+    /// Called when the control is detached from the visual tree.
+    /// </summary>
+    /// <remarks>Override this method to perform cleanup or release resources when the control is removed from
+    /// the visual tree. This method is called after the control is no longer part of the visual tree
+    /// hierarchy.</remarks>
+    /// <param name="e">The event data associated with the detachment from the visual tree.</param>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        try
+        {
+            if (!_areAllEventHandlersCleanedUp && _vm is not null)
+            {
+                // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
+                UnsubscribeViewModelEventHandlers();
+                _vm = null;
+            }
+        }
+        finally
+        {
+            base.OnDetachedFromVisualTree(e);
         }
     }
 
