@@ -43,6 +43,10 @@ public sealed partial class SplashWindow : Window
     private readonly ILogger<SplashWindow>? _logger;
     private readonly SplashWindowViewModel _vm;
 
+    private CancellationTokenSource? _loadCancellationTokenSource;
+    private int _loadStarted;
+    private int _mainActionInvoked;
+
     /// <summary>
     /// Initializes a new instance of the SplashWindow class. Needed for XAML designer support.
     /// </summary>
@@ -64,6 +68,7 @@ public sealed partial class SplashWindow : Window
     /// logic.</remarks>
     /// <param name="splashWindowViewModel">The view model that provides data and commands for the splash window.</param>
     /// <param name="mainAction">The action to invoke when the splash screen completes. Cannot be null.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="splashWindowViewModel"/> or <paramref name="mainAction"/> is null.</exception>
     public SplashWindow(SplashWindowViewModel splashWindowViewModel, Action mainAction) : this()
     {
         ArgumentNullException.ThrowIfNull(splashWindowViewModel);
@@ -79,23 +84,127 @@ public sealed partial class SplashWindow : Window
         DataContext = _vm;
     }
 
+    #region Overrides
+
     /// <summary>
-    /// Invoked when the control has been loaded and is ready for interaction.
+    /// Handles the Loaded event by initiating asynchronous loading operations when the control is loaded into the
+    /// visual tree.
     /// </summary>
-    /// <param name="e">The event data associated with the loaded event.</param>
+    /// <remarks>This method ensures that the loading process is started only once, even if the Loaded event
+    /// is raised multiple times. Any exceptions that occur during the asynchronous loading operation are logged.
+    /// Overrides should call the base implementation to maintain correct loading behavior.</remarks>
+    /// <param name="e">The event data associated with the Loaded event.</param>
     protected override void OnLoaded(RoutedEventArgs e)
     {
-        LoadAsync()
-            .SafeFireAndForget(ex => _logger?.LogError(ex, "Error loading splash screen"));
+        // Call the base class implementation first
+        base.OnLoaded(e);
+
+        if (Interlocked.Exchange(ref _loadStarted, 1) != 0)
+        {
+            return;
+        }
+
+        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        _loadCancellationTokenSource = cancellationTokenSource;
+
+        Task loadTask;
+        try
+        {
+            loadTask = LoadAsync(cancellationTokenSource.Token);
+        }
+        catch
+        {
+            DisposeLoadCancellationTokenSource(loadTask: null, cancellationTokenSource);
+            throw;
+        }
+
+        try
+        {
+            _ = loadTask.ContinueWith(
+                continuationAction: task =>
+                {
+                    try
+                    {
+                        if (task.IsFaulted)
+                        {
+                            // Observe and log the exception so it is not left unobserved.
+                            if (task.Exception is not null)
+                            {
+                                Exception exception = task.Exception.InnerException ?? task.Exception;
+                                _logger?.LogError(exception, "{Method} faulted in continuation", nameof(LoadAsync));
+                            }
+                        }
+                        else if (task.IsCanceled)
+                        {
+                            _logger?.LogInformation("Load task was canceled in continuation");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Unexpected exception in load continuation");
+                        // Swallow so the continuation Task never faults => no unobserved exception.
+                    }
+                    finally
+                    {
+                        DisposeLoadCancellationTokenSource(task, cancellationTokenSource);
+                    }
+                },
+                cancellationToken: CancellationToken.None,
+                continuationOptions: TaskContinuationOptions.ExecuteSynchronously,
+                scheduler: TaskScheduler.Default);
+        }
+        catch
+        {
+            DisposeLoadCancellationTokenSource(loadTask: null, cancellationTokenSource);
+            throw;
+        }
+
+        loadTask.SafeFireAndForget(LogError);
+
+        void LogError(Exception ex) => _logger?.LogError(ex, "Error loading splash screen");
     }
+
+    /// <summary>
+    /// Handles the logic required when the window is closed.
+    /// </summary>
+    /// <remarks>This method cancels any ongoing load operations and releases associated resources before
+    /// invoking the base class implementation. Override this method to perform additional cleanup when the window is
+    /// closed.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
+    protected override void OnClosed(EventArgs e)
+    {
+        // Disposal is done by the Load task continuation to ensure it's not disposed while LoadAsync is still using it
+        try
+        {
+            CancellationTokenSource? cancellationTokenSource = Volatile.Read(ref _loadCancellationTokenSource);
+            if (cancellationTokenSource is not null)
+            {
+                try
+                {
+                    cancellationTokenSource.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // If the continuation already disposed it, Cancel can throw; ignore during shutdown
+                }
+            }
+        }
+        finally
+        {
+            base.OnClosed(e);
+        }
+    }
+
+    #endregion Overrides
 
     /// <summary>
     /// Asynchronously performs background initialization and updates the UI upon completion.
     /// </summary>
+    /// <param name="cancellationToken">A cancellation token to cancel the operation.</param>
     /// <remarks>This method should be awaited to ensure that background processing and subsequent UI updates
     /// complete before proceeding. UI updates are dispatched to the main thread to maintain thread safety.</remarks>
     /// <returns>A task that represents the asynchronous load operation.</returns>
-    private async Task LoadAsync()
+    private async Task LoadAsync(CancellationToken cancellationToken)
     {
         //TODO - DaveBlack: Add background initialization logic here: e.g., loading assets, initializing/loading grammar resources, checking for updates, etc.
         // 1. Loading must always run on a background thread to avoid blocking the UI.
@@ -106,18 +215,76 @@ public sealed partial class SplashWindow : Window
         {
             // Temporarily simulate background work Task.Delay
             const int simulatedWorkDurationMs = 3_000;
-            await Task.Delay(simulatedWorkDurationMs);
+            await Task.Delay(simulatedWorkDurationMs, cancellationToken);
 
             // After background work is complete, update the UI on the main thread
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                _mainAction?.Invoke();
-                Close();
-            });
+            await Dispatcher.UIThread.InvokeAsync(OpenMainAndClose);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected if window closes early - ignore
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error during splash screen background work");
+        }
+    }
+
+    /// <summary>
+    /// Invokes the main action if it has not already been executed, then closes the current context.
+    /// </summary>
+    /// <remarks>This method ensures that the main action is executed only once, even if called multiple times
+    /// concurrently. After invoking the main action, it always calls the close operation, regardless of whether the
+    /// action succeeds or throws an exception.</remarks>
+    private void OpenMainAndClose()
+    {
+        if (Interlocked.Exchange(ref _mainActionInvoked, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _mainAction?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error running splash completion action");
+        }
+        finally
+        {
+            Close();
+        }
+    }
+
+    /// <summary>
+    /// Disposes the specified cancellation token source if it is the current load cancellation token source.
+    /// </summary>
+    /// <remarks>This method ensures that the cancellation token source is only disposed when it is no longer
+    /// in use, preventing potential race conditions. It is intended for internal resource management and should be used
+    /// with care to avoid disposing a token source that may still be in use elsewhere.</remarks>
+    /// <param name="loadTask">The task associated with the load operation. Used to check for faulted state before disposing the cancellation
+    /// token source.</param>
+    /// <param name="cancellationTokenSource">The cancellation token source to be disposed if it matches the current load cancellation token source.</param>
+    private void DisposeLoadCancellationTokenSource(Task? loadTask, CancellationTokenSource cancellationTokenSource)
+    {
+        try
+        {
+            // If we ever want extra diagnostics here...
+            if (loadTask?.IsFaulted == true)
+            {
+                // Intentionally empty. Exceptions are logged via SafeFireAndForget
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(ref _loadCancellationTokenSource, null, cancellationTokenSource),
+                    cancellationTokenSource))
+            {
+                // Dispose after LoadAsync finished, satisfying CTS Dispose safety requirement
+                cancellationTokenSource.Dispose();
+            }
         }
     }
 

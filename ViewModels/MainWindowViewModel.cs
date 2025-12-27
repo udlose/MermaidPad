@@ -262,7 +262,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                         {
                             // SafeFireAndForget handles its own context
                             Diagram.RenderAsync(Editor.Text)
-                                .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
+                                .SafeFireAndForget(
+                                    onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
                         }
                         catch (Exception ex)
                         {
@@ -1296,7 +1297,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                     Debug.WriteLine(ex);
                     _logger.LogError(ex, "Live preview render failed");
                 });
-            });
+            }, continueOnCapturedContext: true);    // Use captured UI context so any continuations that update Diagram state run on the UI thread
         }
         else
         {

@@ -29,7 +29,6 @@ using MermaidPad.ViewModels;
 using MermaidPad.Views.UserControls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
@@ -55,12 +54,13 @@ public sealed partial class MainWindow : Window
     private readonly ILogger<MainWindow> _logger;
 
     private bool _isClosingApproved;
+    private int _isClosedFlag;
+    private int _closePromptInFlight;
+    private int _openErrorDialogShown;
     private bool _areAllEventHandlersCleanedUp;
 
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
-    private EventHandler? _openedHandler;
-    private EventHandler<WindowClosingEventArgs>? _closingHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -79,15 +79,7 @@ public sealed partial class MainWindow : Window
         _logger = sp.GetRequiredService<ILogger<MainWindow>>();
         DataContext = _vm;
 
-        _logger.LogInformation("=== MainWindow Initialization Started ===");
-
         // Store event handlers for proper cleanup
-        _openedHandler = OnOpened;
-        Opened += _openedHandler;
-
-        _closingHandler = OnClosing;
-        Closing += _closingHandler;
-
         _activatedHandler = OnActivated;
         Activated += _activatedHandler;
 
@@ -110,76 +102,149 @@ public sealed partial class MainWindow : Window
         MermaidEditor.UpdateClipboardStateOnActivation();
     }
 
+    #region Overrides
+
     /// <summary>
-    /// Handles the event that occurs when the window has been opened.
+    /// Handles additional cleanup and state management when the window is closed.
     /// </summary>
-    /// <remarks>If an error occurs during the window opening process, an error is logged and a modal error
-    /// dialog is displayed to the user.</remarks>
-    /// <param name="sender">The source of the event. This is typically the window instance that was opened.</param>
-    /// <param name="e">An object that contains the event data.</param>
-    private void OnOpened(object? sender, EventArgs e)
+    /// <remarks>This override ensures that event handlers are unsubscribed and view model state is persisted
+    /// before the window is fully closed. It also resets internal state flags to prepare for future window operations.
+    /// Call the base method to ensure standard close behavior is preserved.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing the event data associated with the window close event.</param>
+    protected override void OnClosed(EventArgs e)
     {
+        try
+        {
+            UnsubscribeAllEventHandlers();
+            _vm.Persist();
+        }
+        finally
+        {
+            Volatile.Write(ref _isClosedFlag, 1);
+            _isClosingApproved = false;     // Reset for future opens
+            base.OnClosed(e);
+        }
+    }
+
+    /// <summary>
+    /// Handles the window closing event, allowing cancellation if there are unsaved changes and prompting the user for
+    /// confirmation before closing.
+    /// </summary>
+    /// <remarks>If there are unsaved changes, the closing operation is canceled and the user is prompted to
+    /// confirm closing. The method ensures that the base implementation is always called so that other event
+    /// subscribers can observe the cancellation state.</remarks>
+    /// <param name="e">A <see cref="WindowClosingEventArgs"/> that contains the event data for the closing operation.</param>
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "Base method guarantees non-null e.")]
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        // If already approved, allow close
+        if (_isClosingApproved)
+        {
+            base.OnClosing(e);
+
+            // If someone else canceled closing, approval must not "stick"
+            if (e.Cancel)
+            {
+                _isClosingApproved = false;
+            }
+
+            return;
+        }
+
+        bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
+        if (hasUnsavedChanges)
+        {
+            // Cancel the close attempt and call base.OnClosing(e) so the Closing event is raised and subscribers
+            // can observe Cancel==true. Then post the async prompt so it runs after the current closing callback
+            // unwinds back to the UI loop (avoids reentrancy during the close pipeline).
+            e.Cancel = true; // Cancel now; close later if user approves
+
+            // Allow other subscribers to observe Cancel==true
+            base.OnClosing(e);
+
+            // Only prompt once
+            if (Interlocked.Exchange(ref _closePromptInFlight, 1) == 0)
+            {
+                // Run prompt AFTER OnClosing returns. Using Post (not InvokeAsync) ensures this is queued
+                // back to the UI loop and does not re-enter the close pipeline while it is still unwinding.
+                Dispatcher.UIThread.Post(PostedPromptAndClose);
+            }
+
+            return;
+        }
+
+        base.OnClosing(e); // Normal close path
+    }
+
+    /// <summary>
+    /// Initiates the prompt-and-close workflow if the window is not already closed.
+    /// </summary>
+    /// <remarks>If the window has already been closed, this method does not prompt the user and ensures that
+    /// any in-flight close prompt state is reset. This method is intended to be called when a close operation is
+    /// requested and should not be called concurrently from multiple threads.</remarks>
+    private void PostedPromptAndClose()
+    {
+        // If the window is already closed, don’t prompt and don’t leave _closePromptInFlight stuck at 1
+        if (Volatile.Read(ref _isClosedFlag) != 0)
+        {
+            Interlocked.Exchange(ref _closePromptInFlight, 0);
+            _isClosingApproved = false;
+            return;
+        }
+
+        PromptAndCloseAsync()
+            .SafeFireAndForget(onException: OnPromptAndCloseFireAndForgetException);
+    }
+
+    /// <summary>
+    /// Handles exceptions that occur during the prompt-and-close operation by logging the error and resetting the close
+    /// state.
+    /// </summary>
+    /// <remarks>This method is intended to be called when an exception occurs in a fire-and-forget
+    /// prompt-and-close workflow. It ensures that the internal close state is reset to prevent inconsistent application
+    /// state.</remarks>
+    /// <param name="ex">The exception that was thrown during the prompt-and-close operation.</param>
+    private void OnPromptAndCloseFireAndForgetException(Exception ex)
+    {
+        _logger.LogError(ex, "Failed during close prompt");
+        _isClosingApproved = false;
+
+        // Extra safety: PromptAndCloseAsync has a finally that clears this,
+        // but keep this in case the task never actually starts/completes.
+        Interlocked.Exchange(ref _closePromptInFlight, 0);
+    }
+
+    /// <summary>
+    /// Handles additional logic when the window is opened.
+    /// </summary>
+    /// <remarks>This method is called after the window has been opened. It initiates asynchronous operations
+    /// related to the window opening process and handles any exceptions that may occur during those operations.
+    /// Override this method to provide custom behavior when the window is opened, but ensure to call the base
+    /// implementation to maintain expected behavior.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> that contains the event data associated with the window opening event.</param>
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
         OnOpenedCoreAsync()
             .SafeFireAndForget(onException: ex =>
             {
                 _logger.LogError(ex, "Unhandled exception in OnOpened");
-
-                // Show a simple modal error dialog on the UI thread.
-                Dispatcher.UIThread.InvokeAsync(async () =>
+                if (Interlocked.Exchange(ref _openErrorDialogShown, 1) != 0)
                 {
-                    try
-                    {
-                        // Build a minimal, self-contained error dialog so we don't depend on external packages
-                        StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
-                        messagePanel.Children.Add(new TextBlock
-                        {
-                            Text = "An error occurred while opening the application. Please try again.",
-                            TextWrapping = TextWrapping.Wrap
-                        });
-                        messagePanel.Children.Add(new TextBlock
-                        {
-                            Text = ex.Message,
-                            Foreground = Brushes.Red,
-                            Margin = new Thickness(0, 8, 0, 0),
-                            TextWrapping = TextWrapping.Wrap
-                        });
+                    return;
+                }
 
-                        Button okButton = new Button
-                        {
-                            Content = "OK",
-                            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                            Width = 80,
-                            Margin = new Thickness(0, 12, 0, 0)
-                        };
-                        messagePanel.Children.Add(okButton);
-
-                        Window dialog = new Window
-                        {
-                            Title = "Error",
-                            Width = 380,
-                            Height = 180,
-                            Content = messagePanel,
-                            CanResize = false,
-                            WindowStartupLocation = WindowStartupLocation.CenterOwner
-                        };
-
-                        okButton.Click += OnOkButtonClick;
-                        await dialog.ShowDialog(this);
-
-                        void OnOkButtonClick(object? s, RoutedEventArgs _)
-                        {
-                            okButton.Click -= OnOkButtonClick;
-                            dialog.Close();
-                        }
-                    }
-                    catch (Exception uiEx)
-                    {
-                        _logger.LogError(uiEx, "Failed to show error dialog after OnOpened failure");
-                    }
-                }, DispatcherPriority.Normal)
-                .SafeFireAndForget(onException: uiEx => _logger.LogError(uiEx, "Failed to marshal error dialog to UI thread"));
+                // Show a simple modal error dialog on the UI thread
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ShowOpenedErrorDialogAsync(ex)
+                        .SafeFireAndForget(onException: uiEx => _logger.LogError(uiEx, "Failed to show open failure dialog"));
+                });
             });
     }
+
+    #endregion Overrides
 
     /// <summary>
     /// Handles the core logic to be executed when the window is opened asynchronously.
@@ -260,66 +325,68 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Displays an asynchronous error dialog indicating that an error occurred while opening the application.
+    /// </summary>
+    /// <param name="ex">The exception that caused the error.</param>
+    /// <remarks>The dialog presents a general error message along with details from the underlying exception,
+    /// if available. The dialog must be closed by the user before the calling code continues execution.</remarks>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the error dialog is closed.</returns>
+    private async Task ShowOpenedErrorDialogAsync(Exception ex)
+    {
+        // Build a minimal, self-contained error dialog so we don't depend on external packages
+        StackPanel messagePanel = new StackPanel { Margin = new Thickness(12) };
+        messagePanel.Children.Add(new TextBlock
+        {
+            Text = "An error occurred while opening the application. Please try again.",
+            TextWrapping = TextWrapping.Wrap
+        });
+        messagePanel.Children.Add(new TextBlock
+        {
+            Text = ex.Message,
+            Foreground = Brushes.Red,
+            Margin = new Thickness(0, 8, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        Button okButton = new Button
+        {
+            Content = "OK",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Width = 80,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        messagePanel.Children.Add(okButton);
+
+        Window dialog = new Window
+        {
+            Title = "Error",
+            Width = 380,
+            Height = 180,
+            Content = messagePanel,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        okButton.Click += OkButtonClick;
+        try
+        {
+            await dialog.ShowDialog(this);
+        }
+        finally
+        {
+            okButton.Click -= OkButtonClick;
+        }
+
+        void OkButtonClick(object? sender, RoutedEventArgs e) => dialog.Close();
+    }
+
+    /// <summary>
     /// Handles the Click event for the Exit menu item and closes the current window.
     /// </summary>
     /// <param name="sender">The source of the event, typically the Exit menu item.</param>
     /// <param name="e">The event data associated with the Click event.</param>
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
-
-    /// <summary>
-    /// Handles the window closing event, prompting the user to save unsaved changes and performing necessary cleanup
-    /// before the window closes.
-    /// </summary>
-    /// <remarks>If there are unsaved changes, the method prompts the user before allowing the window to
-    /// close. Cleanup and state persistence are only performed if the close operation is not cancelled by this or other
-    /// event handlers.</remarks>
-    /// <param name="sender">The source of the event, typically the window that is being closed.</param>
-    /// <param name="e">A <see cref="CancelEventArgs"/> that contains the event data, including a flag
-    /// to cancel the closing operation.</param>
-    private void OnClosing(object? sender, CancelEventArgs e)
-    {
-        // Check for unsaved changes (only if not already approved)
-        if (!_isClosingApproved && _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text))
-        {
-            e.Cancel = true;
-            PromptAndCloseAsync()
-                .SafeFireAndForget(onException: [SuppressMessage("ReSharper", "HeapView.ImplicitCapture")] (ex) =>
-                {
-                    _logger.LogError(ex, "Failed during close prompt");
-                    _isClosingApproved = false; // Reset on error
-                });
-            return; // Don't clean up - close was cancelled
-        }
-
-        // Reset approval flag if it was set
-        if (_isClosingApproved)
-        {
-            _isClosingApproved = false;
-        }
-
-        // Check if close was cancelled by another handler or the system
-        if (e.Cancel)
-        {
-            return; // Don't clean up - window is not actually closing
-        }
-
-        try
-        {
-            // Only unsubscribe when we're actually closing (e.Cancel is still false)
-            UnsubscribeAllEventHandlers();
-
-            // Save state
-            _vm.Persist();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during window closing cleanup");
-
-            // I don't want silent failures here - rethrow to let higher-level handlers know
-            throw;
-        }
-    }
 
     /// <summary>
     /// Unsubscribes all event handlers that were previously attached to window events.
@@ -340,18 +407,6 @@ public sealed partial class MainWindow : Window
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
         {
-            if (_openedHandler is not null)
-            {
-                Opened -= _openedHandler;
-                _openedHandler = null;
-            }
-
-            if (_closingHandler is not null)
-            {
-                Closing -= _closingHandler;
-                _closingHandler = null;
-            }
-
             if (_activatedHandler is not null)
             {
                 Activated -= _activatedHandler;
@@ -386,14 +441,29 @@ public sealed partial class MainWindow : Window
             if (canClose)
             {
                 _isClosingApproved = true;
-                Close(); // Triggers OnClosing, which resets the flag
+                await CloseOnUIThreadAsync();
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during close prompt");
             _isClosingApproved = false; // Reset on exception
-            throw;
+            // Do not rethrow during close; best-effort shutdown
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _closePromptInFlight, 0);
+        }
+
+        Task CloseOnUIThreadAsync()
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                Close(); // Triggers OnClosing
+                return Task.CompletedTask;
+            }
+
+            return Dispatcher.UIThread.InvokeAsync(Close).GetTask();
         }
     }
 }

@@ -50,7 +50,9 @@ public sealed partial class App : Application, IDisposable
     public static IServiceProvider Services { get; private set; } = null!;
     private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
 
-    private int _disposeFlag;
+    private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
+    private int _desktopLifetimeEventsHooked;
+    private int _isDisposedFlag;
 
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
@@ -114,18 +116,15 @@ public sealed partial class App : Application, IDisposable
             // More info: https://docs.avaloniaui.net/docs/guides/development-guides/data-validation#manage-validationplugins
             DisableAvaloniaDataAnnotationValidation();
 
+            _desktopLifetime = desktop;
+            HookDesktopLifetimeEvents(desktop);
+
             try
             {
                 SplashWindowViewModel splashWindowViewModel = new SplashWindowViewModel();
 
                 // Show splash screen first, then main window
-                desktop.MainWindow = new SplashWindow(splashWindowViewModel, () =>
-                {
-                    MainWindow mainWindow = new MainWindow();
-                    mainWindow.Show();
-                    mainWindow.Focus();
-                    desktop.MainWindow = mainWindow;
-                });
+                desktop.MainWindow = new SplashWindow(splashWindowViewModel, OnSplashCompletedShowMainWindow);
             }
             catch (Exception ex)
             {
@@ -159,18 +158,83 @@ public sealed partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Handles a shutdown request by disposing resources if the shutdown is not cancelled.
+    /// Handles the shutdown request event, allowing the operation to be canceled if necessary.
     /// </summary>
-    /// <param name="sender">The source of the shutdown request event.</param>
-    /// <param name="e">An event argument containing information about the shutdown request, including whether the shutdown should be
-    /// cancelled.</param>
+    /// <remarks>Use this event handler to prompt the user to save work or perform other checks before
+    /// shutdown. Other windows or handlers may also cancel the shutdown after this event is processed.</remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">A <see cref="ShutdownRequestedEventArgs"/> that contains the event data. Set <c>e.Cancel</c> to <see
+    /// langword="true"/> to cancel the shutdown request.</param>
+    [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Local", Justification = "Avalonia requires instance methods for certain operations.")]
     private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
     {
-        // Only dispose if shutdown is not cancelled
-        if (!e.Cancel)
+        // Do not Dispose() here: disposal of application resources is intentionally deferred to OnDesktopExit,
+        // where it is performed after all shutdown cancellation opportunities (including this event and any other
+        // window handlers) have been processed.
+        // Use this event only to optionally set e.Cancel (e.g., unsaved work prompt), because other windows may still cancel later.
+    }
+
+    /// <summary>
+    /// Displays the application's main window and sets it as the primary window for the desktop lifetime.
+    /// </summary>
+    /// <remarks>If the desktop lifetime is not available, the method does nothing. This method should be
+    /// called when the main window needs to be shown and focused for user interaction.</remarks>
+    private void OnSplashCompletedShowMainWindow()
+    {
+        if (_desktopLifetime is null)
         {
-            Dispose();
+            return;
         }
+
+        MainWindow mainWindow = new MainWindow();
+        mainWindow.Show();
+        mainWindow.Focus();
+
+        _desktopLifetime.MainWindow = mainWindow;
+    }
+
+    /// <summary>
+    /// Handles the event that occurs when the desktop application is exiting.
+    /// </summary>
+    /// <param name="sender">The source of the event. This is typically the application lifetime object.</param>
+    /// <param name="e">An object that contains the event data for the exit event.</param>
+    private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+    {
+        Dispose();
+    }
+
+    /// <summary>
+    /// Attaches application lifetime event handlers to the specified classic desktop-style application lifetime.
+    /// </summary>
+    /// <param name="desktop">The application lifetime object representing the classic desktop environment to which event handlers will be
+    /// attached. Cannot be null.</param>
+    private void HookDesktopLifetimeEvents(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (Interlocked.Exchange(ref _desktopLifetimeEventsHooked, 1) != 0)
+        {
+            return;
+        }
+
+        desktop.ShutdownRequested += OnShutdownRequested;
+        desktop.Exit += OnDesktopExit;
+    }
+
+    /// <summary>
+    /// Detaches event handlers from the current desktop lifetime instance and releases its reference.
+    /// </summary>
+    /// <remarks>Call this method to clean up resources associated with the desktop lifetime. After calling
+    /// this method, the desktop lifetime instance will no longer receive shutdown or exit events.</remarks>
+    private void UnhookDesktopLifetimeEvents()
+    {
+        if (_desktopLifetime is null)
+        {
+            return;
+        }
+
+        _desktopLifetime.ShutdownRequested -= OnShutdownRequested;
+        _desktopLifetime.Exit -= OnDesktopExit;
+
+        _desktopLifetime = null;
     }
 
     /// <summary>
@@ -776,7 +840,7 @@ public sealed partial class App : Application, IDisposable
     [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "Disposal must be synchronous in this context.")]
     private void Dispose(bool disposing)
     {
-        if (Interlocked.Exchange(ref _disposeFlag, 1) != 0)
+        if (Interlocked.Exchange(ref _isDisposedFlag, 1) != 0)
         {
             return;
         }
@@ -790,10 +854,7 @@ public sealed partial class App : Application, IDisposable
                 AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
                 TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
 
-                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-                {
-                    desktop.ShutdownRequested -= OnShutdownRequested;
-                }
+                UnhookDesktopLifetimeEvents();
 
                 // Dispose managed services since we built and managed the ServiceProvider ourselves (async-aware)
                 if (Services is IAsyncDisposable asyncDisposableServices)
