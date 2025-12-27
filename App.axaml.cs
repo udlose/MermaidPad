@@ -64,7 +64,7 @@ public sealed partial class App : Application, IDisposable
     /// Represents the process exit code used to indicate an unrecoverable or fatal error.
     /// </summary>
     /// <remarks>The value 0xDEAD is used as a mnemonic sentinel for fatal termination and is not defined by
-    /// any platform standard, but chosen for its mnemonic value rather than any platform standard.
+    /// any platform standard and is chosen for its mnemonic value.
     /// This exit code signals that the process has encountered a critical failure from which it cannot recover.</remarks>
     private const int FatalExitCode = 0xDEAD;
 
@@ -497,7 +497,7 @@ public sealed partial class App : Application, IDisposable
                 exitNowButton.Click -= ExitNowClickHandler;
                 errorWindow.Closed -= ErrorWindowClosedHandler;
 
-                // Treat closing the fatal dialog (including window X) as acknowledgement -> exit.
+                // Treat closing the fatal dialog, including window close button or close button (X) as acknowledgement -> exit.
                 RequestFatalShutdown();
             }
         }
