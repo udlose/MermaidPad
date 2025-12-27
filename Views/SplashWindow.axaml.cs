@@ -125,24 +125,13 @@ public sealed partial class SplashWindow : Window
                 {
                     try
                     {
-                        if (task.IsFaulted)
-                        {
-                            // Observe and log the exception so it is not left unobserved.
-                            if (task.Exception is not null)
-                            {
-                                Exception exception = task.Exception.InnerException ?? task.Exception;
-                                _logger?.LogError(exception, "{Method} faulted in continuation", nameof(LoadAsync));
-                            }
-                        }
-                        else if (task.IsCanceled)
-                        {
-                            _logger?.LogInformation("Load task was canceled in continuation");
-                        }
+                        // No logging here: errors are handled by SafeFireAndForget(LogError).
                     }
                     catch (Exception ex)
                     {
+                        // Extremely defensive: this should never throw, but if it does, log and swallow
+                        // so the continuation itself never faults.
                         _logger?.LogError(ex, "Unexpected exception in load continuation");
-                        // Swallow so the continuation Task never faults => no unobserved exception.
                     }
                     finally
                     {
