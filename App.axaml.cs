@@ -117,6 +117,8 @@ public sealed partial class App : Application, IDisposable
             DisableAvaloniaDataAnnotationValidation();
 
             _desktopLifetime = desktop;
+
+            // Hook up cleanup on application exit
             HookDesktopLifetimeEvents(desktop);
 
             try
@@ -133,9 +135,6 @@ public sealed partial class App : Application, IDisposable
                 //ShowErrorDialog(ex, errorMessage);
                 Log.Error(ex, errorMessage);
             }
-
-            // Hook up cleanup on application exit
-            desktop.ShutdownRequested += OnShutdownRequested;
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleViewPlatform)
         {
