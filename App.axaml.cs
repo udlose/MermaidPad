@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -28,9 +27,11 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Infrastructure;
+using MermaidPad.Models;
 using MermaidPad.ViewModels;
 using MermaidPad.Views;
 using Serilog;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
@@ -55,6 +56,23 @@ public sealed partial class App : Application, IDisposable
     private int _isDisposedFlag;
 
     /// <summary>
+    /// Queues requests to display fatal error dialogs so they can be shown sequentially on the UI thread.
+    /// </summary>
+    private readonly ConcurrentQueue<ErrorDialogRequest> _errorDialogQueue = new ConcurrentQueue<ErrorDialogRequest>();
+
+    /// <summary>
+    /// Represents the process exit code used to indicate an unrecoverable or fatal error.
+    /// </summary>
+    /// <remarks>The value 0xDEAD is used as a mnemonic sentinel for fatal termination and is not defined by
+    /// any platform standard, but chosen for its mnemonic value rather than any platform standard.
+    /// This exit code signals that the process has encountered a critical failure from which it cannot recover.</remarks>
+    private const int FatalExitCode = 0xDEAD;
+
+    private int _fatalErrorDialogRequested;
+    private int _errorDialogPumpScheduled;
+    private int _shutdownRequested;
+
+    /// <summary>
     /// Initializes the component and loads its associated XAML content.
     /// </summary>
     /// <remarks>This method should be called to ensure that the component's user interface is properly loaded
@@ -70,33 +88,6 @@ public sealed partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Sets up comprehensive global exception handlers to catch unhandled exceptions across all threading contexts.
-    /// This prevents the application from crashing silently and provides proper error logging and user notification.
-    /// </summary>
-    /// <remarks>
-    /// This method configures three levels of exception handling:
-    /// <list type="number">
-    /// <item><description>UI Thread exceptions via Dispatcher.UIThread.UnhandledException</description></item>
-    /// <item><description>Background thread exceptions via AppDomain.CurrentDomain.UnhandledException</description></item>
-    /// <item><description>Unobserved Task exceptions via TaskScheduler.UnobservedTaskException</description></item>
-    /// </list>
-    /// All exceptions are logged and shown to the user with a friendly error dialog.
-    /// </remarks>
-    private void SetupGlobalExceptionHandlers()
-    {
-        // Handle exceptions on the UI thread (Avalonia-specific)
-        Dispatcher.UIThread.UnhandledException += OnDispatcherUnhandledException;
-
-        // Handle exceptions on background threads
-        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
-
-        // Handle unobserved task exceptions
-        TaskScheduler.UnobservedTaskException += OnTaskSchedulerUnobservedTaskException;
-
-        Log.Information("Global exception handlers initialized");
-    }
-
-    /// <summary>
     /// Completes the framework initialization process by configuring application services, setting up global exception
     /// handlers, and initializing the main window or view depending on the application lifetime.
     /// </summary>
@@ -107,7 +98,7 @@ public sealed partial class App : Application, IDisposable
     public override void OnFrameworkInitializationCompleted()
     {
         // Set up global exception handlers before doing anything else
-        SetupGlobalExceptionHandlers();
+        RegisterGlobalExceptionHandlers();
 
         Services = ServiceConfiguration.BuildServiceProvider();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -119,7 +110,7 @@ public sealed partial class App : Application, IDisposable
             _desktopLifetime = desktop;
 
             // Hook up cleanup on application exit
-            HookDesktopLifetimeEvents(desktop);
+            RegisterDesktopLifetimeEvents(desktop);
 
             try
             {
@@ -131,8 +122,10 @@ public sealed partial class App : Application, IDisposable
             catch (Exception ex)
             {
                 const string errorMessage = "An error occurred during application initialization.";
-                //TODO - this doesn't work. need to figure out how to show a dialog before main window exists
-                //ShowErrorDialog(ex, errorMessage);
+
+                // Best-effort: show an ownerless fatal dialog even if MainWindow does not exist yet.
+                RequestFatalErrorDialogAndShutdown(ex, errorMessage);
+
                 Log.Error(ex, errorMessage);
             }
         }
@@ -197,7 +190,7 @@ public sealed partial class App : Application, IDisposable
     /// </summary>
     /// <param name="sender">The source of the event. This is typically the application lifetime object.</param>
     /// <param name="e">An object that contains the event data for the exit event.</param>
-    private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
+    private void OnDesktopLifetimeExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
         Dispose();
     }
@@ -207,7 +200,7 @@ public sealed partial class App : Application, IDisposable
     /// </summary>
     /// <param name="desktop">The application lifetime object representing the classic desktop environment to which event handlers will be
     /// attached. Cannot be null.</param>
-    private void HookDesktopLifetimeEvents(IClassicDesktopStyleApplicationLifetime desktop)
+    private void RegisterDesktopLifetimeEvents(IClassicDesktopStyleApplicationLifetime desktop)
     {
         if (Interlocked.Exchange(ref _desktopLifetimeEventsHooked, 1) != 0)
         {
@@ -215,7 +208,7 @@ public sealed partial class App : Application, IDisposable
         }
 
         desktop.ShutdownRequested += OnShutdownRequested;
-        desktop.Exit += OnDesktopExit;
+        desktop.Exit += OnDesktopLifetimeExit;
     }
 
     /// <summary>
@@ -223,7 +216,7 @@ public sealed partial class App : Application, IDisposable
     /// </summary>
     /// <remarks>Call this method to clean up resources associated with the desktop lifetime. After calling
     /// this method, the desktop lifetime instance will no longer receive shutdown or exit events.</remarks>
-    private void UnhookDesktopLifetimeEvents()
+    private void UnregisterDesktopLifetimeEvents()
     {
         if (_desktopLifetime is null)
         {
@@ -231,9 +224,49 @@ public sealed partial class App : Application, IDisposable
         }
 
         _desktopLifetime.ShutdownRequested -= OnShutdownRequested;
-        _desktopLifetime.Exit -= OnDesktopExit;
+        _desktopLifetime.Exit -= OnDesktopLifetimeExit;
 
         _desktopLifetime = null;
+    }
+
+    /// <summary>
+    /// Registers comprehensive global exception handlers to catch unhandled exceptions across all threading contexts.
+    /// This prevents the application from crashing silently and provides proper error logging and user notification.
+    /// </summary>
+    /// <remarks>
+    /// This method configures three levels of exception handling:
+    /// <list type="number">
+    /// <item><description>UI Thread exceptions via Dispatcher.UIThread.UnhandledException</description></item>
+    /// <item><description>Background thread exceptions via AppDomain.CurrentDomain.UnhandledException</description></item>
+    /// <item><description>Unobserved Task exceptions via TaskScheduler.UnobservedTaskException</description></item>
+    /// </list>
+    /// All exceptions are logged and shown to the user with a friendly error dialog.
+    /// </remarks>
+    private void RegisterGlobalExceptionHandlers()
+    {
+        // Handle exceptions on the UI thread (Avalonia-specific)
+        Dispatcher.UIThread.UnhandledException += OnUIThreadUnhandledException;
+
+        // Handle exceptions on background threads
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+
+        // Handle unobserved task exceptions
+        TaskScheduler.UnobservedTaskException += OnTaskSchedulerUnobservedTaskException;
+
+        Log.Information("Global exception handlers initialized");
+    }
+
+    /// <summary>
+    /// Unsubscribes the application from global exception handlers for UI, AppDomain, and unobserved task exceptions.
+    /// </summary>
+    /// <remarks>Call this method to detach previously registered global exception handlers, typically during
+    /// application shutdown or cleanup. After calling this method, unhandled exceptions in the UI thread, AppDomain, or
+    /// unobserved tasks will no longer be intercepted by the associated handlers.</remarks>
+    private void UnregisterGlobalExceptionHandlers()
+    {
+        Dispatcher.UIThread.UnhandledException -= OnUIThreadUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
     }
 
     /// <summary>
@@ -265,14 +298,14 @@ public sealed partial class App : Application, IDisposable
     /// This handler catches exceptions from UI operations, data binding, and event handlers.
     /// The exception is logged and a user-friendly error dialog is shown.
     /// </remarks>
-    private void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)
+    private void OnUIThreadUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        LogExceptionWithContext("Unhandled UI thread exception", e.Exception, "UI Thread");
+        LogFatalExceptionWithContext("Unhandled UI thread exception", e.Exception, "UI Thread");
 
-        // Show error dialog to user
-        ShowErrorDialog(e.Exception, "An unexpected error occurred in the user interface.");
+        // Best-effort UI notification; do not assume app can continue safely.
+        RequestFatalErrorDialogAndShutdown(e.Exception, "A fatal error occurred in the user interface.");
 
-        // Mark as handled to prevent application crash
+        // Keep UI alive long enough to show dialog, then we shut down explicitly.
         e.Handled = true;
     }
 
@@ -287,22 +320,13 @@ public sealed partial class App : Application, IDisposable
     {
         if (e.ExceptionObject is Exception exception)
         {
-            LogExceptionWithContext($"Unhandled background thread exception (Terminating: {e.IsTerminating})",
+            LogFatalExceptionWithContext(
+                $"Unhandled background thread exception (Terminating: {e.IsTerminating})",
                 exception,
                 "Background Thread");
 
-            // Try to show error dialog, but this may fail if we're terminating
-            if (!e.IsTerminating)
-            {
-                try
-                {
-                    ShowErrorDialog(exception, "An unexpected error occurred in a background operation.");
-                }
-                catch (Exception dialogEx)
-                {
-                    Log.Error(dialogEx, "Failed to show error dialog for background exception");
-                }
-            }
+            // Best-effort only. If terminating, UI might not show; this does not block
+            RequestFatalErrorDialogAndShutdown(exception, "A fatal error occurred in a background operation.");
         }
         else
         {
@@ -319,59 +343,13 @@ public sealed partial class App : Application, IDisposable
     /// </remarks>
     private void OnTaskSchedulerUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        LogExceptionWithContext("Unobserved task exception", e.Exception, "Task Thread Pool");
+        LogFatalExceptionWithContext("Unobserved task exception", e.Exception, "Task Thread Pool");
 
         // Show error dialog to user
-        ShowErrorDialog(e.Exception, "An unexpected error occurred during an asynchronous operation.");
+        RequestFatalErrorDialogAndShutdown(e.Exception, "A fatal error occurred during an asynchronous operation.");
 
         // Mark as observed to prevent default handling
         e.SetObserved();
-    }
-
-    /// <summary>
-    /// Displays an error dialog to the user with the specified exception details and user-friendly message.
-    /// </summary>
-    /// <remarks>This method ensures that the error dialog is displayed on the UI thread. If the current
-    /// thread is not the UI thread, the operation is marshaled to the UI thread. In case of a failure to display the
-    /// dialog, the error is logged as a last resort.</remarks>
-    /// <param name="exception">The exception that describes the error. This parameter cannot be <see langword="null"/>.</param>
-    /// <param name="userMessage">A user-friendly message to display in the error dialog. This parameter cannot be <see langword="null"/> or
-    /// empty.</param>
-    private void ShowErrorDialog(Exception exception, string userMessage)
-    {
-        try
-        {
-            // Marshal to UI thread if necessary
-            if (Dispatcher.UIThread.CheckAccess())
-            {
-                ShowErrorDialogCoreAsync(exception, userMessage)
-                    .SafeFireAndForget(
-                        onException: static ex =>
-                        {
-                            Log.Error(ex, "Unhandled exception in ShowErrorDialogCoreAsync (UI)");
-                            Debug.Fail($"Unhandled exception in ShowErrorDialogCoreAsync (UI): {ex}");
-                        },
-                        continueOnCapturedContext: false);
-            }
-            else
-            {
-                Dispatcher.UIThread
-                    .InvokeAsync(() => ShowErrorDialogCoreAsync(exception, userMessage))
-                    .SafeFireAndForget(
-                        onException: static ex =>
-                        {
-                            Log.Error(ex, "Unhandled exception scheduling ShowErrorDialogCoreAsync");
-                            Debug.Fail($"Unhandled exception scheduling ShowErrorDialogCoreAsync: {ex}");
-                        },
-                        continueOnCapturedContext: false);
-            }
-        }
-        catch (Exception ex)
-        {
-            // Last resort logging if we can't even show the error dialog
-            Log.Error(ex, "Failed to show error dialog");
-            Debug.Fail($"Failed to show error dialog: {ex}");
-        }
     }
 
     /// <summary>
@@ -393,10 +371,7 @@ public sealed partial class App : Application, IDisposable
 
             // Get the main window if available
             Window? mainWindow = (ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-            if (mainWindow is null)
-            {
-                return;
-            }
+            bool hasOwner = mainWindow is not null;
 
             // Build comprehensive exception details
             string fullExceptionDetails = BuildExceptionDetails(exception);
@@ -424,7 +399,7 @@ public sealed partial class App : Application, IDisposable
                 Title = "Application Error",
                 Width = 600,
                 Height = 400,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                WindowStartupLocation = hasOwner ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
                 CanResize = true,
                 MinWidth = 400,
                 MinHeight = 300
@@ -466,52 +441,249 @@ public sealed partial class App : Application, IDisposable
                 Width = 120
             };
 
-            // Store event handlers for cleanup to prevent memory leaks
-            copyButton.Click += CopyClickHandler;
-            buttonPanel.Children.Add(copyButton);
-
-            // OK button
-            Button okButton = new Button
+            // Exit Now button
+            Button exitNowButton = new Button
             {
-                Content = "OK",
+                Content = "Exit Now",
                 Width = 100
             };
 
-            okButton.Click += OkClickHandler;
-            buttonPanel.Children.Add(okButton);
-
+            // Store event handlers for cleanup to prevent memory leaks
+            copyButton.Click += CopyClickHandler;
+            exitNowButton.Click += ExitNowClickHandler;
             errorWindow.Closed += ErrorWindowClosedHandler;
+
+            buttonPanel.Children.Add(copyButton);
+            buttonPanel.Children.Add(exitNowButton);
+
             mainPanel.Children.Add(buttonPanel);
             errorWindow.Content = mainPanel;
 
-            await errorWindow.ShowDialog(mainWindow);
+            if (hasOwner)
+            {
+                await errorWindow.ShowDialog(mainWindow!);
+            }
+            else
+            {
+                TaskCompletionSource<object?> closedTcs = new TaskCompletionSource<object?>();
+
+                void OwnerlessClosedHandler(object? sender, EventArgs e)
+                {
+                    errorWindow.Closed -= OwnerlessClosedHandler;
+                    closedTcs.TrySetResult(null);
+                }
+
+                errorWindow.Closed += OwnerlessClosedHandler;
+                errorWindow.Show();
+
+                await closedTcs.Task;
+            }
 
             void CopyClickHandler(object? sender, RoutedEventArgs routedEventArgs)
             {
-                CopyExceptionDetailsToClipboardAsync(mainWindow, copyButton, fullExceptionDetails)
-                    .SafeFireAndForget(onException: static ex =>
-                    {
-                        Log.Error(ex, "Failed to copy exception details to clipboard");
-                        Debug.WriteLine($"Failed to copy to clipboard: {ex}");
-                    });
+                // Fire-and-forget. Exceptions are handled internally by this helper (it logs and provides UI feedback)
+                _ = CopyExceptionDetailsToClipboardAsync(mainWindow ?? errorWindow, copyButton, fullExceptionDetails);
             }
 
-            void OkClickHandler(object? sender, RoutedEventArgs routedEventArgs)
+            void ExitNowClickHandler(object? sender, RoutedEventArgs routedEventArgs)
             {
+                // Just close the dialog; shutdown is handled in Closed handler
                 errorWindow.Close();
             }
 
             void ErrorWindowClosedHandler(object? sender, EventArgs e)
             {
                 copyButton.Click -= CopyClickHandler;
-                okButton.Click -= OkClickHandler;
+                exitNowButton.Click -= ExitNowClickHandler;
                 errorWindow.Closed -= ErrorWindowClosedHandler;
+
+                // Treat closing the fatal dialog (including window X) as acknowledgement -> exit.
+                RequestFatalShutdown();
             }
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to display error dialog");
             Debug.Fail($"Failed to display error dialog: {ex}");
+
+            // If dialog display failed, still attempt to shut down.
+            RequestFatalShutdown();
+        }
+    }
+
+    /// <summary>
+    /// Requests that a fatal error dialog be displayed to the user and initiates application shutdown.
+    /// </summary>
+    /// <remarks>If a fatal error dialog has already been requested, subsequent calls to this method will have
+    /// no effect. This method ensures that only one fatal error dialog is shown per application session.</remarks>
+    /// <param name="exception">The exception that triggered the fatal error. This information will be presented in the error dialog.</param>
+    /// <param name="userMessage">A user-friendly message describing the error. This message will be shown in the fatal error dialog.</param>
+    private void RequestFatalErrorDialogAndShutdown(Exception exception, string userMessage)
+    {
+        if (Interlocked.Exchange(ref _fatalErrorDialogRequested, 1) != 0)
+        {
+            return;
+        }
+
+        // If the Avalonia lifetime isn't available (e.g., design mode), we can't reliably show UI
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime)
+        {
+            Log.Error("Cannot show fatal error dialog: classic desktop application lifetime is unavailable");
+            Debug.Fail("Cannot show fatal error dialog: classic desktop application lifetime is unavailable");
+
+            RequestFatalShutdown();
+            return;
+        }
+
+        _errorDialogQueue.Enqueue(new ErrorDialogRequest(exception, userMessage));
+
+        try
+        {
+            ScheduleErrorDialogPump();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to schedule fatal error dialog pump");
+            Debug.Fail($"Failed to schedule fatal error dialog pump: {ex}");
+
+            RequestFatalShutdown();
+        }
+    }
+
+    /// <summary>
+    /// Schedules the processing of the error dialog queue on the UI thread if it is not already scheduled.
+    /// </summary>
+    /// <remarks>If called from the UI thread, the error dialog queue is processed immediately. Otherwise, the
+    /// processing is posted to the UI thread. Multiple calls before processing occurs will only schedule the operation
+    /// once.</remarks>
+    private void ScheduleErrorDialogPump()
+    {
+        if (Interlocked.Exchange(ref _errorDialogPumpScheduled, 1) != 0)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ProcessErrorDialogQueue();
+            return;
+        }
+
+        try
+        {
+            Dispatcher.UIThread.Post(ProcessErrorDialogQueue);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to dispatch fatal error dialog pump");
+            Debug.Fail($"Failed to dispatch fatal error dialog pump: {ex}");
+
+            RequestFatalShutdown();
+        }
+    }
+
+    /// <summary>
+    /// Processes the queue of pending error dialogs synchronously by initiating asynchronous processing and handling
+    /// any faults that occur.
+    /// </summary>
+    /// <remarks>This method is intended for internal use to manage error dialog display. It starts
+    /// asynchronous processing of the error dialog queue and attaches a continuation to handle exceptions if the
+    /// asynchronous operation fails.</remarks>
+    [SuppressMessage("Usage", "VSTHRD110:Observe result of async calls", Justification = "Fire-and-forget dialog pump; exceptions are observed via a fault-only continuation.")]
+    private void ProcessErrorDialogQueue()
+    {
+        Task task = ProcessErrorDialogQueueAsync();
+        task.ContinueWith(
+            OnProcessErrorDialogQueueFaulted,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
+
+    /// <summary>
+    /// Handles the faulted state of the error dialog processing queue by logging the exception and initiating a fatal
+    /// shutdown sequence.
+    /// </summary>
+    /// <remarks>This method is intended to be used as a continuation or callback for error dialog processing
+    /// tasks. It ensures that any unhandled exceptions are logged and that the application responds appropriately to
+    /// critical failures.</remarks>
+    /// <param name="task">The task representing the error dialog processing operation that has faulted. Must not be null and should be in
+    /// a faulted state.</param>
+    private void OnProcessErrorDialogQueueFaulted(Task task)
+    {
+        Exception? exception = task.Exception;
+        if (exception != null)
+        {
+            Log.Error(exception, "Fatal error dialog pump faulted");
+            Debug.Fail($"Fatal error dialog pump faulted: {exception}");
+        }
+
+        RequestFatalShutdown();
+    }
+
+    /// <summary>
+    /// Processes all pending error dialog requests asynchronously, displaying error dialogs for each queued error.
+    /// </summary>
+    /// <remarks>This method must be called on the UI thread. After processing all queued error dialogs, it
+    /// initiates a fatal shutdown sequence. Any exceptions encountered while displaying dialogs are logged and do not
+    /// prevent the processing of remaining requests.</remarks>
+    /// <returns>A task that represents the asynchronous operation of processing the error dialog queue.</returns>
+    private async Task ProcessErrorDialogQueueAsync()
+    {
+        try
+        {
+            Dispatcher.UIThread.VerifyAccess();
+
+            while (_errorDialogQueue.TryDequeue(out ErrorDialogRequest? request))
+            {
+                try
+                {
+                    Exception exception = request.Exception ?? new Exception("A fatal error occurred but no exception details were captured.");
+                    string userMessage = request.UserMessage ?? "A fatal error occurred.";
+
+                    await ShowErrorDialogCoreAsync(exception, userMessage);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed while showing fatal error dialog");
+                    Debug.Fail($"Failed while showing fatal error dialog: {ex}");
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _errorDialogPumpScheduled, 0);
+            RequestFatalShutdown();
+        }
+    }
+
+    /// <summary>
+    /// Initiates a fatal shutdown of the application, requesting the desktop lifetime to exit with a fatal error code.
+    /// </summary>
+    /// <remarks>This method ensures that the shutdown request is only processed once. If the desktop lifetime
+    /// is unavailable, the shutdown request is ignored. Intended for use in critical failure scenarios where the
+    /// application must terminate immediately.</remarks>
+    private void RequestFatalShutdown()
+    {
+        if (Interlocked.Exchange(ref _shutdownRequested, 1) != 0)
+        {
+            return;
+        }
+
+        IClassicDesktopStyleApplicationLifetime? desktopLifetime = _desktopLifetime ?? ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
+        if (desktopLifetime is null)
+        {
+            return;
+        }
+
+        try
+        {
+            desktopLifetime.Shutdown(FatalExitCode);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to shutdown application");
+            Debug.Fail($"Failed to shutdown application: {ex}");
         }
     }
 
@@ -603,7 +775,7 @@ public sealed partial class App : Application, IDisposable
     }
 
     /// <summary>
-    /// Logs detailed information about an exception, including contextual thread data and a custom message, to the
+    /// Logs detailed information about a fatal exception, including contextual thread data and a custom message, to the
     /// error log.
     /// </summary>
     /// <remarks>The log entry includes the exception details, timestamp, thread information, and the provided
@@ -612,7 +784,7 @@ public sealed partial class App : Application, IDisposable
     /// <param name="message">A descriptive message providing context for the exception being logged.</param>
     /// <param name="exception">The exception instance containing error details to be logged. Cannot be null.</param>
     /// <param name="threadContext">A string representing the logical context or name of the thread where the exception occurred - e.g. "UI Thread", "Background Thread", "ThreadPool Thread".</param>
-    private static void LogExceptionWithContext(string message, Exception exception, string threadContext)
+    private static void LogFatalExceptionWithContext(string message, Exception exception, string threadContext)
     {
         StringBuilder logEntry = new StringBuilder(256);
         logEntry.AppendLine("---------------------------------------------------------------");
@@ -633,7 +805,7 @@ public sealed partial class App : Application, IDisposable
         logEntry.AppendLine(BuildExceptionDetails(exception));
         logEntry.AppendLine("---------------------------------------------------------------");
 
-        Log.Error(exception, "{LogEntry}", logEntry.ToString());
+        Log.Fatal(exception, "{LogEntry}", logEntry.ToString());
     }
 
     /// <summary>
@@ -849,11 +1021,8 @@ public sealed partial class App : Application, IDisposable
             try
             {
                 // Unregister managed handlers
-                Dispatcher.UIThread.UnhandledException -= OnDispatcherUnhandledException;
-                AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
-                TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
-
-                UnhookDesktopLifetimeEvents();
+                UnregisterGlobalExceptionHandlers();
+                UnregisterDesktopLifetimeEvents();
 
                 // Dispose managed services since we built and managed the ServiceProvider ourselves (async-aware)
                 if (Services is IAsyncDisposable asyncDisposableServices)
