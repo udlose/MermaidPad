@@ -77,7 +77,7 @@ public sealed class DebounceDispatcher : IDebounceDispatcher
     /// <param name="logger">The logger instance for structured logging.</param>
     public DebounceDispatcher(ILogger<DebounceDispatcher> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger = logger;
     }
 
     /// <summary>

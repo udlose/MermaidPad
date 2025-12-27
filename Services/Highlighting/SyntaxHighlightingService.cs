@@ -61,7 +61,7 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// <param name="logger">The logger instance for structured logging.</param>
     public SyntaxHighlightingService(ILogger<SyntaxHighlightingService> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger = logger;
     }
 
     /// <summary>
