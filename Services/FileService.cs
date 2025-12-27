@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -50,8 +50,8 @@ public sealed class FileService : IFileService
     /// <param name="settingsService">The settings service for persisting file state.</param>
     public FileService(ILogger<FileService> logger, SettingsService settingsService)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _logger = logger;
+        _settingsService = settingsService;
     }
 
     /// <summary>

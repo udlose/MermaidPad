@@ -84,8 +84,8 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <param name="assetService">The asset service for managing assets.</param>
     public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _assetService = assetService ?? throw new ArgumentNullException(nameof(assetService));
+        _logger = logger;
+        _assetService = assetService;
 
         // Initialize request paths using AssetService constants and properties
         MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";

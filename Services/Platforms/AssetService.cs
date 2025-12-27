@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -56,9 +56,16 @@ public sealed class AssetService
     /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="securityService">The security service instance for file path validation.</param>
     /// <param name="assetIntegrityService">The asset integrity service instance for asset validation.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any of the parameters are null.</exception>
     public AssetService(ILogger<AssetService> logger, SecurityService securityService, AssetIntegrityService assetIntegrityService)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        // Validate parameters since there is at least one location that needs to create
+        // the AssetService manually (outside DI)
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(securityService);
+        ArgumentNullException.ThrowIfNull(assetIntegrityService);
+
+        _logger = logger;
         _securityService = securityService;
         _assetIntegrityService = assetIntegrityService;
         _allowedAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
