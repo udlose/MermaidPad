@@ -184,7 +184,7 @@ public sealed partial class MainWindow : Window
     /// requested and should not be called concurrently from multiple threads.</remarks>
     private void PostedPromptAndClose()
     {
-        // If the window is already closed, don’t prompt and don’t leave _closePromptInFlight stuck at 1
+        // If the window is already closed, don't prompt and don't leave _closePromptInFlight stuck at 1
         if (Volatile.Read(ref _isClosedFlag) != 0)
         {
             Interlocked.Exchange(ref _closePromptInFlight, 0);

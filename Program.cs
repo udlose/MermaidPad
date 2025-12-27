@@ -21,6 +21,7 @@
 using Avalonia;
 using Avalonia.WebView.Desktop;
 using MermaidPad.Services.Platforms;
+using Serilog;
 
 namespace MermaidPad;
 
@@ -41,7 +42,19 @@ internal static class Program
         PlatformCompatibilityChecker.CheckFilesystemPermissions();
 
         // If we get here, platform compatibility and permissions are OK
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        try
+        {
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(exception, "Fatal exception on main/UI thread");
+            throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
