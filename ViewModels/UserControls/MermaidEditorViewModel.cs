@@ -208,8 +208,8 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// <param name="logger">The logger instance for this view model.</param>
     public MermaidEditorViewModel(CommentingStrategy commentingStrategy, ILogger<MermaidEditorViewModel> logger)
     {
-        _commentingStrategy = commentingStrategy ?? throw new ArgumentNullException(nameof(commentingStrategy));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _commentingStrategy = commentingStrategy;
+        _logger = logger;
     }
 
     #region Clipboard and Edit Commands
