@@ -474,7 +474,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// confirms to overwrite; otherwise, <see langword="false"/>.</returns>
     private async Task<bool> ShowOverwriteConfirmationAsync(string filePath)
     {
-        return await Dispatcher.UIThread.InvokeAsync<bool>(async () =>
+        return await Dispatcher.UIThread.InvokeAsync(async () =>
         {
             try
             {
