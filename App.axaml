@@ -1,12 +1,70 @@
 <Application
   x:Class="MermaidPad.App"
   xmlns="https://github.com/avaloniaui"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:docking="clr-namespace:MermaidPad.Views.Docking"
+  xmlns:dockingVm="clr-namespace:MermaidPad.ViewModels.Docking"
+  xmlns:idc="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia">
+
+  <!--
+    DataTemplates for Dock Tool Views - defined at Application level so they are
+    available to floating windows (HostWindow) which have a separate visual tree.
+  -->
+  <Application.DataTemplates>
+    <DataTemplate DataType="{x:Type dockingVm:MermaidEditorToolViewModel}">
+      <docking:MermaidEditorToolView />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type dockingVm:DiagramToolViewModel}">
+      <docking:DiagramToolView />
+    </DataTemplate>
+  </Application.DataTemplates>
+
+  <!--
+    Resource overrides for Dock.Avalonia theming.
+    See: https://wieslawsoltes.github.io/Dock/dock-styling.html
+  -->
+  <Application.Resources>
+    <!--  Background color for dock controls and floating windows  -->
+    <SolidColorBrush x:Key="DockThemeBackgroundBrush" Color="#1E1E1E" />
+
+    <!--  Foreground color for text in dock controls  -->
+    <SolidColorBrush x:Key="DockThemeForegroundBrush" Color="#EEEEEE" />
+
+    <!--  Accent color for active/selected elements  -->
+    <SolidColorBrush x:Key="DockThemeAccentBrush" Color="#007ACC" />
+
+    <!--  Icon color for ToolChromeControl buttons (minimize/maximize/close)  -->
+    <SolidColorBrush x:Key="DockToolChromeIconBrush" Color="#FFFFFF" />
+  </Application.Resources>
+
   <Application.Styles>
     <!--<StyleInclude Source="avares://MermaidPad/Styles/Styles.axaml" />
     <StyleInclude Source="avares://MermaidPad/Styles/FluentTheme.axaml" />-->
     <FluentTheme />
+    <DockFluentTheme />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
-    <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
+    <!--  TODO: DaveBlack - Re-enable application styles once updated for FluentTheme  -->
+    <!--
+      Temporarily disabled while consolidating application styling around FluentTheme
+      and DockFluentTheme. Re-enable this include once Resources/Styles/Styles.axaml
+      has been updated and verified to be compatible with the current theming.
+      <StyleInclude Source="avares://MermaidPad/Resources/Styles/Styles.axaml" />
+    -->
+
+    <!--
+      Style for HostWindow (floating dock windows) to ensure opaque background.
+      Without this, floating windows may appear transparent.
+    -->
+    <Style Selector="idc|HostWindow">
+      <Setter Property="Background" Value="#1E1E1E" />
+      <Setter Property="TransparencyLevelHint" Value="None" />
+    </Style>
+
+    <!--
+      Ensure ToolControl has an opaque background in floating windows.
+    -->
+    <Style Selector="idc|ToolControl">
+      <Setter Property="Background" Value="#1E1E1E" />
+    </Style>
   </Application.Styles>
 </Application>
