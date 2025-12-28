@@ -180,6 +180,50 @@
             Margin="5,0,0,0"
             FontWeight="Bold"
             Text="{Binding Source={x:Static local:AppMetadata.FileVersion}, Mode=OneTime}" />
+          <StackPanel
+            Margin="12,0,0,0"
+            VerticalAlignment="Center"
+            Orientation="Horizontal">
+            <Button
+              Background="Transparent"
+              BorderBrush="{x:Null}"
+              BorderThickness="0"
+              Command="{Binding OpenFileLocationCommand}"
+              Cursor="Hand"
+              IsVisible="False"
+              ToolTip.Tip="{Binding CurrentFilePath}">
+              <Button.Content>
+                <TextBlock
+                  Foreground="Gray"
+                  Text="{Binding StatusText}"
+                  TextDecorations="Underline" />
+              </Button.Content>
+              <Button.Styles>
+                <Style Selector="Button">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasOpenFile}" Value="True">
+                      <Setter Property="IsVisible" Value="True" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Styles>
+            </Button>
+            <TextBlock
+              VerticalAlignment="Center"
+              Foreground="Gray"
+              Text="{Binding StatusText}"
+              ToolTip.Tip="{Binding CurrentFilePath}">
+              <TextBlock.Styles>
+                <Style Selector="TextBlock">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasOpenFile}" Value="True">
+                      <Setter Property="IsVisible" Value="False" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Styles>
+            </TextBlock>
+          </StackPanel>
         </StackPanel>
       </Grid>
     </DockPanel>
