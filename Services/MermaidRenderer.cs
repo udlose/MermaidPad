@@ -104,13 +104,52 @@ internal sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    internal Task InitializeAsync(WebView webView)
+    /// <remarks>
+    /// <para>
+    /// This method supports both initial initialization and re-initialization scenarios:
+    /// </para>
+    /// <list type="bullet">
+    ///     <item><description>Initial: Starts HTTP server and navigates WebView</description></item>
+    ///     <item><description>Re-init: Reuses existing server, navigates new WebView (for dock state changes)</description></item>
+    /// </list>
+    /// <para>
+    /// Re-initialization is detected when the HTTP server is already listening. This allows
+    /// efficient WebView swapping when Avalonia's dock system destroys and recreates Views
+    /// while the ViewModel (and this renderer) persist.
+    /// </para>
+    /// <para>
+    /// <b>MDI Migration Note:</b> For MDI, each document would have its own MermaidRenderer
+    /// instance (change from Singleton to Transient/Scoped), allowing independent WebView
+    /// management per document.
+    /// </para>
+    /// </remarks>
+    public Task InitializeAsync(WebView webView)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(webView);
 
-        _logger.LogInformation("=== MermaidRenderer Initialization ===");
+        bool isReinitializing = _httpListener?.IsListening == true;
+        if (isReinitializing)
+        {
+            _logger.LogInformation("=== MermaidRenderer Re-initialization (WebView swap after dock state change) ===");
+        }
+        else
+        {
+            _logger.LogInformation("=== MermaidRenderer Initialization ===");
+        }
+
         _webView = webView;
+        _isWebViewReady = false; // Reset readiness for new WebView instance
+
+        if (isReinitializing)
+        {
+            _logger.LogInformation("HTTP server already running on port {ServerPort}, navigating new WebView", _serverPort);
+
+            // Re-initialization: HTTP server already running, just navigate the new WebView
+            return NavigateToServerAsync();
+        }
+
+        // First initialization: start server and navigate
         return InitializeCoreAsync();
     }
 

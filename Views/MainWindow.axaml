@@ -2,14 +2,18 @@
   x:Class="MermaidPad.Views.MainWindow"
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:idc="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
   xmlns:local="clr-namespace:MermaidPad"
-  xmlns:uc="clr-namespace:MermaidPad.Views.UserControls"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
   x:DataType="vm:MainWindowViewModel"
   Icon="/Assets/AppIcon.ico">
+  <!--
+    NOTE: DataTemplates for Dock Tool Views are defined in App.axaml at the Application level.
+    This ensures they are available to floating windows (HostWindow) which have a separate visual tree.
+  -->
 
   <DockPanel>
     <!--  Menu Bar  -->
@@ -173,35 +177,12 @@
       </Grid>
     </DockPanel>
 
-    <!--  Main Content (GridSplitter, Editor, DiagramView)  -->
-    <!--  Main Content MUST be last so it fills  -->
-    <Grid>
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="2*" />
-      </Grid.ColumnDefinitions>
-
-      <!--  Mermaid Editor UserControl  -->
-      <uc:MermaidEditorView
-        x:Name="MermaidEditor"
-        Grid.Column="0"
-        Margin="6,0,0,6"
-        DataContext="{Binding Editor}" />
-
-      <!--  GridSplitter  -->
-      <GridSplitter
-        Grid.Column="1"
-        Width="6"
-        Background="Transparent"
-        ResizeDirection="Columns" />
-
-      <!--  Diagram View UserControl  -->
-      <uc:DiagramView
-        x:Name="DiagramPreview"
-        Grid.Column="2"
-        Margin="0,0,6,6"
-        DataContext="{Binding Diagram}" />
-    </Grid>
+    <!--  Main Content: DockControl with dockable panels  -->
+    <idc:DockControl
+      x:Name="DockControl"
+      Margin="6,0,6,6"
+      InitializeFactory="True"
+      InitializeLayout="True"
+      Layout="{Binding Layout}" />
   </DockPanel>
 </Window>

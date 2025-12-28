@@ -25,6 +25,7 @@ using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dock.Model.Controls;
 using MermaidPad.Extensions;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure;
@@ -32,6 +33,7 @@ using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Docking;
 using MermaidPad.ViewModels.UserControls;
 using MermaidPad.Views.Dialogs;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,6 +67,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly ExportService _exportService;
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
+    private readonly DockLayoutService _dockLayoutService;
     private readonly ILogger<MainWindowViewModel> _logger;
 
     private bool _isDisposed;
@@ -81,25 +84,63 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     private bool _hasWarnedAboutUnreadyWebView;
 
+    #region Dock Layout
+
+    /// <summary>
+    /// The dock factory used to create and manage the dock layout.
+    /// </summary>
+    /// <remarks>
+    /// This field provides access to the underlying tool ViewModels through
+    /// <see cref="DockFactory.EditorTool"/> and <see cref="DockFactory.DiagramTool"/>.
+    /// It is injected via DI and stored privately - consumers should use DI to access the factory.
+    /// </remarks>
+    private readonly DockFactory _dockFactory;
+
+    /// <summary>
+    /// Gets or sets the root dock layout for the application.
+    /// </summary>
+    /// <remarks>
+    /// This property is bound to the DockControl in MainWindow.axaml.
+    /// The layout is created by <see cref="DockFactory"/> and can be saved/restored
+    /// via <see cref="DockLayoutService"/>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial IRootDock? Layout { get; set; }
+
+    #endregion Dock Layout
+
     #region Editor ViewModel
 
     /// <summary>
     /// Gets the editor view model that manages text editing, clipboard, and related operations.
     /// </summary>
     /// <remarks>
-    /// This view model is exposed for binding to the MermaidEditorView UserControl and for
-    /// menu command binding (e.g., Edit menu items bind to Editor.CutCommand, Editor.CopyCommand, etc.).
+    /// <para>
+    /// This view model is accessed through the dock layout's EditorTool.
+    /// For menu command binding (e.g., Edit menu items bind to Editor.CutCommand, Editor.CopyCommand, etc.).
+    /// </para>
+    /// <para>
+    /// <b>MDI Migration Note:</b> In an MDI design, this property would be replaced by an ActiveDocument
+    /// pattern where the current document exposes its own Editor. For SDI, this direct reference through
+    /// the DockFactory is acceptable and provides convenient XAML binding.
+    /// </para>
     /// </remarks>
-    public MermaidEditorViewModel Editor { get; }
+    public MermaidEditorViewModel Editor => _dockFactory.EditorTool?.Editor
+        ?? throw new InvalidOperationException("EditorTool is not initialized. Ensure the dock layout is created first.");
 
     /// <summary>
     /// Gets a value indicating whether there is text in the editor.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This property delegates to <see cref="Editor"/>.HasText to maintain a single source of truth.
     /// It is kept for convenience in command CanExecute logic.
+    /// </para>
+    /// <para>
+    /// <b>MDI Migration Note:</b> In an MDI design, this would delegate to ActiveDocument?.Editor.HasText.
+    /// </para>
     /// </remarks>
-    public bool EditorHasText => Editor.HasText;
+    public bool EditorHasText => _dockFactory.EditorTool?.Editor.HasText ?? false;
 
     #endregion Editor ViewModel
 
@@ -109,10 +150,18 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// Gets the diagram view model that manages WebView rendering and related operations.
     /// </summary>
     /// <remarks>
-    /// This view model is exposed for binding to the DiagramView UserControl.
+    /// <para>
+    /// This view model is accessed through the dock layout's DiagramTool.
     /// It encapsulates all WebView-related state and operations.
+    /// </para>
+    /// <para>
+    /// <b>MDI Migration Note:</b> In an MDI design, this property would be replaced by an ActiveDocument
+    /// pattern where the current document exposes its own Diagram. For SDI, this direct reference through
+    /// the DockFactory is acceptable and provides convenient XAML binding.
+    /// </para>
     /// </remarks>
-    public DiagramViewModel Diagram { get; }
+    public DiagramViewModel Diagram => _dockFactory.DiagramTool?.Diagram
+        ?? throw new InvalidOperationException("DiagramTool is not initialized. Ensure the dock layout is created first.");
 
     #endregion Diagram ViewModel
 
@@ -207,19 +256,24 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
-    /// <param name="viewModelFactory">The factory for creating view model instances.</param>
+    /// <param name="dockFactory">The factory for creating the dock layout.</param>
+    /// <param name="dockLayoutService">The service for saving and loading dock layouts.</param>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <remarks>
-    /// The <paramref name="viewModelFactory"/> is used to create new <see cref="MermaidEditorViewModel"/>
-    /// and <see cref="DiagramViewModel"/> instances that are owned by this MainWindowViewModel.
+    /// The <paramref name="dockFactory"/> creates the dock layout with <see cref="MermaidEditorToolViewModel"/>
+    /// and <see cref="DiagramToolViewModel"/> instances that wrap the underlying editor and diagram ViewModels.
     /// This ensures each window/document has its own independent editor and diagram state.
     /// </remarks>
-    public MainWindowViewModel(IViewModelFactory viewModelFactory, IServiceProvider services, ILogger<MainWindowViewModel> logger)
+    public MainWindowViewModel(
+        DockFactory dockFactory,
+        DockLayoutService dockLayoutService,
+        IServiceProvider services,
+        ILogger<MainWindowViewModel> logger)
     {
-        //TODO - DaveBlack: In future MDI scenarios, each document tab would create its own ViewModels via the factory.
-        Editor = viewModelFactory.Create<MermaidEditorViewModel>();
-        Diagram = viewModelFactory.Create<DiagramViewModel>();
+        _dockFactory = dockFactory;
+        _dockLayoutService = dockLayoutService;
+        _logger = logger;
 
         _settingsService = services.GetRequiredService<SettingsService>();
         _updateService = services.GetRequiredService<MermaidUpdateService>();
@@ -227,7 +281,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         _exportService = services.GetRequiredService<ExportService>();
         _dialogFactory = services.GetRequiredService<IDialogFactory>();
         _fileService = services.GetRequiredService<IFileService>();
-        _logger = logger;
+
+        // Create the dock layout - this creates the Editor and Diagram tool ViewModels
+        InitializeDockLayout();
 
         // Initialize properties from settings
         Editor.Text = _settingsService.Settings.LastDiagramText ?? SampleText;
@@ -250,6 +306,25 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         UpdateRecentFiles();
         UpdateWindowTitle();
+    }
+
+    /// <summary>
+    /// Initializes the dock layout, either from saved state or with defaults.
+    /// </summary>
+    private void InitializeDockLayout()
+    {
+        _logger.LogInformation("Initializing dock layout");
+
+        //TODO @Claude finish this implementation to restore saved layout here
+        // IRootDock? savedLayout = _dockLayoutService.Load<IRootDock>();
+
+        // Create a default layout
+        IRootDock rootDock = _dockFactory.CreateLayout();
+        _dockFactory.InitLayout(rootDock);
+
+        Layout = rootDock;
+
+        _logger.LogInformation("Dock layout initialized with default configuration");
     }
 
     /// <summary>
@@ -1392,12 +1467,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Persists the current application settings to storage.
+    /// Persists the current application settings and dock layout to storage.
     /// </summary>
     /// <remarks>This method updates the settings service with the current state of the application,
-    /// including diagram text, live preview settings, Mermaid version information, and editor  selection details. After
-    /// updating the settings, the method saves them to ensure they  are persisted across application
-    /// sessions.</remarks>
+    /// including diagram text, live preview settings, Mermaid version information, editor selection details,
+    /// and dock layout configuration. After updating the settings, the method saves them to ensure they
+    /// are persisted across application sessions.</remarks>
     public void Persist()
     {
         _settingsService.Settings.LastDiagramText = Editor.Text;
@@ -1409,6 +1484,17 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settingsService.Settings.EditorCaretOffset = Editor.CaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
+
+        // Save dock layout
+        if (Layout is not null)
+        {
+            _logger.LogInformation("Saving dock layout");
+            bool saved = _dockLayoutService.Save(Layout);
+            if (!saved)
+            {
+                _logger.LogWarning("Failed to save dock layout");
+            }
+        }
     }
 
     /// <summary>
@@ -1422,8 +1508,16 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (!_isDisposed)
         {
             // MermaidRenderer is owned by DI container, do not dispose here
-            Editor.PropertyChanged -= OnEditorPropertyChanged;
-            Diagram.PropertyChanged -= OnDiagramPropertyChanged;
+            if (_dockFactory.EditorTool is not null)
+            {
+                Editor.PropertyChanged -= OnEditorPropertyChanged;
+            }
+
+            if (_dockFactory.DiagramTool is not null)
+            {
+                Diagram.PropertyChanged -= OnDiagramPropertyChanged;
+            }
+
             _isDisposed = true;
         }
     }

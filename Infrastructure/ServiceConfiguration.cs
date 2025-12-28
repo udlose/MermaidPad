@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Dock.Model.Extensions.DependencyInjection;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services;
@@ -111,6 +112,10 @@ public static class ServiceConfiguration
         services.AddSingleton<DocumentAnalyzer>();
         services.AddSingleton<CommentingStrategy>();
 
+        // Dock layout services - see https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-dependency-injection.md
+        services.AddDock<DockFactory, Dock.Serializer.SystemTextJson.DockSerializer>();
+        services.AddSingleton<DockLayoutService>();
+
         // Generic ViewModel Factory: creates new instances with DI support
         // Using factory pattern instead of direct transient registration because:
         // 1. Makes instance creation explicit - callers know they're getting a new instance
@@ -122,6 +127,15 @@ public static class ServiceConfiguration
         // Main ViewModel: transient (one per window). This doesn't need to be created
         // via factory because there's only one MainWindowViewModel per window
         services.AddTransient<MainWindowViewModel>();
+
+        //TODO @Claude can we do this safely? who shold own the responsibility of creating view models for dockable controls?
+        //// UserControl ViewModels: transient (one per control instance)
+        //services.AddTransient<MermaidEditorViewModel>();
+        //services.AddTransient<DiagramViewModel>();
+
+        //// Dockable ViewModels: transient (one per dockable instance)
+        //services.AddTransient<MermaidEditorToolViewModel>();
+        //services.AddTransient<DiagramToolViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();
