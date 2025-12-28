@@ -131,25 +131,35 @@
         IsChecked="{Binding LivePreviewEnabled}"
         IsEnabled="{Binding Diagram.IsReady}"
         ToolTip.Tip="Toggle Live Preview" />
-      <!--<TextBlock Margin="20,0,4,0" Text="Bundled:" />
-      <TextBlock Text="{Binding BundledMermaidVersion}" />
-      <TextBlock Margin="12,0,4,0" Text="Latest:" />
-      <TextBlock Text="{Binding LatestMermaidVersion}" />-->
-      <TextBlock
-        Margin="12,0,0,0"
-        HorizontalAlignment="Right"
-        VerticalAlignment="Center"
-        Text="Version:" />
-      <TextBlock
-        HorizontalAlignment="Right"
-        VerticalAlignment="Center"
-        Text="{Binding Source={x:Static local:AppMetadata.FileVersion}, Mode=OneTime}" />
-      <TextBlock
-        Margin="12,0,0,0"
-        VerticalAlignment="Center"
-        Foreground="Gray"
-        Text="{Binding StatusText}" />
     </StackPanel>
+
+    <!--  Status Bar  -->
+    <DockPanel
+      Name="StatusBar"
+      Margin="5,0,5,5"
+      DockPanel.Dock="Bottom">
+      <Grid ColumnDefinitions="*,Auto">
+        <!--  Left side  -->
+        <TextBlock
+          Name="StatusTextBlock"
+          Grid.Column="0"
+          HorizontalAlignment="Left"
+          FontWeight="Bold"
+          Text="{Binding StatusText}" />
+
+        <!--  Right side  -->
+        <StackPanel
+          Grid.Column="1"
+          HorizontalAlignment="Right"
+          Orientation="Horizontal">
+          <TextBlock FontWeight="Bold" Text="Version:" />
+          <TextBlock
+            Margin="5,0,0,0"
+            FontWeight="Bold"
+            Text="{Binding Source={x:Static local:AppMetadata.FileVersion}, Mode=OneTime}" />
+        </StackPanel>
+      </Grid>
+    </DockPanel>
 
     <!--  Main Content (GridSplitter, Editor, DiagramView)  -->
     <Grid DockPanel.Dock="Top">

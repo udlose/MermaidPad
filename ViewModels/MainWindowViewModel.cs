@@ -784,7 +784,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// message indicating that no file is open.</remarks>
     private void UpdateStatusText()
     {
-        StatusText = !string.IsNullOrEmpty(CurrentFilePath) ? $"File: {Path.GetFileName(CurrentFilePath)}" : "No file open";
+        StatusText = !string.IsNullOrEmpty(CurrentFilePath) ? $"{Path.GetFileName(CurrentFilePath)}" : "No file open";
     }
 
     /// <summary>
