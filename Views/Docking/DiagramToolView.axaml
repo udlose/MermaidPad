@@ -1,0 +1,21 @@
+<UserControl
+    x:Class="MermaidPad.Views.Docking.DiagramToolView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:docking="clr-namespace:MermaidPad.ViewModels.Docking"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:uc="clr-namespace:MermaidPad.Views.UserControls"
+    d:DesignHeight="450"
+    d:DesignWidth="600"
+    x:DataType="docking:DiagramToolViewModel"
+    mc:Ignorable="d">
+
+    <!--
+        This view hosts the DiagramView UserControl within a dockable tool panel.
+        The DataContext is DiagramToolViewModel, which wraps DiagramViewModel.
+        We bind the nested DiagramView's DataContext to the Diagram property.
+    -->
+    <uc:DiagramView x:Name="DiagramPreview" DataContext="{Binding Diagram}" />
+
+</UserControl>

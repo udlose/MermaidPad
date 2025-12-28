@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -48,6 +49,22 @@ public sealed partial class DiagramView : UserControl
     private readonly ILogger<DiagramView> _logger;
 
     private bool _areAllEventHandlersCleanedUp;
+
+    /// <summary>
+    /// Tracks whether THIS View instance has initialized its WebView.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This flag is used to detect dock state change scenarios. When a new DiagramView instance
+    /// is created (after dock state change), this flag is false. However, the ViewModel's
+    /// <see cref="DiagramViewModel.IsReady"/> might still be true from the previous View instance.
+    /// </para>
+    /// <para>
+    /// The combination of <c>_vm.IsReady == true</c> AND <c>_hasInitializedWebView == false</c>
+    /// indicates a dock state change that requires re-initialization.
+    /// </para>
+    /// </remarks>
+    private bool _hasInitializedWebView;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DiagramView"/> class.
@@ -200,6 +217,17 @@ public sealed partial class DiagramView : UserControl
     /// <summary>
     /// Sets up bindings and action delegates between the View and ViewModel.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method also detects dock state change scenarios where:
+    /// 1. The ViewModel was previously initialized (<see cref="DiagramViewModel.IsReady"/> is true)
+    /// 2. But THIS View instance hasn't initialized yet (<see cref="_hasInitializedWebView"/> is false)
+    /// </para>
+    /// <para>
+    /// When this scenario is detected, automatic re-initialization is triggered to restore
+    /// the WebView functionality seamlessly after dock state changes.
+    /// </para>
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void SetupViewModelBindings()
     {
@@ -211,6 +239,70 @@ public sealed partial class DiagramView : UserControl
         // Wire up action delegates
         _vm.InitializeActionAsync = null; // Clear any existing delegate
         _vm.InitializeActionAsync = InitializeWebViewAsync;
+
+        // Detect dock state change scenario:
+        // - ViewModel.IsReady is true (from previous View instance)
+        // - This View instance hasn't initialized (new instance after dock state change)
+        // This happens when user floats, docks, or pins a panel.
+        if (_vm.IsReady && !_hasInitializedWebView)
+        {
+            _logger.LogInformation(
+                "Detected dock state change: ViewModel was ready but this View instance hasn't initialized. " +
+                "Triggering automatic re-initialization.");
+            TriggerReinitialization();
+        }
+    }
+
+    /// <summary>
+    /// Triggers asynchronous re-initialization of the WebView after a dock state change.
+    /// </summary>
+    /// <remarks>
+    /// Uses fire-and-forget pattern with proper error handling via SafeFireAndForget.
+    /// </remarks>
+    private void TriggerReinitialization()
+    {
+        ReinitializeWebViewAsync()
+            .SafeFireAndForget(onException: ex =>
+                _logger.LogError(ex, "Failed to reinitialize WebView after dock state change"));
+    }
+
+    /// <summary>
+    /// Re-initializes the WebView with the last rendered source after a dock state change.
+    /// </summary>
+    /// <returns>A task representing the asynchronous re-initialization operation.</returns>
+    private async Task ReinitializeWebViewAsync()
+    {
+        if (_vm is null)
+        {
+            _logger.LogWarning("Cannot reinitialize: ViewModel is null");
+            return;
+        }
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool isSuccess = false;
+
+        try
+        {
+            _logger.LogInformation("=== WebView Re-initialization Started (dock state change) ===");
+
+            // Re-initialize with the stored source from previous renders
+            await _vm.ReinitializeWithCurrentSourceAsync(Preview);
+            _hasInitializedWebView = true;
+
+            isSuccess = true;
+            _logger.LogInformation("=== WebView Re-initialization Completed Successfully ===");
+        }
+        catch (Exception ex)
+        {
+            isSuccess = false;
+            _logger.LogError(ex, "WebView re-initialization failed");
+            _vm.LastError = $"Failed to reinitialize diagram preview: {ex.Message}";
+        }
+        finally
+        {
+            stopwatch.Stop();
+            _logger.LogTiming("WebView re-initialization", stopwatch.Elapsed, isSuccess);
+        }
     }
 
     #region WebView Initialization
@@ -237,18 +329,21 @@ public sealed partial class DiagramView : UserControl
         _logger.LogInformation("=== WebView Initialization Started ===");
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        bool success = false;
+        bool isSuccess = false;
         try
         {
             // Initialize renderer (starts HTTP server + navigate)
             await _vm.InitializeWithRenderingAsync(Preview, mermaidSource);
 
-            success = true;
+            // Mark this View instance as having initialized its WebView
+            _hasInitializedWebView = true;
+
+            isSuccess = true;
         }
         finally
         {
             stopwatch.Stop();
-            _logger.LogTiming("WebView initialization", stopwatch.Elapsed, success);
+            _logger.LogTiming("WebView initialization", stopwatch.Elapsed, isSuccess);
         }
     }
 

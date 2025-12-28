@@ -30,6 +30,11 @@
         <PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.10" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.3.0" />
+        <PackageReference Include="Dock.Avalonia" Version="11.3.8" />
+        <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.8" />
+        <PackageReference Include="Dock.Model.Extensions.DependencyInjection" Version="11.3.8" />
+        <PackageReference Include="Dock.Model.Mvvm" Version="11.3.8" />
+        <PackageReference Include="Dock.Serializer.SystemTextJson" Version="11.3.8" />
         <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
         <!--<PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />-->
         <PackageReference Include="Microsoft.DotNet.ApiCompat.Task" Version="9.0.308" />
@@ -61,7 +66,7 @@
         <PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
         <PackageReference Include="Avalonia.AvaloniaEdit" Version="11.3.0" />
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.11" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.1" />
         <PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
         <PackageReference Include="WebView.Avalonia.Linux" Version="11.0.0.1" />
         <PackageReference Include="WebView.Avalonia.MacCatalyst" Version="11.0.0.1" />

@@ -58,6 +58,16 @@ internal sealed partial class DiagramViewModel : ViewModelBase
 
     private const int WebViewReadyTimeoutSeconds = 30;
 
+    /// <summary>
+    /// Stores the last rendered Mermaid source for re-initialization after dock state changes.
+    /// </summary>
+    /// <remarks>
+    /// When a dock state change (float, dock, pin) destroys and recreates the View,
+    /// this stored source allows automatic re-rendering without requiring access to
+    /// the editor text from the MainWindowViewModel.
+    /// </remarks>
+    private string _lastRenderedSource = string.Empty;
+
     #region State Properties
 
     /// <summary>
@@ -120,14 +130,73 @@ internal sealed partial class DiagramViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Prepares the ViewModel for re-initialization after the View has been detached and re-attached
+    /// (e.g., after a dock state change such as float, dock, or pin).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method resets the ready state so commands properly reflect that the WebView needs
+    /// initialization. It should be called when a new View instance attaches to this ViewModel
+    /// but the ViewModel was previously in a ready state from a prior View instance.
+    /// </para>
+    /// <para>
+    /// This happens during dock operations where the View is destroyed and recreated but the
+    /// ViewModel persists (since it's held by the DockFactory).
+    /// </para>
+    /// <para>
+    /// <b>MDI Migration Note:</b> For MDI, each document's DiagramViewModel would have its own
+    /// lifecycle. This method remains useful for dock state changes within a single document.
+    /// </para>
+    /// </remarks>
+    internal void PrepareForReinitialization()
+    {
+        //TODO - DaveBlack: MDI Migration Note: for MDI, each document's DiagramViewModel would have its own lifecycle. This method remains useful for dock state changes within a single document.
+        _logger.LogInformation("Preparing {ModelName} for re-initialization (dock state change detected)", nameof(DiagramViewModel));
+        IsReady = false;
+        LastError = null;
+    }
+
+    /// <summary>
+    /// Re-initializes the WebView with the last rendered source after a dock state change.
+    /// </summary>
+    /// <param name="preview">The new WebView instance to initialize.</param>
+    /// <returns>A task representing the asynchronous re-initialization operation.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method is called by DiagramView when it detects that it's a new View instance
+    /// attached to an existing, previously-initialized ViewModel. This happens during dock
+    /// operations (float, dock, pin) where the View is destroyed and recreated.
+    /// </para>
+    /// <para>
+    /// The method uses the stored <see cref="_lastRenderedSource"/> to re-render the diagram
+    /// automatically, providing seamless UX during dock state changes.
+    /// </para>
+    /// </remarks>
+    internal async Task ReinitializeWithCurrentSourceAsync(WebView preview)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+
+        _logger.LogInformation("Re-initializing WebView with stored source ({SourceLength} chars)", _lastRenderedSource.Length);
+
+        PrepareForReinitialization();
+        await InitializeWithRenderingAsync(preview, _lastRenderedSource);
+    }
+
+    /// <summary>
     /// Renders a Mermaid diagram asynchronously by invoking the render action set by the View.
     /// </summary>
     /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty,
     /// or consists only of whitespace, the output in the WebView will be cleared instead.</param>
     /// <returns>A task representing the asynchronous render operation.</returns>
+    /// <remarks>
+    /// This method stores the source for potential re-initialization after dock state changes.
+    /// </remarks>
     public Task RenderAsync(string mermaidSource)
     {
         // Do not check mermaidSource; null, empty and whitespace are valid values because that clears the diagram
+
+        // Store source for potential re-initialization after dock state changes
+        _lastRenderedSource = mermaidSource;
 
         long requestId = Interlocked.Increment(ref _renderSequence);
         return RenderCoreAsync(requestId, mermaidSource);
@@ -203,6 +272,9 @@ internal sealed partial class DiagramViewModel : ViewModelBase
     {
         try
         {
+            // Store source for potential re-initialization after dock state changes
+            _lastRenderedSource = mermaidSource;
+
             // Initialize MermaidRenderer with WebView
             await _mermaidRenderer.InitializeAsync(preview);
 
