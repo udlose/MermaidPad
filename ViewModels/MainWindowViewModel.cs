@@ -295,6 +295,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     public partial string StatusText { get; set; } = "No file open";
 
     /// <summary>
+    /// Gets a value indicating whether there is an open file to reference.
+    /// </summary>
+    public bool HasOpenFile => !string.IsNullOrEmpty(CurrentFilePath);
+
+    /// <summary>
     /// Gets the list of recent files for the menu.
     /// </summary>
     [ObservableProperty]
@@ -1565,6 +1570,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     private void UpdateStatusText()
     {
         StatusText = !string.IsNullOrEmpty(CurrentFilePath) ? $"{Path.GetFileName(CurrentFilePath)}" : "No file open";
+        OnPropertyChanged(nameof(HasOpenFile));
     }
 
     /// <summary>
@@ -1993,6 +1999,36 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             // Setting LastError updates UI, must be on UI thread
             Diagram.LastError = $"Export failed: {ex.Message}";
             Debug.WriteLine($"Export error: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Opens the directory containing the current file in the system's file explorer, if the file path is valid.
+    /// </summary>
+    /// <remarks>If the current file path is null, empty, or the directory does not exist, the operation is
+    /// not performed. Errors encountered while attempting to open the directory are logged but not propagated to the
+    /// caller.</remarks>
+    [RelayCommand]
+    private void OpenFileLocation()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentFilePath))
+        {
+            return;
+        }
+
+        string? directory = Path.GetDirectoryName(CurrentFilePath);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open file location: {Directory}", directory);
         }
     }
 
