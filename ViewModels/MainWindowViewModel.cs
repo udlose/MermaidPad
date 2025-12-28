@@ -109,6 +109,30 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public partial bool LivePreviewEnabled { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether word wrap is enabled.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool WordWrapEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether line numbers are shown.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowLineNumbers { get; set; }
+
+    partial void OnWordWrapEnabledChanged(bool value)
+    {
+        _settingsService.Settings.WordWrapEnabled = value;
+        _settingsService.Save();
+    }
+
+    partial void OnShowLineNumbersChanged(bool value)
+    {
+        _settingsService.Settings.ShowLineNumbers = value;
+        _settingsService.Save();
+    }
+
+    /// <summary>
     /// Gets or sets the selection start index in the editor.
     /// </summary>
     [ObservableProperty]
@@ -302,6 +326,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
+        WordWrapEnabled = _settingsService.Settings.WordWrapEnabled;
+        ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
         EditorSelectionStart = _settingsService.Settings.EditorSelectionStart;
         EditorSelectionLength = _settingsService.Settings.EditorSelectionLength;
         EditorCaretOffset = _settingsService.Settings.EditorCaretOffset;

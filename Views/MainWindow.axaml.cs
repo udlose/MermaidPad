@@ -302,7 +302,7 @@ public sealed partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(_vm.DiagramText):
-                if (Editor.Text != _vm.DiagramText)
+                    if (Editor.Text != _vm.DiagramText)
                 {
                     _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
                     {
@@ -319,6 +319,20 @@ public sealed partial class MainWindow : Window
                         }
                     },
                     DispatcherPriority.Background);
+                }
+                break;
+
+            case nameof(_vm.WordWrapEnabled):
+                if (Editor.WordWrap != _vm.WordWrapEnabled)
+                {
+                    Editor.WordWrap = _vm.WordWrapEnabled;
+                }
+                break;
+
+            case nameof(_vm.ShowLineNumbers):
+                if (Editor.ShowLineNumbers != _vm.ShowLineNumbers)
+                {
+                    Editor.ShowLineNumbers = _vm.ShowLineNumbers;
                 }
                 break;
 
@@ -532,7 +546,8 @@ public sealed partial class MainWindow : Window
             }
 
             // Needs to be on UI thread
-            await InitializeWebViewAsync();
+            // Needs to be on UI thread
+            // await InitializeWebViewAsync();
 
             // Step 3: Update command states
             await Dispatcher.UIThread.InvokeAsync(() =>
@@ -737,7 +752,7 @@ public sealed partial class MainWindow : Window
         try
         {
             // Step 1: Initialize renderer (starts HTTP server + navigate)
-            await _renderer.InitializeAsync(Preview);
+            // await _renderer.InitializeAsync(Preview);
 
             // Step 2: Kick first render; index.html sets globalThis.__renderingComplete__ in hideLoadingIndicator()
             await _renderer.RenderAsync(_vm.DiagramText);

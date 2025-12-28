@@ -107,6 +107,17 @@
           Command="{Binding FindPreviousCommand}"
           Header="Find Pre_vious"
           InputGesture="Shift+F3" />
+        <Separator />
+        <MenuItem Header="Formatting">
+          <MenuItem 
+              Header="Word _Wrap" 
+              IsChecked="{Binding WordWrapEnabled, Mode=TwoWay}" 
+              ToggleType="CheckBox" />
+          <MenuItem 
+              Header="Show _Line Numbers" 
+              IsChecked="{Binding ShowLineNumbers, Mode=TwoWay}" 
+              ToggleType="CheckBox" />
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="View _Logs" Command="{Binding ViewLogsCommand}" />
@@ -179,7 +190,8 @@
           FontFamily="Consolas"
           HorizontalScrollBarVisibility="Auto"
           LineNumbersForeground="Lime"
-          ShowLineNumbers="True"
+          ShowLineNumbers="{Binding ShowLineNumbers}"
+          WordWrap="{Binding WordWrapEnabled}"
           VerticalScrollBarVisibility="Auto">
           <edit:TextEditor.ContextMenu>
             <ContextMenu Opening="GetContextMenuState">
@@ -211,7 +223,12 @@
         BorderThickness="1"
         CornerRadius="4">
         <Grid>
-          <wv:WebView Name="Preview" />
+          <!-- <wv:WebView Name="Preview" /> -->
+          <TextBlock
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center"
+               Text="WebView disabled for verification due to macOS/NET9 incompatibility"
+               TextWrapping="Wrap" />
           <TextBlock
             Margin="10"
             HorizontalAlignment="Left"
