@@ -145,7 +145,8 @@
           Grid.Column="0"
           HorizontalAlignment="Left"
           FontWeight="Bold"
-          Text="{Binding StatusText}" />
+          Text="{Binding StatusText}"
+          TextTrimming="CharacterEllipsis" />
 
         <!--  Right side  -->
         <StackPanel
@@ -162,7 +163,8 @@
     </DockPanel>
 
     <!--  Main Content (GridSplitter, Editor, DiagramView)  -->
-    <Grid DockPanel.Dock="Top">
+    <!--  Main Content MUST be last so it fills  -->
+    <Grid>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
