@@ -24,9 +24,10 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MermaidPad.Extensions;
 using MermaidPad.ViewModels;
-using MermaidPad.Views.UserControls;
+using MermaidPad.Views.Docking;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -35,17 +36,18 @@ using System.Diagnostics.CodeAnalysis;
 namespace MermaidPad.Views;
 
 /// <summary>
-/// Main application window that contains the <see cref="MermaidEditorView"/> and <see cref="DiagramView"/>.
+/// Main application window that contains the dockable <see cref="MermaidEditorToolView"/> and <see cref="DiagramToolView"/> panels.
 /// Manages window lifecycle events and coordinates between the editor and diagram preview.
 /// </summary>
 /// <remarks>
 /// Editor-specific functionality (clipboard, intellisense, syntax highlighting, etc.) has been
-/// moved to the <see cref="MermaidEditorView"/> UserControl. WebView-specific functionality (initialization,
-/// rendering) has been moved to the <see cref="DiagramView"/> UserControl. This class focuses on window-level concerns:
+/// moved to the <see cref="UserControls.MermaidEditorView"/> UserControl. WebView-specific functionality (initialization,
+/// rendering) has been moved to the <see cref="UserControls.DiagramView"/> UserControl. This class focuses on window-level concerns:
 /// <list type="bullet">
 ///     <item><description>Window lifecycle (opening, closing, activation)</description></item>
 ///     <item><description>File save prompts on close</description></item>
-///     <item><description>Coordinating initialization between child UserControls</description></item>
+///     <item><description>Coordinating initialization between dockable tool panels</description></item>
+///     <item><description>Managing dock layout persistence</description></item>
 /// </list>
 /// </remarks>
 public sealed partial class MainWindow : Window
@@ -62,13 +64,17 @@ public sealed partial class MainWindow : Window
     // Event handlers stored for proper cleanup
     private EventHandler? _activatedHandler;
 
+    // Cached references to tool views for focus and cleanup operations
+    private MermaidEditorToolView? _editorToolView;
+    private DiagramToolView? _diagramToolView;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
     /// </summary>
     /// <remarks>
     /// The constructor resolves required services from the application's DI container and sets up
-    /// window lifecycle event handlers. Editor-specific initialization is handled by <see cref="MermaidEditorView"/>.
-    /// WebView-specific initialization is handled by <see cref="DiagramView"/>.
+    /// window lifecycle event handlers. Editor-specific initialization is handled by <see cref="UserControls.MermaidEditorView"/>.
+    /// WebView-specific initialization is handled by <see cref="UserControls.DiagramView"/>.
     /// </remarks>
     public MainWindow()
     {
@@ -120,9 +126,46 @@ public sealed partial class MainWindow : Window
     /// <param name="e">The event arguments.</param>
     private void OnActivated(object? sender, EventArgs e)
     {
-        // Delegate focus and clipboard state updates to the MermaidEditorView
-        MermaidEditor.BringFocusToEditor();
-        MermaidEditor.UpdateClipboardStateOnActivation();
+        // Find and cache tool views on first activation if needed
+        EnsureToolViewsCached();
+
+        // Delegate focus and clipboard state updates to the MermaidEditorToolView
+        _editorToolView?.BringFocusToEditor();
+        _editorToolView?.UpdateClipboardStateOnActivation();
+    }
+
+    /// <summary>
+    /// Ensures that tool view references are cached for focus and cleanup operations.
+    /// </summary>
+    /// <remarks>
+    /// This method searches the visual tree for the tool views created by the dock system's
+    /// DataTemplate instantiation. It only searches once and caches the results.
+    /// </remarks>
+    private void EnsureToolViewsCached()
+    {
+        if (_editorToolView is null)
+        {
+            _editorToolView = this.GetVisualDescendants()
+                .OfType<MermaidEditorToolView>()
+                .FirstOrDefault();
+
+            if (_editorToolView is not null)
+            {
+                _logger.LogDebug("Cached MermaidEditorToolView reference");
+            }
+        }
+
+        if (_diagramToolView is null)
+        {
+            _diagramToolView = this.GetVisualDescendants()
+                .OfType<DiagramToolView>()
+                .FirstOrDefault();
+
+            if (_diagramToolView is not null)
+            {
+                _logger.LogDebug("Cached DiagramToolView reference");
+            }
+        }
     }
 
     #region Overrides
@@ -278,7 +321,10 @@ public sealed partial class MainWindow : Window
     private async Task OnOpenedCoreAsync()
     {
         await OnOpenedAsync();
-        MermaidEditor.BringFocusToEditor();
+
+        // Ensure tool views are cached before trying to focus
+        EnsureToolViewsCached();
+        _editorToolView?.BringFocusToEditor();
     }
 
     /// <summary>
@@ -307,7 +353,7 @@ public sealed partial class MainWindow : Window
             //_logger.LogInformation("Mermaid update check completed");
 
             // Initialize DiagramView (WebView initialization is now encapsulated there)
-            _logger.LogInformation($"Initializing {nameof(DiagramView)}...");
+            _logger.LogInformation($"Initializing {nameof(DiagramToolView)}...");
 
             // Temporarily disable live preview during initialization
             bool originalLivePreview = _vm.LivePreviewEnabled;
@@ -419,13 +465,9 @@ public sealed partial class MainWindow : Window
     /// until handlers are reattached. This helps prevent memory leaks and unintended event processing.</remarks>
     private void UnsubscribeAllEventHandlers()
     {
-        // Delegate to MermaidEditorView for editor-specific cleanup
-        // MermaidEditorView handles its own event subscriptions internally to protect against double-unsubscribe
-        MermaidEditor.UnsubscribeAllEventHandlers();
-
-        // Delegate to DiagramView for diagram-specific cleanup
-        // DiagramView handles its own event subscriptions internally to protect against double-unsubscribe
-        DiagramPreview.UnsubscribeAllEventHandlers();
+        // Delegate to tool views for cleanup (they handle their own nested controls)
+        _editorToolView?.UnsubscribeAllEventHandlers();
+        _diagramToolView?.UnsubscribeAllEventHandlers();
 
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)

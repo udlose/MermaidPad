@@ -983,12 +983,17 @@ public sealed partial class MermaidEditorView : UserControl
     /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
     /// </summary>
     /// <returns>A task representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
+    /// <remarks>
+    /// This method returns early (no-op) if the ViewModel is null, which can occur during
+    /// dock state transitions when the View is detached but window activation events still fire.
+    /// </remarks>
     private async Task UpdateCanPasteAsync()
     {
+        // During dock state transitions (float, dock, pin), the View may be detached
+        // (_vm = null) but window activation events still fire. This is expected, not an error.
         if (_vm is null)
         {
-            throw new InvalidOperationException($"{nameof(UpdateCanPasteAsync)} called with null ViewModel. Initialize ViewModel before calling this method.");
+            return;
         }
 
         string? clipboardText = null;
@@ -1429,8 +1434,19 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Updates the clipboard paste state when the parent window gains focus.
     /// </summary>
+    /// <remarks>
+    /// This method is a no-op if the ViewModel is null, which can occur during dock state
+    /// transitions when the View is detached but window activation events still fire.
+    /// </remarks>
     public void UpdateClipboardStateOnActivation()
     {
+        // During dock state transitions (float, dock, pin), the View may be detached
+        // (_vm = null) but window activation events still fire. This is expected, not an error.
+        if (_vm is null)
+        {
+            return;
+        }
+
         UpdateCanPasteAsync()
             .SafeFireAndForget(onException: ex =>
                 _logger.LogError(ex, "Failed to update clipboard state on activation"));
