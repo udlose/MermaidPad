@@ -40,6 +40,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Text;
 
 namespace MermaidPad.ViewModels;
@@ -157,6 +158,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     [ObservableProperty]
     public partial string StatusText { get; set; } = "No file open";
+
+    /// <summary>
+    /// Gets a value indicating whether there is an open file to reference.
+    /// </summary>
+    public bool HasOpenFile => !string.IsNullOrEmpty(CurrentFilePath);
 
     /// <summary>
     /// Gets the list of recent files for the menu.
@@ -785,6 +791,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     private void UpdateStatusText()
     {
         StatusText = !string.IsNullOrEmpty(CurrentFilePath) ? $"File: {Path.GetFileName(CurrentFilePath)}" : "No file open";
+        OnPropertyChanged(nameof(HasOpenFile));
     }
 
     /// <summary>
@@ -1317,6 +1324,33 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settingsService.Save();
         UpdateWindowTitle();
         UpdateStatusText();
+    }
+
+    /// <summary>
+    /// Opens the directory containing the current file in the system file explorer.
+    /// </summary>
+    [RelayCommand]
+    private void OpenFileLocation()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentFilePath))
+        {
+            return;
+        }
+
+        string? directory = Path.GetDirectoryName(CurrentFilePath);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open file location: {Directory}", directory);
+        }
     }
 
     /// <summary>
