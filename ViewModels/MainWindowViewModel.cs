@@ -142,6 +142,22 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </remarks>
     public bool EditorHasText => _dockFactory.EditorTool?.Editor.HasText ?? false;
 
+    /// <summary>
+    /// Gets a value indicating whether the editor tool is currently visible.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property delegates to <see cref="MermaidEditorToolViewModel.IsEditorVisible"/> to track
+    /// whether the editor panel is currently visible in the UI. When the editor is pinned (auto-hide)
+    /// and collapsed, this returns <c>false</c>.
+    /// </para>
+    /// <para>
+    /// This property is used by the <see cref="CanExecuteClear"/> method to disable the Clear button
+    /// when the editor is not visible.
+    /// </para>
+    /// </remarks>
+    public bool IsEditorVisible => _dockFactory.EditorTool?.IsEditorVisible ?? false;
+
     #endregion Editor ViewModel
 
     #region Diagram ViewModel
@@ -222,7 +238,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Gets or sets a value indicating whether the current document has unsaved changes.
     /// </summary>
+    /// <remarks>
+    /// When this property changes, the <see cref="SaveFileCommand"/> is automatically notified
+    /// to re-evaluate its CanExecute state via the <see cref="NotifyCanExecuteChangedForAttribute"/>.
+    /// </remarks>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))]
     public partial bool IsDirty { get; set; }
 
     /// <summary>
@@ -243,10 +264,39 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial ObservableCollection<string> RecentFiles { get; set; } = new ObservableCollection<string>();
 
+    #region CanExecute Methods
+
     /// <summary>
-    /// Gets a value indicating whether the Save command can execute.
+    /// Determines whether the save file command can execute.
     /// </summary>
-    public bool CanSave => EditorHasText && IsDirty;
+    /// <returns><see langword="true"/> if the editor has text and the document has unsaved changes; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteSave() => EditorHasText && IsDirty;
+
+    /// <summary>
+    /// Determines whether the save file as command can execute.
+    /// </summary>
+    /// <returns><see langword="true"/> if the editor has text to save; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteSaveAs() => EditorHasText;
+
+    /// <summary>
+    /// Determines whether the diagram can be rendered based on the current state.
+    /// </summary>
+    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null or whitespace; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteRender() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
+
+    /// <summary>
+    /// Determines whether the diagram can be cleared based on the current state.
+    /// </summary>
+    /// <returns><see langword="true"/> if the WebView is ready, the editor is visible, and the diagram text is not null, empty, or whitespace; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteClear() => Diagram.IsReady && IsEditorVisible && EditorHasText;
+
+    /// <summary>
+    /// Determines whether the export operation can be performed.
+    /// </summary>
+    /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteExport() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
+
+    #endregion CanExecute Methods
 
     /// <summary>
     /// Gets a value indicating whether there are recent files.
@@ -304,6 +354,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         // Subscribe to Diagram.PropertyChanged to update command states when IsReady changes
         Diagram.PropertyChanged += OnDiagramPropertyChanged;
 
+        // Subscribe to EditorTool.PropertyChanged to update ClearCommand when IsEditorVisible changes
+        _dockFactory.EditorTool!.PropertyChanged += OnEditorToolPropertyChanged;
+
         UpdateRecentFiles();
         UpdateWindowTitle();
     }
@@ -337,9 +390,10 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         switch (e.PropertyName)
         {
             case nameof(Editor.Text):
-                // Forward HasText property changes for CanSave binding
+                // Forward HasText property changes and notify SaveFileCommand
                 OnPropertyChanged(nameof(EditorHasText));
-                OnPropertyChanged(nameof(CanSave));
+                SaveFileCommand.NotifyCanExecuteChanged();
+                SaveFileAsCommand.NotifyCanExecuteChanged();
 
                 // Mark as dirty when text changes (ONLY if we're not loading a file)
                 if (!_isLoadingFile)
@@ -414,6 +468,25 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                     Diagram.LastError = null;
                     _hasWarnedAboutUnreadyWebView = false;
                 }
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Handles property changes from the EditorTool ViewModel.
+    /// </summary>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The property changed event arguments.</param>
+    private void OnEditorToolPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(MermaidEditorToolViewModel.IsEditorVisible):
+                // Update command states when editor visibility changes
+                _logger.LogInformation("EditorTool.IsEditorVisible changed to: {IsVisible}", IsEditorVisible);
+
+                OnPropertyChanged(nameof(IsEditorVisible));
+                ClearCommand.NotifyCanExecuteChanged();
                 break;
         }
     }
@@ -554,7 +627,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand(CanExecute = nameof(CanSave))]
+    [RelayCommand(CanExecute = nameof(CanExecuteSave))]
     private Task SaveFileAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -617,7 +690,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
-    [RelayCommand(CanExecute = nameof(EditorHasText))]    // Can only 'Save As' if there is text to save, even if not dirty
+    [RelayCommand(CanExecute = nameof(CanExecuteSaveAs))]
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
@@ -955,9 +1028,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <remarks>This method clears any previous errors before rendering. The rendering process may require
     /// access to the UI context, so it does not use <see cref="Task.ConfigureAwait(bool)"/>. Ensure that the <see
-    /// cref="CanRender"/> method returns <see langword="true"/> before invoking this command.</remarks>
+    /// cref="CanExecuteRender"/> method returns <see langword="true"/> before invoking this command.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanRender))]
+    [RelayCommand(CanExecute = nameof(CanExecuteRender))]
     private async Task RenderAsync()
     {
         Diagram.LastError = null;
@@ -967,20 +1040,13 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Determines whether the diagram can be rendered based on the current state.
-    /// </summary>
-    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null or whitespace; otherwise, <see
-    /// langword="false"/>.</returns>
-    private bool CanRender() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
-
-    /// <summary>
     /// Clears the diagram text, resets the editor selection and caret position, and removes the last error.
     /// </summary>
     /// <remarks>This method updates several UI-related properties and invokes the renderer to clear the
     /// diagram.  It must be executed on the UI thread to ensure proper synchronization with the user
     /// interface.</remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanClear))]
+    [RelayCommand(CanExecute = nameof(CanExecuteClear))]
     private async Task ClearAsync()
     {
         // Display a confirmation dialog before clearing
@@ -1076,13 +1142,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Determines whether the diagram can be cleared based on the current state.
-    /// </summary>
-    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
-    /// otherwise, <see langword="false"/>.</returns>
-    private bool CanClear() => Diagram.IsReady && EditorHasText;
-
-    /// <summary>
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
     /// based on the selected options.
     /// </summary>
@@ -1093,7 +1152,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// during the export process are logged and reflected in the <c>LastError</c> property, which can be used to
     /// display error messages in the UI. </para></remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanExport))]
+    [RelayCommand(CanExecute = nameof(CanExecuteExport))]
     private async Task ExportAsync()
     {
         try
@@ -1138,13 +1197,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             Debug.WriteLine($"Export error: {ex}");
         }
     }
-
-    /// <summary>
-    /// Determines whether the export operation can be performed.
-    /// </summary>
-    /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
-    /// otherwise, <see langword="false"/>.</returns>
-    private bool CanExport() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
 
     /// <summary>
     /// Exports data to a specified file format, optionally displaying a progress dialog during the operation.
@@ -1439,7 +1491,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     partial void OnIsDirtyChanged(bool value)
     {
         UpdateWindowTitle();
-        OnPropertyChanged(nameof(CanSave));
+        // Note: SaveFileCommand.NotifyCanExecuteChanged() is automatically called via
+        // [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))] on the IsDirty property.
     }
 
     #endregion Event handlers
@@ -1516,6 +1569,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             if (_dockFactory.DiagramTool is not null)
             {
                 Diagram.PropertyChanged -= OnDiagramPropertyChanged;
+            }
+
+            if (_dockFactory.EditorTool is not null)
+            {
+                _dockFactory.EditorTool.PropertyChanged -= OnEditorToolPropertyChanged;
             }
 
             _isDisposed = true;

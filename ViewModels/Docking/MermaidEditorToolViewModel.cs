@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using CommunityToolkit.Mvvm.ComponentModel;
 using Dock.Model.Mvvm.Controls;
 using MermaidPad.ViewModels.UserControls;
 using System.Diagnostics.CodeAnalysis;
@@ -44,7 +45,7 @@ namespace MermaidPad.ViewModels.Docking;
 /// </para>
 /// </remarks>
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via DockFactory.")]
-internal sealed class MermaidEditorToolViewModel : Tool
+internal sealed partial class MermaidEditorToolViewModel : Tool
 {
     /// <summary>
     /// The unique identifier for this tool type, used for layout serialization and restoration.
@@ -59,6 +60,30 @@ internal sealed class MermaidEditorToolViewModel : Tool
     /// <see cref="Views.UserControls.MermaidEditorView"/> with its DataContext bound to this property.
     /// </remarks>
     internal MermaidEditorViewModel Editor { get; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the editor tool's view is currently visible in the visual tree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property is set by <see cref="Views.Docking.MermaidEditorToolView"/> when the view is
+    /// attached to or detached from the visual tree. It tracks the actual visibility state of the
+    /// editor panel, which changes when the panel is:
+    /// </para>
+    /// <list type="bullet">
+    ///     <item><description>Docked and visible (IsEditorVisible = true)</description></item>
+    ///     <item><description>Floated in a separate window (IsEditorVisible = true)</description></item>
+    ///     <item><description>Pinned/auto-hide and expanded on hover (IsEditorVisible = true)</description></item>
+    ///     <item><description>Pinned/auto-hide and collapsed (IsEditorVisible = false)</description></item>
+    /// </list>
+    /// <para>
+    /// When this property changes, it updates <see cref="MermaidEditorViewModel.IsToolVisible"/>
+    /// and notifies all editor commands to re-evaluate their CanExecute state, effectively
+    /// disabling editor-specific menu items and toolbar buttons when the editor is hidden.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool IsEditorVisible { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorToolViewModel"/> class.
@@ -78,5 +103,22 @@ internal sealed class MermaidEditorToolViewModel : Tool
         CanClose = false;
         CanPin = true;
         CanFloat = true;
+    }
+
+    /// <summary>
+    /// Handles changes to the <see cref="IsEditorVisible"/> property by propagating the visibility
+    /// state to the wrapped editor ViewModel.
+    /// </summary>
+    /// <param name="value">The new visibility state.</param>
+    /// <remarks>
+    /// The <see cref="MermaidEditorViewModel.IsToolVisible"/> property has <c>[NotifyCanExecuteChangedFor]</c>
+    /// attributes for all editor commands, so setting it automatically triggers command re-evaluation.
+    /// </remarks>
+    partial void OnIsEditorVisibleChanged(bool value)
+    {
+        // Propagate visibility state to the wrapped editor ViewModel.
+        // The IsToolVisible property has [NotifyCanExecuteChangedFor] attributes for all commands,
+        // so this automatically triggers command CanExecute re-evaluation.
+        Editor.IsToolVisible = value;
     }
 }
