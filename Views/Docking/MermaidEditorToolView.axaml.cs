@@ -18,7 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia;
 using Avalonia.Controls;
+using MermaidPad.ViewModels.Docking;
 
 namespace MermaidPad.Views.Docking;
 
@@ -29,12 +31,13 @@ namespace MermaidPad.Views.Docking;
 /// <para>
 /// This view serves as a thin wrapper around <see cref="UserControls.MermaidEditorView"/>,
 /// enabling it to participate in the Avalonia Dock layout system. The view's DataContext
-/// is <see cref="ViewModels.Docking.MermaidEditorToolViewModel"/>, which wraps the underlying
+/// is <see cref="MermaidEditorToolViewModel"/>, which wraps the underlying
 /// <see cref="ViewModels.UserControls.MermaidEditorViewModel"/>.
 /// </para>
 /// <para>
 /// The actual editor functionality is entirely handled by the nested
-/// <see cref="UserControls.MermaidEditorView"/> - this class only provides the docking integration.
+/// <see cref="UserControls.MermaidEditorView"/> - this class only provides the docking integration
+/// and tracks visual tree attachment state to enable/disable editor commands appropriately.
 /// </para>
 /// </remarks>
 public sealed partial class MermaidEditorToolView : UserControl
@@ -81,4 +84,65 @@ public sealed partial class MermaidEditorToolView : UserControl
     /// This should be called during cleanup to prevent memory leaks.
     /// </remarks>
     public void UnsubscribeAllEventHandlers() => MermaidEditor.UnsubscribeAllEventHandlers();
+
+    #region Overrides
+
+    /// <summary>
+    /// Called when the control is attached to the visual tree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="MermaidEditorToolViewModel.IsEditorVisible"/> to <c>true</c>,
+    /// which in turn enables all editor-specific commands (Cut, Copy, Paste, Undo, Redo, Find, etc.).
+    /// </para>
+    /// <para>
+    /// This fires in the following scenarios:
+    /// </para>
+    /// <list type="bullet">
+    ///     <item><description>Editor panel is docked and visible</description></item>
+    ///     <item><description>Editor panel is floated into a separate window</description></item>
+    ///     <item><description>Editor panel is pinned (auto-hide) and user hovers to expand it</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="e">The event arguments containing attachment information.</param>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (DataContext is MermaidEditorToolViewModel toolVm)
+        {
+            toolVm.IsEditorVisible = true;
+        }
+    }
+
+    /// <summary>
+    /// Called when the control is detached from the visual tree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method sets <see cref="MermaidEditorToolViewModel.IsEditorVisible"/> to <c>false</c>,
+    /// which in turn disables all editor-specific commands (Cut, Copy, Paste, Undo, Redo, Find, etc.).
+    /// This ensures menu items and toolbar buttons are grayed out when the editor is not visible.
+    /// </para>
+    /// <para>
+    /// This fires in the following scenarios:
+    /// </para>
+    /// <list type="bullet">
+    ///     <item><description>Editor panel is pinned (auto-hide) and collapses</description></item>
+    ///     <item><description>Editor panel's floated window is closed</description></item>
+    ///     <item><description>Application is shutting down</description></item>
+    /// </list>
+    /// </remarks>
+    /// <param name="e">The event arguments containing detachment information.</param>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        if (DataContext is MermaidEditorToolViewModel toolVm)
+        {
+            toolVm.IsEditorVisible = false;
+        }
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    #endregion Overrides
 }
