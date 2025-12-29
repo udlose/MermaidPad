@@ -380,14 +380,9 @@ public sealed partial class MermaidEditorView : UserControl
         }
 
         // Update undo/redo states immediately (not debounced)
-        _vm.CanUndo = Editor.CanUndo;
-        _vm.CanRedo = Editor.CanRedo;
-        _vm.CanSelectAll = CanSelectAllInEditor;
-
-        // Notify commands that their CanExecute state may have changed
-        _vm.UndoCommand.NotifyCanExecuteChanged();
-        _vm.RedoCommand.NotifyCanExecuteChanged();
-        _vm.SelectAllCommand.NotifyCanExecuteChanged();
+        _vm.HasUndoHistory = Editor.CanUndo;
+        _vm.HasRedoHistory = Editor.CanRedo;
+        _vm.HasSelectableContent = CanSelectAllInEditor;
 
         // Debounce to avoid excessive updates
         _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
@@ -434,12 +429,8 @@ public sealed partial class MermaidEditorView : UserControl
 
         // Update cut/copy states immediately based on selection
         bool hasSelection = Editor.SelectionLength > 0;
-        _vm.CanCut = hasSelection;
-        _vm.CanCopy = hasSelection;
-
-        // Notify commands that their CanExecute state may have changed
-        _vm.CutCommand.NotifyCanExecuteChanged();
-        _vm.CopyCommand.NotifyCanExecuteChanged();
+        _vm.HasCuttableSelection = hasSelection;
+        _vm.HasCopiableSelection = hasSelection;
 
         ScheduleEditorStateSyncIfNeeded();
     }
@@ -779,8 +770,7 @@ public sealed partial class MermaidEditorView : UserControl
                     _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
 
                     // We just put text on clipboard, so paste *should* be enabled.
-                    _vm.CanPaste = true;
-                    _vm.PasteCommand.NotifyCanExecuteChanged();
+                    _vm.HasClipboardContent = true;
                 }
                 else
                 {
@@ -869,8 +859,7 @@ public sealed partial class MermaidEditorView : UserControl
             _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
 
             // We just put text on clipboard, so paste *should* be enabled.
-            _vm.CanPaste = true;
-            _vm.PasteCommand.NotifyCanExecuteChanged();
+            _vm.HasClipboardContent = true;
         }
         catch (Exception ex)
         {
@@ -1017,7 +1006,7 @@ public sealed partial class MermaidEditorView : UserControl
             if (_vm is not null)
 #pragma warning restore IDE0031
             {
-                _vm.CanPaste = canPaste;
+                _vm.HasClipboardContent = canPaste;
             }
         }, DispatcherPriority.Normal);
     }
@@ -1321,11 +1310,11 @@ public sealed partial class MermaidEditorView : UserControl
         static void UpdateContextMenuStateExceptPaste(MermaidEditorViewModel editorViewModel, bool canUndo, bool canRedo, bool canSelectAllInEditor)
         {
             bool hasSelection = editorViewModel.SelectionLength > 0;
-            editorViewModel.CanCopy = hasSelection;
-            editorViewModel.CanCut = hasSelection;
-            editorViewModel.CanUndo = canUndo;
-            editorViewModel.CanRedo = canRedo;
-            editorViewModel.CanSelectAll = canSelectAllInEditor;
+            editorViewModel.HasCopiableSelection = hasSelection;
+            editorViewModel.HasCuttableSelection = hasSelection;
+            editorViewModel.HasUndoHistory = canUndo;
+            editorViewModel.HasRedoHistory = canRedo;
+            editorViewModel.HasSelectableContent = canSelectAllInEditor;
         }
     }
 
@@ -1343,12 +1332,12 @@ public sealed partial class MermaidEditorView : UserControl
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            editorViewModel.CanPaste = hasClipboardText;
+            editorViewModel.HasClipboardContent = hasClipboardText;
         }
         else
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
-                editorViewModel.CanPaste = hasClipboardText, DispatcherPriority.Normal);
+                editorViewModel.HasClipboardContent = hasClipboardText, DispatcherPriority.Normal);
         }
     }
     #endregion Context Menu State

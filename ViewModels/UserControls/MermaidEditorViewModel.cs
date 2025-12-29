@@ -47,6 +47,44 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     private readonly CommentingStrategy _commentingStrategy;
     private readonly ILogger<MermaidEditorViewModel> _logger;
 
+    #region Tool Visibility
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the parent tool (MermaidEditorToolViewModel) is currently visible.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This property is set by <see cref="Docking.MermaidEditorToolViewModel"/> when its
+    /// <see cref="Docking.MermaidEditorToolViewModel.IsEditorVisible"/> property changes.
+    /// It tracks whether the editor panel is currently visible in the UI, which affects
+    /// whether editor commands should be enabled.
+    /// </para>
+    /// <para>
+    /// When the editor panel is pinned (auto-hide) and collapsed, this will be <c>false</c>,
+    /// causing all editor commands to report CanExecute = false and disabling the
+    /// associated menu items and toolbar buttons.
+    /// </para>
+    /// <para>
+    /// The <c>CanExecuteXxx</c> methods incorporate this value, returning <c>false</c> when the tool
+    /// is not visible regardless of the underlying editor state.
+    /// </para>
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CutCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PasteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SelectAllCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenFindCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindNextCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindPreviousCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CommentSelectionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UncommentSelectionCommand))]
+    public partial bool IsToolVisible { get; set; } = true;
+
+    #endregion Tool Visibility
+
     #region Edit State and Clipboard Properties
 
     /// <summary>
@@ -54,6 +92,11 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasText))]
+    [NotifyCanExecuteChangedFor(nameof(OpenFindCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindNextCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindPreviousCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CommentSelectionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UncommentSelectionCommand))]
     public partial string Text { get; set; } = string.Empty;
 
     /// <summary>
@@ -75,40 +118,76 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     public partial int CaretOffset { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the current content can be cut to the clipboard.
+    /// Gets or sets a value indicating whether there is a cuttable selection in the editor.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the current
+    /// editor selection state. The <see cref="CanExecuteCut"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the cut command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanCut { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(CutCommand))]
+    public partial bool HasCuttableSelection { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether there is available content to copy to the clipboard.
+    /// Gets or sets a value indicating whether there is a copiable selection in the editor.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the current
+    /// editor selection state. The <see cref="CanExecuteCopy"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the copy command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanCopy { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
+    public partial bool HasCopiableSelection { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether there is available content in the clipboard to paste.
+    /// Gets or sets a value indicating whether the clipboard has content that can be pasted.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the current
+    /// clipboard state. The <see cref="CanExecutePaste"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the paste command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanPaste { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(PasteCommand))]
+    public partial bool HasClipboardContent { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether undo is available.
+    /// Gets or sets a value indicating whether there are operations in the undo history.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
+    /// undo manager state. The <see cref="CanExecuteUndo"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the undo command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanUndo { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
+    public partial bool HasUndoHistory { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether redo is available.
+    /// Gets or sets a value indicating whether there are operations in the redo history.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
+    /// undo manager state. The <see cref="CanExecuteRedo"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the redo command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanRedo { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+    public partial bool HasRedoHistory { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the 'Select All' operation is available.
+    /// Gets or sets a value indicating whether there is content that can be selected.
     /// </summary>
+    /// <remarks>
+    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
+    /// document state. The <see cref="CanExecuteSelectAll"/> method combines this with
+    /// <see cref="IsToolVisible"/> to determine if the select all command can execute.
+    /// </remarks>
     [ObservableProperty]
-    public partial bool CanSelectAll { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(SelectAllCommand))]
+    public partial bool HasSelectableContent { get; set; }
 
     #endregion Edit State and Clipboard Properties
 
@@ -120,6 +199,58 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     public bool HasText => !string.IsNullOrEmpty(Text);
 
     #endregion Computed Properties
+
+    #region CanExecute Methods
+
+    /// <summary>
+    /// Determines whether the cut command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is a cuttable selection; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteCut() => IsToolVisible && HasCuttableSelection;
+
+    /// <summary>
+    /// Determines whether the copy command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is a copiable selection; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteCopy() => IsToolVisible && HasCopiableSelection;
+
+    /// <summary>
+    /// Determines whether the paste command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and the clipboard has content; otherwise, <c>false</c>.</returns>
+    private bool CanExecutePaste() => IsToolVisible && HasClipboardContent;
+
+    /// <summary>
+    /// Determines whether the undo command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is undo history; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteUndo() => IsToolVisible && HasUndoHistory;
+
+    /// <summary>
+    /// Determines whether the redo command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is redo history; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteRedo() => IsToolVisible && HasRedoHistory;
+
+    /// <summary>
+    /// Determines whether the select all command can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is selectable content; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteSelectAll() => IsToolVisible && HasSelectableContent;
+
+    /// <summary>
+    /// Determines whether find-related commands (OpenFind, FindNext, FindPrevious) can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is text to search within; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteFind() => IsToolVisible && HasText;
+
+    /// <summary>
+    /// Determines whether comment-related commands (CommentSelection, UncommentSelection) can execute.
+    /// </summary>
+    /// <returns><c>true</c> if the editor tool is visible and there is text to comment; otherwise, <c>false</c>.</returns>
+    private bool CanExecuteComment() => IsToolVisible && HasText;
+
+    #endregion CanExecute Methods
 
     #region Action Delegates
 
@@ -225,11 +356,11 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// <para>
     /// This command is typically used in clipboard or editing scenarios to implement cut
     /// functionality. The operation is only performed if a cut action is defined. The ability to execute this command
-    /// is determined by the <see cref="CanCut"/> property.
+    /// is determined by the <see cref="CanExecuteCut"/> method.
     /// </para>
     /// </remarks>
     /// <returns>A task that represents the asynchronous cut operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanCut))]
+    [RelayCommand(CanExecute = nameof(CanExecuteCut))]
     private async Task CutAsync()
     {
         if (CutAction is not null)
@@ -239,12 +370,13 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Asynchronously copies the current content to the clipboard if a copy action is available.
+    /// Executes the copy operation asynchronously if a copy action is defined.
     /// </summary>
-    /// <remarks>This method performs no action if no copy action is defined. Use the <see cref="CanCopy"/>
-    /// property to determine whether copying is currently possible before invoking this method.</remarks>
+    /// <remarks>This method is intended to be used as a command handler and will only perform the copy action
+    /// if one has been assigned. The method is typically invoked through UI command binding using the RelayCommand
+    /// attribute.</remarks>
     /// <returns>A task that represents the asynchronous copy operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanCopy))]
+    [RelayCommand(CanExecute = nameof(CanExecuteCopy))]
     private async Task CopyAsync()
     {
         if (CopyAction is not null)
@@ -259,7 +391,7 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// <remarks>This method is intended to be used as a command handler for paste actions, typically in
     /// response to user interface events. The method does nothing if no paste action is defined.</remarks>
     /// <returns>A task that represents the asynchronous paste operation.</returns>
-    [RelayCommand(CanExecute = nameof(CanPaste))]
+    [RelayCommand(CanExecute = nameof(CanExecutePaste))]
     private async Task PasteAsync()
     {
         if (PasteAction is not null)
@@ -271,37 +403,37 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// <summary>
     /// Undoes the last edit operation.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanUndo))]
+    [RelayCommand(CanExecute = nameof(CanExecuteUndo))]
     private void Undo() => UndoAction?.Invoke();
 
     /// <summary>
     /// Redoes the last undone edit operation.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanRedo))]
+    [RelayCommand(CanExecute = nameof(CanExecuteRedo))]
     private void Redo() => RedoAction?.Invoke();
 
     /// <summary>
     /// Selects all text in the editor.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanSelectAll))]
+    [RelayCommand(CanExecute = nameof(CanExecuteSelectAll))]
     private void SelectAll() => SelectAllAction?.Invoke();
 
     /// <summary>
     /// Opens the find panel in the editor.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
+    [RelayCommand(CanExecute = nameof(CanExecuteFind))]
     private void OpenFind() => OpenFindAction?.Invoke();
 
     /// <summary>
     /// Finds the next match in the editor.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
+    [RelayCommand(CanExecute = nameof(CanExecuteFind))]
     private void FindNext() => FindNextAction?.Invoke();
 
     /// <summary>
     /// Finds the previous match in the editor.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(HasText))]
+    [RelayCommand(CanExecute = nameof(CanExecuteFind))]
     private void FindPrevious() => FindPreviousAction?.Invoke();
 
     #endregion Clipboard and Edit Commands
@@ -314,9 +446,10 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// </summary>
     /// <remarks>
     /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
-    /// the most current selection state is used. This command is enabled only when there is text in the editor.
+    /// the most current selection state is used. This command is enabled only when the editor tool is visible
+    /// and there is text in the editor.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasText))]
+    [RelayCommand(CanExecute = nameof(CanExecuteComment))]
     private void CommentSelection()
     {
         // Make sure the GetCurrentEditorContextFunc is defined
@@ -345,9 +478,10 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// </summary>
     /// <remarks>
     /// The editor context is retrieved on-demand via <see cref="GetCurrentEditorContextFunc"/> to ensure
-    /// the most current selection state is used. This command is enabled only when there is text in the editor.
+    /// the most current selection state is used. This command is enabled only when the editor tool is visible
+    /// and there is text in the editor.
     /// </remarks>
-    [RelayCommand(CanExecute = nameof(HasText))]
+    [RelayCommand(CanExecute = nameof(CanExecuteComment))]
     private void UncommentSelection()
     {
         // Make sure the GetCurrentEditorContextFunc is defined
@@ -371,23 +505,4 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     }
 
     #endregion Comment/Uncomment Selection Commands
-
-    #region Property Change Handlers
-
-    /// <summary>
-    /// Handles changes to the Text property by notifying dependent commands that their CanExecute state may have changed.
-    /// </summary>
-    /// <param name="value">The new text value.</param>
-    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Parameter is required for partial method signature.")]
-    partial void OnTextChanged(string value)
-    {
-        // Notify commands that depend on HasText
-        OpenFindCommand.NotifyCanExecuteChanged();
-        FindNextCommand.NotifyCanExecuteChanged();
-        FindPreviousCommand.NotifyCanExecuteChanged();
-        CommentSelectionCommand.NotifyCanExecuteChanged();
-        UncommentSelectionCommand.NotifyCanExecuteChanged();
-    }
-
-    #endregion Property Change Handlers
 }
