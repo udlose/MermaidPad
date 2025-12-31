@@ -18,19 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using JetBrains.Annotations;
 using Microsoft.Extensions.ObjectPool;
 using System.Text;
 
 namespace MermaidPad.Infrastructure.ObjectPooling;
 
 /// <summary>
-/// Provides a lease for a pooled <see cref="StringBuilder"/> instance, ensuring the builder is returned to the pool
-/// when disposed.
+/// This type is an <see cref="IDisposable"/> lease/handle for a pooled <see cref="StringBuilder"/> instance,
+/// ensuring the builder is returned to the pool when disposed.
 /// </summary>
-/// <remarks>A <see cref="PooledStringBuilderLease"/> is typically obtained from an object pool and should be
+/// <remarks>
+/// <para>
+/// Instances of this type must be disposed by the caller, as indicated by the <see cref="MustDisposeResourceAttribute"/>,
+/// to return the leased <see cref="StringBuilder"/> to the originating pool.
+/// </para>
+/// <para>
+/// A <see cref="PooledStringBuilderLease"/> is typically obtained from an object pool and should be
 /// disposed when no longer needed to return the <see cref="StringBuilder"/> to the pool. Accessing the <see
 /// cref="Builder"/> property after disposal will throw an <see cref="ObjectDisposedException"/>. This type is not
-/// thread-safe.</remarks>
+/// thread-safe.
+/// </para>
+/// </remarks>
+[MustDisposeResource]
 internal sealed class PooledStringBuilderLease : IDisposable
 {
     private readonly ObjectPool<StringBuilder> _pool;

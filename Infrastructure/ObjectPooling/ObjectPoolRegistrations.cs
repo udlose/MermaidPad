@@ -24,7 +24,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.ObjectPool;
 using System.Text;
 
-namespace MermaidPad.Infrastructure;
+namespace MermaidPad.Infrastructure.ObjectPooling;
 
 /// <summary>
 /// Provides registration methods for configuring object pooling services, such as StringBuilder pooling, within a
@@ -44,6 +44,7 @@ internal static class ObjectPoolRegistrations
     /// <param name="services">The <see cref="IServiceCollection"/> to which the object pooling services are added. Cannot be null.</param>
     internal static void AddObjectPooling(this IServiceCollection services)
     {
+        // Register the default object pool provider first if one is not already registered
         services.TryAddSingleton<ObjectPoolProvider, DefaultObjectPoolProvider>();
         services.TryAddSingleton<ObjectPool<HashSet<string>>>(static sp =>
         {
@@ -52,40 +53,28 @@ internal static class ObjectPoolRegistrations
             return provider.Create(policy);
         });
 
-        AddStringBuilderPooling(services);
-    }
-
-    /// <summary>
-    /// Registers services required for StringBuilder pooling in the specified service collection.
-    /// </summary>
-    /// <remarks>This method configures the dependency injection container to provide pooled StringBuilder
-    /// instances using the default object pool provider. Registering these services can improve performance in
-    /// scenarios that require frequent StringBuilder allocations.</remarks>
-    /// <param name="services">The service collection to which the StringBuilder pooling services will be added. Cannot be null.</param>
-    private static void AddStringBuilderPooling(IServiceCollection services)
-    {
-        services.TryAddSingleton<ObjectPoolProvider, DefaultObjectPoolProvider>();
-        services.TryAddSingleton<ObjectPool<StringBuilder>>(CreateStringBuilderPool);
+        services.TryAddSingleton<IPooledStringBuilderLeaseFactory>(CreatePooledStringBuilderLeaseFactory);
     }
 
     /// <summary>
     /// Creates an object pool for <see cref="StringBuilder"/> instances using the specified service provider.
     /// </summary>
-    /// <remarks>The returned pool is configured with an initial capacity of 256 characters and a maximum
-    /// retained capacity of 16,384 characters per <see cref="StringBuilder"/> instance. Using a pool can improve
-    /// performance by reducing allocations when working with temporary strings.</remarks>
-    /// <param name="serviceProvider">The service provider used to retrieve the <see cref="ObjectPoolProvider"/> required to create the pool. Cannot
-    /// be null.</param>
-    /// <returns>An <see cref="ObjectPool{StringBuilder}"/> that manages pooled <see cref="StringBuilder"/> instances.</returns>
-    private static ObjectPool<StringBuilder> CreateStringBuilderPool(IServiceProvider serviceProvider)
+    /// <remarks>The returned <see cref="IPooledStringBuilderLeaseFactory"/> is configured to provide a pool with
+    /// an initial capacity of 256 characters and a maximum retained capacity of 16,384 characters per
+    /// <see cref="StringBuilder"/> instance. Using a pool can improve performance by reducing allocations when working with temporary strings.</remarks>
+    /// <param name="serviceProvider">The service provider used to retrieve the <see cref="ObjectPoolProvider"/> required to create the pool.
+    /// Cannot be null.</param>
+    /// <returns>An <see cref="IPooledStringBuilderLeaseFactory"/> that provides access to pooled <see cref="StringBuilder"/> instances.</returns>
+    private static IPooledStringBuilderLeaseFactory CreatePooledStringBuilderLeaseFactory(IServiceProvider serviceProvider)
     {
-        ObjectPoolProvider provider = serviceProvider.GetRequiredService<ObjectPoolProvider>();
+        ObjectPoolProvider poolProvider = serviceProvider.GetRequiredService<ObjectPoolProvider>();
         StringBuilderPooledObjectPolicy policy = new StringBuilderPooledObjectPolicy
         {
             InitialCapacity = 256,
             MaximumRetainedCapacity = 16 * 1_024
         };
 
-        return provider.Create(policy);
+        ObjectPool<StringBuilder> pool = poolProvider.Create(policy);
+        return new PooledStringBuilderLeaseFactory(pool);
     }
 }
