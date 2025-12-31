@@ -38,7 +38,7 @@ namespace MermaidPad.Services;
 [SuppressMessage("Major Code Smell", "S1118:Utility classes should not have public constructors", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "Class is a singleton by design with lifetime controlled by DI")]
-public sealed class SecurityService
+internal sealed class SecurityService
 {
     private const string SecurityLogCategory = "Security: ";
     private const int DefaultBufferSize = 81_920; // 80KB buffer size for file operations
@@ -75,7 +75,7 @@ public sealed class SecurityService
     /// <returns>A tuple containing a boolean value and an optional reason string. The boolean value indicates whether the file
     /// path is secure. If the file path is not secure, the reason string provides additional details about the failure.</returns>
     /// <exception cref="MissingAssetException">Thrown if <paramref name="isAssetFile"/> is <see langword="true"/> and the file does not exist.</exception>
-    public (bool IsSecure, string? Reason) IsFilePathSecure(string filePath, string? allowedDirectory = null, bool isAssetFile = false)
+    internal (bool IsSecure, string? Reason) IsFilePathSecure(string filePath, string? allowedDirectory = null, bool isAssetFile = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -177,7 +177,7 @@ public sealed class SecurityService
     /// if it is not secure. If the file name is secure, the reason will be <see langword="null"/>.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="fileName"/> is null, empty, or consists only of whitespace, or if <paramref
     /// name="allowedFiles"/> is empty.</exception>
-    public static (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
+    internal static (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(allowedFiles);
@@ -231,7 +231,7 @@ public sealed class SecurityService
     /// <returns>A <see cref="FileStream"/> configured with the specified options, optimized for sequential access and
     /// asynchronous operations.</returns>
     [MustDisposeResource]
-    public FileStream CreateSecureFileStream(string path, FileMode mode, FileAccess access, FileShare share = FileShare.Read, int bufferSize = DefaultBufferSize)
+    internal FileStream CreateSecureFileStream(string path, FileMode mode, FileAccess access, FileShare share = FileShare.Read, int bufferSize = DefaultBufferSize)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentOutOfRangeException.ThrowIfLessThan(bufferSize, 1);
