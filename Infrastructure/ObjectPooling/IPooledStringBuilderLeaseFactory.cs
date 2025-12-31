@@ -26,9 +26,9 @@ namespace MermaidPad.Infrastructure.ObjectPooling;
 /// <summary>
 /// Defines a factory for obtaining pooled leases of <see cref="StringBuilder"/> instances.
 /// </summary>
-/// <remarks>Implementations of this interface provide a mechanism to rent and return StringBuilder objects from a
+/// <remarks>Implementations of this interface provide a mechanism to rent and return <see cref="StringBuilder"/> objects from a
 /// pool, which can help reduce memory allocations in scenarios with frequent string manipulations. The returned lease
-/// typically manages the lifecycle of the pooled StringBuilder, ensuring it is returned to the pool when
+/// typically manages the lifecycle of the pooled <see cref="StringBuilder"/>, ensuring it is returned to the pool when
 /// disposed.</remarks>
 internal interface IPooledStringBuilderLeaseFactory
 {
@@ -44,9 +44,29 @@ internal interface IPooledStringBuilderLeaseFactory
     ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
     /// </para>
     /// </remarks>
-    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides exclusive access to a pooled <see cref="StringBuilder"/>. The lease
-    /// must be disposed to return the <see cref="StringBuilder"/> to the pool.</returns>
+    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides exclusive access to a pooled <see cref="StringBuilder"/>.
+    /// The lease must be disposed to return the <see cref="StringBuilder"/> to the pool.</returns>
     [MustDisposeResource]
     [MustUseReturnValue]
     PooledStringBuilderLease Rent();
+
+    /// <summary>
+    /// Rents a pooled <see cref="StringBuilder"/> instance wrapped in a <see cref="PooledStringBuilderLease"/>.
+    /// </summary>
+    /// <param name="minimumCapacity">The minimum capacity the rented <see cref="StringBuilder"/> should have.</param>
+    /// <remarks>
+    /// <para>
+    /// The caller:
+    ///     1. Must dispose of the returned <see cref="PooledStringBuilderLease"/> to return the <see cref="StringBuilder"/> to the pool
+    ///     as indicated by the <see cref="MustDisposeResourceAttribute"/>.
+    ///     2. Must avoid holding onto the <see cref="StringBuilder"/> reference beyond the scope of the lease.
+    ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
+    /// </para>
+    /// </remarks>
+    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides exclusive access to a pooled <see cref="StringBuilder"/>.
+    /// The lease must be disposed to return the <see cref="StringBuilder"/> to the pool.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="minimumCapacity"/> is less than or equal to zero.</exception>
+    [MustDisposeResource]
+    [MustUseReturnValue]
+    PooledStringBuilderLease Rent(int minimumCapacity);
 }
