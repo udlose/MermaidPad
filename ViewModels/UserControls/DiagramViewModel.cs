@@ -47,6 +47,13 @@ internal sealed partial class DiagramViewModel : ViewModelBase
 {
     private readonly ILogger<DiagramViewModel> _logger;
     private readonly MermaidRenderer _mermaidRenderer;
+    private readonly SemaphoreSlim _renderGate = new SemaphoreSlim(1, 1);
+
+    /// <summary>
+    /// Monotonic, atomic render id used for last-write-wins
+    /// </summary>
+    private long _renderSequence;
+
     private const int WebViewReadyTimeoutSeconds = 30;
 
     #region State Properties
@@ -119,7 +126,42 @@ internal sealed partial class DiagramViewModel : ViewModelBase
     public Task RenderAsync(string mermaidSource)
     {
         // Do not check mermaidSource; null, empty and whitespace are valid values because that clears the diagram
-        return _mermaidRenderer.RenderAsync(mermaidSource);
+
+        long requestId = Interlocked.Increment(ref _renderSequence);
+        return RenderCoreAsync(requestId, mermaidSource);
+    }
+
+    /// <summary>
+    /// Performs the core asynchronous rendering operation for a Mermaid diagram associated with the specified request.
+    /// </summary>
+    /// <remarks>Rendering requests are serialized to prevent overlapping operations. If a newer render
+    /// request arrives while a previous one is pending, only the latest request is processed.</remarks>
+    /// <param name="requestId">The unique identifier for the render request. Only the most recent request is processed; earlier requests may be
+    /// skipped if superseded.</param>
+    /// <param name="mermaidSource">The Mermaid diagram source code to render. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous rendering operation.</returns>
+    private async Task RenderCoreAsync(long requestId, string mermaidSource)
+    {
+        // Serialize WebView access so LivePreview cannot overlap renders
+        await _renderGate.WaitAsync()
+            .ConfigureAwait(false);
+        try
+        {
+            // If a newer render request arrived while this one was queued, skip it
+            long latestRequestId = Volatile.Read(ref _renderSequence);
+            if (requestId != latestRequestId)
+            {
+                return;
+            }
+
+            // MermaidRenderer internally marshals to the UI thread when needed
+            await _mermaidRenderer.RenderAsync(mermaidSource)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            _renderGate.Release();
+        }
     }
 
     /// <summary>
