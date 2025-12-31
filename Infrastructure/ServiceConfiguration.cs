@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Dock.Model.Extensions.DependencyInjection;
+using Dock.Serializer;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services;
@@ -65,6 +66,8 @@ public static class ServiceConfiguration
         services.AddObjectPooling();
 
         // Core singletons
+        services.AddSingleton<ILoggerFactory>(static _ => new SerilogLoggerFactory(Log.Logger));
+        services.AddSingleton<IPlatformServices>(static _ => PlatformServiceFactory.Instance);
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();
         services.AddSingleton<AssetIntegrityService>();
@@ -102,18 +105,25 @@ public static class ServiceConfiguration
             return new MermaidUpdateService(settings, assetsDirectory, httpClientFactory, logger);
         });
 
+        //TODO - DaveBlack: MDI Migration Note: For MDI scenarios, the SyntaxHighlightingService needs to be transient (per document)
         services.AddSingleton<SyntaxHighlightingService>();
+
+        //TODO - DaveBlack: MDI Migration Note: For MDI scenarios, the MermaidRenderer needs to be transient (per document)
         services.AddSingleton<MermaidRenderer>();
         services.AddSingleton<ExportService>();
         services.AddSingleton<IDebounceDispatcher, DebounceDispatcher>();
         services.AddSingleton<IImageConversionService, SkiaSharpImageConversionService>();
         services.AddSingleton<IDialogFactory, DialogFactory>();
         services.AddSingleton<IFileService, FileService>();
+
+        //TODO - DaveBlack: MDI Migration Note: For MDI scenarios, the DocumentAnalyzer needs to be transient (per document)
         services.AddSingleton<DocumentAnalyzer>();
+
+        //TODO - DaveBlack: MDI Migration Note: For MDI scenarios, the CommentingStrategy needs to be transient (per document)
         services.AddSingleton<CommentingStrategy>();
 
-        // Dock layout services - see https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-dependency-injection.md
-        services.AddDock<DockFactory, Dock.Serializer.SystemTextJson.DockSerializer>();
+        // Dock layout-related services
+        services.AddDock<DockFactory, DockSerializer>();
         services.AddSingleton<DockLayoutService>();
 
         // Generic ViewModel Factory: creates new instances with DI support
@@ -128,14 +138,19 @@ public static class ServiceConfiguration
         // via factory because there's only one MainWindowViewModel per window
         services.AddTransient<MainWindowViewModel>();
 
-        //TODO @Claude can we do this safely? who shold own the responsibility of creating view models for dockable controls?
-        //// UserControl ViewModels: transient (one per control instance)
-        //services.AddTransient<MermaidEditorViewModel>();
-        //services.AddTransient<DiagramViewModel>();
-
-        //// Dockable ViewModels: transient (one per dockable instance)
-        //services.AddTransient<MermaidEditorToolViewModel>();
-        //services.AddTransient<DiagramToolViewModel>();
+        // Dockable ViewModels: NOT registered in DI
+        // These are created by DockFactory via IViewModelFactory because:
+        // 1. DockFactory needs to hold references to EditorTool and DiagramTool
+        // 2. The factory controls the lifecycle during layout creation and restoration
+        // 3. Transient registration would create unwanted new instances on every DI request
+        // The IViewModelFactory pattern gives us DI benefits (constructor injection) with
+        // explicit control over when instances are created.
+        //
+        // ViewModels created via IViewModelFactory:
+        // - MermaidEditorViewModel (wrapped by MermaidEditorToolViewModel)
+        // - DiagramViewModel (wrapped by DiagramToolViewModel)
+        // - MermaidEditorToolViewModel
+        // - DiagramToolViewModel
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();
