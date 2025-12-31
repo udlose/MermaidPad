@@ -67,14 +67,37 @@ internal static class ObjectPoolRegistrations
     /// <returns>An <see cref="IPooledStringBuilderLeaseFactory"/> that provides access to pooled <see cref="StringBuilder"/> instances.</returns>
     private static IPooledStringBuilderLeaseFactory CreatePooledStringBuilderLeaseFactory(IServiceProvider serviceProvider)
     {
+        const int oneKiloByte = 1_024;
         ObjectPoolProvider poolProvider = serviceProvider.GetRequiredService<ObjectPoolProvider>();
-        StringBuilderPooledObjectPolicy policy = new StringBuilderPooledObjectPolicy
+        StringBuilderPooledObjectPolicy policy256 = new StringBuilderPooledObjectPolicy
         {
             InitialCapacity = 256,
-            MaximumRetainedCapacity = 16 * 1_024
+            MaximumRetainedCapacity = 256
         };
 
-        ObjectPool<StringBuilder> pool = poolProvider.Create(policy);
-        return new PooledStringBuilderLeaseFactory(pool);
+        StringBuilderPooledObjectPolicy policy1024 = new StringBuilderPooledObjectPolicy
+        {
+            InitialCapacity = oneKiloByte,
+            MaximumRetainedCapacity = oneKiloByte
+        };
+
+        StringBuilderPooledObjectPolicy policy4096 = new StringBuilderPooledObjectPolicy
+        {
+            InitialCapacity = 4 * oneKiloByte,
+            MaximumRetainedCapacity = 4 * oneKiloByte
+        };
+
+        StringBuilderPooledObjectPolicy policy16384 = new StringBuilderPooledObjectPolicy
+        {
+            InitialCapacity = 16 * oneKiloByte,
+            MaximumRetainedCapacity = 16 * oneKiloByte
+        };
+
+        ObjectPool<StringBuilder> pool256 = poolProvider.Create(policy256);
+        ObjectPool<StringBuilder> pool1024 = poolProvider.Create(policy1024);
+        ObjectPool<StringBuilder> pool4096 = poolProvider.Create(policy4096);
+        ObjectPool<StringBuilder> pool16384 = poolProvider.Create(policy16384);
+
+        return new PooledStringBuilderBucketedLeaseFactory(pool256, pool1024, pool4096, pool16384);
     }
 }
