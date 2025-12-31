@@ -607,79 +607,71 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// <summary>
     /// Renders a Mermaid diagram in the associated WebView control using the provided Mermaid source code.
     /// </summary>
-    /// <remarks>This method executes JavaScript in the WebView to render the Mermaid diagram. The source code
+    /// <remarks>
+    /// This method executes JavaScript in the WebView to render the Mermaid diagram. The source code
     /// is escaped to ensure compatibility with JavaScript string literals. If the WebView is not initialized, the
     /// method logs an error and exits without performing any action.  This method must be called on the UI thread, as
     /// it interacts with the WebView control. Exceptions during rendering or clearing are logged but do not propagate
-    /// to the caller.</remarks>
+    /// to the caller.
+    /// </remarks>
     /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty,
     /// or consists only of whitespace, the output in the WebView will be cleared instead.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task RenderAsync(string mermaidSource)
+    /// <returns>A task that represents the asynchronous rendering operation. The task result contains the result of the script execution.</returns>
+    public Task<string?> RenderAsync(string mermaidSource)
     {
         ThrowIfDisposed();
-        if (_webView is null)
+
+        // Copy locals to explicit locals to make intent clear and avoid captures
+        WebView? webViewSnapshot = _webView;
+        if (webViewSnapshot is null)
         {
             _logger.LogError(WebviewNotInitializedMessage);
-            return;
+            return Task.FromResult<string?>(null);
         }
 
-        if (string.IsNullOrWhiteSpace(mermaidSource))
+        return RenderCoreAsync(webViewSnapshot, mermaidSource, _logger);
+
+        // Minimize captures by using static local functions with explicit parameters
+        static async Task<string?> RenderCoreAsync(WebView webView, string source, ILogger<MermaidRenderer> logger)
         {
+            string? result = null;
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                // Clear output if source is null/empty/whitespace
+                return await ClearOnUIThreadAsync(webView, logger)
+                    .ConfigureAwait(false);
+            }
+
+            string escaped;
+            ReadOnlySpan<char> sourceSpan = source.AsSpan();
+
+            //TODO - DaveBlack: (optimize) possible optimization to use SearchValues instead of Contains for single char search
+            if (!sourceSpan.Contains('\\') && !sourceSpan.Contains('`'))
+            {
+                escaped = source;
+            }
+            else
+            {
+                escaped = EscapeSource(source);
+            }
+
+            string script = $"renderMermaid(`{escaped}`);";
             try
             {
-                // Copy locals to explicit locals to make intent clear and avoid captures
-                WebView webView = _webView;
-
-                // Explicit call (lambda still captures webView local, but the static local function prevents
-                // implicit capture of surrounding variables inside the function body).
-                await Dispatcher.UIThread.InvokeAsync(() => ClearOutputAsync(webView));
-
-                _logger.LogDebug("Cleared output");
-
-                // Static local function to avoid capturing outer variables inside the function
-                static Task ClearOutputAsync(WebView webViewParam) => webViewParam.ExecuteScriptAsync("clearOutput();");
+                result = await RenderOnUIThreadAsync(webView, script, logger)
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Clear failed");
-            }
-            return;
-        }
-
-        // Simple JavaScript execution
-        string escaped;
-        ReadOnlySpan<char> sourceSpan = mermaidSource.AsSpan();
-        if (!sourceSpan.Contains('\\') && !sourceSpan.Contains('`'))
-        {
-            escaped = mermaidSource;
-        }
-        else
-        {
-            escaped = EscapeSource(mermaidSource);
-        }
-
-        string script = $"renderMermaid(`{escaped}`);";
-        try
-        {
-            async Task RenderMermaidAsync()
-            {
-                string? result = await _webView.ExecuteScriptAsync(script);
-
-                // Don't pollute the log. A Render happens every time an un-debounced key
-                // in the TextEditor causes the WebView to need to render itself
-                Debug.WriteLine($"Render result: {result ?? "null"}");
+                logger.LogError(ex, "Render failed");
             }
 
-            await Dispatcher.UIThread.InvokeAsync(RenderMermaidAsync);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Render failed");
+            return result;
         }
 
         static string EscapeSource(string source)
         {
+            //TODO - DaveBlack: (optimize) possible optimization to use pooled StringBuilder from ArrayPool<char> for large sources
             ReadOnlySpan<char> sourceSpan = source.AsSpan();
             StringBuilder sb = new StringBuilder(sourceSpan.Length);
             foreach (char c in sourceSpan)
@@ -697,8 +689,93 @@ public sealed class MermaidRenderer : IAsyncDisposable
                         break;
                 }
             }
+
             return sb.ToString();
         }
+    }
+
+    /// <summary>
+    /// Executes the specified JavaScript code on the UI thread using the provided WebView instance and returns the result.
+    /// </summary>
+    /// <remarks>
+    /// <para>If called from a non-UI thread, the script execution is marshaled to the UI thread to ensure thread safety.
+    /// </para>
+    /// <para>
+    /// This method is static by design to minimize captures and improve performance in caller contexts.
+    /// </para>
+    /// </remarks>
+    /// <param name="webView">The WebView control on which to execute the script. Must not be null.</param>
+    /// <param name="script">The JavaScript code to execute within the WebView. Cannot be null.</param>
+    /// <param name="logger">The logger used to record debug and error information during the operation. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the result of the script execution.</returns>
+    private static async Task<string?> RenderOnUIThreadAsync(WebView webView, string script, ILogger<MermaidRenderer> logger)
+    {
+        string? result = null;
+        try
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                result = await webView.ExecuteScriptAsync(script)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                // Use the typed InvokeAsync<TResult>(Func<Task<TResult>>) overload so overload resolution
+                // cannot accidentally pick InvokeAsync(Func<Task>) and lose the return value
+                result = await Dispatcher.UIThread.InvokeAsync<string?>(() => webView.ExecuteScriptAsync(script), DispatcherPriority.Normal)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Render script execution failed");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Clears the output of the specified WebView control on the UI thread asynchronously and returns the result.
+    /// </summary>
+    /// <remarks>
+    /// <para>This method ensures that the clear operation is executed on the UI thread, regardless of the
+    /// calling thread. If called from a non-UI thread, the operation is dispatched to the UI thread. Any exceptions
+    /// encountered during the operation are logged using the provided logger.
+    /// </para>
+    /// <para>
+    /// This method is static by design to minimize captures and improve performance in caller contexts.
+    /// </para>
+    /// </remarks>
+    /// <param name="webView">The WebView instance whose output is to be cleared. Cannot be null.</param>
+    /// <param name="logger">The logger used to record debug and error information during the operation. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the result of the script execution.</returns>
+    private static async Task<string?> ClearOnUIThreadAsync(WebView webView, ILogger<MermaidRenderer> logger)
+    {
+        string? result = null;
+        try
+        {
+            const string javascript = "clearOutput();";
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                result = await webView.ExecuteScriptAsync(javascript)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                // Use the typed InvokeAsync<TResult>(Func<Task<TResult>>) overload so overload resolution
+                // cannot accidentally pick InvokeAsync(Func<Task>) and lose the return value
+                result = await Dispatcher.UIThread.InvokeAsync<string?>(() => webView.ExecuteScriptAsync(javascript), DispatcherPriority.Normal)
+                    .ConfigureAwait(false);
+            }
+
+            logger.LogDebug("Cleared output");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Clear failed");
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -802,14 +879,28 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// langword="null"/>, the method performs no action.</param>
     /// <returns>A task that represents the asynchronous unregister operation.</returns>
     [SuppressMessage("ReSharper", "MethodSupportsCancellation", Justification = "Cancellation is not needed here and introduces unnecessary complexity")]
-    public async Task UnregisterExportProgressCallbackAsync(Action<string>? callback)
+    public Task UnregisterExportProgressCallbackAsync(Action<string>? callback)
     {
         ThrowIfDisposed();
         if (callback is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        return UnregisterExportProgressCallbackCoreAsync(callback);
+    }
+
+    /// <summary>
+    /// Asynchronously unregisters a previously registered export progress callback and stops export polling if no
+    /// callbacks remain.
+    /// </summary>
+    /// <remarks>If this is the last registered callback, export polling is stopped and associated resources
+    /// are released. This method should be called when the caller no longer needs to receive export progress
+    /// updates.</remarks>
+    /// <param name="callback">The callback delegate to remove from the list of export progress listeners. Cannot be null.</param>
+    /// <returns>A task that represents the asynchronous unregistration operation.</returns>
+    private async Task UnregisterExportProgressCallbackCoreAsync(Action<string> callback)
+    {
         CancellationTokenSource? ctsToDispose = null;
         Task? pollingTaskToAwait = null;
         lock (_exportCallbackLock)
