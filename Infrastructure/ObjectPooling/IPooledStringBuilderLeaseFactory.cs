@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using JetBrains.Annotations;
 using System.Text;
 
 namespace MermaidPad.Infrastructure.ObjectPooling;
@@ -32,12 +33,20 @@ namespace MermaidPad.Infrastructure.ObjectPooling;
 internal interface IPooledStringBuilderLeaseFactory
 {
     /// <summary>
-    /// Rents a pooled string builder lease for efficient string concatenation operations.
+    /// Rents a pooled <see cref="StringBuilder"/> instance wrapped in a <see cref="PooledStringBuilderLease"/>.
     /// </summary>
-    /// <remarks>Using a pooled string builder can reduce memory allocations and improve performance when
-    /// constructing large or complex strings. The returned lease must be disposed when no longer needed to avoid
-    /// resource leaks.</remarks>
-    /// <returns>A <see cref="PooledStringBuilderLease"/> instance that provides access to a reusable string builder. The caller
-    /// is responsible for disposing the lease to return the builder to the pool.</returns>
+    /// <remarks>
+    /// <para>
+    /// The caller:
+    ///     1. Must dispose of the returned <see cref="PooledStringBuilderLease"/> to return the <see cref="StringBuilder"/> to the pool
+    ///     as indicated by the <see cref="MustDisposeResourceAttribute"/>.
+    ///     2. Must avoid holding onto the <see cref="StringBuilder"/> reference beyond the scope of the lease.
+    ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
+    /// </para>
+    /// </remarks>
+    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides exclusive access to a pooled <see cref="StringBuilder"/>. The lease
+    /// must be disposed to return the <see cref="StringBuilder"/> to the pool.</returns>
+    [MustDisposeResource]
+    [MustUseReturnValue]
     PooledStringBuilderLease Rent();
 }
