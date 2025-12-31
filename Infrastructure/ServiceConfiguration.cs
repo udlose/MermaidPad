@@ -59,6 +59,9 @@ public static class ServiceConfiguration
         // Add HTTP Client Factory
         services.AddHttpClient();
 
+        // Add object pooling services
+        services.AddObjectPooling();
+
         // Core singletons
         services.AddSingleton<SettingsService>();
         services.AddSingleton<SecurityService>();

@@ -42,7 +42,8 @@ namespace MermaidPad.Services.Platforms;
 /// is intended for internal use within the application to manage assets securely and efficiently.
 /// Designed for single-file publishing scenarios where Content files are unreliable.
 /// IL3000-safe: Does not use Assembly.Location for single-file compatibility.</remarks>
-[SuppressMessage("ReSharper", "InconsistentNaming")]
+[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Follows project naming conventions.")]
+[SuppressMessage("Maintainability", "S1192: String literals should not be duplicated", Justification = "Logging message template is used")]
 public sealed class AssetService
 {
     private const long MaxFileSize = 10 * 1_024 * 1_024; // 10 MB max file size
@@ -104,7 +105,7 @@ public sealed class AssetService
     /// <summary>
     /// Represents the file path to the "chunk-SP2CHFBE.mjs" module within the "mermaid-elk-layout" package.
     /// </summary>
-    /// <remarks>This path is constructed using the Path.Join method to ensure compatibility
+    /// <remarks>This path is constructed using the "Path.Join" method to ensure compatibility
     /// across different operating systems. The file is part of the "mermaid-layout-elk.esm.min" directory
     /// structure.</remarks>
     internal static readonly string MermaidLayoutElkChunkSP2CHFBEPath = Path.Join("mermaid-elk-layout", "chunks", "mermaid-layout-elk.esm.min", "chunk-SP2CHFBE.mjs");
@@ -160,7 +161,7 @@ public sealed class AssetService
     ///             <description>Validates that the asset name is not null, empty, or invalid.</description>
     ///         </item>
     ///         <item>
-    ///             <description>Ensures the asset path is within the designated assets directory.</description>
+    ///             <description>Ensures the asset path is within the designated 'Assets' directory.</description>
     ///         </item>
     ///         <item>
     ///             <description>Checks that the asset is a regular file and not a symbolic link or reparse point.</description>
@@ -218,7 +219,7 @@ public sealed class AssetService
         }
 
         // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
-        string? expectedHash = _assetIntegrityService.GetStoredHashForAsset(validatedAssetName);
+        string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName);
         if (expectedHash is not null)
         {
             bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
@@ -386,7 +387,7 @@ public sealed class AssetService
         }
 
         // Step 7: Verify asset integrity BEFORE opening the file to avoid overwrite conflicts
-        string? expectedHash = _assetIntegrityService.GetStoredHashForAsset(validatedAssetName);
+        string? expectedHash = AssetIntegrityService.GetStoredHashForAsset(validatedAssetName);
         if (expectedHash is not null)
         {
             bool integrityValid = await _assetIntegrityService.VerifyFileIntegrityAsync(assetPath, expectedHash)
@@ -732,7 +733,7 @@ public sealed class AssetService
     /// within the user's Application Data directory. It validates that the resulting path is within the Application
     /// Data folder to prevent directory traversal attacks. If the Application Data folder cannot be determined, or if
     /// the validation fails, an exception is thrown.</remarks>
-    /// <returns>The full path to the assets directory.</returns>
+    /// <returns>The full path to the 'Assets' directory.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the Application Data folder cannot be determined.</exception>
     /// <exception cref="SecurityException">Thrown if the assets directory is not located within the Application Data folder.</exception>
     private string GetAssetsDirectory()
@@ -759,7 +760,7 @@ public sealed class AssetService
 
         if (!fullPath.StartsWith(fullAppData, comparison))
         {
-            string errorMessage = $"{SecurityLogCategory} Assets directory '{fullPath}' is not under AppData '{fullAppData}'";
+            string errorMessage = $"{SecurityLogCategory} Assets directory '{fullPath}' is not under {nameof(Environment.SpecialFolder.ApplicationData)} '{fullAppData}'";
             _logger.LogError("{ErrorMessage}", errorMessage);
             throw new SecurityException(errorMessage);
         }
@@ -935,7 +936,7 @@ public sealed class AssetService
     ///     </list></exception>
     private string ValidateAssetName(string assetName)
     {
-        (bool isSecure, string? reason) = _securityService.IsFileNameSecure(assetName, _allowedAssets);
+        (bool isSecure, string? reason) = SecurityService.IsFileNameSecure(assetName, _allowedAssets);
         if (!isSecure)
         {
             string errorMessage = $"{SecurityLogCategory} Asset name '{assetName}' failed security validation: {reason}";
