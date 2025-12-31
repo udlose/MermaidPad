@@ -127,7 +127,7 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
     /// Gets the full file path, including the file name and extension, for the export operation based on the selected
     /// format.
     /// </summary>
-    internal string FullFilePath
+    public string FullFilePath
     {
         get
         {
@@ -198,7 +198,9 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
             } : null,
             SvgOptions = IsSvgSelected ? new SvgExportOptions
             {
-                Optimize = OptimizeSvg
+                Optimize = OptimizeSvg,
+                MinifySvg = false,
+                RemoveComments = false
             } : null
         };
     }
@@ -482,7 +484,6 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
                 Window? window = GetParentWindow();
                 if (window is null)
                 {
-                    // TODO LastError = "Unable to access window for confirmation dialog";
                     _logger.LogError("Unable to access window for confirmation dialog");
                     return false;
                 }
