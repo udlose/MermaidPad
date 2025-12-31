@@ -48,6 +48,7 @@ namespace MermaidPad;
 /// running.</remarks>
 public sealed partial class App : Application, IDisposable
 {
+    private const int StringBuilderInitialCapacity = 512;
     public static IServiceProvider Services { get; private set; } = null!;
     private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
 
@@ -377,7 +378,7 @@ public sealed partial class App : Application, IDisposable
             string fullExceptionDetails = BuildExceptionDetails(exception);
 
             // Build user-facing summary
-            StringBuilder errorSummary = new StringBuilder();
+            StringBuilder errorSummary = new StringBuilder(StringBuilderInitialCapacity);
             errorSummary.AppendLine(userMessage);
             errorSummary.AppendLine();
             errorSummary.AppendLine($"Error Type: {exception.GetType().FullName}");
@@ -786,7 +787,7 @@ public sealed partial class App : Application, IDisposable
     /// <param name="threadContext">A string representing the logical context or name of the thread where the exception occurred - e.g. "UI Thread", "Background Thread", "ThreadPool Thread".</param>
     private static void LogFatalExceptionWithContext(string message, Exception exception, string threadContext)
     {
-        StringBuilder logEntry = new StringBuilder(256);
+        StringBuilder logEntry = new StringBuilder(StringBuilderInitialCapacity);
         logEntry.AppendLine("---------------------------------------------------------------");
         logEntry.AppendLine($"EXCEPTION: {message}");
         logEntry.AppendLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
@@ -822,7 +823,7 @@ public sealed partial class App : Application, IDisposable
     /// and stack trace where applicable.</returns>
     private static string BuildExceptionDetails(Exception exception)
     {
-        StringBuilder details = new StringBuilder();
+        StringBuilder details = new StringBuilder(StringBuilderInitialCapacity);
 
         // Handle AggregateException specially to show all inner exceptions
         if (exception is AggregateException aggregateException)
@@ -884,7 +885,7 @@ public sealed partial class App : Application, IDisposable
     /// location, source assembly, target site, custom data, and optionally the stack trace.</returns>
     private static string FormatSingleException(Exception exception, bool includeStackTrace)
     {
-        StringBuilder details = new StringBuilder();
+        StringBuilder details = new StringBuilder(StringBuilderInitialCapacity);
 
         details.AppendLine($"Exception Type: {exception.GetType().FullName}");
         details.AppendLine($"Message: {exception.Message}");
