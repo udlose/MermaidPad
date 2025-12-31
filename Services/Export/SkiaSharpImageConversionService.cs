@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ namespace MermaidPad.Services.Export;
 /// dimension extraction. It is designed for use in applications that require reliable SVG image processing, leveraging
 /// Svg.Skia's recommended APIs for optimal compatibility and performance. The service is thread-safe and suitable for
 /// both UI and server environments.</remarks>
-public sealed partial class SkiaSharpImageConversionService : IImageConversionService
+internal sealed partial class SkiaSharpImageConversionService : IImageConversionService
 {
     private static readonly char[] _separators = [',', ' ', '\t', '/'];
     private readonly ILogger<SkiaSharpImageConversionService> _logger;

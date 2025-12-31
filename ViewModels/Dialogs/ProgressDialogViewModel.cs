@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<ExportProgress>
+internal sealed partial class ProgressDialogViewModel : ViewModelBase, IProgress<ExportProgress>
 {
     private CancellationTokenSource? _cancellationTokenSource;
 

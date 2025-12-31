@@ -37,7 +37,7 @@ namespace MermaidPad.Views;
 /// lengthy operations. When shown, it remains visible for a short period before optionally invoking a specified action
 /// and closing itself. This window is intended to be displayed modally at the beginning of the application's
 /// lifecycle.</remarks>
-public sealed partial class SplashWindow : Window
+internal sealed partial class SplashWindow : Window
 {
     private readonly Action? _mainAction;
     private readonly ILogger<SplashWindow>? _logger;

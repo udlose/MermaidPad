@@ -27,7 +27,7 @@ namespace MermaidPad.Infrastructure;
 /// <summary>
 /// Factory for creating dialogs with proper dependency injection
 /// </summary>
-public interface IDialogFactory
+internal interface IDialogFactory
 {
     /// <summary>
     /// Creates a dialog window with DI support
@@ -43,7 +43,7 @@ public interface IDialogFactory
 /// <summary>
 /// Implementation of dialog factory using the service provider
 /// </summary>
-public sealed class DialogFactory : IDialogFactory
+internal sealed class DialogFactory : IDialogFactory
 {
     private readonly IServiceProvider _serviceProvider;
 
