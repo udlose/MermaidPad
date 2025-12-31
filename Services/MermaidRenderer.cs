@@ -26,6 +26,7 @@ using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
@@ -81,6 +82,8 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     private readonly Lock _exportCallbackLock = new Lock();
     private static readonly TimeSpan CancelAsyncTimeout = TimeSpan.FromMilliseconds(225);
     private static readonly TimeSpan PollingTaskCancellationTimeout = TimeSpan.FromSeconds(2);
+
+    private static readonly SearchValues<char> _mermaidEscapeChars = SearchValues.Create('\\', '`');
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidRenderer"/> class.
@@ -669,18 +672,9 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
                     .ConfigureAwait(false);
             }
 
-            string escaped;
             ReadOnlySpan<char> sourceSpan = source.AsSpan();
-
-            //TODO - DaveBlack: (optimize) possible optimization to use SearchValues instead of Contains for single char search
-            if (!sourceSpan.Contains('\\') && !sourceSpan.Contains('`'))
-            {
-                escaped = source;
-            }
-            else
-            {
-                escaped = EscapeSource(source, pooledStringBuilderLeaseFactory);
-            }
+            string escaped = !sourceSpan.ContainsAny(_mermaidEscapeChars) ?
+                source : EscapeSource(source, pooledStringBuilderLeaseFactory);
 
             string script = $"renderMermaid(`{escaped}`);";
             try
