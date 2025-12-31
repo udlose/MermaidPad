@@ -29,6 +29,8 @@ using MermaidPad.Services.Highlighting;
 using MermaidPad.Services.Platforms;
 using MermaidPad.ViewModels;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Docking;
+using MermaidPad.ViewModels.UserControls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -126,6 +128,29 @@ public static class ServiceConfiguration
         services.AddDock<DockFactory, DockSerializer>();
         services.AddSingleton<DockLayoutService>();
 
+        RegisterViewModels(services);
+
+        // Note: Dialog Views (Windows) are not registered in DI
+        // They are created directly with 'new' since they need special initialization
+        // Only their ViewModels are created through DI
+
+        ServiceProvider serviceProvider = services.BuildServiceProvider();
+        Log.Information("=== MermaidPad Service Configuration Completed ===");
+        return serviceProvider;
+    }
+
+    /// <summary>
+    /// Registers all ViewModel types and related factories with the specified service collection for dependency
+    /// injection.
+    /// </summary>
+    /// <remarks>This method configures dependency injection for ViewModels used throughout the application,
+    /// including main window, dialog, and dockable ViewModels. It registers a factory for creating ViewModels with
+    /// dependency injection support and ensures that ViewModels required for layout restoration are available to the
+    /// serializer. Dockable ViewModels are registered with a keyed transient lifetime to support layout restoration
+    /// scenarios, but should not be resolved directly outside of this context.</remarks>
+    /// <param name="services">The service collection to which ViewModel services and factories are added. Must not be null.</param>
+    private static void RegisterViewModels(IServiceCollection services)
+    {
         // Generic ViewModel Factory: creates new instances with DI support
         // Using factory pattern instead of direct transient registration because:
         // 1. Makes instance creation explicit - callers know they're getting a new instance
@@ -138,11 +163,20 @@ public static class ServiceConfiguration
         // via factory because there's only one MainWindowViewModel per window
         services.AddTransient<MainWindowViewModel>();
 
-        // Dockable ViewModels: NOT registered in DI
+        // Dockable ViewModels: these must be registered in DI only to satisfy
+        // JSON deserialization during layout restoration. They should not be
+        // requested directly via DI elsewhere.
+        //
+        // Dock.Serializer integrates with Microsoft.Extensions.DependencyInjection and,
+        // when restoring a saved layout from JSON, resolves dockable ViewModels from the
+        // DI container based on their serialized type information. Any ViewModel that
+        // can appear in a persisted layout therefore has to be registered here so the
+        // serializer can construct it, even though the normal code path uses IViewModelFactory.
+        //
         // These are created by DockFactory via IViewModelFactory because:
         // 1. DockFactory needs to hold references to EditorTool and DiagramTool
         // 2. The factory controls the lifecycle during layout creation and restoration
-        // 3. Transient registration would create unwanted new instances on every DI request
+        //
         // The IViewModelFactory pattern gives us DI benefits (constructor injection) with
         // explicit control over when instances are created.
         //
@@ -151,27 +185,24 @@ public static class ServiceConfiguration
         // - DiagramViewModel (wrapped by DiagramToolViewModel)
         // - MermaidEditorToolViewModel
         // - DiagramToolViewModel
+        const string layoutRestorationServiceKey = "LayoutRestoration";
+        services.AddKeyedTransient<DiagramToolViewModel>(layoutRestorationServiceKey);
+        services.AddKeyedTransient<DiagramViewModel>(layoutRestorationServiceKey);
+        services.AddKeyedTransient<MermaidEditorToolViewModel>(layoutRestorationServiceKey);
+        services.AddKeyedTransient<MermaidEditorViewModel>(layoutRestorationServiceKey);
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();
         services.AddTransient<ProgressDialogViewModel>();
         services.AddTransient<MessageDialogViewModel>();
         services.AddTransient<ConfirmationDialogViewModel>();
-
-        // Note: Dialog Views (Windows) are not registered in DI
-        // They are created directly with 'new' since they need special initialization
-        // Only their ViewModels are created through DI
-
-        ServiceProvider serviceProvider = services.BuildServiceProvider();
-        Log.Information("=== MermaidPad Service Configuration Completed ===");
-        return serviceProvider;
     }
 
     /// <summary>
     /// Configures Serilog-based logging for the application.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
-    private static void ConfigureLogging(ServiceCollection services)
+    private static void ConfigureLogging(IServiceCollection services)
     {
         // Load logging settings directly without creating a full SettingsService instance
         // This avoids circular dependency since SettingsService needs ILogger, but we're configuring logging here
