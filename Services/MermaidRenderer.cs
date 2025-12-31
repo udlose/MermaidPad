@@ -22,6 +22,7 @@ using Avalonia.Threading;
 using AvaloniaWebView;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
+using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services.Export;
 using MermaidPad.Services.Platforms;
 using Microsoft.Extensions.Logging;
@@ -41,7 +42,7 @@ namespace MermaidPad.Services;
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-public sealed class MermaidRenderer : IAsyncDisposable
+internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
 {
     private const string WebviewNotInitializedMessage = "WebView not initialized";
     private readonly ILogger<MermaidRenderer> _logger;
@@ -86,7 +87,9 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// </summary>
     /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="assetService">The asset service for managing assets.</param>
-    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService)
+    /// <param name="stringBuilderLeaseFactory">The factory for creating pooled <see cref="StringBuilder"/> instances.</param>
+    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService, IPooledStringBuilderLeaseFactory stringBuilderLeaseFactory)
+        : base(stringBuilderLeaseFactory)
     {
         _logger = logger;
         _assetService = assetService;
@@ -652,10 +655,11 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return Task.FromResult<string?>(null);
         }
 
-        return RenderCoreAsync(webViewSnapshot, mermaidSource, _logger);
+        return RenderCoreAsync(webViewSnapshot, mermaidSource, PooledStringBuilderLeaseFactory, _logger);
 
         // Minimize captures by using static local functions with explicit parameters
-        static async Task<string?> RenderCoreAsync(WebView webView, string source, ILogger<MermaidRenderer> logger)
+        static async Task<string?> RenderCoreAsync(WebView webView, string source,
+            IPooledStringBuilderLeaseFactory pooledStringBuilderLeaseFactory, ILogger<MermaidRenderer> logger)
         {
             string? result = null;
             if (string.IsNullOrWhiteSpace(source))
@@ -675,7 +679,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
             }
             else
             {
-                escaped = EscapeSource(source);
+                escaped = EscapeSource(source, pooledStringBuilderLeaseFactory);
             }
 
             string script = $"renderMermaid(`{escaped}`);";
@@ -692,28 +696,28 @@ public sealed class MermaidRenderer : IAsyncDisposable
             return result;
         }
 
-        static string EscapeSource(string source)
+        static string EscapeSource(string source, IPooledStringBuilderLeaseFactory pooledStringBuilderLeaseFactory)
         {
-            //TODO - DaveBlack: (optimize) possible optimization to use pooled StringBuilder from ArrayPool<char> for large sources
             ReadOnlySpan<char> sourceSpan = source.AsSpan();
-            StringBuilder sb = new StringBuilder(sourceSpan.Length);
+            int minimumCapacity = sourceSpan.Length + (sourceSpan.Length / 4);      // Estimate extra capacity for escapes (worst case)
+            using PooledStringBuilderLease builderLease = pooledStringBuilderLeaseFactory.Rent(minimumCapacity);
             foreach (char c in sourceSpan)
             {
                 switch (c)
                 {
                     case '\\':
-                        sb.Append('\\').Append('\\');
+                        builderLease.Builder.Append('\\').Append('\\');
                         break;
                     case '`':
-                        sb.Append('\\').Append('`');
+                        builderLease.Builder.Append('\\').Append('`');
                         break;
                     default:
-                        sb.Append(c);
+                        builderLease.Builder.Append(c);
                         break;
                 }
             }
 
-            return sb.ToString();
+            return builderLease.Builder.ToString();
         }
     }
 
