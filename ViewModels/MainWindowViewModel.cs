@@ -92,7 +92,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <remarks>
     /// This field provides access to the underlying tool ViewModels through
     /// <see cref="DockFactory.EditorTool"/> and <see cref="DockFactory.DiagramTool"/>.
-    /// It is injected via DI and stored privately - consumers should use DI to access the factory.
     /// </remarks>
     private readonly DockFactory _dockFactory;
 
@@ -125,6 +124,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// the DockFactory is acceptable and provides convenient XAML binding.
     /// </para>
     /// </remarks>
+    //TODO - DaveBlack: MDI Migration - Replace with ActiveDocument pattern
     public MermaidEditorViewModel Editor => _dockFactory.EditorTool?.Editor
         ?? throw new InvalidOperationException("EditorTool is not initialized. Ensure the dock layout is created first.");
 
@@ -140,6 +140,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <b>MDI Migration Note:</b> In an MDI design, this would delegate to ActiveDocument?.Editor.HasText.
     /// </para>
     /// </remarks>
+    //TODO - DaveBlack: MDI Migration - Replace with ActiveDocument pattern
     public bool EditorHasText => _dockFactory.EditorTool?.Editor.HasText ?? false;
 
     /// <summary>
@@ -307,7 +308,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
     /// <param name="dockFactory">The factory for creating the dock layout.</param>
-    /// <param name="dockLayoutService">The service for saving and loading dock layouts.</param>
+    /// <param name="dockLayoutService">The service for saving and loading dock layout.</param>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <remarks>
@@ -362,22 +363,47 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Initializes the dock layout, either from saved state or with defaults.
+    /// Initializes the dock layout, attempting to restore a saved layout first,
+    /// then falling back to the default layout if restoration fails.
     /// </summary>
     private void InitializeDockLayout()
     {
         _logger.LogInformation("Initializing dock layout");
 
-        //TODO @Claude finish this implementation to restore saved layout here
-        // IRootDock? savedLayout = _dockLayoutService.Load<IRootDock>();
+        // Try to load saved layout, fall back to default if not found or invalid
+        IRootDock? savedLayout = _dockLayoutService.Load();
+        if (savedLayout is not null)
+        {
+            // Restore the dock state and initialize the loaded layout
+            _dockLayoutService.RestoreState(savedLayout);
+            InitializeDockLayout(savedLayout);
 
-        // Create a default layout
-        IRootDock rootDock = _dockFactory.CreateLayout();
+            _logger.LogInformation("Dock layout restored from saved file");
+        }
+        else
+        {
+            // Create default layout
+            IRootDock defaultLayout = _dockFactory.CreateDefaultLayout();
+            InitializeDockLayout(defaultLayout);
+
+            // Capture initial state for future restoration
+            _dockLayoutService.CaptureState(defaultLayout);
+
+            _logger.LogInformation("Dock layout initialized with defaults");
+        }
+    }
+
+    /// <summary>
+    /// Initializes the dock layout using the specified root dock model.
+    /// </summary>
+    /// <remarks>This method sets up the docking layout by passing the provided root dock model to the dock
+    /// factory and updates the current layout reference. Ensure that the root dock model is properly configured before
+    /// calling this method.</remarks>
+    /// <param name="rootDock">The root dock model to use for initializing the layout. Cannot be null.</param>
+    private void InitializeDockLayout(IRootDock rootDock)
+    {
         _dockFactory.InitLayout(rootDock);
-
         Layout = rootDock;
-
-        _logger.LogInformation("Dock layout initialized with default configuration");
     }
 
     /// <summary>
@@ -929,6 +955,133 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         WindowTitle = $"MermaidPad - {fileName}{dirtyIndicator}";
     }
 
+    #region View Menu Commands
+
+    /// <summary>
+    /// Resets the dock layout to its default configuration.
+    /// </summary>
+    /// <remarks>
+    /// This command deletes any saved layout file and recreates the default layout
+    /// with the editor and diagram panels in their original positions and proportions.
+    /// </remarks>
+    [RelayCommand]
+    private async Task ResetLayoutAsync()
+    {
+        try
+        {
+            // Show confirmation dialog
+            Window? mainWindow = GetParentWindow();
+            if (mainWindow is null)
+            {
+                return;
+            }
+
+            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
+            confirmViewModel.ShowCancelButton = false;
+            confirmViewModel.Title = "Reset Layout?";
+            confirmViewModel.Message = "Are you sure you want to reset the layout to default? This will restore the original panel positions and sizes.";
+            confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
+            confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
+
+            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+            ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
+
+            if (result != ConfirmationResult.Yes)
+            {
+                return;
+            }
+
+            // Delete the saved layout state - synchronous operation (using async here is overkill)
+            if (!_dockLayoutService.DeleteSavedLayout())
+            {
+                await ShowErrorMessageAsync("Failed to delete saved layout file. The layout may not reset correctly.");
+            }
+
+            // Preserve current editor state before resetting
+            string currentText = Editor.Text;
+            int selectionStart = Editor.SelectionStart;
+            int selectionLength = Editor.SelectionLength;
+            int caretOffset = Editor.CaretOffset;
+
+            // Unsubscribe from old tool ViewModels
+            if (_dockFactory.EditorTool is not null)
+            {
+                Editor.PropertyChanged -= OnEditorPropertyChanged;
+                _dockFactory.EditorTool.PropertyChanged -= OnEditorToolPropertyChanged;
+            }
+
+            if (_dockFactory.DiagramTool is not null)
+            {
+                Diagram.PropertyChanged -= OnDiagramPropertyChanged;
+            }
+
+            // Create new default layout
+            IRootDock rootDock = _dockFactory.CreateDefaultLayout();
+            InitializeDockLayout(rootDock);
+
+            // Restore editor state to new editor
+            Editor.Text = currentText;
+            Editor.SelectionStart = selectionStart;
+            Editor.SelectionLength = selectionLength;
+            Editor.CaretOffset = caretOffset;
+
+            // Subscribe to new tool ViewModels
+            Editor.PropertyChanged += OnEditorPropertyChanged;
+            Diagram.PropertyChanged += OnDiagramPropertyChanged;
+            _dockFactory.EditorTool!.PropertyChanged += OnEditorToolPropertyChanged;
+
+            // Notify property changes for binding updates
+            OnPropertyChanged(nameof(Editor));
+            OnPropertyChanged(nameof(Diagram));
+            OnPropertyChanged(nameof(EditorHasText));
+            OnPropertyChanged(nameof(IsEditorVisible));
+
+            _logger.LogInformation("Dock layout reset to default");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reset dock layout");
+
+            await ShowErrorMessageAsync($"Failed to reset layout: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Shows and activates the editor panel.
+    /// </summary>
+    /// <remarks>
+    /// This command ensures the editor panel is visible and focused, useful when
+    /// the panel has been pinned (auto-hide) or otherwise hidden.
+    /// </remarks>
+    [RelayCommand]
+    private void ShowEditorPanel()
+    {
+        if (_dockFactory.EditorTool is not null)
+        {
+            _dockFactory.ShowTool(_dockFactory.EditorTool);
+            _logger.LogDebug("Editor panel shown and activated");
+        }
+    }
+
+    /// <summary>
+    /// Shows and activates the diagram panel.
+    /// </summary>
+    /// <remarks>
+    /// This command ensures the diagram panel is visible and focused, useful when
+    /// the panel has been pinned (auto-hide) or otherwise hidden.
+    /// </remarks>
+    [RelayCommand]
+    private void ShowDiagramPanel()
+    {
+        if (_dockFactory.DiagramTool is not null)
+        {
+            _dockFactory.ShowTool(_dockFactory.DiagramTool);
+            _logger.LogDebug("Diagram panel shown and activated");
+        }
+    }
+
+    #endregion View Menu Commands
+
     #region Help Menu Commands
 
     /// <summary>
@@ -958,6 +1111,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     #endregion Help Menu Commands
+
     /// <summary>
     /// Updates the status text to reflect the currently open file or indicate that no file is open.
     /// </summary>
@@ -1520,12 +1674,16 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Persists the current application settings and dock layout to storage.
+    /// Persists the current application settings and dock layout to storage synchronously.
     /// </summary>
-    /// <remarks>This method updates the settings service with the current state of the application,
+    /// <remarks>
+    /// <para>
+    /// This method updates the settings service with the current state of the application,
     /// including diagram text, live preview settings, Mermaid version information, editor selection details,
     /// and dock layout configuration. After updating the settings, the method saves them to ensure they
-    /// are persisted across application sessions.</remarks>
+    /// are persisted across application sessions.
+    /// </para>
+    /// </remarks>
     public void Persist()
     {
         _settingsService.Settings.LastDiagramText = Editor.Text;
@@ -1538,14 +1696,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
 
-        // Save dock layout
+        // Save dock layout state (synchronous fallback - async save should have happened on deactivation)
         if (Layout is not null)
         {
-            _logger.LogInformation("Saving dock layout");
+            _logger.LogInformation("Saving dock layout state (shutdown fallback)");
+
             bool saved = _dockLayoutService.Save(Layout);
             if (!saved)
             {
-                _logger.LogWarning("Failed to save dock layout");
+                _logger.LogWarning("Failed to save dock layout state during shutdown");
             }
         }
     }

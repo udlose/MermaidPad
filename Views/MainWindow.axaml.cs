@@ -171,6 +171,40 @@ public sealed partial class MainWindow : Window
     #region Overrides
 
     /// <summary>
+    /// Called when the DataContext property changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This override provides defensive logging when the DataContext changes.
+    /// In normal operation, the DataContext is set once in the constructor to
+    /// <see cref="MainWindowViewModel"/> and never changes. However, this override
+    /// logs any unexpected changes for diagnostic purposes.
+    /// </para>
+    /// <para>
+    /// The dock system may manipulate DataContext on child controls, but the
+    /// MainWindow's DataContext should remain stable throughout the application lifecycle.
+    /// </para>
+    /// </remarks>
+    /// <param name="e">The event arguments.</param>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (DataContext is MainWindowViewModel)
+        {
+            _logger.LogDebug("{ViewName} DataContext set to {ViewModel}", nameof(MainWindow), nameof(MainWindowViewModel));
+        }
+        else if (DataContext is null)
+        {
+            _logger.LogWarning("{ViewName} DataContext was set to null - this is unexpected", nameof(MainWindow));
+        }
+        else
+        {
+            _logger.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}", nameof(MainWindow), DataContext.GetType().Name);
+        }
+    }
+
+    /// <summary>
     /// Handles additional cleanup and state management when the window is closed.
     /// </summary>
     /// <remarks>This override ensures that event handlers are unsubscribed and view model state is persisted
@@ -481,7 +515,7 @@ public sealed partial class MainWindow : Window
             // Unsubscribe from ViewModel property changes
             _vm.PropertyChanged -= OnMainViewModelPropertyChanged;
 
-            _logger.LogInformation("All MainWindow event handlers unsubscribed successfully");
+            _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(MainWindow));
 
             _areAllEventHandlersCleanedUp = true;
         }
