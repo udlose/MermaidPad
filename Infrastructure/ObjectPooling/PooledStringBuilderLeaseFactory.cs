@@ -54,7 +54,7 @@ internal sealed class PooledStringBuilderLeaseFactory : IPooledStringBuilderLeas
     ///     1. Must dispose of the returned <see cref="PooledStringBuilderLease"/> to return the <see cref="StringBuilder"/> to the pool
     ///     as indicated by the <see cref="MustDisposeResourceAttribute"/>.
     ///     2. Must avoid holding onto the <see cref="StringBuilder"/> reference beyond the scope of the lease.
-    ///     3. Must use the return value and either ignore or discard it as indicated by the <see cref="MustUseReturnValueAttribute"/>.
+    ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
     /// </para>
     /// </remarks>
     /// <returns>A <see cref="PooledStringBuilderLease"/> that provides exclusive access to a pooled <see cref="StringBuilder"/>. The lease
