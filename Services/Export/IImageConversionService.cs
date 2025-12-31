@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@ namespace MermaidPad.Services.Export;
 /// <summary>
 /// Defines the contract for image conversion services
 /// </summary>
-public interface IImageConversionService
+internal interface IImageConversionService
 {
     /// <summary>
     /// Asynchronously converts SVG content to a PNG image using the specified export options.

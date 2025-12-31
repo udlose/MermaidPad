@@ -29,7 +29,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 /// This dialog is used for scenarios like "Save changes before closing?" where the user
 /// needs to make a tri-state decision. The result is determined by which button was clicked.
 /// </remarks>
-public sealed class ConfirmationDialogViewModel : ViewModelBase
+internal sealed class ConfirmationDialogViewModel : ViewModelBase
 {
     /// <summary>
     /// Gets or sets the dialog title.
@@ -75,7 +75,7 @@ public sealed class ConfirmationDialogViewModel : ViewModelBase
 /// <summary>
 /// Represents the result of a confirmation dialog.
 /// </summary>
-public enum ConfirmationResult
+internal enum ConfirmationResult
 {
     /// <summary>
     /// User clicked Yes or confirmed the action.

@@ -20,4 +20,4 @@
 
 namespace MermaidPad.ViewModels;
 
-public sealed partial class SplashWindowViewModel : ViewModelBase;
+internal sealed partial class SplashWindowViewModel : ViewModelBase;

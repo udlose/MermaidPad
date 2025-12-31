@@ -41,7 +41,7 @@ namespace MermaidPad.Infrastructure.ObjectPooling;
 /// </para>
 /// </remarks>
 [MustDisposeResource]
-internal sealed class PooledStringBuilderLease : IDisposable
+public sealed class PooledStringBuilderLease : IDisposable
 {
     private readonly ObjectPool<StringBuilder> _pool;
     private readonly StringBuilder _builder;
