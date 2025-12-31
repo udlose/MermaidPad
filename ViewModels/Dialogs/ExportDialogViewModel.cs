@@ -50,6 +50,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 internal sealed partial class ExportDialogViewModel : ViewModelBase
 {
+    private const string LoadingMessage = "Loading...";
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly ILogger<ExportDialogViewModel> _logger;
     private readonly IImageConversionService? _imageConversionService;
@@ -103,10 +104,10 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
     public partial bool OptimizeSvg { get; set; } = false;
 
     [ObservableProperty]
-    public partial string EstimatedDimensions { get; set; } = "Loading...";
+    public partial string EstimatedDimensions { get; set; } = LoadingMessage;
 
     [ObservableProperty]
-    public partial string EstimatedFileSize { get; set; } = "Loading...";
+    public partial string EstimatedFileSize { get; set; } = LoadingMessage;
 
     [ObservableProperty]
     public partial bool? DialogResult { get; private set; }
@@ -535,8 +536,8 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
 
         if (!_dimensionsLoaded)
         {
-            EstimatedDimensions = "Loading...";
-            EstimatedFileSize = "Loading...";
+            EstimatedDimensions = LoadingMessage;
+            EstimatedFileSize = LoadingMessage;
             return;
         }
 
