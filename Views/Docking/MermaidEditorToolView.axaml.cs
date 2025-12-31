@@ -20,7 +20,10 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using MermaidPad.ViewModels.Docking;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace MermaidPad.Views.Docking;
 
@@ -42,6 +45,8 @@ namespace MermaidPad.Views.Docking;
 /// </remarks>
 public sealed partial class MermaidEditorToolView : UserControl
 {
+    private ILogger<MermaidEditorToolView>? _logger;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorToolView"/> class.
     /// </summary>
@@ -86,6 +91,53 @@ public sealed partial class MermaidEditorToolView : UserControl
     public void UnsubscribeAllEventHandlers() => MermaidEditor.UnsubscribeAllEventHandlers();
 
     #region Overrides
+
+    /// <summary>
+    /// Called when the DataContext property changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This override handles DataContext changes that may occur when the dock system
+    /// reassigns or clears the DataContext during layout operations (e.g., when a panel
+    /// is floated, docked, or the layout is restored from serialization).
+    /// </para>
+    /// <para>
+    /// When the DataContext changes:
+    /// <list type="bullet">
+    ///     <item><description>If set to a valid <see cref="MermaidEditorToolViewModel"/>, syncs the visibility state</description></item>
+    ///     <item><description>If cleared (null), logs a warning for diagnostic purposes</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="e">The event arguments containing old and new DataContext values.</param>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        // Lazy-initialize logger to avoid DI access during construction
+        _logger ??= App.Services.GetService<ILogger<MermaidEditorToolView>>();
+
+        if (DataContext is MermaidEditorToolViewModel toolViewModel)
+        {
+            // Sync the visibility state with the current visual tree attachment state
+            // This handles the case where DataContext is set after the view is already in the visual tree
+            bool isInVisualTree = this.IsAttachedToVisualTree();
+            toolViewModel.IsEditorVisible = isInVisualTree;
+
+            _logger?.LogDebug("{ViewName} DataContext set to {ViewModel}, IsEditorVisible={IsVisible}",
+                nameof(MermaidEditorToolView), nameof(MermaidEditorToolViewModel), isInVisualTree);
+        }
+        else if (DataContext is null)
+        {
+            _logger?.LogWarning("{ViewName} DataContext was set to null - this may indicate a dock layout issue",
+                nameof(MermaidEditorToolView));
+        }
+        else
+        {
+            _logger?.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}",
+                nameof(MermaidEditorToolView), DataContext.GetType().Name);
+        }
+    }
 
     /// <summary>
     /// Called when the control is attached to the visual tree.

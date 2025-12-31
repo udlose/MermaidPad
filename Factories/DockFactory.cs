@@ -53,6 +53,7 @@ namespace MermaidPad.Factories;
 /// SDI design stores references to a single EditorTool and DiagramTool.
 /// </para>
 /// </remarks>
+//TODO - DaveBlack: MDI Migration Note: For MDI scenarios, this factory needs to create separate tool instances for each document, with each document having its own editor and diagram panels
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via DI container.")]
 internal sealed class DockFactory : Factory
 {
@@ -72,6 +73,7 @@ internal sealed class DockFactory : Factory
     /// where the current document exposes its own EditorTool. For SDI, this direct reference is acceptable.
     /// </para>
     /// </remarks>
+    //TODO - DaveBlack: MDI Migration Note: this needs to be replaced by an ActiveDocument pattern where the current document exposes its own EditorTool
     public MermaidEditorToolViewModel? EditorTool { get; private set; }
 
     /// <summary>
@@ -87,6 +89,7 @@ internal sealed class DockFactory : Factory
     /// where the current document exposes its own DiagramTool. For SDI, this direct reference is acceptable.
     /// </para>
     /// </remarks>
+    //TODO - DaveBlack: MDI Migration Note: this needs to be replaced by an ActiveDocument pattern where the current document exposes its own DiagramTool
     public DiagramToolViewModel? DiagramTool { get; private set; }
 
     /// <summary>
@@ -108,6 +111,10 @@ internal sealed class DockFactory : Factory
     /// </returns>
     /// <remarks>
     /// <para>
+    /// This method is called by the Dock framework. It always creates a fresh default layout
+    /// with new tool ViewModels. For restoring saved layouts, use the <see cref="Services.DockLayoutService"/>.
+    /// </para>
+    /// <para>
     /// The default layout consists of:
     /// <list type="bullet">
     ///     <item><description>A <see cref="RootDock"/> as the root container</description></item>
@@ -120,13 +127,31 @@ internal sealed class DockFactory : Factory
     /// The initial proportions are set to 50/50 (equal width for both panels).
     /// </para>
     /// </remarks>
-    //TODO @Claude shouldn't this functionality be in CreateDefaultLayout? otherwise it seems we aren't reloading the saved layout anywhere
     public override IRootDock CreateLayout()
+    {
+        return CreateDefaultLayout();
+    }
+
+    /// <summary>
+    /// Creates a fresh default layout with new tool ViewModels and default proportions.
+    /// </summary>
+    /// <returns>An <see cref="IRootDock"/> representing the default dock layout.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method always creates new tool ViewModels and a fresh layout structure
+    /// with default 50/50 proportions. It is called by <see cref="CreateLayout"/>
+    /// and can also be called directly to reset the layout to defaults.
+    /// </para>
+    /// <para>
+    /// After calling this method, the <see cref="EditorTool"/> and <see cref="DiagramTool"/>
+    /// properties will contain the newly created tool ViewModels.
+    /// </para>
+    /// </remarks>
+    public IRootDock CreateDefaultLayout()
     {
         _logger.LogInformation("Creating default dock layout");
 
         // Create the tool ViewModels using the ViewModelFactory pattern
-        // This ensures proper DI for all dependencies
         MermaidEditorViewModel editorViewModel = _viewModelFactory.Create<MermaidEditorViewModel>();
         DiagramViewModel diagramViewModel = _viewModelFactory.Create<DiagramViewModel>();
 
@@ -134,33 +159,33 @@ internal sealed class DockFactory : Factory
         EditorTool = _viewModelFactory.Create<MermaidEditorToolViewModel>(editorViewModel);
         DiagramTool = _viewModelFactory.Create<DiagramToolViewModel>(diagramViewModel);
 
-        // Create tool docks to hold each tool
+        // Create tool docks with default 50/50 proportions
         //TODO - DaveBlack: change the proportions once I add the new panel for AI
         ToolDock editorToolDock = new ToolDock
         {
             Id = "EditorToolDock",
             Title = "Editor",
-            Proportion = 0.5,  // 50% width
+            Proportion = 0.5,
             ActiveDockable = EditorTool,
             VisibleDockables = CreateList<IDockable>(EditorTool),
             CanClose = false,
-            CanPin = false,
-            CanFloat = false
+            CanPin = true,
+            CanFloat = true
         };
 
         ToolDock diagramToolDock = new ToolDock
         {
             Id = "DiagramToolDock",
             Title = "Diagram",
-            Proportion = 0.5,  // 50% width
+            Proportion = 0.5,
             ActiveDockable = DiagramTool,
             VisibleDockables = CreateList<IDockable>(DiagramTool),
             CanClose = false,
-            CanPin = false,
-            CanFloat = false
+            CanPin = true,
+            CanFloat = true
         };
 
-        // Create a proportional dock to hold both tool docks side by side
+        // Create a proportional dock to hold both tool docks (horizontal layout)
         ProportionalDock mainLayout = new ProportionalDock
         {
             Id = "MainProportionalDock",
@@ -190,19 +215,9 @@ internal sealed class DockFactory : Factory
             VisibleDockables = CreateList<IDockable>(mainLayout)
         };
 
-        _logger.LogInformation("Dock layout created successfully with EditorTool and DiagramTool");
+        _logger.LogInformation("Default dock layout created with 50/50 horizontal split");
 
         return rootDock;
-    }
-
-    /// <summary>
-    /// Creates a default layout using the same configuration as <see cref="CreateLayout"/>.
-    /// </summary>
-    /// <returns>An <see cref="IRootDock"/> representing the default dock layout.</returns>
-    //TODO @Claude why isn't this called anywhere? should it be called somewhere?
-    public IRootDock CreateDefaultLayout()
-    {
-        return CreateLayout();
     }
 
     /// <summary>
@@ -210,8 +225,11 @@ internal sealed class DockFactory : Factory
     /// </summary>
     /// <param name="layout">The layout to initialize.</param>
     /// <remarks>
+    /// <para>
     /// This method calls the base <see cref="Factory.InitLayout(IDockable)"/> and then
-    /// performs any additional initialization required for MermaidPad.
+    /// searches for tool ViewModels in the layout hierarchy. This is necessary when
+    /// restoring a layout from serialization, as the tool references need to be re-established.
+    /// </para>
     /// </remarks>
     public override void InitLayout(IDockable layout)
     {
@@ -232,37 +250,77 @@ internal sealed class DockFactory : Factory
     /// <summary>
     /// Searches the dock layout hierarchy to find and cache references to the tool ViewModels.
     /// </summary>
-    /// <param name="dockable">The root dockable to search from.</param>
+    /// <param name="root">The root dockable to search from.</param>
     /// <remarks>
-    /// This method is called after layout deserialization to restore references to the
-    /// tool ViewModels that were serialized. It recursively searches the layout tree.
+    /// <para>
+    /// This method is called after layout initialization to ensure we have references to the
+    /// tool ViewModels. It uses an iterative depth-first search with a stack to avoid recursion overhead.
+    /// </para>
+    /// <para>
+    /// <b>Performance:</b> Uses iterative traversal with a stack instead of recursion
+    /// to eliminate method call overhead. Early exit when both tools are found.
+    /// </para>
     /// </remarks>
-    private void FindToolsInLayout(IDockable? dockable)
+    private void FindToolsInLayout(IDockable? root)
     {
-        //TODO @Claude this seems a bit fragile, is there a better way to do this?
-        if (dockable is null)
+        if (root is null)
         {
             return;
         }
 
-        switch (dockable)
+        // Use stack-based iteration instead of recursion to avoid stack frame overhead
+        // Initial capacity of 8 is sufficient for typical dock layouts (usually 5-10 nodes)
+        Stack<IDockable> stack = new Stack<IDockable>(capacity: 8);
+        stack.Push(root);
+
+        while (stack.Count > 0)
         {
-            case MermaidEditorToolViewModel editorTool:
-                EditorTool = editorTool;
-                _logger.LogDebug("Found EditorTool in layout");
-                break;
+            IDockable current = stack.Pop();
+            switch (current)
+            {
+                case MermaidEditorToolViewModel editorTool:
+                    EditorTool = editorTool;
+                    _logger.LogDebug("Found EditorTool in layout");
+                    break;
 
-            case DiagramToolViewModel diagramTool:
-                DiagramTool = diagramTool;
-                _logger.LogDebug("Found DiagramTool in layout");
-                break;
+                case DiagramToolViewModel diagramTool:
+                    DiagramTool = diagramTool;
+                    _logger.LogDebug("Found DiagramTool in layout");
+                    break;
 
-            case IDock dock when dock.VisibleDockables is not null:
-                foreach (IDockable child in dock.VisibleDockables)
-                {
-                    FindToolsInLayout(child);
-                }
-                break;
+                case IDock dock when dock.VisibleDockables is not null:
+                    // Push children onto stack for processing
+                    foreach (IDockable child in dock.VisibleDockables)
+                    {
+                        stack.Push(child);
+                    }
+                    break;
+            }
+
+            // Early exit if both tools found - no need to continue traversal
+            if (EditorTool is not null && DiagramTool is not null)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Makes a tool dockable visible and active in the layout.
+    /// </summary>
+    /// <param name="tool">The tool to show.</param>
+    /// <remarks>
+    /// This method ensures the tool is visible in the layout and sets it as the active dockable.
+    /// It handles cases where the tool might be pinned (auto-hide) or in a collapsed state.
+    /// </remarks>
+    public void ShowTool(IDockable? tool)
+    {
+        if (tool?.Owner is IDock owner)
+        {
+            SetActiveDockable(tool);
+            SetFocusedDockable(owner, tool);
+
+            _logger.LogDebug("Showing tool: {ToolId}", tool.Id);
         }
     }
 }

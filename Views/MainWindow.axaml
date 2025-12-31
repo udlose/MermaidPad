@@ -104,6 +104,12 @@
           Header="_Uncomment Selection"
           InputGesture="Ctrl+Shift+U" />
       </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Command="{Binding ShowEditorPanelCommand}" Header="Show _Editor Panel" />
+        <MenuItem Command="{Binding ShowDiagramPanelCommand}" Header="Show _Diagram Panel" />
+        <Separator />
+        <MenuItem Command="{Binding ResetLayoutCommand}" Header="_Reset Layout to Default" />
+      </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
       </MenuItem>
