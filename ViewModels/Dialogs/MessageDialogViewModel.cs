@@ -28,7 +28,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 /// <remarks>This class is typically used to provide data for a message dialog, including the dialog's title,
 /// message content, and optional icon styling. The properties can be bound to a user interface  to dynamically display
 /// dialog content.</remarks>
-public sealed class MessageDialogViewModel : ViewModelBase
+internal sealed class MessageDialogViewModel : ViewModelBase
 {
     public string Title { get; set; } = "";
 

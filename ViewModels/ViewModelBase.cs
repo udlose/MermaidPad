@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ namespace MermaidPad.ViewModels;
 /// <remarks>Inherit from this class to implement view models that require observable properties and integration
 /// with Avalonia's application and window lifetime management. This class is intended for use in MVVM architectures
 /// within Avalonia desktop applications.</remarks>
-public abstract partial class ViewModelBase : ObservableObject
+internal abstract partial class ViewModelBase : ObservableObject
 {
     /// <summary>
     /// Retrieves the main window of the current desktop-style Avalonia application, if available.

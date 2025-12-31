@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@ namespace MermaidPad.Services.Export;
 /// Options for exporting diagrams
 /// </summary>
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "Properties are used for data binding")]
-public sealed class ExportOptions
+internal sealed class ExportOptions
 {
     /// <summary>
     /// The full file path where the export will be saved

@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@ namespace MermaidPad.Services.Export;
 /// Progress information for export operations
 /// </summary>
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "Properties are used for data binding")]
-public sealed class ExportProgress
+internal sealed class ExportProgress
 {
     /// <summary>
     /// Current step being performed

@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ namespace MermaidPad.Services.Export;
 /// resolution, scaling, background color, compression quality, and size constraints. By adjusting these properties, you
 /// can customize the appearance and performance characteristics of the exported image.</remarks>
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "Properties are used for data binding")]
-public sealed class PngExportOptions
+internal sealed class PngExportOptions
 {
     /// <summary>
     /// DPI for the output image (72, 150, 300, 600)
