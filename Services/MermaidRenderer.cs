@@ -103,7 +103,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// </summary>
     /// <param name="webView">The WebView to render Mermaid diagrams in.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public Task InitializeAsync(WebView webView)
+    internal Task InitializeAsync(WebView webView)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(webView);
@@ -135,7 +135,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// completes immediately.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is less than or equal to <see cref="TimeSpan.Zero"/>.</exception>
-    public Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
+    internal Task EnsureFirstRenderReadyAsync(TimeSpan timeout)
     {
         ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
@@ -646,7 +646,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// <param name="mermaidSource">The Mermaid source code to render. If the source is null, empty,
     /// or consists only of whitespace, the output in the WebView will be cleared instead.</param>
     /// <returns>A task that represents the asynchronous rendering operation. The task result contains the result of the script execution.</returns>
-    public Task<string?> RenderAsync(string mermaidSource)
+    internal Task<string?> RenderAsync(string mermaidSource)
     {
         ThrowIfDisposed();
 
@@ -810,7 +810,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// as a string, or <see langword="null"/> if the WebView is not initialized or an error occurs during execution.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="script"/> is <see langword="null"/> or empty.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the WebView is not initialized.</exception>
-    public Task<string?> ExecuteScriptAsync(string script)
+    internal Task<string?> ExecuteScriptAsync(string script)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrEmpty(script);
@@ -869,7 +869,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// string parameter containing the export progress
     /// details. The parameter cannot be <see langword="null"/>.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="callback"/> is <see langword="null"/>.</exception>
-    public void RegisterExportProgressCallback(Action<string> callback)
+    internal void RegisterExportProgressCallback(Action<string> callback)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(callback);
@@ -900,7 +900,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// langword="null"/>, the method performs no action.</param>
     /// <returns>A task that represents the asynchronous unregister operation.</returns>
     [SuppressMessage("ReSharper", "MethodSupportsCancellation", Justification = "Cancellation is not needed here and introduces unnecessary complexity")]
-    public Task UnregisterExportProgressCallbackAsync(Action<string>? callback)
+    internal Task UnregisterExportProgressCallbackAsync(Action<string>? callback)
     {
         ThrowIfDisposed();
         if (callback is null)

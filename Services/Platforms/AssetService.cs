@@ -44,7 +44,7 @@ namespace MermaidPad.Services.Platforms;
 /// IL3000-safe: Does not use Assembly.Location for single-file compatibility.</remarks>
 [SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Follows project naming conventions.")]
 [SuppressMessage("Maintainability", "S1192: String literals should not be duplicated", Justification = "Logging message template is used")]
-public sealed class AssetService
+internal sealed class AssetService
 {
     private const long MaxFileSize = 10 * 1_024 * 1_024; // 10 MB max file size
     private readonly ILogger<AssetService> _logger;
