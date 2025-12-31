@@ -47,12 +47,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
     private readonly ILogger<MermaidRenderer> _logger;
     private readonly AssetService _assetService;
 
-    private readonly string MermaidRequestPath;
-    private readonly string IndexRequestPath;
-    private readonly string JsYamlRequestPath;
-    private readonly string MermaidLayoutElkRequestPath;
-    private readonly string MermaidLayoutElkChunkSP2CHFBERequestPath;
-    private readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath;
+    #region Request Paths
+
+    private const string MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";
+    private const string IndexRequestPath = $"/{AssetService.IndexHtmlFilePath}";
+    private const string JsYamlRequestPath = $"/{AssetService.JsYamlFilePath}";
+    private static readonly string MermaidLayoutElkRequestPath = $"/{AssetService.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private static readonly string MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetService.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
+    private static readonly string MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetService.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
+
+    #endregion Request Paths
 
     private int _isDisposeStarted; // 0 = not started, 1 = disposing/disposed
     private WebView? _webView;
@@ -86,14 +90,6 @@ public sealed class MermaidRenderer : IAsyncDisposable
     {
         _logger = logger;
         _assetService = assetService;
-
-        // Initialize request paths using AssetService constants and properties
-        MermaidRequestPath = $"/{AssetService.MermaidMinJsFilePath}";
-        IndexRequestPath = $"/{AssetService.IndexHtmlFilePath}";
-        JsYamlRequestPath = $"/{AssetService.JsYamlFilePath}";
-        MermaidLayoutElkRequestPath = $"/{AssetService.MermaidLayoutElkPath}".Replace(Path.DirectorySeparatorChar, '/');
-        MermaidLayoutElkChunkSP2CHFBERequestPath = $"/{AssetService.MermaidLayoutElkChunkSP2CHFBEPath}".Replace(Path.DirectorySeparatorChar, '/');
-        MermaidLayoutElkRenderAVRWSH4DRequestPath = $"/{AssetService.MermaidLayoutElkRenderAVRWSH4DPath}".Replace(Path.DirectorySeparatorChar, '/');
     }
 
     /// <summary>
@@ -501,18 +497,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
 
         try
         {
-            await Dispatcher.UIThread.InvokeAsync(() => _webView.Url = new Uri(serverUrl));
-
-            // Wait for navigation with 10 second timeout (more generous for slower systems)
-#if DEBUG
-            // no timeout in DEBUG builds to aid debugging
-            using CancellationTokenSource cts = new CancellationTokenSource();
-#else
-            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-#endif
-            await navigationCompletedTcs.Task.WaitAsync(cts.Token);
-
-            _logger.LogInformation("Navigation completed successfully");
+            await NavigateToServerCoreAsync(_webView, serverUrl, navigationCompletedTcs.Task, _logger);
         }
         catch (OperationCanceledException)
         {
@@ -565,6 +550,44 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Navigates the specified WebView to the given server URL and waits for navigation to complete, logging the result
+    /// upon success.
+    /// </summary>
+    /// <remarks>In non-DEBUG builds, the method enforces a 10-second timeout for navigation completion to
+    /// accommodate slower systems. In DEBUG builds, no timeout is applied to facilitate debugging. If the navigation
+    /// does not complete within the timeout period, the method will throw an exception.</remarks>
+    /// <param name="webView">The WebView instance to navigate to the specified server URL.</param>
+    /// <param name="serverUrl">The URL of the server to which the WebView should navigate.</param>
+    /// <param name="navigationTask">A task that completes when the navigation operation finishes.
+    /// The method waits for this task to signal navigation completion.</param>
+    /// <param name="logger">The logger used to record information about the navigation process.</param>
+    /// <returns>A task that represents the asynchronous navigation operation.</returns>
+    private static async Task NavigateToServerCoreAsync(WebView webView, string serverUrl,
+        Task<bool> navigationTask, ILogger<MermaidRenderer> logger)
+    {
+        Uri uri = new Uri(serverUrl);
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            webView.Url = uri;
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => webView.Url = uri);
+        }
+
+        // Wait for navigation with 10 second timeout (more generous for slower systems)
+#if DEBUG
+        // no timeout in DEBUG builds to aid debugging
+        using CancellationTokenSource cts = new CancellationTokenSource();
+#else
+            using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+#endif
+        await navigationTask.WaitAsync(cts.Token);
+
+        logger.LogInformation("Navigation completed successfully");
     }
 
     /// <summary>
