@@ -48,7 +48,7 @@ namespace MermaidPad.ViewModels.Dialogs;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-public sealed partial class ExportDialogViewModel : ViewModelBase
+internal sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
     private readonly ILogger<ExportDialogViewModel> _logger;
@@ -127,7 +127,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// Gets the full file path, including the file name and extension, for the export operation based on the selected
     /// format.
     /// </summary>
-    public string FullFilePath
+    internal string FullFilePath
     {
         get
         {
@@ -153,10 +153,11 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
         _imageConversionService = imageConversionService;
         _exportService = exportService;
         _dialogFactory = dialogFactory;
+
         AvailableFormats = new ObservableCollection<ExportFormatItem>
         {
             new ExportFormatItem { Format = ExportFormat.SVG, Description= "SVG (Scalable Vector Graphics)" },
-            new ExportFormatItem{ Format = ExportFormat.PNG, Description= "PNG (Portable Network Graphics)" }
+            new ExportFormatItem { Format = ExportFormat.PNG, Description= "PNG (Portable Network Graphics)" }
         };
 
         SelectedFormat = AvailableFormats[0];
@@ -178,7 +179,7 @@ public sealed partial class ExportDialogViewModel : ViewModelBase
     /// if an SVG export is selected.</remarks>
     /// <returns>An ExportOptions instance containing the current file path, format, and any applicable PNG or SVG export
     /// options.</returns>
-    public ExportOptions GetExportOptions()
+    internal ExportOptions GetExportOptions()
     {
         return new ExportOptions
         {

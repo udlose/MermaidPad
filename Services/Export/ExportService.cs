@@ -41,7 +41,7 @@ namespace MermaidPad.Services.Export;
 /// for use in UI applications where diagrams are rendered and need to be saved or processed in standard image formats.
 /// Thread safety is not guaranteed; callers should ensure that methods are invoked on the appropriate thread as
 /// documented.</remarks>
-public sealed class ExportService
+internal sealed class ExportService
 {
     private static readonly TimeSpan _defaultExportToPngTimeout = TimeSpan.FromSeconds(60);
 
@@ -105,7 +105,7 @@ public sealed class ExportService
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the export operation.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the SVG content cannot be extracted from the diagram.</exception>
-    public Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
+    internal Task ExportSvgAsync(string targetPath, SvgExportOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);
 
@@ -396,7 +396,7 @@ public sealed class ExportService
     /// <param name="cancellationToken">A token to monitor for cancellation requests.
     /// The operation will terminate early if cancellation is requested.</param>
     /// <returns>A task that represents the asynchronous export operation.</returns>
-    public Task ExportPngAsync(string targetPath, PngExportOptions? options = null,
+    internal Task ExportPngAsync(string targetPath, PngExportOptions? options = null,
         IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(targetPath);

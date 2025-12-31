@@ -40,7 +40,7 @@ namespace MermaidPad.Services.Platforms;
 /// applicable.</remarks>
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Class is a singleton by design with lifetime controlled by DI")]
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "Class is a singleton by design with lifetime controlled by DI")]
-public sealed class AssetIntegrityService
+internal sealed class AssetIntegrityService
 {
     private readonly ILogger<AssetIntegrityService> _logger;
     private readonly SecurityService _securityService;
