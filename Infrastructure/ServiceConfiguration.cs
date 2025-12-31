@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using MermaidPad.Factories;
+using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
