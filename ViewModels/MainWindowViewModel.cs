@@ -1207,7 +1207,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 
                     case ExportFormat.SVG:
                         // Export SVG (no progress needed)
-                        await _exportService.ExportSvgAsync(options.FilePath);
+                        await _exportService.ExportSvgAsync(options.FilePath, options.SvgOptions);
                         break;
 
                     default:
