@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -177,7 +177,7 @@ public sealed class SecurityService
     /// if it is not secure. If the file name is secure, the reason will be <see langword="null"/>.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="fileName"/> is null, empty, or consists only of whitespace, or if <paramref
     /// name="allowedFiles"/> is empty.</exception>
-    public (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
+    public static (bool IsSecure, string? Reason) IsFileNameSecure(string fileName, HashSet<string> allowedFiles)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(allowedFiles);
@@ -377,6 +377,7 @@ public sealed class SecurityService
     /// </summary>
     /// <param name="exception">The exception to be logged. Provides details about the error that occurred.</param>
     /// <param name="message">The error message to log. Describes the context or additional information about the exception.</param>
+    [SuppressMessage("Maintainability", "S1192: String literals should not be duplicated", Justification = "Logging message template is used")]
     private void LogError(Exception exception, string message)
     {
         if (_logger is not null)

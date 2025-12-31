@@ -328,7 +328,7 @@ public sealed class AssetIntegrityService
     /// <param name="assetName">The name of the asset for which to retrieve the hash.</param>
     /// <returns>The stored hash of the asset as a string, or <see langword="null"/> if no hash is available for the specified
     /// asset.</returns>
-    internal string? GetStoredHashForAsset(string assetName)
+    internal static string? GetStoredHashForAsset(string assetName)
     {
         //TODO This will be expanded in Phase 2 to store hashes for updated assets. For now, we'll use the build-time hashes for existing embedded resources
         return AssetHashes.EmbeddedAssetHashes.TryGetValue(assetName, out string? hash) ? hash : null;

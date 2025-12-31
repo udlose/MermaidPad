@@ -70,7 +70,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     // Fields for centralized export-status callbacks / polling:
     [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed in DisposeAsync using captured reference")]
     private CancellationTokenSource? _exportPollingCts;
-    private readonly List<Action<string>> _exportProgressCallbacks = [];
+    private readonly List<Action<string>> _exportProgressCallbacks = new List<Action<string>>();
     private Task? _exportPollingTask;
     private string? _lastExportStatus;
     private readonly Lock _exportCallbackLock = new Lock();
@@ -746,7 +746,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
                 webView ??= _webView;
                 if (webView is null)
                 {
-                    _logger.LogWarning("ExecuteScriptCoreAsync: WebView is null at UI invocation");
+                    _logger.LogWarning("{MethodName}: WebView is null at UI invocation", nameof(ExecuteScriptCoreAsync));
                     return null;
                 }
 
@@ -831,31 +831,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
         {
             try
             {
-                // Prefer CancelAsync with a bounded wait
-                try
-                {
-                    Task cancelTask = ctsToDispose.CancelAsync();
-                    try
-                    {
-                        await cancelTask.WaitAsync(CancelAsyncTimeout)
-                            .ConfigureAwait(false);
-                    }
-                    catch (TimeoutException te)
-                    {
-                        _logger.LogWarning(te, "exportPollingCts.CancelAsync() timed out; proceeding with unregister");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to signal export polling CancellationTokenSource with CancelAsync");
-                }
+                // Signal cancellation using CancelAsync with a short bounded wait to avoid UI deadlock
+                await WaitAndCancelPendingOperationAsync(ctsToDispose, nameof(UnregisterExportProgressCallbackAsync))
+                    .ConfigureAwait(false);
 
                 // Wait for polling task to end (short timeout). If it completes, dispose the Task to match server-task handling.
                 if (pollingTaskToAwait is not null)
                 {
                     try
                     {
-                        await pollingTaskToAwait.WaitAsync(PollingTaskCancellationTimeout)
+                        await pollingTaskToAwait.WaitAsync(PollingTaskCancellationTimeout, CancellationToken.None)
                             .ConfigureAwait(false);
 
                         // Completed in time
@@ -1106,6 +1091,40 @@ public sealed class MermaidRenderer : IAsyncDisposable
     }
 
     /// <summary>
+    /// Waits for the cancellation of a pending operation and attempts to cancel the specified CancellationTokenSource asynchronously.
+    /// </summary>
+    /// <remarks>If cancellation does not complete within the configured timeout, the method logs a warning
+    /// and continues disposal to avoid blocking the UI thread. Any exceptions encountered during cancellation are
+    /// logged as errors.</remarks>
+    /// <param name="cts">The CancellationTokenSource to be cancelled. If null or already cancelled, no action is taken.</param>
+    /// <param name="operationName">The name of the operation associated with the cancellation. Used for logging purposes.</param>
+    /// <returns>A task that represents the asynchronous wait and cancellation operation.</returns>
+    private async Task WaitAndCancelPendingOperationAsync(CancellationTokenSource? cts, string operationName)
+    {
+        if (cts?.IsCancellationRequested == false)
+        {
+            try
+            {
+                // Signal cancellation using CancelAsync with a short bounded wait to avoid UI deadlock
+                Task cancelTask = cts.CancelAsync();
+                try
+                {
+                    await cancelTask.WaitAsync(CancelAsyncTimeout)
+                        .ConfigureAwait(false);
+                }
+                catch (TimeoutException te)
+                {
+                    _logger.LogWarning(te, "Waited to Cancel {OperationName} exceeded {Timeout}; continuing disposal to avoid blocking UI thread", operationName, CancelAsyncTimeout);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to cancel {OperationName} CancellationTokenSource with CancelAsync", operationName);
+            }
+        }
+    }
+
+    /// <summary>
     /// Asynchronously releases all resources used by the instance and performs a clean shutdown of background
     /// operations.
     /// </summary>
@@ -1114,7 +1133,7 @@ public sealed class MermaidRenderer : IAsyncDisposable
     /// subsequent calls after the first have no effect. This method should be called when the instance is no longer
     /// needed to ensure proper resource cleanup.</remarks>
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    [SuppressMessage("ReSharper", "MethodSupportsCancellation")]
+    [SuppressMessage("ReSharper", "MethodSupportsCancellation", Justification = "Dispose should not support cancellation")]
     public async ValueTask DisposeAsync()
     {
         // One-shot, thread-safe gate
@@ -1132,52 +1151,16 @@ public sealed class MermaidRenderer : IAsyncDisposable
             Task? pollingTask = Interlocked.Exchange(ref _exportPollingTask, null);
             Task? serverTask = Interlocked.Exchange(ref _serverTask, null);
 
-            // Signal server cancellation using CancelAsync with a short bounded wait to avoid UI deadlock.
-            if (serverCts is not null)
-            {
-                try
-                {
-                    Task cancelTask = serverCts.CancelAsync();
-                    try
-                    {
-                        await cancelTask.WaitAsync(CancelAsyncTimeout)
-                            .ConfigureAwait(false);
-                    }
-                    catch (TimeoutException te)
-                    {
-                        _logger.LogWarning(te, "serverCts.CancelAsync() timed out; continuing disposal to avoid blocking UI thread");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to signal server CancellationTokenSource with CancelAsync");
-                }
-            }
+            // Signal server cancellation using CancelAsync with a short bounded wait to avoid UI deadlock
+            await WaitAndCancelPendingOperationAsync(serverCts, "server")
+                .ConfigureAwait(false);
 
             // Stop and cleanup export polling if running
             try
             {
-                // Signal polling cancellation using CancelAsync with a bounded wait
-                if (pollingCts is not null)
-                {
-                    try
-                    {
-                        Task cancelTask = pollingCts.CancelAsync();
-                        try
-                        {
-                            await cancelTask.WaitAsync(CancelAsyncTimeout)
-                                .ConfigureAwait(false);
-                        }
-                        catch (TimeoutException te)
-                        {
-                            _logger.LogWarning(te, "pollingCts.CancelAsync() timed out; proceeding with disposal");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to signal export polling CancellationTokenSource with CancelAsync");
-                    }
-                }
+                // Signal server cancellation using CancelAsync with a short bounded wait to avoid UI deadlock
+                await WaitAndCancelPendingOperationAsync(pollingCts, "export polling")
+                    .ConfigureAwait(false);
 
                 // Await polling task for a short timeout to ensure clean shutdown
                 if (pollingTask is not null)
