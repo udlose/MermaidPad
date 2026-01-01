@@ -29,7 +29,7 @@ namespace MermaidPad.Services;
 /// Provides loading and saving of application settings to a per-user configuration directory.
 /// Handles secure file access and validates the settings file path and name prior to I/O operations.
 /// </summary>
-public sealed class SettingsService
+internal sealed class SettingsService
 {
     /// <summary>
     /// <see cref="JsonSerializerOptions"/> used for (de)serializing <see cref="AppSettings"/>.
@@ -72,7 +72,7 @@ public sealed class SettingsService
     public SettingsService(ILogger<SettingsService>? logger = null)
     {
         _logger = logger;
-        string baseDir = GetConfigDirectory();
+        string baseDir = GetConfigDirectoryPath();
         Directory.CreateDirectory(baseDir);
         _settingsPath = Path.Combine(baseDir, SettingsFileName);
         Settings = Load();
@@ -83,7 +83,7 @@ public sealed class SettingsService
     /// Typically resolves to "%APPDATA%\MermaidPad" on Windows.
     /// </summary>
     /// <returns>The full path to the application's config directory for the current user.</returns>
-    private static string GetConfigDirectory()
+    private static string GetConfigDirectoryPath()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         return Path.Combine(appData, "MermaidPad");
@@ -103,7 +103,7 @@ public sealed class SettingsService
         try
         {
             // Validate that the settings path is within the expected config directory
-            string configDir = GetConfigDirectory();
+            string configDir = GetConfigDirectoryPath();
             string fullSettingsPath = Path.GetFullPath(_settingsPath);
 
             // Additional validation: ensure the file name is exactly "settings.json"
@@ -156,7 +156,7 @@ public sealed class SettingsService
     {
         try
         {
-            string configDir = GetConfigDirectory();
+            string configDir = GetConfigDirectoryPath();
             string settingsPath = Path.Combine(configDir, SettingsFileName);
             string fullSettingsPath = Path.GetFullPath(settingsPath);
 
@@ -213,7 +213,7 @@ public sealed class SettingsService
         try
         {
             // Validate that the settings path is within the expected config directory
-            string configDir = GetConfigDirectory();
+            string configDir = GetConfigDirectoryPath();
             string fullSettingsPath = Path.GetFullPath(_settingsPath);
             string fullConfigDir = Path.GetFullPath(configDir);
 
