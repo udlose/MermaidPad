@@ -30,7 +30,7 @@ namespace MermaidPad.Services;
 /// Provides file operations for opening, saving, and managing .mmd Mermaid diagram files
 /// using Avalonia's cross-platform StorageProvider API.
 /// </summary>
-public sealed class FileService : IFileService
+internal sealed class FileService : IFileService
 {
     private readonly ILogger<FileService> _logger;
     private readonly SettingsService _settingsService;
