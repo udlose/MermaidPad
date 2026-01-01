@@ -47,7 +47,7 @@ namespace MermaidPad.Services;
 /// the dock's internal state (focus, active dockables, etc.) across save/load operations.
 /// </para>
 /// </remarks>
-public sealed class DockLayoutService
+internal sealed class DockLayoutService
 {
     /// <summary>
     /// Represents the default buffer size, in bytes, used for internal data operations.
