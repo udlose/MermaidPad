@@ -11,6 +11,7 @@
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
 [![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
+[![wakatime](https://wakatime.com/badge/github/udlose/MermaidPad.svg)](https://wakatime.com/badge/github/udlose/MermaidPad)
 
 ---
 
@@ -34,6 +35,10 @@
 - [Contributing](#contributing)
 - [License](#license)
 - [Third Party Libraries](#third-party-libraries)
+- [Repo Stats](#repo-stats)
+  - [Top Contributors](#top-contributors)
+  - [Active Challenges](#active-challenges)
+  - [Achievements](#achievements)
 - [Support](#support)
 - [Contact](#contact)
 
@@ -1106,6 +1111,28 @@ MermaidPad uses several open-source projects, including:
 
 ---
 
+## Repo Stats
+[![Contributors Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/7a25e7e1-4d64-4cd0-9a03-5d3e0dac5f17.svg) ![Commits Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/ec0b195b-facb-4580-8294-38b4b644c00c.svg) ![Issues Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/3f213fc5-a392-4267-b418-16f7368a6109.svg) ![Issues Opened Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/0c5f14c6-0ccf-47c2-af5b-d969cf20a02e.svg) ![Pull Requests Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/5b7eba45-c5cc-4d33-a998-c1617783c44a.svg)](https://app.devactivity.com/public/?organizationLogin=udlose&organizationSource=GITHUB&organizationId=398)
+
+---
+
+### Top Contributors
+![Top Contributors (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/d4c12db6-74bc-4ce9-8719-ba4f672384a0.svg)
+
+---
+
+### Active Challenges
+[![Active Challenges](https://embeddables.devactivity.com/personal/udlose/85e48db3-49ac-4359-a360-0b9f640d9896.svg)](https://app.devactivity.com/public/?organizationLogin=udlose#nav-achievements)
+
+---
+
+### Achievements
+![Achievements](https://embeddables.devactivity.com/personal/udlose/d9b255ef-b846-4b29-8adb-d1458864d87c.svg)
+
+<sup><sub>Check also our [Public Dashboard](https://app.devactivity.com/public/?organizationLogin=udlose) powered by [devActivity](https://devactivity.com/?ref=public_widget)</sub></sup>
+
+---
+
 ## Support
 
 If you find MermaidPad useful, consider supporting development:
@@ -1115,5 +1142,5 @@ If you find MermaidPad useful, consider supporting development:
 ---
 
 ## Contact
-
 For questions or feedback, please open an issue or reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions).
+
