@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@ namespace MermaidPad.Services;
 /// <summary>
 /// Provides file operations for opening, saving, and managing .mmd Mermaid diagram files.
 /// </summary>
-public interface IFileService
+internal interface IFileService
 {
     /// <summary>
     /// Opens a file picker dialog and reads the selected .mmd file.
