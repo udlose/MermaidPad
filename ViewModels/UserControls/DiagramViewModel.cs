@@ -47,6 +47,8 @@ internal sealed partial class DiagramViewModel : ViewModelBase
 {
     private readonly ILogger<DiagramViewModel> _logger;
     private readonly MermaidRenderer _mermaidRenderer;
+
+    //TODO - DaveBlack: revisit implementing IDisposable on DiagramViewModel to dispose this SemaphoreSlim once Dock Panels is complete!
     private readonly SemaphoreSlim _renderGate = new SemaphoreSlim(1, 1);
 
     /// <summary>

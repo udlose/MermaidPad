@@ -18,10 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using JetBrains.Annotations;
-using MermaidPad.Infrastructure.ObjectPooling;
-using System.Text;
-
 namespace MermaidPad.Services;
 
 /// <summary>
@@ -29,62 +25,23 @@ namespace MermaidPad.Services;
 /// </summary>
 internal abstract class ServiceBase
 {
-    private protected IPooledStringBuilderLeaseFactory PooledStringBuilderLeaseFactory { get; }
+    private protected const string ApplicationName = "MermaidPad";
 
     /// <summary>
-    /// Initializes a new instance of the ServiceBase class with the specified pooled string builder lease factory.
+    /// Initializes a new instance of the ServiceBase class.
     /// </summary>
-    /// <param name="pooledStringBuilderLeaseFactory">The factory used to obtain pooled string builder leases for
-    /// efficient string manipulation. Cannot be null.</param>
-    protected ServiceBase(IPooledStringBuilderLeaseFactory pooledStringBuilderLeaseFactory)
+    protected ServiceBase()
     {
-        PooledStringBuilderLeaseFactory = pooledStringBuilderLeaseFactory;
     }
 
-    /// <summary>
-    /// Rents a pooled <see cref="StringBuilder"/> instance wrapped in a <see cref="PooledStringBuilderLease"/>.
-    /// </summary>
-    /// <remarks>
-    /// <para>Use the returned lease within a using statement to ensure the <see cref="StringBuilder"/> is returned to
-    /// the pool. The lease should not be used after it has been disposed.
-    /// </para>
-    /// <para>
-    /// The caller:
-    ///     1. Must dispose of the returned <see cref="PooledStringBuilderLease"/> to return the <see cref="StringBuilder"/> to the pool.
-    ///     2. Must avoid holding onto the <see cref="StringBuilder"/> reference beyond the scope of the lease.
-    ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
-    /// </para>
-    /// </remarks>
-    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides access to a pooled <see cref="StringBuilder"/> and ensures its proper
-    /// return to the pool when disposed.</returns>
-    [MustDisposeResource]
-    [MustUseReturnValue]
-    private protected PooledStringBuilderLease RentPooledStringBuilderLease() => PooledStringBuilderLeaseFactory.Rent();
-
-    /// <summary>
-    /// Rents a pooled <see cref="StringBuilder"/> instance wrapped in a <see cref="PooledStringBuilderLease"/>.
-    /// </summary>
-    /// <param name="minimumCapacity">The minimum capacity the rented <see cref="StringBuilder"/> should have.</param>
-    /// <remarks>
-    /// <para>Use the returned lease within a using statement to ensure the <see cref="StringBuilder"/> is returned to
-    /// the pool. The lease should not be used after it has been disposed.
-    /// </para>
-    /// <para>
-    /// The caller:
-    ///     1. Must dispose of the returned <see cref="PooledStringBuilderLease"/> to return the <see cref="StringBuilder"/> to the pool.
-    ///     2. Must avoid holding onto the <see cref="StringBuilder"/> reference beyond the scope of the lease.
-    ///     3. Must use the return value as indicated by the <see cref="MustUseReturnValueAttribute"/>.
-    /// </para>
-    /// </remarks>
-    /// <returns>A <see cref="PooledStringBuilderLease"/> that provides access to a pooled <see cref="StringBuilder"/> and ensures its proper
-    /// return to the pool when disposed.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="minimumCapacity"/> is less than or equal to zero.</exception>
-    [MustDisposeResource]
-    [MustUseReturnValue]
-    private protected PooledStringBuilderLease RentPooledStringBuilderLease(int minimumCapacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimumCapacity);
-
-        return PooledStringBuilderLeaseFactory.Rent(minimumCapacity);
-    }
+    ///// <summary>
+    ///// Returns the per-user configuration directory path used by the application.
+    ///// Typically resolves to "%APPDATA%\MermaidPad" on Windows.
+    ///// </summary>
+    ///// <returns>The full path to the application's config directory for the current user.</returns>
+    //private protected static string GetConfigDirectoryPath()
+    //{
+    //    string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+    //    return Path.Combine(appData, ApplicationName);
+    //}
 }
