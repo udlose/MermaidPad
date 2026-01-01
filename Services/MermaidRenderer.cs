@@ -43,11 +43,12 @@ namespace MermaidPad.Services;
 /// Serves separate HTML and JS files to avoid JavaScript injection issues.
 /// </summary>
 [SuppressMessage("ReSharper", "InconsistentNaming")]
-internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
+internal sealed class MermaidRenderer : IAsyncDisposable
 {
     private const string WebviewNotInitializedMessage = "WebView not initialized";
     private readonly ILogger<MermaidRenderer> _logger;
     private readonly AssetService _assetService;
+    private readonly IPooledStringBuilderLeaseFactory _pooledStringBuilderLeaseFactory;
 
     #region Request Paths
 
@@ -90,12 +91,12 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
     /// </summary>
     /// <param name="logger">The logger instance for structured logging.</param>
     /// <param name="assetService">The asset service for managing assets.</param>
-    /// <param name="stringBuilderLeaseFactory">The factory for creating pooled <see cref="StringBuilder"/> instances.</param>
-    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService, IPooledStringBuilderLeaseFactory stringBuilderLeaseFactory)
-        : base(stringBuilderLeaseFactory)
+    /// <param name="pooledStringBuilderLeaseFactory">The factory for creating pooled <see cref="StringBuilder"/> instances.</param>
+    public MermaidRenderer(ILogger<MermaidRenderer> logger, AssetService assetService, IPooledStringBuilderLeaseFactory pooledStringBuilderLeaseFactory)
     {
         _logger = logger;
         _assetService = assetService;
+        _pooledStringBuilderLeaseFactory = pooledStringBuilderLeaseFactory;
     }
 
     /// <summary>
@@ -658,7 +659,7 @@ internal sealed class MermaidRenderer : ServiceBase, IAsyncDisposable
             return Task.FromResult<string?>(null);
         }
 
-        return RenderCoreAsync(webViewSnapshot, mermaidSource, PooledStringBuilderLeaseFactory, _logger);
+        return RenderCoreAsync(webViewSnapshot, mermaidSource, _pooledStringBuilderLeaseFactory, _logger);
 
         // Minimize captures by using static local functions with explicit parameters
         static async Task<string?> RenderCoreAsync(WebView webView, string source,
