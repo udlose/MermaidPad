@@ -20,6 +20,7 @@
 
 using Avalonia;
 using Avalonia.WebView.Desktop;
+using Dock.Settings;
 using MermaidPad.Services.Platforms;
 using Serilog;
 
@@ -61,6 +62,8 @@ internal static class Program
     private static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure(static () => new App())
             .UsePlatformDetect()
+            .EnableWindowMagnetism()    // enable window magnetism (snap-to-edge) for Dock
+            .UseFloatingDockAdorner()   // enable floating dock adorners for Dock
             .UseDesktopWebView() // this handles cross-platform WebView support
             .LogToTrace();
 }
