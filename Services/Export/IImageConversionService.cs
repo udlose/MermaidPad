@@ -45,13 +45,6 @@ internal interface IImageConversionService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Validates if the provided SVG content can be converted
-    /// </summary>
-    /// <param name="svgContent">The SVG content to validate</param>
-    /// <returns>Validation result with any error messages</returns>
-    Task<ValidationResult> ValidateSvgAsync(string svgContent);
-
-    /// <summary>
     /// Gets the dimensions of an SVG for preview purposes
     /// </summary>
     /// <param name="svgContent">The SVG content</param>

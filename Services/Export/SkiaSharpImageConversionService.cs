@@ -65,10 +65,30 @@ internal sealed partial class SkiaSharpImageConversionService : IImageConversion
     /// <returns>A task that represents the asynchronous operation. The task result is a read-only memory buffer containing the PNG image data.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the provided SVG content is invalid.</exception>
     /// <exception cref="ArgumentException">Thrown if <paramref name="svgContent"/> is null or empty.</exception>
-    public async Task<ReadOnlyMemory<byte>> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
+    public Task<ReadOnlyMemory<byte>> ConvertSvgToPngAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(svgContent);
         ArgumentNullException.ThrowIfNull(options);
+
+        return ConvertSvgToPngCoreAsync(svgContent, options, progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Converts SVG content to a PNG image asynchronously using the specified export options.
+    /// </summary>
+    /// <remarks>The conversion is performed on a background thread to avoid blocking the calling thread. This
+    /// method validates the SVG content before conversion and reports progress if a progress reporter is
+    /// provided.</remarks>
+    /// <param name="svgContent">The SVG markup to convert. Must be valid SVG; otherwise, an exception is thrown.</param>
+    /// <param name="options">The options that control PNG export settings, such as image size, background color, and quality.</param>
+    /// <param name="progress">An optional progress reporter that receives updates about the export operation. If null, progress is not
+    /// reported.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the conversion operation.</param>
+    /// <returns>A read-only memory buffer containing the PNG image data generated from the SVG content.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the provided SVG content is invalid.</exception>
+    private async Task<ReadOnlyMemory<byte>> ConvertSvgToPngCoreAsync(string svgContent, PngExportOptions options, IProgress<ExportProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        //TODO - DaveBlack: (bug) will using this implementation solve the canvas size limit of 32k x 32k???
 
         ValidationResult validation = await ValidateSvgAsync(svgContent)
             .ConfigureAwait(false);
@@ -96,13 +116,14 @@ internal sealed partial class SkiaSharpImageConversionService : IImageConversion
     /// <returns>A <see cref="ValidationResult"/> indicating the outcome of the validation.  Returns <see
     /// cref="ValidationResult.Success"/> if the SVG is valid,  <see cref="ValidationResult.Failure(string)"/> if the
     /// SVG is invalid, or a warning message if the SVG has very large dimensions.</returns>
-    public async Task<ValidationResult> ValidateSvgAsync(string svgContent)
+    public static async Task<ValidationResult> ValidateSvgAsync(string svgContent)
     {
         if (string.IsNullOrWhiteSpace(svgContent))
         {
             return ValidationResult.Failure("SVG content is empty");
         }
 
+        // Run validation on thread pool to avoid blocking UI
         return await Task.Run(() =>
         {
             try
