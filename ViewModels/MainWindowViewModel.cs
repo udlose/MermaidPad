@@ -760,6 +760,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void ViewLogs()
     {
+        //TODO refactor this path construction into a common utility method
         string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
 
         try
