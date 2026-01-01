@@ -34,7 +34,7 @@ namespace MermaidPad.Views.Dialogs;
 /// itself on its <see cref="Window.Owner"/> when opened.
 /// </remarks>
 /// <seealso cref="ConfirmationResult"/>
-public sealed partial class ConfirmationDialog : Window
+internal sealed partial class ConfirmationDialog : DialogBase
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="ConfirmationDialog"/> class.
@@ -46,7 +46,6 @@ public sealed partial class ConfirmationDialog : Window
     public ConfirmationDialog()
     {
         InitializeComponent();
-        CanResize = false;
     }
 
     /// <summary>
@@ -56,7 +55,7 @@ public sealed partial class ConfirmationDialog : Window
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnYesClick(object? sender, RoutedEventArgs e)
     {
-        Close(ConfirmationResult.Yes);
+        CloseDialog(ConfirmationResult.Yes);
     }
 
     /// <summary>
@@ -66,7 +65,7 @@ public sealed partial class ConfirmationDialog : Window
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnNoClick(object? sender, RoutedEventArgs e)
     {
-        Close(ConfirmationResult.No);
+        CloseDialog(ConfirmationResult.No);
     }
 
     /// <summary>
@@ -76,6 +75,6 @@ public sealed partial class ConfirmationDialog : Window
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
-        Close(ConfirmationResult.Cancel);
+        CloseDialog(ConfirmationResult.Cancel);
     }
 }

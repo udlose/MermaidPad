@@ -18,11 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Controls;
-
 namespace MermaidPad.Views.Dialogs;
 
-//public partial class MessageDialog : Window
+//internal partial class MessageDialog : DialogBase
 //{
 //    public MessageDialog()
 //    {
@@ -31,7 +29,7 @@ namespace MermaidPad.Views.Dialogs;
 
 //    private void OnOkClick(object? sender, RoutedEventArgs e)
 //    {
-//        Close();
+//        CloseDialog(true);
 //    }
 
 //    public static Task ShowErrorAsync(Window parent, string title, string message)
@@ -65,18 +63,15 @@ namespace MermaidPad.Views.Dialogs;
 //    }
 //}
 
-public sealed partial class MessageDialog : Window
+internal sealed partial class MessageDialog : DialogBase
 {
     public MessageDialog()
     {
         InitializeComponent();
-
-        // Make dialog non-resizable
-        CanResize = false;
     }
 
     private void OnOkClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        Close(true);
+        CloseDialog(true);
     }
 }
