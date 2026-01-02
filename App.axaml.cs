@@ -22,10 +22,13 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using AvaloniaWebView;
+using Dock.Avalonia.Diagnostics;
+using Dock.Avalonia.Diagnostics.Controls;
 using MermaidPad.Infrastructure;
 using MermaidPad.Models;
 using MermaidPad.ViewModels;
@@ -37,7 +40,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace MermaidPad;
-
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>
@@ -73,6 +75,11 @@ public sealed partial class App : Application, IDisposable
     private int _errorDialogPumpScheduled;
     private int _shutdownRequested;
 
+    // Developer Tools
+    private IAsyncDisposable? _avaloniaDevToolsDisposable;
+    private IDisposable? _dockDebugDisposable;
+    private IDisposable? _dockDebugOverlayDisposable;
+
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
     /// </summary>
@@ -83,10 +90,74 @@ public sealed partial class App : Application, IDisposable
     {
         AvaloniaXamlLoader.Load(this);
 
-#if DEBUG
-        this.AttachDeveloperTools();
-#endif
+        AttachAvaloniaDeveloperTools();
     }
+
+    #region Developer Tools methods
+
+    /// <summary>
+    /// Attaches the Avalonia developer tools to the current window for debugging purposes in debug builds.
+    /// </summary>
+    /// <remarks>This method is only included in builds where the DEBUG conditional compilation symbol is
+    /// defined. It enables developer tools such as the visual tree inspector and property editor, which assist in
+    /// debugging Avalonia UI applications. This method has no effect in release builds.</remarks>
+    [Conditional("DEBUG")]
+    private void AttachAvaloniaDeveloperTools()
+    {
+        _avaloniaDevToolsDisposable = this.AttachDeveloperTools();
+        Log.Debug("Avalonia developer tools attached");
+    }
+
+    /// <summary>
+    /// Attaches developer tools for the Dock system to the specified main window during debugging sessions.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method is only included in builds where the DEBUG symbol is defined. It enables
+    /// additional debugging overlays and tools for Dock layout inspection, which are intended for use during
+    /// development and troubleshooting.
+    /// </para>
+    /// <para>
+    /// Key bindings for the Dock developer tools:
+    /// <list type="bullet">
+    ///     <item><description><see cref="Key.F11"/>: Toggle Dock debug tools</description></item>
+    ///     <item><description><see cref="Key.F9"/>: Toggle Dock debug overlay</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="mainWindow">The main application window to which the Dock developer tools will be attached. Cannot be null.</param>
+    [Conditional("DEBUG")]
+    private void AttachDockDeveloperTools(MainWindow mainWindow)
+    {
+        Debug.Assert(mainWindow is not null, "MainWindow cannot be null when attaching Dock developer tools.");
+
+        MainWindowViewModel? mainWindowViewModel = mainWindow.DataContext as MainWindowViewModel;
+        Debug.Assert(mainWindowViewModel is not null, "MainWindowViewModel cannot be null when attaching Dock developer tools.");
+        Debug.Assert(mainWindowViewModel.Layout is not null, "Layout cannot be null when attaching Dock developer tools.");
+
+        _dockDebugDisposable = mainWindow.AttachDockDebug(() => mainWindowViewModel.Layout!, new KeyGesture(Key.F11));
+        _dockDebugOverlayDisposable = mainWindow.AttachDockDebugOverlay(new KeyGesture(Key.F9));
+        Log.Debug("Dock developer tools attached");
+    }
+
+    /// <summary>
+    /// Disposes resources associated with Avalonia and Dock developer tools in debug builds.
+    /// </summary>
+    /// <remarks>This method is only invoked when the application is compiled in debug mode. Disposal is
+    /// performed synchronously to ensure that all resources are released before continuing execution.</remarks>
+    [Conditional("DEBUG")]
+    [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "Disposal must be synchronous in this context.")]
+    private void DisposeDeveloperTools()
+    {
+        _avaloniaDevToolsDisposable?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        _dockDebugDisposable?.Dispose();
+        _dockDebugOverlayDisposable?.Dispose();
+
+        Log.Debug("Avalonia and Dock developer tools disposed");
+    }
+
+    #endregion Developer Tools methods
 
     /// <summary>
     /// Completes the framework initialization process by configuring application services, setting up global exception
@@ -182,6 +253,8 @@ public sealed partial class App : Application, IDisposable
         MainWindow mainWindow = new MainWindow();
         mainWindow.Show();
         mainWindow.Focus();
+
+        AttachDockDeveloperTools(mainWindow);
 
         _desktopLifetime.MainWindow = mainWindow;
     }
@@ -1024,6 +1097,9 @@ public sealed partial class App : Application, IDisposable
                 // Unregister managed handlers
                 UnregisterGlobalExceptionHandlers();
                 UnregisterDesktopLifetimeEvents();
+
+                // Dispose developer tools if enabled (DEBUG only: conditionally-compiled)
+                DisposeDeveloperTools();
 
                 // Dispose managed services since we built and managed the ServiceProvider ourselves (async-aware)
                 if (Services is IAsyncDisposable asyncDisposableServices)
