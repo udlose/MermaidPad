@@ -402,8 +402,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <param name="rootDock">The root dock model to use for initializing the layout. Cannot be null.</param>
     private void InitializeDockLayout(IRootDock rootDock)
     {
-        _dockFactory.InitLayout(rootDock);
         Layout = rootDock;
+        _dockFactory.InitLayout(rootDock);
     }
 
     /// <summary>
@@ -1699,8 +1699,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         // Save dock layout state (synchronous fallback - async save should have happened on deactivation)
         if (Layout is not null)
         {
-            _logger.LogInformation("Saving dock layout state (shutdown fallback)");
-
             bool saved = _dockLayoutService.Save(Layout);
             if (!saved)
             {
