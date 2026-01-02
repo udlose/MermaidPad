@@ -200,8 +200,17 @@ internal sealed class DockLayoutService
             IRootDock? layout;
             lock (_fileLock)
             {
-                // Use SecurityService for comprehensive validation
-                using FileStream stream = _securityService.CreateSecureFileStream(fullLayoutPath, FileMode.Open, FileAccess.Read, FileShare.Read, DefaultBufferSize);
+                //TODO - DaveBlack: (refactor) Use SecurityService for comprehensive validation with filestream access
+                //using FileStream stream = _securityService.CreateSecureFileStream(fullLayoutPath, FileMode.Open, FileAccess.Read, FileShare.Read, DefaultBufferSize);
+                using FileStream stream = new FileStream(
+                    fullLayoutPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: DefaultBufferSize,
+                    FileOptions.SequentialScan | FileOptions.Asynchronous
+                );
+
                 layout = _serializer.Load<IRootDock>(stream);
             }
 
@@ -268,7 +277,17 @@ internal sealed class DockLayoutService
 
             lock (_fileLock)
             {
-                using FileStream stream = _securityService.CreateSecureFileStream(fullLayoutPath, FileMode.Create, FileAccess.Write, FileShare.None, DefaultBufferSize);
+                //TODO - DaveBlack: (refactor) Use SecurityService for comprehensive validation with filestream access
+                //using FileStream stream = _securityService.CreateSecureFileStream(fullLayoutPath, FileMode.Create, FileAccess.Write, FileShare.None, DefaultBufferSize);
+                using FileStream stream = new FileStream(
+                    fullLayoutPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: DefaultBufferSize,
+                    FileOptions.SequentialScan | FileOptions.Asynchronous
+                );
+
                 _serializer.Save(stream, layout);
             }
 
