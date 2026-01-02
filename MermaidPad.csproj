@@ -73,9 +73,10 @@
         <PackageReference Include="WebView.Avalonia.Windows" Version="11.0.0.1" />
     </ItemGroup>
 
-    <!-- Only include Avalonia.Diagnostics in Debug builds -->
+    <!-- Only include Avalonia.Diagnostics and Dock.Avalonia.Diagnostics in Debug builds -->
     <ItemGroup Condition="'$(Configuration)' == 'Debug'">
         <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
+        <PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.8" />
     </ItemGroup>
 
     <ItemGroup>
