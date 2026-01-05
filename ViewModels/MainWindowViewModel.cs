@@ -126,7 +126,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </remarks>
     //TODO - DaveBlack: MDI Migration - Replace with ActiveDocument pattern
     public MermaidEditorViewModel Editor => _dockFactory.EditorTool?.Editor
-        ?? throw new InvalidOperationException("EditorTool is not initialized. Ensure the dock layout is created first.");
+        ?? throw new InvalidOperationException($"{nameof(_dockFactory.EditorTool)} is not initialized. Ensure the dock layout is created first.");
 
     /// <summary>
     /// Gets a value indicating whether there is text in the editor.
@@ -178,7 +178,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </para>
     /// </remarks>
     public DiagramViewModel Diagram => _dockFactory.DiagramTool?.Diagram
-        ?? throw new InvalidOperationException("DiagramTool is not initialized. Ensure the dock layout is created first.");
+        ?? throw new InvalidOperationException($"{nameof(_dockFactory.DiagramTool)} is not initialized. Ensure the dock layout is created first.");
 
     #endregion Diagram ViewModel
 
@@ -342,21 +342,14 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         Editor.SelectionLength = _settingsService.Settings.EditorSelectionLength;
         Editor.CaretOffset = _settingsService.Settings.EditorCaretOffset;
 
+        RegisterEventHandlers();
+
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
         WordWrapEnabled = _settingsService.Settings.WordWrapEnabled;
         ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
-
-        // Subscribe to Editor.PropertyChanged to forward Text/HasText changes
-        Editor.PropertyChanged += OnEditorPropertyChanged;
-
-        // Subscribe to Diagram.PropertyChanged to update command states when IsReady changes
-        Diagram.PropertyChanged += OnDiagramPropertyChanged;
-
-        // Subscribe to EditorTool.PropertyChanged to update ClearCommand when IsEditorVisible changes
-        _dockFactory.EditorTool!.PropertyChanged += OnEditorToolPropertyChanged;
 
         UpdateRecentFiles();
         UpdateWindowTitle();
@@ -374,22 +367,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         IRootDock? savedLayout = _dockLayoutService.Load();
         if (savedLayout is not null)
         {
-            // Restore the dock state and initialize the loaded layout
-            _dockLayoutService.RestoreState(savedLayout);
+            // Initialize the loaded layout and restore the dock state
             InitializeDockLayout(savedLayout);
+            _dockLayoutService.RestoreState(savedLayout);
 
             _logger.LogInformation("Dock layout restored from saved file");
         }
         else
         {
-            // Create default layout
-            IRootDock defaultLayout = _dockFactory.CreateDefaultLayout();
-            InitializeDockLayout(defaultLayout);
-
-            // Capture initial state for future restoration
-            _dockLayoutService.CaptureState(defaultLayout);
-
-            _logger.LogInformation("Dock layout initialized with defaults");
+            CreateAndInitializeDefaultDockLayout();
         }
     }
 
@@ -402,9 +388,32 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <param name="rootDock">The root dock model to use for initializing the layout. Cannot be null.</param>
     private void InitializeDockLayout(IRootDock rootDock)
     {
-        Layout = rootDock;
         _dockFactory.InitLayout(rootDock);
+        Layout = rootDock;
+
+        Debug.Assert(_dockFactory.ContextLocator is not null);
+        Debug.Assert(_dockFactory.DockableLocator is not null);
     }
+
+    /// <summary>
+    /// Initializes the dock layout to its default configuration and captures its initial state for future restoration.
+    /// </summary>
+    /// <remarks>This method creates the default dock layout, applies any necessary initialization, and
+    /// records the initial state. It is typically called during application startup or when resetting the layout to
+    /// defaults.</remarks>
+    private void CreateAndInitializeDefaultDockLayout()
+    {
+        // Create default layout
+        IRootDock defaultLayout = _dockFactory.CreateDefaultLayout();
+        InitializeDockLayout(defaultLayout);
+
+        // Capture initial state for future restoration
+        _dockLayoutService.CaptureState(defaultLayout);
+
+        _logger.LogInformation("Dock layout initialized with defaults");
+    }
+
+    #region Event Handlers
 
     /// <summary>
     /// Handles property changes from the Editor ViewModel.
@@ -516,6 +525,75 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 break;
         }
     }
+
+    /// <summary>
+    /// Handles changes to the live preview enabled state.
+    /// </summary>
+    /// <param name="value">The new value indicating whether live preview is enabled.</param>
+    partial void OnLivePreviewEnabledChanged(bool value)
+    {
+        // If we can't render yet, just return
+        if (!Diagram.IsReady)
+        {
+            return;
+        }
+
+        if (value)
+        {
+            if (string.IsNullOrWhiteSpace(Editor.Text))
+            {
+                return;
+            }
+
+            // SafeFireAndForget handles context, but the error handler updates UI
+            Diagram.RenderAsync(Editor.Text).SafeFireAndForget(onException: ex =>
+            {
+                // Even though SafeFireAndForget has a continueOnCapturedContext param, it doesn't guarantee UI thread here
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Diagram.LastError = $"Failed to render diagram: {ex.Message}";
+                    Debug.WriteLine(ex);
+                    _logger.LogError(ex, "Live preview render failed");
+                });
+            }, continueOnCapturedContext: true);    // Use captured UI context so any continuations that update Diagram state run on the UI thread
+        }
+        else
+        {
+            _editorDebouncer.Cancel(DebounceRenderKey);
+        }
+    }
+
+    /// <summary>
+    /// Handles changes to the current file path by updating application settings and related UI elements.
+    /// </summary>
+    /// <remarks>This method updates the application's settings and refreshes the window title and status text
+    /// to reflect the new file path.</remarks>
+    /// <param name="value">The new file path to set as the current file. Can be null to indicate no file is selected.</param>
+    partial void OnCurrentFilePathChanged(string? value)
+    {
+        _settingsService.Settings.CurrentFilePath = value;
+        _settingsService.Save();
+        UpdateWindowTitle();
+        UpdateStatusText();
+    }
+
+    /// <summary>
+    /// Handles changes to the dirty state of the object when the value of the IsDirty property changes.
+    /// </summary>
+    /// <remarks>This method is invoked automatically when the IsDirty property changes. Override this partial
+    /// method to perform custom actions in response to changes in the dirty state, such as updating UI elements or
+    /// enabling save functionality.</remarks>
+    /// <param name="value">A value indicating whether the object is now considered dirty. <see langword="true"/> if the object has unsaved
+    /// changes; otherwise, <see langword="false"/>.</param>
+    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Parameter is required for partial method signature.")]
+    partial void OnIsDirtyChanged(bool value)
+    {
+        UpdateWindowTitle();
+        // Note: SaveFileCommand.NotifyCanExecuteChanged() is automatically called via
+        // [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))] on the IsDirty property.
+    }
+
+    #endregion Event Handlers
 
     #region Diagram Initialization
 
@@ -997,27 +1075,23 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
                 await ShowErrorMessageAsync("Failed to delete saved layout file. The layout may not reset correctly.");
             }
 
+            // Close any floating windows before resetting the layout
+            // This ensures floating panels are properly closed when the layout is reset
+            _dockFactory.CloseAllFloatingWindows(Layout);
+
             // Preserve current editor state before resetting
             string currentText = Editor.Text;
             int selectionStart = Editor.SelectionStart;
             int selectionLength = Editor.SelectionLength;
             int caretOffset = Editor.CaretOffset;
 
-            // Unsubscribe from old tool ViewModels
-            if (_dockFactory.EditorTool is not null)
-            {
-                Editor.PropertyChanged -= OnEditorPropertyChanged;
-                _dockFactory.EditorTool.PropertyChanged -= OnEditorToolPropertyChanged;
-            }
+            // Reset the layout to default
+            _dockLayoutService.ResetLayoutState();
 
-            if (_dockFactory.DiagramTool is not null)
-            {
-                Diagram.PropertyChanged -= OnDiagramPropertyChanged;
-            }
+            // Create and initialize a new default layout
+            CreateAndInitializeDefaultDockLayout();
 
-            // Create new default layout
-            IRootDock rootDock = _dockFactory.CreateDefaultLayout();
-            InitializeDockLayout(rootDock);
+            //TODO - @Claude: I think something is missing here to tell the DiagramView to re-initialize itself...am I correct?
 
             // Restore editor state to new editor
             Editor.Text = currentText;
@@ -1026,9 +1100,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             Editor.CaretOffset = caretOffset;
 
             // Subscribe to new tool ViewModels
-            Editor.PropertyChanged += OnEditorPropertyChanged;
-            Diagram.PropertyChanged += OnDiagramPropertyChanged;
-            _dockFactory.EditorTool!.PropertyChanged += OnEditorToolPropertyChanged;
+            RegisterEventHandlers();
 
             // Notify property changes for binding updates
             OnPropertyChanged(nameof(Editor));
@@ -1044,6 +1116,30 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 
             await ShowErrorMessageAsync($"Failed to reset layout: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Registers event handlers for property change notifications on editor and diagram components to ensure command
+    /// states are updated appropriately.
+    /// </summary>
+    /// <remarks>This method should be called to initialize or refresh event subscriptions for property
+    /// changes. It removes any existing handlers before adding new ones to prevent duplicate subscriptions. Calling
+    /// this method multiple times is safe and will not result in multiple event handler registrations.</remarks>
+    private void RegisterEventHandlers()
+    {
+        // Ensure we don't end up with duplicate subscriptions by removing handlers before adding them.
+        // Unsubscribing a handler that isn't currently subscribed is safe (no-op in C#).
+        // Subscribe to EditorTool.PropertyChanged to update ClearCommand when IsEditorVisible changes
+        Editor.PropertyChanged -= OnEditorPropertyChanged;
+        Editor.PropertyChanged += OnEditorPropertyChanged;
+
+        // Subscribe to Diagram.PropertyChanged to update command states when IsReady changes
+        Diagram.PropertyChanged -= OnDiagramPropertyChanged;
+        Diagram.PropertyChanged += OnDiagramPropertyChanged;
+
+        // Subscribe to EditorTool.PropertyChanged to update ClearCommand when IsEditorVisible changes
+        _dockFactory.EditorTool!.PropertyChanged -= OnEditorToolPropertyChanged;
+        _dockFactory.EditorTool!.PropertyChanged += OnEditorToolPropertyChanged;
     }
 
     /// <summary>
@@ -1176,6 +1272,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     #endregion File Open/Save
+
+    #region Relay Commands
 
     /// <summary>
     /// Asynchronously renders the diagram text using the configured renderer.
@@ -1547,6 +1645,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
+    #endregion Relay Commands
+
     /// <summary>
     /// Displays a success message dialog with the specified message and a checkmark icon.
     /// </summary>
@@ -1579,77 +1679,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             Debug.WriteLine($"Failed to show success message: {ex}");
         }
     }
-
-    #region Event handlers
-
-    /// <summary>
-    /// Handles changes to the live preview enabled state.
-    /// </summary>
-    /// <param name="value">The new value indicating whether live preview is enabled.</param>
-    partial void OnLivePreviewEnabledChanged(bool value)
-    {
-        // If we can't render yet, just return
-        if (!Diagram.IsReady)
-        {
-            return;
-        }
-
-        if (value)
-        {
-            if (string.IsNullOrWhiteSpace(Editor.Text))
-            {
-                return;
-            }
-
-            // SafeFireAndForget handles context, but the error handler updates UI
-            Diagram.RenderAsync(Editor.Text).SafeFireAndForget(onException: ex =>
-            {
-                // Even though SafeFireAndForget has a continueOnCapturedContext param, it doesn't guarantee UI thread here
-                Dispatcher.UIThread.Post(() =>
-                {
-                    Diagram.LastError = $"Failed to render diagram: {ex.Message}";
-                    Debug.WriteLine(ex);
-                    _logger.LogError(ex, "Live preview render failed");
-                });
-            }, continueOnCapturedContext: true);    // Use captured UI context so any continuations that update Diagram state run on the UI thread
-        }
-        else
-        {
-            _editorDebouncer.Cancel(DebounceRenderKey);
-        }
-    }
-
-    /// <summary>
-    /// Handles changes to the current file path by updating application settings and related UI elements.
-    /// </summary>
-    /// <remarks>This method updates the application's settings and refreshes the window title and status text
-    /// to reflect the new file path.</remarks>
-    /// <param name="value">The new file path to set as the current file. Can be null to indicate no file is selected.</param>
-    partial void OnCurrentFilePathChanged(string? value)
-    {
-        _settingsService.Settings.CurrentFilePath = value;
-        _settingsService.Save();
-        UpdateWindowTitle();
-        UpdateStatusText();
-    }
-
-    /// <summary>
-    /// Handles changes to the dirty state of the object when the value of the IsDirty property changes.
-    /// </summary>
-    /// <remarks>This method is invoked automatically when the IsDirty property changes. Override this partial
-    /// method to perform custom actions in response to changes in the dirty state, such as updating UI elements or
-    /// enabling save functionality.</remarks>
-    /// <param name="value">A value indicating whether the object is now considered dirty. <see langword="true"/> if the object has unsaved
-    /// changes; otherwise, <see langword="false"/>.</param>
-    [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Parameter is required for partial method signature.")]
-    partial void OnIsDirtyChanged(bool value)
-    {
-        UpdateWindowTitle();
-        // Note: SaveFileCommand.NotifyCanExecuteChanged() is automatically called via
-        // [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))] on the IsDirty property.
-    }
-
-    #endregion Event handlers
 
     /// <summary>
     /// Checks for updates to the Mermaid library and updates the application state with the latest version information.
