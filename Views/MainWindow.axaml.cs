@@ -387,21 +387,35 @@ public sealed partial class MainWindow : Window
             //_logger.LogInformation("Mermaid update check completed");
 
             // Initialize DiagramView (WebView initialization is now encapsulated there)
-            _logger.LogInformation($"Initializing {nameof(DiagramToolView)}...");
-
-            // Temporarily disable live preview during initialization
-            bool originalLivePreview = _vm.LivePreviewEnabled;
-            _vm.LivePreviewEnabled = false;
-
-            try
+            // Note: Only initialize if the DiagramView is attached (i.e., visible in the dock layout).
+            // When the diagram panel is pinned/hidden, the View isn't created, so InitializeActionAsync
+            // won't be set. In that case, skip initialization - the DiagramView will auto-initialize
+            // when it becomes visible via its SetupViewModelBindings() → TriggerReinitialization() path.
+            if (_vm.Diagram.InitializeActionAsync is not null)
             {
-                // Initialize and render the diagram view through the ViewModel
-                await _vm.InitializeDiagramAsync();
+                _logger.LogInformation($"Initializing {nameof(DiagramToolView)}...");
+
+                // Temporarily disable live preview during initialization
+                bool originalLivePreview = _vm.LivePreviewEnabled;
+                _vm.LivePreviewEnabled = false;
+
+                try
+                {
+                    // Initialize and render the diagram view through the ViewModel
+                    await _vm.InitializeDiagramAsync();
+                }
+                finally
+                {
+                    // Re-enable live preview after initialization
+                    _vm.LivePreviewEnabled = originalLivePreview;
+                }
             }
-            finally
+            else
             {
-                // Re-enable live preview after initialization
-                _vm.LivePreviewEnabled = originalLivePreview;
+                _logger.LogInformation(
+                    "Skipping {DiagramToolView} initialization - panel is not visible (pinned/hidden). " +
+                    "It will auto-initialize when shown.",
+                    nameof(DiagramToolView));
             }
 
             // Step 3: Update command states

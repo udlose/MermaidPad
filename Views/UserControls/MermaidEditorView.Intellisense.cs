@@ -21,9 +21,9 @@
 using Avalonia.Input;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
+using MermaidPad.Infrastructure.ObjectPooling.Policies;
 using MermaidPad.Models;
 using MermaidPad.Models.Editor;
-using MermaidPad.ObjectPoolPolicies;
 using MermaidPad.Services.Editor;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -84,7 +84,7 @@ public partial class MermaidEditorView
     /// </para>
     /// </remarks>
     private static readonly ObjectPool<HashSet<string>> _nodeBufferPool =
-        new DefaultObjectPool<HashSet<string>>(new HashSetPooledObjectPolicy());
+        new DefaultObjectPool<HashSet<string>>(new HashSetOfStringPooledObjectPolicy());
 
     // Persists known strings to avoid re-allocating "MyNode" repeatedly
     private readonly HashSet<string> _stringInternPool = new HashSet<string>(StringComparer.Ordinal);
