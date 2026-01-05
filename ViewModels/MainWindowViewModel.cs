@@ -1089,17 +1089,16 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             _dockLayoutService.ResetLayoutState();
 
             // Create and initialize a new default layout
+            // This creates NEW ViewModels for Editor and Diagram
             CreateAndInitializeDefaultDockLayout();
 
-            //TODO - @Claude: I think something is missing here to tell the DiagramView to re-initialize itself...am I correct?
-
-            // Restore editor state to new editor
+            // Restore editor state to the NEW editor ViewModel
             Editor.Text = currentText;
             Editor.SelectionStart = selectionStart;
             Editor.SelectionLength = selectionLength;
             Editor.CaretOffset = caretOffset;
 
-            // Subscribe to new tool ViewModels
+            // Subscribe to new tool ViewModels (unsubscribes from old ones first)
             RegisterEventHandlers();
 
             // Notify property changes for binding updates
@@ -1107,6 +1106,24 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(Diagram));
             OnPropertyChanged(nameof(EditorHasText));
             OnPropertyChanged(nameof(IsEditorVisible));
+
+            // Reset the warning flag since we have a new Diagram ViewModel
+            _hasWarnedAboutUnreadyWebView = false;
+
+            // Explicitly initialize the diagram after Reset Layout.
+            // DiagramView.SetupViewModelBindings() only triggers re-initialization when IsReady=true
+            // (dock state changes), but Reset Layout creates a NEW ViewModel with IsReady=false.
+            // This mirrors the initialization done in MainWindow.OnOpenedAsync().
+            if (Diagram.InitializeActionAsync is not null)
+            {
+                _logger.LogInformation("Initializing diagram after layout reset...");
+                await InitializeDiagramAsync();
+            }
+            else
+            {
+                _logger.LogInformation("Skipping diagram initialization after layout reset - panel is not visible (pinned/hidden). " +
+                    $"It will auto-initialize when shown and {nameof(DiagramViewModel.IsReady)} is true.");
+            }
 
             _logger.LogInformation("Dock layout reset to default");
         }
