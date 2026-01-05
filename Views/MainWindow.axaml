@@ -183,12 +183,21 @@
       </Grid>
     </DockPanel>
 
-    <!--  Main Content: DockControl with dockable panels  -->
+    <!--
+      Main Content: DockControl with dockable panels.
+      
+      InitializeFactory and InitializeLayout are set to False because:
+      1. We manage layout creation/restoration ourselves in MainWindowViewModel.InitializeDockLayout()
+      2. Our DockFactory.InitLayout() configures the locators (DockableLocator, ContextLocator, HostWindowLocator)
+      3. Setting these to True would cause DockControl to override our locator configuration
+      
+      The layout is bound to MainWindowViewModel.Layout which is set during VM construction.
+    -->
     <idc:DockControl
       x:Name="DockControl"
       Margin="6,0,6,6"
-      InitializeFactory="True"
-      InitializeLayout="True"
+      InitializeFactory="False"
+      InitializeLayout="False"
       Layout="{Binding Layout}" />
   </DockPanel>
 </Window>

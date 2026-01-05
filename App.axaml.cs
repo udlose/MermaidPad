@@ -40,6 +40,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace MermaidPad;
+
 /// <summary>
 /// Represents the entry point for the application, providing initialization and configuration logic.
 /// </summary>
@@ -341,6 +342,8 @@ public sealed partial class App : Application, IDisposable
         Dispatcher.UIThread.UnhandledException -= OnUIThreadUnhandledException;
         AppDomain.CurrentDomain.UnhandledException -= OnAppDomainUnhandledException;
         TaskScheduler.UnobservedTaskException -= OnTaskSchedulerUnobservedTaskException;
+
+        Log.Information("Global exception handlers unregistered");
     }
 
     /// <summary>

@@ -18,7 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using MermaidPad.ObjectPoolPolicies;
+using Dock.Model.Core;
+using MermaidPad.Infrastructure.ObjectPooling.Policies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.ObjectPool;
@@ -39,8 +40,8 @@ internal static class ObjectPoolRegistrations
     /// providers and policies for use within the application.
     /// </summary>
     /// <remarks>This method registers a default <see cref="ObjectPoolProvider"/> and configures object pools
-    /// for commonly used types such as <see cref="HashSet{String}"/> and <see cref="StringBuilder"/>. Call this method
-    /// during service configuration to enable efficient object reuse and reduce memory allocations.</remarks>
+    /// for commonly used types such as <see cref="HashSet{String}"/>, <see cref="HashSet{IDockable}"/> and <see cref="StringBuilder"/>.
+    /// Call this method during service configuration to enable efficient object reuse and reduce memory allocations.</remarks>
     /// <param name="services">The <see cref="IServiceCollection"/> to which the object pooling services are added. Cannot be null.</param>
     internal static void AddObjectPooling(this IServiceCollection services)
     {
@@ -49,7 +50,13 @@ internal static class ObjectPoolRegistrations
         services.TryAddSingleton<ObjectPool<HashSet<string>>>(static sp =>
         {
             ObjectPoolProvider provider = sp.GetRequiredService<ObjectPoolProvider>();
-            HashSetPooledObjectPolicy policy = new HashSetPooledObjectPolicy();
+            HashSetOfStringPooledObjectPolicy policy = new HashSetOfStringPooledObjectPolicy();
+            return provider.Create(policy);
+        });
+        services.TryAddSingleton<ObjectPool<HashSet<IDockable>>>(static sp =>
+        {
+            ObjectPoolProvider provider = sp.GetRequiredService<ObjectPoolProvider>();
+            HashSetOfIDockablePooledObjectPolicy policy = new HashSetOfIDockablePooledObjectPolicy();
             return provider.Create(policy);
         });
 
