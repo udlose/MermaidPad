@@ -49,7 +49,7 @@ internal sealed class DiagramToolViewModel : Tool
     /// <summary>
     /// The unique identifier for this tool type, used for layout serialization and restoration.
     /// </summary>
-    private const string ToolId = "DiagramTool";
+    internal const string ToolId = "DiagramTool";
 
     /// <summary>
     /// Gets the wrapped <see cref="DiagramViewModel"/> that provides diagram preview functionality.

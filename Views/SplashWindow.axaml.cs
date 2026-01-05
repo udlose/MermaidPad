@@ -203,7 +203,7 @@ internal sealed partial class SplashWindow : Window
         try
         {
             // Temporarily simulate background work Task.Delay
-            const int simulatedWorkDurationMs = 3_000;
+            const int simulatedWorkDurationMs = 2_500;
             await Task.Delay(simulatedWorkDurationMs, cancellationToken);
 
             // After background work is complete, update the UI on the main thread

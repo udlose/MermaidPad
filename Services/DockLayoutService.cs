@@ -275,6 +275,9 @@ internal sealed class DockLayoutService
                 return false;
             }
 
+            // Make sure to save DockState before serialization
+            _dockState.Save(layout);
+
             lock (_fileLock)
             {
                 //TODO - DaveBlack: (refactor) Use SecurityService for comprehensive validation with filestream access
@@ -328,4 +331,12 @@ internal sealed class DockLayoutService
             return false;
         }
     }
+
+    /// <summary>
+    /// Resets the layout state to its default configuration.
+    /// </summary>
+    /// <remarks>Call this method to clear any customizations or changes made to the layout, restoring it to
+    /// its initial state. This can be useful when reverting user modifications or preparing the layout for
+    /// reuse.</remarks>
+    public void ResetLayoutState() => _dockState.Reset();
 }

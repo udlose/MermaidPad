@@ -1,4 +1,4 @@
-﻿// MIT License
+// MIT License
 // Copyright (c) 2025 Dave Black
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Dock.Model.Core;
 using Microsoft.Extensions.ObjectPool;
 
-namespace MermaidPad.ObjectPoolPolicies;
+namespace MermaidPad.Infrastructure.ObjectPooling.Policies;
 
 /// <summary>
-/// Provides a pooling policy for <see cref="HashSet{string}"/> instances using ordinal string comparison.
+/// Provides a pooled object policy for managing reusable sets of dockable elements.
 /// </summary>
-/// <remarks>This policy is intended for use with object pools that manage <see cref="HashSet{string}"/> objects.
-/// Each created hash set uses <see cref="StringComparer.Ordinal"/> for string comparisons. When a hash set is returned
-/// to the pool, it is cleared to remove all elements, ensuring it is ready for reuse.</remarks>
-public sealed class HashSetPooledObjectPolicy : IPooledObjectPolicy<HashSet<string>>
+/// <remarks>This class implements <see cref="IPooledObjectPolicy{HashSet{IDockable}}"/> to enable efficient
+/// pooling of <see cref="HashSet{IDockable}"/> instances. It is intended for scenarios where dockable objects are
+/// frequently collected and reused, reducing allocation overhead. Instances created by this policy have an initial
+/// capacity of 16 to optimize performance when adding multiple items. The returned sets are cleared before being
+/// returned to the pool, ensuring they are ready for reuse.</remarks>
+public sealed class HashSetOfIDockablePooledObjectPolicy : IPooledObjectPolicy<HashSet<IDockable>>
 {
     /// <summary>
-    /// Creates a new empty set of strings that uses ordinal comparison for string values.
+    /// Creates a new empty set for storing dockable elements.
     /// </summary>
-    /// <remarks>The returned set uses <see cref="StringComparer.Ordinal"/> for all string comparisons, which
-    /// is case-sensitive and culture-insensitive. This is suitable for scenarios where exact byte-wise string matching
-    /// is required.</remarks>
-    /// <returns>A new <see cref="HashSet{string}"/> instance that compares strings using ordinal rules.</returns>
-    public HashSet<string> Create() => new HashSet<string>(StringComparer.Ordinal);
+    /// <remarks>The returned set is empty and can be used to collect or manage objects implementing the <see
+    /// cref="IDockable"/> interface. The initial capacity of 16 helps optimize performance when adding multiple
+    /// items.</remarks>
+    /// <returns>A new instance of <see cref="HashSet{IDockable}"/> with an initial capacity of 16, ready to hold dockable items.</returns>
+    public HashSet<IDockable> Create() => new HashSet<IDockable>(capacity: 16);
 
     /// <summary>
-    /// Returns a pooled <see cref="HashSet{string}"/> to the pool after clearing its contents.
+    /// Returns a pooled <see cref="HashSet{IDockable}"/> to the pool after clearing its contents.
     /// </summary>
     /// <remarks>After calling this method, the <paramref name="pooledHashSet"/> will be empty. The instance
     /// should not be used after it is returned to the pool.</remarks>
-    /// <param name="pooledHashSet">The <see cref="HashSet{string}"/> instance to return to the pool. Cannot be <see langword="null"/>.</param>
+    /// <param name="pooledHashSet">The <see cref="HashSet{IDockable}"/> instance to return to the pool. Cannot be <see langword="null"/>.</param>
     /// <returns>true if the set was successfully returned to the pool; otherwise, false.</returns>
-    public bool Return(HashSet<string> pooledHashSet)
+    public bool Return(HashSet<IDockable> pooledHashSet)
     {
         ArgumentNullException.ThrowIfNull(pooledHashSet);
 

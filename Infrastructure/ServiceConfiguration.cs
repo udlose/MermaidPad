@@ -20,6 +20,7 @@
 
 using Dock.Model.Extensions.DependencyInjection;
 using Dock.Serializer;
+using Dock.Settings;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services;
@@ -163,33 +164,26 @@ public static class ServiceConfiguration
         // via factory because there's only one MainWindowViewModel per window
         services.AddTransient<MainWindowViewModel>();
 
-        // Dockable ViewModels: these must be registered in DI only to satisfy
-        // JSON deserialization during layout restoration. They should not be
-        // requested directly via DI elsewhere.
+        // Dockable ViewModels: these must be registered in DI to satisfy
+        // JSON deserialization during layout restoration.
         //
-        // Dock.Serializer integrates with Microsoft.Extensions.DependencyInjection and,
-        // when restoring a saved layout from JSON, resolves dockable ViewModels from the
-        // DI container based on their serialized type information. Any ViewModel that
-        // can appear in a persisted layout therefore has to be registered here so the
-        // serializer can construct it, even though the normal code path uses IViewModelFactory.
+        // Dock.Serializer.Newtonsoft uses ServiceProviderContractResolver which
+        // resolves types via IServiceProvider.GetService(type) when deserializing.
+        // Types that appear in persisted layouts must be registered in DI so the
+        // serializer can construct them.
         //
-        // These are created by DockFactory via IViewModelFactory because:
-        // 1. DockFactory needs to hold references to EditorTool and DiagramTool
-        // 2. The factory controls the lifecycle during layout creation and restoration
+        // IMPORTANT: These registrations are ONLY for serialization support.
+        // The normal code path uses IViewModelFactory to create instances, which gives
+        // the DockFactory explicit control over lifecycle and allows it to cache
+        // references to EditorTool and DiagramTool.
         //
-        // The IViewModelFactory pattern gives us DI benefits (constructor injection) with
-        // explicit control over when instances are created.
-        //
-        // ViewModels created via IViewModelFactory:
-        // - MermaidEditorViewModel (wrapped by MermaidEditorToolViewModel)
-        // - DiagramViewModel (wrapped by DiagramToolViewModel)
-        // - MermaidEditorToolViewModel
-        // - DiagramToolViewModel
-        const string layoutRestorationServiceKey = "LayoutRestoration";
-        services.AddKeyedTransient<DiagramToolViewModel>(layoutRestorationServiceKey);
-        services.AddKeyedTransient<DiagramViewModel>(layoutRestorationServiceKey);
-        services.AddKeyedTransient<MermaidEditorToolViewModel>(layoutRestorationServiceKey);
-        services.AddKeyedTransient<MermaidEditorViewModel>(layoutRestorationServiceKey);
+        // The wrapped ViewModels (MermaidEditorViewModel, DiagramViewModel) are also
+        // registered as transient to support the factory's ActivatorUtilities.CreateInstance
+        // pattern, which resolves constructor dependencies from the container.
+        services.AddTransient<MermaidEditorViewModel>();
+        services.AddTransient<DiagramViewModel>();
+        services.AddTransient<MermaidEditorToolViewModel>();
+        services.AddTransient<DiagramToolViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
         services.AddTransient<ExportDialogViewModel>();
@@ -261,6 +255,17 @@ public static class ServiceConfiguration
             // This ensures logs written during App disposal are not lost
             builder.AddSerilog(dispose: false);
         });
+
+        // Configure Dock diagnostic logging if enabled
+        DockSettings.EnableDiagnosticsLogging = loggingSettings.EnableDockDiagnosticsLogging;
+        if (loggingSettings.EnableDockDiagnosticsLogging)
+        {
+            DockSettings.DiagnosticsLogHandler = static message => Log.Debug("[Dock] {DockMessage}", message);
+        }
+        else
+        {
+            DockSettings.DiagnosticsLogHandler = null;
+        }
     }
 
     /// <summary>
