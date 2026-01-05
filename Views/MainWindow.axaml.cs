@@ -216,7 +216,6 @@ public sealed partial class MainWindow : Window
         try
         {
             UnsubscribeAllEventHandlers();
-            _vm.Persist();
         }
         finally
         {
@@ -251,25 +250,46 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
-        if (hasUnsavedChanges)
+        try
         {
-            // Cancel the close attempt and call base.OnClosing(e) so the Closing event is raised and subscribers
-            // can observe Cancel==true. Then post the async prompt so it runs after the current closing callback
-            // unwinds back to the UI loop (avoids reentrancy during the close pipeline).
-            e.Cancel = true; // Cancel now; close later if user approves
-
-            // Allow other subscribers to observe Cancel==true
-            base.OnClosing(e);
-
-            // Only prompt once
-            if (Interlocked.Exchange(ref _closePromptInFlight, 1) == 0)
+            bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
+            if (hasUnsavedChanges)
             {
-                // Run prompt AFTER OnClosing returns. Using Post (not InvokeAsync) ensures this is queued
-                // back to the UI loop and does not re-enter the close pipeline while it is still unwinding.
-                Dispatcher.UIThread.Post(PostedPromptAndClose);
+                // Cancel the close attempt and call base.OnClosing(e) so the Closing event is raised and subscribers
+                // can observe Cancel==true. Then post the async prompt so it runs after the current closing callback
+                // unwinds back to the UI loop (avoids reentrancy during the close pipeline).
+                e.Cancel = true; // Cancel now; close later if user approves
+
+                // Allow other subscribers to observe Cancel==true
+                base.OnClosing(e);
+
+                // Only prompt once
+                if (Interlocked.Exchange(ref _closePromptInFlight, 1) == 0)
+                {
+                    // Run prompt AFTER OnClosing returns. Using Post (not InvokeAsync) ensures this is queued
+                    // back to the UI loop and does not re-enter the close pipeline while it is still unwinding.
+                    Dispatcher.UIThread.Post(PostedPromptAndClose);
+                }
+
+                return;
             }
 
+            // No unsaved changes - proceed with normal close
+            // Persist settings in OnClosing. Using OnClosed is too late in the lifecycle because we need to save Layout state
+            _vm.Persist();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during OnClosing");
+
+            //TODO - DaveBlack: uncomment e.Cancel = true when an appropriate error dialog is implemented
+            // Cancel the close operation if persistence fails, so the user does not lose unsaved state
+            //e.Cancel = true;
+
+            // Allow other subscribers to observe Cancel==true, mirroring the unsaved-changes path
+            base.OnClosing(e);
+
+            //TODO - DaveBlack: Consider showing an error dialog here to inform the user of the failure
             return;
         }
 
