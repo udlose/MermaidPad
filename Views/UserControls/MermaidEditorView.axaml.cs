@@ -90,18 +90,28 @@ public sealed partial class MermaidEditorView : UserControl
         _documentAnalyzer = sp.GetRequiredService<DocumentAnalyzer>();
         _logger = sp.GetRequiredService<ILogger<MermaidEditorView>>();
 
-        _logger.LogInformation("=== MermaidEditorView Initialization Started ===");
+        _logger.LogInformation("=== {ViewName} Initialization Started ===", nameof(MermaidEditorView));
 
-        // Initialize syntax highlighting
-        InitializeSyntaxHighlighting();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool isSuccess = false;
+        try
+        {
+            // Initialize syntax highlighting
+            InitializeSyntaxHighlighting();
 
-        // Initialize intellisense
-        InitializeIntellisense();
+            // Initialize intellisense
+            InitializeIntellisense();
 
-        // Subscribe to theme changes
-        ActualThemeVariantChanged += OnThemeChanged;
+            // Subscribe to theme changes
+            ActualThemeVariantChanged += OnThemeChanged;
 
-        _logger.LogInformation("=== MermaidEditorView Initialization Completed ===");
+            isSuccess = true;
+        }
+        finally
+        {
+            stopwatch.Stop();
+            _logger.LogTiming($"{nameof(MermaidEditorView)} initialization completed", stopwatch.Elapsed, isSuccess);
+        }
     }
 
     #region Overrides
