@@ -219,13 +219,18 @@ public sealed partial class DiagramView : UserControl
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This method also detects dock state change scenarios where:
-    /// 1. The ViewModel was previously initialized (<see cref="DiagramViewModel.IsReady"/> is true)
-    /// 2. But THIS View instance hasn't initialized yet (<see cref="_hasInitializedWebView"/> is false)
+    /// This method detects when a new View instance needs to initialize its WebView.
+    /// This includes:
+    /// <list type="bullet">
+    ///     <item><description>Initial load (first time the View is attached)</description></item>
+    ///     <item><description>Dock state changes (float, dock, pin) where the View is recreated</description></item>
+    ///     <item><description>Reset Layout where both View and ViewModel are recreated</description></item>
+    /// </list>
     /// </para>
     /// <para>
-    /// When this scenario is detected, automatic re-initialization is triggered to restore
-    /// the WebView functionality seamlessly after dock state changes.
+    /// The key insight is that <c>_hasInitializedWebView</c> tracks whether THIS View instance
+    /// has performed initialization. When false, we always need to initialize, regardless of
+    /// the ViewModel's <see cref="DiagramViewModel.IsReady"/> state.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
@@ -240,14 +245,20 @@ public sealed partial class DiagramView : UserControl
         _vm.InitializeActionAsync = null; // Clear any existing delegate
         _vm.InitializeActionAsync = InitializeWebViewAsync;
 
-        // Detect dock state change scenario:
-        // - ViewModel.IsReady is true (from previous View instance)
-        // - This View instance hasn't initialized (new instance after dock state change)
-        // This happens when user floats, docks, or pins a panel.
+        // Trigger re-initialization only when this View instance hasn't initialized its WebView yet
+        // AND the ViewModel is ready. This avoids premature initialization during initial load.
+        //
+        // Scenarios:
+        //  1. Dock state change (float/dock/pin): ViewModel.IsReady=true (from previous View) → auto-reinitialize
+        //  2. Initial app load: ViewModel.IsReady=false → skip, let MainWindow.OnOpenedAsync() handle it
+        //  3. Reset Layout: ViewModel.IsReady=false (new ViewModel) → skip, MainWindowViewModel.ResetLayoutAsync() handles it
+        //
+        // The key insight is that dock state changes preserve the ViewModel (IsReady stays true),
+        // while Reset Layout and initial load create NEW ViewModels (IsReady starts false).
+        // For these cases, the caller must explicitly trigger initialization.
         if (_vm.IsReady && !_hasInitializedWebView)
         {
-            _logger.LogInformation(
-                "Detected dock state change: ViewModel was ready but this View instance hasn't initialized. " +
+            _logger.LogInformation("Detected dock state change: ViewModel was ready but this View instance hasn't initialized. " +
                 "Triggering automatic re-initialization.");
             TriggerReinitialization();
         }
@@ -326,7 +337,7 @@ public sealed partial class DiagramView : UserControl
             throw new InvalidOperationException($"{nameof(InitializeWebViewAsync)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
-        _logger.LogInformation("=== WebView Initialization Started ===");
+        _logger.LogInformation("=== {ViewName} Initialization Started ===", nameof(DiagramView));
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         bool isSuccess = false;
@@ -343,7 +354,7 @@ public sealed partial class DiagramView : UserControl
         finally
         {
             stopwatch.Stop();
-            _logger.LogTiming("WebView initialization", stopwatch.Elapsed, isSuccess);
+            _logger.LogTiming($"{nameof(DiagramView)} initialization completed", stopwatch.Elapsed, isSuccess);
         }
     }
 
