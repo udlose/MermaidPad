@@ -542,15 +542,12 @@ internal sealed class DockFactory : Factory
             _logger.LogDebug("");
             _logger.LogDebug("");
 
-            void LogDockable(IDockable? dockable, string property)
-            {
+            void LogDockable(IDockable? dockable, string property) =>
                 _logger.LogDebug("DOCK: {Property}: Id: {DockableId}, Title: {DockableTitle}, Type: {Name}", property, dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", dockable?.GetType().Name ?? "<null>");
-            }
         }
         else
         {
             _logger.LogWarning("RootDock is null in LogDockMetadata");
-            return;
         }
     }
 
