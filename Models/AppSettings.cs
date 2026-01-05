@@ -135,9 +135,17 @@ public sealed class LoggingSettings
     public bool EnableDebugOutput { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether diagnostic information for docking operations is enabled.
+    /// </summary>
+    /// <remarks>When enabled, additional diagnostic data may be collected or displayed to assist with
+    /// troubleshooting docking behavior. This setting is typically used during development or debugging
+    /// scenarios.</remarks>
+    public bool EnableDockDiagnosticsLogging { get; set; }
+
+    /// <summary>
     /// Minimum log level: Debug, Information, Warning, Error, Fatal.
     /// </summary>
-    public string MinimumLogLevel { get; set; } = "Debug";
+    public string MinimumLogLevel { get; set; } = "Warning";
 
     /// <summary>
     /// File size limit in bytes before rolling (default 2MB).
