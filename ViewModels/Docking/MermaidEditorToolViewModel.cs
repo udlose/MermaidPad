@@ -50,7 +50,7 @@ internal sealed partial class MermaidEditorToolViewModel : Tool
     /// <summary>
     /// The unique identifier for this tool type, used for layout serialization and restoration.
     /// </summary>
-    private const string ToolId = "MermaidEditorTool";
+    internal const string ToolId = "MermaidEditorTool";
 
     /// <summary>
     /// Gets the wrapped <see cref="MermaidEditorViewModel"/> that provides editor functionality.
