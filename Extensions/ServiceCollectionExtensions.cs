@@ -18,23 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using CommunityToolkit.Mvvm.Messaging;
 using Dock.Model.Core;
+using MermaidPad.Infrastructure.Messages;
+using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Infrastructure.ObjectPooling.Policies;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.ObjectPool;
 using System.Text;
 
-namespace MermaidPad.Infrastructure.ObjectPooling;
+namespace MermaidPad.Extensions;
 
 /// <summary>
-/// Provides registration methods for configuring object pooling services, such as StringBuilder pooling, within a
-/// dependency injection container.
+/// Extension methods for registering messaging-related services into an <see cref="IServiceCollection"/>.
 /// </summary>
-/// <remarks>This class is intended for internal use to centralize object pool service registrations. It is not
-/// intended to be used directly by application code.</remarks>
-internal static class ObjectPoolRegistrations
+internal static class ServiceCollectionExtensions
 {
+    #region Object Pooling Registration
+
     /// <summary>
     /// Adds object pooling services to the specified <see cref="IServiceCollection"/>. Registers default object pool
     /// providers and policies for use within the application.
@@ -107,4 +109,27 @@ internal static class ObjectPoolRegistrations
 
         return new PooledStringBuilderBucketedLeaseFactory(pool256, pool1024, pool4096, pool16384);
     }
+
+    #endregion Object Pooling Registration
+
+    #region Messaging Registration
+
+    /// <summary>
+    /// Registers application- and document-scoped <see cref="IMessenger"/> instances in the provided service collection.
+    /// <para>
+    /// - Registers a singleton messenger keyed by <see cref="MessengerKeys.App"/> for application-wide communication.
+    /// - Registers a scoped messenger keyed by <see cref="MessengerKeys.Document"/> for document-level communication.
+    /// </para>
+    /// </summary>
+    /// <param name="services">The service collection to which messenger registrations will be added.</param>
+    internal static void AddMessaging(this IServiceCollection services)
+    {
+        // Register a singleton messenger for application-wide communication
+        services.AddKeyedSingleton<IMessenger, WeakReferenceMessenger>(MessengerKeys.App);
+
+        // Register a scoped messenger for document-level communication
+        services.AddKeyedScoped<IMessenger, WeakReferenceMessenger>(MessengerKeys.Document);
+    }
+
+    #endregion Messaging Registration
 }

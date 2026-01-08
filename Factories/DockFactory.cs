@@ -255,6 +255,8 @@ internal sealed class DockFactory : Factory
         _logger.LogDebug("Dock locators configured");
     }
 
+    #region Overrides
+
     /// <summary>
     /// Creates the default dock layout with side-by-side editor and diagram panels.
     /// </summary>
@@ -285,6 +287,123 @@ internal sealed class DockFactory : Factory
     }
 
     /// <summary>
+    /// Initializes the dock layout after creation or deserialization.
+    /// </summary>
+    /// <param name="layout">The layout to initialize.</param>
+    /// <remarks>
+    /// <para>
+    /// This method calls the base <see cref="Factory.InitLayout(IDockable)"/> which triggers
+    /// <c>InitDockable</c> for all dockables in the layout. The locators (DockableLocator,
+    /// ContextLocator, HostWindowLocator) are configured in the constructor via
+    /// <see cref="ConfigureLocators"/> so they are available before any deserialization occurs.
+    /// </para>
+    /// <para>
+    /// After base initialization, this method searches for tool ViewModels in the layout hierarchy
+    /// to cache references in <see cref="EditorTool"/> and <see cref="DiagramTool"/>.
+    /// </para>
+    /// </remarks>
+    public override void InitLayout(IDockable layout)
+    {
+        _logger.LogInformation("Initializing dock layout");
+
+        // Capture references to existing tools BEFORE base.InitLayout() may replace them.
+        // During deserialization, the DockableLocator lambdas may create new tool instances,
+        // which would overwrite EditorTool/DiagramTool. We need to dispose the old ones afterward.
+        MermaidEditorToolViewModel? previousEditorTool = EditorTool;
+        _ = DiagramTool; // Capture for future IDisposable implementation (currently unused)
+
+        // https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-advanced.md?plain=1#L21-L36 says: to configure locators here BUT this method is called AFTER deserialization
+        //TODO - DaveBlack: review whether locators need to be re-configured here
+        ConfigureLocators();
+
+        // Call base initialization - this triggers InitDockable for all dockables in the layout,
+        // which uses the locators configured above. New tools may be created via DockableLocator.
+        base.InitLayout(layout);
+
+        //TODO - DaveBlack: optimize this code to avoid iteration over the layout multiple times
+        _rootDock ??= FindRoot(layout) as RootDock ?? throw new InvalidOperationException($"{nameof(_rootDock)} not found in layout during initialization.");
+        _mainLayout ??= FindDockable(_rootDock, static dockable => dockable.Id == MainProportionalDockId) as ProportionalDock ??
+                        throw new InvalidOperationException($"{nameof(_mainLayout)} not found in layout during initialization.");
+
+        if (_editorToolDock is null)
+        {
+            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
+            _editorToolDock = FindDockable(_rootDock, static dockable => dockable.Id == EditorToolDockId) as ToolDock;
+            if (_editorToolDock is null)
+            {
+                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_editorToolDock));
+            }
+        }
+
+        if (_diagramToolDock is null)
+        {
+            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
+            _diagramToolDock = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolDockId) as ToolDock;
+            if (_diagramToolDock is null)
+            {
+                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_diagramToolDock));
+            }
+        }
+
+        if (EditorTool is null)
+        {
+            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
+            EditorTool = FindDockable(_rootDock, static dockable => dockable.Id == MermaidEditorToolViewModel.ToolId) as MermaidEditorToolViewModel;
+
+            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
+            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
+            // It will create a new instance via the locator
+            //EditorTool = GetDockable<MermaidEditorToolViewModel>(MermaidEditorToolViewModel.ToolId);
+        }
+
+        if (DiagramTool is null)
+        {
+            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
+            DiagramTool = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolViewModel.ToolId) as DiagramToolViewModel;
+
+            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
+            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
+            // It will create a new instance via the locator
+            //DiagramTool = GetDockable<DiagramToolViewModel>(DiagramToolViewModel.ToolId);
+        }
+
+        // After layout initialization, try to find our tools if they were restored from serialization
+        if (EditorTool is null || DiagramTool is null)
+        {
+            FindToolsInLayout(layout);
+        }
+
+        // Dispose stale tools AFTER base initialization completes and new tools are assigned.
+        // This prevents race conditions where base.InitLayout() might access null properties.
+        // Only dispose if the tool was actually replaced (reference changed).
+        if (previousEditorTool is not null && !ReferenceEquals(previousEditorTool, EditorTool))
+        {
+            _logger.LogDebug("Disposing stale {ToolName} after layout reinitialization", nameof(EditorTool));
+            previousEditorTool.Dispose();
+        }
+
+        // DiagramTool doesn't implement IDisposable yet, but ready for future
+        // if (previousDiagramTool is IDisposable disposableDiagram && !ReferenceEquals(previousDiagramTool, DiagramTool))
+        // {
+        //     _logger.LogDebug("Disposing stale {ToolName} after layout reinitialization", nameof(DiagramTool));
+        //     disposableDiagram.Dispose();
+        // }
+
+        if (EditorTool is null)
+        {
+            _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(EditorTool));
+        }
+
+        if (DiagramTool is null)
+        {
+            _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(DiagramTool));
+        }
+
+        LogDockMetadata();
+        _logger.LogInformation("Dock layout initialized");
+    }
+
+    /// <summary>
     /// Creates a fresh default layout with new tool ViewModels and default proportions.
     /// </summary>
     /// <returns>An <see cref="IRootDock"/> representing the default dock layout.</returns>
@@ -302,6 +421,11 @@ internal sealed class DockFactory : Factory
     public IRootDock CreateDefaultLayout()
     {
         _logger.LogInformation("Creating default dock layout");
+
+        // Dispose existing tools before creating new ones to prevent memory leaks.
+        // This is important because the tools may have event subscriptions (e.g., UndoStack.PropertyChanged)
+        // that need to be cleaned up.
+        DisposeExistingToolViewModels();
 
         // Create the tool ViewModels using the ViewModelFactory pattern
         MermaidEditorViewModel editorViewModel = _viewModelFactory.Create<MermaidEditorViewModel>();
@@ -380,100 +504,68 @@ internal sealed class DockFactory : Factory
     }
 
     /// <summary>
-    /// Initializes the dock layout after creation or deserialization.
+    /// Handles the activation event for a dock window.
     /// </summary>
-    /// <param name="layout">The layout to initialize.</param>
-    /// <remarks>
-    /// <para>
-    /// This method calls the base <see cref="Factory.InitLayout(IDockable)"/> which triggers
-    /// <c>InitDockable</c> for all dockables in the layout. The locators (DockableLocator,
-    /// ContextLocator, HostWindowLocator) are configured in the constructor via
-    /// <see cref="ConfigureLocators"/> so they are available before any deserialization occurs.
-    /// </para>
-    /// <para>
-    /// After base initialization, this method searches for tool ViewModels in the layout hierarchy
-    /// to cache references in <see cref="EditorTool"/> and <see cref="DiagramTool"/>.
-    /// </para>
-    /// </remarks>
-    public override void InitLayout(IDockable layout)
+    /// <param name="window">The dock window that has been activated. Can be null if no window is currently active.</param>
+    public override void OnWindowActivated(IDockWindow? window)
     {
-        _logger.LogInformation("Initializing dock layout");
-
-        // https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-advanced.md?plain=1#L21-L36 says: to configure locators here BUT this method is called AFTER deserialization
-        //TODO - DaveBlack: review whether locators need to be re-configured here
-        ConfigureLocators();
-
-        // Call base initialization before searching for IDockables or tool ViewModels - this triggers InitDockable for all dockables in the layout,
-        // which uses the locators configured in the constructor
-        base.InitLayout(layout);
-
-        //TODO - DaveBlack: optimize this code to avoid iteration over the layout multiple times
-        _rootDock ??= FindRoot(layout) as RootDock ?? throw new InvalidOperationException($"{nameof(_rootDock)} not found in layout during initialization.");
-        _mainLayout ??= FindDockable(_rootDock, static dockable => dockable.Id == MainProportionalDockId) as ProportionalDock ??
-                        throw new InvalidOperationException($"{nameof(_mainLayout)} not found in layout during initialization.");
-
-        if (_editorToolDock is null)
-        {
-            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
-            _editorToolDock = FindDockable(_rootDock, static dockable => dockable.Id == EditorToolDockId) as ToolDock;
-            if (_editorToolDock is null)
-            {
-                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_editorToolDock));
-            }
-        }
-
-        if (_diagramToolDock is null)
-        {
-            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
-            _diagramToolDock = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolDockId) as ToolDock;
-            if (_diagramToolDock is null)
-            {
-                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_diagramToolDock));
-            }
-        }
-
-        if (EditorTool is null)
-        {
-            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
-            EditorTool = FindDockable(_rootDock, static dockable => dockable.Id == MermaidEditorToolViewModel.ToolId) as MermaidEditorToolViewModel;
-
-            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
-            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
-            // It will create a new instance via the locator
-            //EditorTool = GetDockable<MermaidEditorToolViewModel>(MermaidEditorToolViewModel.ToolId);
-        }
-
-        if (DiagramTool is null)
-        {
-            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
-            DiagramTool = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolViewModel.ToolId) as DiagramToolViewModel;
-
-            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
-            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
-            // It will create a new instance via the locator
-            //DiagramTool = GetDockable<DiagramToolViewModel>(DiagramToolViewModel.ToolId);
-        }
-
-        // After layout initialization, try to find our tools if they were restored from serialization
-        if (EditorTool is null || DiagramTool is null)
-        {
-            FindToolsInLayout(layout);
-        }
-
-        if (EditorTool is null)
-        {
-            _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(EditorTool));
-        }
-
-        if (DiagramTool is null)
-        {
-            _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(DiagramTool));
-        }
-
-        LogDockMetadata();
-        _logger.LogInformation("Dock layout initialized");
+        base.OnWindowActivated(window);
+        _logger.LogDebug("Window activated: {WindowId}", window?.Id ?? "<null>");
     }
 
+    /// <summary>
+    /// Handles the event that occurs when a dock window is deactivated.
+    /// </summary>
+    /// <param name="window">The dock window that was deactivated. Can be null if the window is not specified.</param>
+    public override void OnWindowDeactivated(IDockWindow? window)
+    {
+        base.OnWindowDeactivated(window);
+        _logger.LogDebug("Window deactivated: {WindowId}", window?.Id ?? "<null>");
+    }
+
+    /// <summary>
+    /// Handles the event when a dock window is closed.
+    /// </summary>
+    /// <param name="window">The dock window instance that was closed. Can be null if the window reference is unavailable.</param>
+    public override void OnWindowClosed(IDockWindow? window)
+    {
+        base.OnWindowClosed(window);
+        _logger.LogDebug("Window closed: {WindowId}", window?.Id ?? "<null>");
+    }
+
+    /// <summary>
+    /// Handles the event that occurs when a dock window is opened.
+    /// </summary>
+    /// <param name="window">The window that was opened. Can be null if the window reference is unavailable.</param>
+    public override void OnWindowOpened(IDockWindow? window)
+    {
+        base.OnWindowOpened(window);
+        _logger.LogDebug("Window opened: {WindowId}", window?.Id ?? "<null>");
+    }
+
+    /// <summary>
+    /// Handles the removal of a dock window from the layout.
+    /// </summary>
+    /// <remarks>This method is called when a dock window is removed from the layout. It can be overridden to
+    /// perform custom logic when windows are removed.</remarks>
+    /// <param name="window">The window that was removed. Can be null if the window reference is unavailable.</param>
+    public override void OnWindowRemoved(IDockWindow? window)
+    {
+        base.OnWindowRemoved(window);
+        _logger.LogDebug("Window removed: {WindowId}", window?.Id ?? "<null>");
+    }
+
+    #endregion Overrides
+
+    /// <summary>
+    /// Logs detailed metadata about the current state of dockable collections and related UI elements for diagnostic
+    /// purposes.
+    /// </summary>
+    /// <remarks>This method outputs debug-level log entries describing the contents and properties of various
+    /// dockable collections, including visible, pinned, hidden, and active dockables, as well as host windows. It is
+    /// intended to assist with troubleshooting and understanding the current layout and state of the docking system.
+    /// Logging is performed at a granular level and may generate a large volume of output. This method does not modify
+    /// any state.</remarks>
     [SuppressMessage("Maintainability", "S6664: The code block contains too many logging calls", Justification = "Detailed logging for debugging purposes.")]
     private void LogDockMetadata()
     {
@@ -608,20 +700,18 @@ internal sealed class DockFactory : Factory
                 }
 
                 // Log what we're processing for debugging
-                _logger.LogDebug("{Method} processing: {Type} (Id: {Id})", nameof(FindToolsInLayout), current.GetType().Name, current.Id ?? "<null>");
+                _logger.LogDebug("{Method} processing: {Type} (Id: {Id})", nameof(FindToolsInLayout), current.GetType().Name, current.Id);
 
                 switch (current)
                 {
                     case MermaidEditorToolViewModel editorTool:
                         EditorTool = editorTool;
-                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}",
-                            nameof(EditorTool), nameof(MermaidEditorToolViewModel));
+                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(EditorTool), nameof(MermaidEditorToolViewModel));
                         break;
 
                     case DiagramToolViewModel diagramTool:
                         DiagramTool = diagramTool;
-                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}",
-                            nameof(DiagramTool), nameof(DiagramToolViewModel));
+                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(DiagramTool), nameof(DiagramToolViewModel));
                         break;
 
                     case IRootDock rootDock:
@@ -641,18 +731,14 @@ internal sealed class DockFactory : Factory
                         // Search DefaultDockable - may contain floating window content
                         if (rootDock.DefaultDockable is not null && !visited.Contains(rootDock.DefaultDockable))
                         {
-                            _logger.LogDebug("Pushing DefaultDockable: {Type} (Id: {Id})",
-                                rootDock.DefaultDockable.GetType().Name,
-                                rootDock.DefaultDockable.Id ?? "<null>");
+                            _logger.LogDebug("Pushing DefaultDockable: {Type} (Id: {Id})", rootDock.DefaultDockable.GetType().Name, rootDock.DefaultDockable.Id);
                             stack.Push(rootDock.DefaultDockable);
                         }
 
                         // Search ActiveDockable - may contain floating window content
                         if (rootDock.ActiveDockable is not null && !visited.Contains(rootDock.ActiveDockable))
                         {
-                            _logger.LogDebug("Pushing ActiveDockable: {Type} (Id: {Id})",
-                                rootDock.ActiveDockable.GetType().Name,
-                                rootDock.ActiveDockable.Id ?? "<null>");
+                            _logger.LogDebug("Pushing ActiveDockable: {Type} (Id: {Id})", rootDock.ActiveDockable.GetType().Name, rootDock.ActiveDockable.Id);
                             stack.Push(rootDock.ActiveDockable);
                         }
 
@@ -661,9 +747,7 @@ internal sealed class DockFactory : Factory
                         // and the tool's Owner chain leads to the floating window's RootDock
                         if (rootDock.FocusedDockable is not null)
                         {
-                            _logger.LogDebug("Pushing FocusedDockable: {Type} (Id: {Id})",
-                                rootDock.FocusedDockable.GetType().Name,
-                                rootDock.FocusedDockable.Id ?? "<null>");
+                            _logger.LogDebug("Pushing FocusedDockable: {Type} (Id: {Id})", rootDock.FocusedDockable.GetType().Name, rootDock.FocusedDockable.Id);
                             stack.Push(rootDock.FocusedDockable);
 
                             // Also traverse the Owner chain of FocusedDockable to find floating windows
@@ -673,9 +757,7 @@ internal sealed class DockFactory : Factory
                             {
                                 if (!visited.Contains(ownerCurrent))
                                 {
-                                    _logger.LogDebug("Pushing FocusedDockable.Owner chain: {Type} (Id: {Id})",
-                                        ownerCurrent.GetType().Name,
-                                        ownerCurrent.Id ?? "<null>");
+                                    _logger.LogDebug("Pushing FocusedDockable.Owner chain: {Type} (Id: {Id})", ownerCurrent.GetType().Name, ownerCurrent.Id);
                                     stack.Push(ownerCurrent);
                                 }
                                 ownerCurrent = ownerCurrent.Owner;
@@ -683,16 +765,14 @@ internal sealed class DockFactory : Factory
                         }
                         else
                         {
-                            _logger.LogDebug("FocusedDockable is null for RootDock: {Id}", rootDock.Id ?? "<null>");
+                            _logger.LogDebug("FocusedDockable is null for RootDock: {Id}", rootDock.Id);
                         }
 
                         // Search the Window property - contains floating window layout
                         // The Window has a Layout property which is another RootDock
                         if (rootDock.Window?.Layout is not null)
                         {
-                            _logger.LogDebug("Pushing Window.Layout: {Type} (Id: {Id})",
-                                rootDock.Window.Layout.GetType().Name,
-                                rootDock.Window.Layout.Id ?? "<null>");
+                            _logger.LogDebug("Pushing Window.Layout: {Type} (Id: {Id})", rootDock.Window.Layout.GetType().Name, rootDock.Window.Layout.Id);
                             stack.Push(rootDock.Window.Layout);
                         }
                         break;
@@ -704,9 +784,7 @@ internal sealed class DockFactory : Factory
                         // Search ActiveDockable - may contain tool in floating window
                         if (dock.ActiveDockable is not null && !visited.Contains(dock.ActiveDockable))
                         {
-                            _logger.LogDebug("Pushing IDock.ActiveDockable: {Type} (Id: {Id})",
-                                dock.ActiveDockable.GetType().Name,
-                                dock.ActiveDockable.Id ?? "<null>");
+                            _logger.LogDebug("Pushing IDock.ActiveDockable: {Type} (Id: {Id})", dock.ActiveDockable.GetType().Name, dock.ActiveDockable.Id);
                             stack.Push(dock.ActiveDockable);
                         }
                         break;
@@ -966,33 +1044,28 @@ internal sealed class DockFactory : Factory
         _logger.LogTiming(nameof(ShowTool), stopwatch.Elapsed, success: true);
     }
 
-    public override void OnWindowActivated(IDockWindow? window)
+    /// <summary>
+    /// Disposes existing tool ViewModels to prevent memory leaks.
+    /// </summary>
+    /// <remarks>
+    /// This method should be called before creating new tools (e.g., during layout reset)
+    /// to ensure proper cleanup of event subscriptions like <c>UndoStack.PropertyChanged</c>.
+    /// </remarks>
+    private void DisposeExistingToolViewModels()
     {
-        base.OnWindowActivated(window);
-        _logger.LogInformation("Window activated: {WindowId}", window?.Id ?? "<null>");
-    }
+        if (EditorTool is IDisposable disposableEditorTool)
+        {
+            _logger.LogDebug("Disposing existing {ToolName}", nameof(EditorTool));
+            disposableEditorTool.Dispose();
+            EditorTool = null;
+        }
 
-    public override void OnWindowDeactivated(IDockWindow? window)
-    {
-        base.OnWindowDeactivated(window);
-        _logger.LogInformation("Window deactivated: {WindowId}", window?.Id ?? "<null>");
-    }
-
-    public override void OnWindowClosed(IDockWindow? window)
-    {
-        base.OnWindowClosed(window);
-        _logger.LogInformation("Window closed: {WindowId}", window?.Id ?? "<null>");
-    }
-
-    public override void OnWindowOpened(IDockWindow? window)
-    {
-        base.OnWindowOpened(window);
-        _logger.LogInformation("Window opened: {WindowId}", window?.Id ?? "<null>");
-    }
-
-    public override void OnWindowRemoved(IDockWindow? window)
-    {
-        base.OnWindowRemoved(window);
-        _logger.LogInformation("Window removed: {WindowId}", window?.Id ?? "<null>");
+        // TODO - DiagramTool doesn't implement IDisposable currently, but check for future-proofing
+        //if (DiagramTool is IDisposable disposableDiagramTool)
+        //{
+        //    _logger.LogDebug("Disposing existing {ToolName}", nameof(DiagramTool));
+        //    disposableDiagramTool.Dispose();
+        //    DiagramTool = null;
+        //}
     }
 }
