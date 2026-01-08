@@ -18,68 +18,139 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Controls;
+using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using System.ComponentModel;
 
 namespace MermaidPad.Views.Dialogs;
 
-public sealed partial class ExportDialog : Window
+/// <summary>
+/// Represents a dialog window that facilitates exporting data using options provided by an associated view model.
+/// </summary>
+/// <remarks>The dialog interacts with an instance of <see cref="ExportDialogViewModel"/> as its data context. It
+/// monitors changes to the view model's export result and closes itself when an export operation is completed or
+/// canceled. This class is intended for internal use within the application and is not thread-safe.</remarks>
+internal sealed partial class ExportDialog : DialogBase
 {
-    private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
     private ExportDialogViewModel? _currentViewModel;
 
+    /// <summary>
+    /// Initializes a new instance of the ExportDialog class.
+    /// </summary>
+    /// <remarks>Use this constructor to create and display an export dialog for user interaction. The dialog
+    /// is initialized and ready for use after construction.</remarks>
     public ExportDialog()
     {
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Handles changes to the data context by detaching from the previous view model and attaching to the new one, if
+    /// applicable.
+    /// </summary>
+    /// <remarks>Override this method to respond to changes in the data context, such as updating bindings or
+    /// event subscriptions. This method ensures that the control interacts with the correct view model when the data
+    /// context changes.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> instance containing the event data for the data context change.</param>
     protected override void OnDataContextChanged(EventArgs e)
     {
-        base.OnDataContextChanged(e);
-
-        // Unsubscribe from previous ViewModel if any
-        if (_viewModelPropertyChangedHandler is not null && _currentViewModel is not null)
-        {
-            _currentViewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
-            _viewModelPropertyChangedHandler = null;
-        }
+        DetachFromViewModel();
 
         if (DataContext is ExportDialogViewModel viewModel)
         {
-            _currentViewModel = viewModel;
-            _viewModelPropertyChangedHandler = (_, args) =>
-            {
-                if (args.PropertyName == nameof(ExportDialogViewModel.DialogResult) && viewModel.DialogResult.HasValue)
-                {
-                    // Close the dialog with the result
-                    if (viewModel.DialogResult == true)
-                    {
-                        Close(viewModel.GetExportOptions());
-                    }
-                    else
-                    {
-                        Close(null);
-                    }
-                }
-            };
-            viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
+            AttachToViewModel(viewModel);
         }
-        else
+
+        // Call the base class implementation last
+        base.OnDataContextChanged(e);
+    }
+
+    /// <summary>
+    /// Handles additional cleanup when the window is closed.
+    /// </summary>
+    /// <remarks>Overrides the base implementation to detach from the view model before completing the window
+    /// close process. Callers should ensure any necessary cleanup is performed prior to closing the window.</remarks>
+    /// <param name="e">An <see cref="EventArgs"/> that contains the event data associated with the window closing.</param>
+    protected override void OnClosed(EventArgs e)
+    {
+        try
         {
-            _currentViewModel = null;
+            DetachFromViewModel();
+        }
+        finally
+        {
+            // Ensure the base class cleanup is always performed
+            base.OnClosed(e);
         }
     }
 
-    protected override void OnClosed(EventArgs e)
+    /// <summary>
+    /// Associates the specified view model with the dialog and subscribes to its property change notifications.
+    /// </summary>
+    /// <remarks>This method enables the dialog to respond to changes in the provided view model by
+    /// subscribing to its PropertyChanged event. Ensure that the view model remains valid for the lifetime of the
+    /// dialog to avoid unexpected behavior.</remarks>
+    /// <param name="viewModel">The view model to attach to the dialog. Cannot be null.</param>
+    private void AttachToViewModel(ExportDialogViewModel viewModel)
     {
-        base.OnClosed(e);
+        _currentViewModel = viewModel;
+        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
 
-        if (_viewModelPropertyChangedHandler is not null && _currentViewModel is not null)
+    /// <summary>
+    /// Detaches the current view model by unsubscribing from its property change notifications and clearing the
+    /// reference.
+    /// </summary>
+    /// <remarks>Call this method to safely disconnect from the view model when it is no longer needed or
+    /// before attaching a new one. This helps prevent memory leaks and ensures that property change events are not
+    /// handled after detachment.</remarks>
+    private void DetachFromViewModel()
+    {
+        if (_currentViewModel is null)
         {
-            _currentViewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
-            _viewModelPropertyChangedHandler = null;
-            _currentViewModel = null;
+            return;
+        }
+
+        _currentViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _currentViewModel = null;
+    }
+
+    /// <summary>
+    /// Handles changes to the ViewModel's properties, closing the dialog when the dialog result is set.
+    /// </summary>
+    /// <remarks>This method listens for changes to the DialogResult property of the associated
+    /// ExportDialogViewModel. When DialogResult is set, the dialog is closed with the appropriate result. This method
+    /// should be connected to the PropertyChanged event of the ViewModel to enable dialog closure based on user
+    /// actions.</remarks>
+    /// <param name="sender">The source of the property change event. Expected to be an instance of ExportDialogViewModel.</param>
+    /// <param name="e">The event data containing information about the changed property.</param>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ExportDialogViewModel viewModel)
+        {
+            return;
+        }
+
+        if (e.PropertyName != nameof(ExportDialogViewModel.DialogResult))
+        {
+            return;
+        }
+
+        if (!viewModel.DialogResult.HasValue)
+        {
+            return;
+        }
+
+        // Close the dialog with the result
+        if (viewModel.DialogResult == true)
+        {
+            ExportOptions exportOptions = viewModel.GetExportOptions();
+            CloseDialog(exportOptions);
+        }
+        else
+        {
+            CloseDialog<ExportOptions?>(null);
         }
     }
 }
