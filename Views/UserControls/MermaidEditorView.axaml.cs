@@ -68,7 +68,6 @@ public sealed partial class MermaidEditorView : UserControl
     private readonly ILogger<MermaidEditorView> _logger;
 
     private bool _areAllEventHandlersCleanedUp;
-    private bool _suppressEditorTextChanged;
     private bool _suppressEditorStateSync;
     private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
 
@@ -103,6 +102,7 @@ public sealed partial class MermaidEditorView : UserControl
             InitializeIntellisense();
 
             // Subscribe to theme changes
+            ActualThemeVariantChanged -= OnThemeChanged;
             ActualThemeVariantChanged += OnThemeChanged;
 
             isSuccess = true;
@@ -237,11 +237,15 @@ public sealed partial class MermaidEditorView : UserControl
             }
 
             // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
+            // NOTE: Do NOT call _vm.Dispose() here - the View doesn't own the ViewModel.
+            // The DockFactory owns MermaidEditorToolViewModel, which owns MermaidEditorViewModel.
+            // Disposing here would break the VM during pin/unpin/float operations.
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
         }
         finally
         {
+            // Always call base last to ensure proper detachment
             base.OnDetachedFromVisualTree(e);
         }
     }
@@ -251,6 +255,10 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Sets up bindings and event handlers between the View and ViewModel.
     /// </summary>
+    /// <remarks>
+    /// This method attaches the ViewModel's <see cref="AvaloniaEdit.Document.TextDocument"/>
+    /// to the <see cref="AvaloniaEdit.TextEditor"/>, preserving undo history across view recreation.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown if the ViewModel is null when this method is called.</exception>
     private void SetupViewModelBindings()
     {
@@ -259,34 +267,61 @@ public sealed partial class MermaidEditorView : UserControl
             throw new InvalidOperationException($"{nameof(SetupViewModelBindings)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
 
-        bool isEditorStateMatchingViewModel = false;
-        int viewModelTextLength = _vm.Text.Length;
-        int editorTextLength = Editor.Document.TextLength;
-
-        if (viewModelTextLength == editorTextLength)
+        // Check if we need to attach the ViewModel's Document
+        // This is the key to preserving undo history - we use the ViewModel's Document, not the default one
+        bool isDocumentAttachmentRequired = Editor.Document is null || !ReferenceEquals(Editor.Document, _vm.Document);
+        if (isDocumentAttachmentRequired)
         {
-            // NOTE: Accessing Editor.Text allocates a string (AvaloniaEdit API).
-            // Only do it when lengths match to minimize allocations.
-            string editorText = Editor.Text;
+            _logger.LogInformation("New {ViewName} instance detected - attaching ViewModel's Document to preserve undo history", nameof(MermaidEditorView));
+        }
 
-            if (string.Equals(editorText, _vm.Text, StringComparison.Ordinal) &&
-                Editor.SelectionStart == _vm.SelectionStart &&
-                Editor.SelectionLength == _vm.SelectionLength &&
-                Editor.CaretOffset == _vm.CaretOffset)
+        bool isEditorStateMatchingViewModel = false;
+
+        // Only check state match if we're using the same document
+        if (!isDocumentAttachmentRequired)
+        {
+            int viewModelTextLength = _vm.Text.Length;
+            int editorTextLength = Editor.Document?.TextLength ?? 0;
+
+            if (viewModelTextLength == editorTextLength)
             {
-                isEditorStateMatchingViewModel = true;
+                // NOTE: Accessing Editor.Text allocates a string (AvaloniaEdit API).
+                // Only do it when lengths match to minimize allocations.
+                string editorText = Editor.Text;
+
+                if (string.Equals(editorText, _vm.Text, StringComparison.Ordinal) &&
+                    Editor.SelectionStart == _vm.SelectionStart &&
+                    Editor.SelectionLength == _vm.SelectionLength &&
+                    Editor.CaretOffset == _vm.CaretOffset)
+                {
+                    isEditorStateMatchingViewModel = true;
+                }
             }
         }
 
-        if (!isEditorStateMatchingViewModel)
+        if (isDocumentAttachmentRequired || !isEditorStateMatchingViewModel)
         {
             // Initialize editor with ViewModel data using validation
+            // SetEditorStateWithValidation is responsible for attaching the ViewModel's Document to the editor when needed,
+            // sourcing the editor text from the ViewModel's Document rather than from a text parameter.
             SetEditorStateWithValidation(
-                _vm.Text,
                 _vm.SelectionStart,
                 _vm.SelectionLength,
                 _vm.CaretOffset
             );
+        }
+
+        // Functionally, the location of setting HasSelectableContent can happen within or outside of the
+        // suppression flags since it doesn't trigger editor state changes that loop back. We choose to
+        // place it within the suppression flags to ensure consistency with the other properties being set.
+        _suppressEditorStateSync = true;
+        try
+        {
+            _vm.HasSelectableContent = CanSelectAllInEditor;
+        }
+        finally
+        {
+            _suppressEditorStateSync = false;
         }
 
         // Set up two-way synchronization between Editor and ViewModel (idempotent subscriptions)
@@ -295,26 +330,51 @@ public sealed partial class MermaidEditorView : UserControl
         // Wire up clipboard and edit actions to ViewModel (idempotent assignments)
         WireUpEditorActions();
 
-        _logger.LogInformation("ViewModel bindings established for {ViewName}", nameof(MermaidEditorView));
+        _logger.LogInformation("ViewModel bindings established for {ViewName} ({UndoPropertyName}={CanUndo}, {RedoPropertyName}={CanRedo})",
+            nameof(MermaidEditorView), nameof(Editor.CanUndo), Editor.CanUndo, nameof(Editor.CanRedo), Editor.CanRedo);
     }
 
     /// <summary>
-    /// Sets the editor text, selection, and caret position while validating bounds and preventing circular updates.
+    /// Sets up the editor with the ViewModel's Document and restores selection/caret state.
     /// </summary>
-    /// <param name="text">The text to set into the editor. Must not be <see langword="null"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// This method attaches the ViewModel's persistent <see cref="AvaloniaEdit.Document.TextDocument"/>
+    /// to the <see cref="AvaloniaEdit.TextEditor"/> control. This is crucial for preserving undo history
+    /// across view detach/reattach cycles.
+    /// </para>
+    /// <para>
+    /// The ViewModel's Document is the single source of truth for:
+    /// <list type="bullet">
+    ///     <item><description>Text content</description></item>
+    ///     <item><description>Undo/redo history</description></item>
+    ///     <item><description>Text change tracking</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
     /// <param name="selectionStart">Requested selection start index.</param>
     /// <param name="selectionLength">Requested selection length.</param>
     /// <param name="caretOffset">Requested caret offset.</param>
-    private void SetEditorStateWithValidation(string text, int selectionStart, int selectionLength, int caretOffset)
+    private void SetEditorStateWithValidation(int selectionStart, int selectionLength, int caretOffset)
     {
-        _suppressEditorTextChanged = true;
+        if (_vm is null)
+        {
+            throw new InvalidOperationException($"{nameof(SetEditorStateWithValidation)} called with null ViewModel.");
+        }
+
         _suppressEditorStateSync = true;
         try
         {
-            Editor.Text = text;
+            // CRITICAL: Attach the ViewModel's Document to the TextEditor
+            // This preserves undo history across view recreation
+            if (!ReferenceEquals(Editor.Document, _vm.Document))
+            {
+                _logger.LogInformation("Attaching ViewModel's Document to TextEditor (preserves undo history)");
+                Editor.Document = _vm.Document;
+            }
 
-            // Ensure selection bounds are valid
-            int textLength = Editor.Document.TextLength;
+            // Ensure selection bounds are valid against the actual document
+            int textLength = _vm.Document.TextLength;
             int validSelectionStart = Math.Max(0, Math.Min(selectionStart, textLength));
             int validSelectionLength = Math.Max(0, Math.Min(selectionLength, textLength - validSelectionStart));
             int validCaretOffset = Math.Max(0, Math.Min(caretOffset, textLength));
@@ -329,11 +389,10 @@ public sealed partial class MermaidEditorView : UserControl
             Editor.Options.IndentationSize = 2;
             Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(_documentAnalyzer, Editor.Options);
 
-            _logger.LogInformation("Editor state set with {CharacterCount} characters", textLength);
+            _logger.LogInformation("Editor state set with {CharacterCount} characters, undo available: {CanUndo}", textLength, Editor.CanUndo);
         }
         finally
         {
-            _suppressEditorTextChanged = false;
             _suppressEditorStateSync = false;
         }
     }
@@ -342,7 +401,7 @@ public sealed partial class MermaidEditorView : UserControl
     /// Wires up synchronization between the editor control and the view model.
     /// </summary>
     /// <remarks>
-    /// - Subscribes to editor text/selection/caret events and updates the view model using a debounce dispatcher.
+    /// - Subscribes to editor selection/caret events and updates the view model using a debounce dispatcher.
     /// - Subscribes to view model property changes and applies them to the editor.
     /// - Suppresses reciprocal updates to avoid feedback loops.
     /// </remarks>
@@ -353,10 +412,6 @@ public sealed partial class MermaidEditorView : UserControl
         {
             throw new InvalidOperationException($"{nameof(SetupEditorViewModelSync)} called with null ViewModel. Initialize ViewModel before calling this method.");
         }
-
-        // Editor -> ViewModel synchronization (text)
-        Editor.TextChanged -= OnEditorTextChanged;
-        Editor.TextChanged += OnEditorTextChanged;
 
         // Editor selection/caret -> ViewModel: subscribe to both, coalesce into one update
         Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
@@ -371,56 +426,6 @@ public sealed partial class MermaidEditorView : UserControl
     }
 
     #region TextEditor delegates
-
-    /// <summary>
-    /// Handles the event when the text in the editor changes, updating related command states and synchronizing the
-    /// view model's text property.
-    /// </summary>
-    /// <remarks>This method immediately updates undo, redo, and select-all command states, then debounces
-    /// synchronization of the editor's text with the view model to optimize performance and avoid excessive updates. If
-    /// text changes are suppressed or the view model is unavailable, the method exits without performing
-    /// updates.</remarks>
-    /// <param name="sender">The source of the event, typically the text editor control whose content has changed.</param>
-    /// <param name="e">An <see cref="EventArgs"/> instance containing event data.</param>
-    private void OnEditorTextChanged(object? sender, EventArgs e)
-    {
-        if (_suppressEditorTextChanged || _vm is null)
-        {
-            return;
-        }
-
-        // Update undo/redo states immediately (not debounced)
-        _vm.HasUndoHistory = Editor.CanUndo;
-        _vm.HasRedoHistory = Editor.CanRedo;
-        _vm.HasSelectableContent = CanSelectAllInEditor;
-
-        // Debounce to avoid excessive updates
-        _editorDebouncer.DebounceOnUI("editor-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-        {
-            if (_vm is null)
-            {
-                return;
-            }
-
-            // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
-            string text = Editor.Text;
-
-            // Only update the ViewModel when the text has actually changed
-            if (_vm.Text != text)
-            {
-                _suppressEditorStateSync = true;
-                try
-                {
-                    _vm.Text = text;
-                }
-                finally
-                {
-                    _suppressEditorStateSync = false;
-                }
-            }
-        },
-        DispatcherPriority.Background);
-    }
 
     /// <summary>
     /// Handles changes to the editor's selection and updates related command states accordingly.
@@ -528,6 +533,9 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Handles property changes on the view model and synchronizes relevant values to the editor control.
     /// </summary>
+    /// <remarks>
+    /// This handler synchronizes selection and caret state from ViewModel to Editor.
+    /// </remarks>
     /// <param name="sender">The object raising the property changed event (typically the view model).</param>
     /// <param name="e">Property changed event arguments describing which property changed.</param>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -537,61 +545,10 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
-        if (e.PropertyName == nameof(MermaidEditorViewModel.Text))
-        {
-            HandleTextPropertyChanged();
-            return;
-        }
-
         if (IsSelectionOrCaretProperty(e.PropertyName))
         {
             HandleSelectionOrCaretPropertyChanged();
         }
-    }
-
-    /// <summary>
-    /// Synchronizes the editor's text with the view model when the view model's <see cref="MermaidEditorViewModel.Text"/> property changes.
-    /// </summary>
-    /// <remarks>
-    /// This method updates the editor's text to match the current value of the view model's <see cref="MermaidEditorViewModel.Text"/> property,
-    /// using a debounce mechanism to avoid unnecessary updates. It prevents recursive change notifications during
-    /// the update process and is intended to be invoked from the view model's <see cref="INotifyPropertyChanged.PropertyChanged"/>
-    /// handler when the <see cref="MermaidEditorViewModel.Text"/> property changes, ensuring consistency from the view model to the editor.
-    /// </remarks>
-    private void HandleTextPropertyChanged()
-    {
-        if (_vm is null)
-        {
-            return;
-        }
-
-        // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API
-        string currentText = Editor.Text;
-        if (currentText == _vm.Text)
-        {
-            return;
-        }
-
-        _editorDebouncer.DebounceOnUI("vm-text", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-        {
-            if (_vm is null)
-            {
-                return;
-            }
-
-            _suppressEditorTextChanged = true;
-            _suppressEditorStateSync = true;
-            try
-            {
-                Editor.Text = _vm.Text;
-            }
-            finally
-            {
-                _suppressEditorTextChanged = false;
-                _suppressEditorStateSync = false;
-            }
-        },
-        DispatcherPriority.Background);
     }
 
     /// <summary>
@@ -705,20 +662,14 @@ public sealed partial class MermaidEditorView : UserControl
     {
         try
         {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                await CutToClipboardCoreAsync();
+            }
+            else
             {
                 await Dispatcher.UIThread.InvokeAsync(CutToClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
             }
-
-            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await CutToClipboardCoreAsync();
         }
         catch (Exception ex)
         {
@@ -770,7 +721,7 @@ public sealed partial class MermaidEditorView : UserControl
             document.BeginUpdate();
             try
             {
-                // Re-validate within the transaction - selection could have changed during clipboard await
+                // Re-validate within the `BeginUpdate` transaction - selection could have changed during clipboard await
                 // This check + remove is now atomic (no other code can run between them)
                 if (Editor.SelectionStart == selectionStart &&
                     Editor.SelectionLength == selectionLength &&
@@ -779,7 +730,7 @@ public sealed partial class MermaidEditorView : UserControl
                     document.Remove(selectionStart, selectionLength);
                     _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
 
-                    // We just put text on clipboard, so paste *should* be enabled.
+                    // We just put text on clipboard, so paste *should* be enabled
                     _vm.HasClipboardContent = true;
                 }
                 else
@@ -828,21 +779,14 @@ public sealed partial class MermaidEditorView : UserControl
     {
         try
         {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                await CopyToClipboardCoreAsync();
+            }
+            else
             {
                 await Dispatcher.UIThread.InvokeAsync(CopyToClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
             }
-
-            // Now safe to check UI properties - we're guaranteed to be on UI thread
-            if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(Editor.SelectedText) || Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await CopyToClipboardCoreAsync();
         }
         catch (Exception ex)
         {
@@ -856,7 +800,6 @@ public sealed partial class MermaidEditorView : UserControl
     /// <returns>A task representing the asynchronous operation.</returns>
     private async Task CopyToClipboardCoreAsync()
     {
-        // UI thread validation checks
         string selectedText = Editor.SelectedText;
         if (Editor.SelectionLength <= 0 || string.IsNullOrEmpty(selectedText) || Clipboard is null || _vm is null)
         {
@@ -868,7 +811,7 @@ public sealed partial class MermaidEditorView : UserControl
             await Clipboard.SetTextAsync(selectedText);
             _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
 
-            // We just put text on clipboard, so paste *should* be enabled.
+            // We just put text on clipboard, so paste *should* be enabled
             _vm.HasClipboardContent = true;
         }
         catch (Exception ex)
@@ -887,20 +830,14 @@ public sealed partial class MermaidEditorView : UserControl
     {
         try
         {
-            // If we're not on the UI thread, dispatch just the core logic (not the whole method)
-            if (!Dispatcher.UIThread.CheckAccess())
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                await PasteFromClipboardCoreAsync();
+            }
+            else
             {
                 await Dispatcher.UIThread.InvokeAsync(PasteFromClipboardCoreAsync, DispatcherPriority.Normal);
-                return;
             }
-
-            if (Clipboard is null)
-            {
-                return;
-            }
-
-            // We're on the UI thread, proceed directly
-            await PasteFromClipboardCoreAsync();
         }
         catch (Exception ex)
         {
@@ -918,7 +855,6 @@ public sealed partial class MermaidEditorView : UserControl
     /// <returns>A task representing the asynchronous paste operation.</returns>
     private async Task PasteFromClipboardCoreAsync()
     {
-        // UI thread validation checks
         if (Clipboard is null)
         {
             return;
@@ -956,26 +892,23 @@ public sealed partial class MermaidEditorView : UserControl
     /// otherwise, null.</returns>
     private async Task<string?> GetTextFromClipboardAsync()
     {
-        // Get clipboard on UI thread when necessary
         if (Dispatcher.UIThread.CheckAccess())
         {
-            if (Clipboard is null)
+            return await GetTextFromClipboardCoreAsync();
+        }
+
+        return await Dispatcher.UIThread.InvokeAsync(GetTextFromClipboardCoreAsync, DispatcherPriority.Background);
+
+        async Task<string?> GetTextFromClipboardCoreAsync()
+        {
+            IClipboard? uiClipboard = Clipboard;
+            if (uiClipboard is null)
             {
                 return null;
             }
 
-            return await Clipboard.TryGetTextAsync();
+            return await uiClipboard.TryGetTextAsync();
         }
-
-        // Off-UI caller: get the clipboard reference on the UI thread
-        IClipboard? uiClipboard = await Dispatcher.UIThread.InvokeAsync(() => Clipboard, DispatcherPriority.Background);
-        if (uiClipboard is null)
-        {
-            return null;
-        }
-
-        return await uiClipboard.TryGetTextAsync()
-            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -989,7 +922,7 @@ public sealed partial class MermaidEditorView : UserControl
     private async Task UpdateCanPasteAsync()
     {
         // During dock state transitions (float, dock, pin), the View may be detached
-        // (_vm = null) but window activation events still fire. This is expected, not an error.
+        // (_vm = null) but window activation events still fire. This is expected, not an error
         if (_vm is null)
         {
             return;
@@ -1080,9 +1013,8 @@ public sealed partial class MermaidEditorView : UserControl
             // I am tracking it here: https://github.com/udlose/MermaidPad/issues/258
             //Editor.SelectAll();
 
-            // As a temporary workaround, we manually create the selection.
-            Selection selection = Selection.Create(Editor.TextArea, 0, Editor.Document.TextLength);
-            Editor.TextArea.Selection = selection;
+            // As a temporary workaround, we manually create the selection
+            Editor.TextArea.Selection = Selection.Create(Editor.TextArea, 0, Editor.Document.TextLength);
             Editor.CaretOffset = Editor.Document.TextLength;
 
             // Make sure caret is visible after selection
@@ -1249,10 +1181,9 @@ public sealed partial class MermaidEditorView : UserControl
                 return;
             }
 
-            bool canUndo = Editor.CanUndo;
-            bool canRedo = Editor.CanRedo;
-            bool canSelectAllInEditor = CanSelectAllInEditor;
-            await UpdateContextMenuStateExceptPasteAsync(editorViewModel, canUndo, canRedo, canSelectAllInEditor);
+            // Note: Undo/redo state is handled automatically by the ViewModel's OnUndoStackPropertyChanged
+            // We only need to update selection-based states and clipboard content here
+            await UpdateContextMenuStateExceptPasteAsync(editorViewModel, CanSelectAllInEditor);
 
             string? clipboardText = null;
             try
@@ -1297,33 +1228,37 @@ public sealed partial class MermaidEditorView : UserControl
     /// Asynchronously updates the state of context menu commands, except for the Paste command, based on the current
     /// editor state.
     /// </summary>
-    /// <remarks>This method ensures that context menu state updates are performed on the UI thread. The Copy
-    /// and Cut commands are enabled only if there is a selection in the editor. The Paste command is not affected by
-    /// this method.</remarks>
+    /// <remarks>
+    /// <para>
+    /// This method ensures that context menu state updates are performed on the UI thread. The Copy
+    /// and Cut commands are enabled only if there is a selection in the editor.
+    /// </para>
+    /// <para>
+    /// Note: Undo/redo state is handled automatically by the ViewModel's OnUndoStackPropertyChanged
+    /// subscription to Document.UndoStack.PropertyChanged, so those states are not updated here.
+    /// </para>
+    /// </remarks>
     /// <param name="editorViewModel">The view model representing the Mermaid editor whose context menu state will be updated. Cannot be null.</param>
-    /// <param name="canUndo">A value indicating whether the Undo command should be enabled in the context menu.</param>
-    /// <param name="canRedo">A value indicating whether the Redo command should be enabled in the context menu.</param>
     /// <param name="canSelectAllInEditor">A value indicating whether the Select All command should be enabled in the context menu.</param>
     /// <returns>A task that represents the asynchronous operation of updating the context menu state.</returns>
-    private static async Task UpdateContextMenuStateExceptPasteAsync(MermaidEditorViewModel editorViewModel, bool canUndo, bool canRedo, bool canSelectAllInEditor)
+    private static async Task UpdateContextMenuStateExceptPasteAsync(MermaidEditorViewModel editorViewModel, bool canSelectAllInEditor)
     {
         if (Dispatcher.UIThread.CheckAccess())
         {
-            UpdateContextMenuStateExceptPaste(editorViewModel, canUndo, canRedo, canSelectAllInEditor);
+            UpdateContextMenuStateExceptPaste(editorViewModel, canSelectAllInEditor);
         }
         else
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
-                UpdateContextMenuStateExceptPaste(editorViewModel, canUndo, canRedo, canSelectAllInEditor), DispatcherPriority.Normal);
+                UpdateContextMenuStateExceptPaste(editorViewModel, canSelectAllInEditor), DispatcherPriority.Normal);
         }
 
-        static void UpdateContextMenuStateExceptPaste(MermaidEditorViewModel editorViewModel, bool canUndo, bool canRedo, bool canSelectAllInEditor)
+        static void UpdateContextMenuStateExceptPaste(MermaidEditorViewModel editorViewModel, bool canSelectAllInEditor)
         {
             bool hasSelection = editorViewModel.SelectionLength > 0;
             editorViewModel.HasCopiableSelection = hasSelection;
             editorViewModel.HasCuttableSelection = hasSelection;
-            editorViewModel.HasUndoHistory = canUndo;
-            editorViewModel.HasRedoHistory = canRedo;
+            // Note: HasUndoHistory and HasRedoHistory are managed by MermaidEditorViewModel's OnUndoStackPropertyChanged
             editorViewModel.HasSelectableContent = canSelectAllInEditor;
         }
     }
@@ -1402,10 +1337,11 @@ public sealed partial class MermaidEditorView : UserControl
         if (Dispatcher.UIThread.CheckAccess())
         {
             SetFocusToEditor();
-            return;
         }
-
-        Dispatcher.UIThread.Post(SetFocusToEditor, DispatcherPriority.Input);
+        else
+        {
+            Dispatcher.UIThread.Post(SetFocusToEditor, DispatcherPriority.Input);
+        }
 
         void SetFocusToEditor()
         {
@@ -1440,7 +1376,7 @@ public sealed partial class MermaidEditorView : UserControl
     public void UpdateClipboardStateOnActivation()
     {
         // During dock state transitions (float, dock, pin), the View may be detached
-        // (_vm = null) but window activation events still fire. This is expected, not an error.
+        // (_vm = null) but window activation events still fire. This is expected, not an error
         if (_vm is null)
         {
             return;
@@ -1462,7 +1398,6 @@ public sealed partial class MermaidEditorView : UserControl
     private void UnsubscribeViewModelEventHandlers(MermaidEditorViewModel? viewModel)
     {
         // Editor event handlers (safe even if never subscribed)
-        Editor.TextChanged -= OnEditorTextChanged;
         Editor.TextArea.SelectionChanged -= OnEditorSelectionChanged;
         Editor.TextArea.Caret.PositionChanged -= OnEditorCaretPositionChanged;
 
@@ -1495,6 +1430,9 @@ public sealed partial class MermaidEditorView : UserControl
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
         {
+            // NOTE: Do NOT call _vm.Dispose() here - the View doesn't own the ViewModel.
+            // The DockFactory owns MermaidEditorToolViewModel, which owns MermaidEditorViewModel.
+            // Disposal is handled by the ownership chain during layout reset or app shutdown.
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
 
