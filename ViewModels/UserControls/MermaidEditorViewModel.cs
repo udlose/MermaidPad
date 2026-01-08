@@ -18,11 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
+using MermaidPad.Infrastructure.Messages;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services.Editor;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels.UserControls;
@@ -32,20 +37,34 @@ namespace MermaidPad.ViewModels.UserControls;
 /// for text editing operations including clipboard, undo/redo, find, and commenting functionality.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This ViewModel exposes state and command properties for data binding in the editor UserControl, including
 /// clipboard actions, selection state, and text manipulation. It coordinates interactions between the user interface
 /// and underlying services such as commenting strategy. All properties and commands are designed for use with MVVM
 /// frameworks and are intended to be accessed by the View for UI updates and user interactions.
+/// </para>
+/// <para>
+/// <b>Messaging:</b> This ViewModel inherits from <see cref="DocumentViewModelBase"/> which provides access to
+/// both application-wide (<see cref="DocumentViewModelBase.AppMessenger"/>) and document-scoped
+/// (<see cref="ObservableRecipient.Messenger"/>) messengers. Text change notifications are published via the
+/// document-scoped messenger using <see cref="EditorTextChangedMessage"/>.
+/// </para>
+/// <para>
+/// <b>Lifecycle:</b> Call <see cref="ObservableRecipient.IsActive"/> = true after construction to activate
+/// message subscriptions. The <see cref="OnActivated"/> override registers for messages, and <see cref="OnDeactivated"/>
+/// automatically unregisters via the base class.
+/// </para>
 /// </remarks>
 [SuppressMessage("ReSharper", "MemberCanBeMadeStatic.Global", Justification = "ViewModel properties are instance-based for binding.")]
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via ViewModelFactory.")]
-internal sealed partial class MermaidEditorViewModel : ViewModelBase
+internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, IDisposable
 {
     private readonly CommentingStrategy _commentingStrategy;
     private readonly ILogger<MermaidEditorViewModel> _logger;
+    private bool _isDisposed;
 
     #region Tool Visibility
 
@@ -88,16 +107,70 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     #region Edit State and Clipboard Properties
 
     /// <summary>
+    /// Gets the persistent <see cref="TextDocument"/> that holds the editor content and undo history.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This document instance is created once and persists across View detach/reattach cycles
+    /// (e.g., when the editor panel is pinned/collapsed, floated, or during layout changes).
+    /// The <see cref="Views.UserControls.MermaidEditorView"/> attaches this document to the
+    /// <c>TextEditor</c> control instead of using the default document created by the control.
+    /// </para>
+    /// <para>
+    /// This design ensures:
+    /// <list type="bullet">
+    ///     <item><description>Undo/redo history is preserved across view recreation</description></item>
+    ///     <item><description>Text content stays synchronized</description></item>
+    ///     <item><description>Selection and caret state can be restored accurately</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Thread-safety: <see cref="TextDocument"/> is not thread-safe. This instance is
+    /// created and owned by the <see cref="MermaidEditorViewModel"/> and is intended to be
+    /// accessed only from the UI thread. Views, services, and commands interacting with this
+    /// document must marshal access to the UI thread and must not perform concurrent reads or
+    /// writes from multiple threads.
+    /// </para>
+    /// </remarks>
+    public TextDocument Document { get; } = new TextDocument();
+
+    /// <summary>
     /// Gets or sets the current text content in the editor.
     /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasText))]
-    [NotifyCanExecuteChangedFor(nameof(OpenFindCommand))]
-    [NotifyCanExecuteChangedFor(nameof(FindNextCommand))]
-    [NotifyCanExecuteChangedFor(nameof(FindPreviousCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CommentSelectionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UncommentSelectionCommand))]
-    public partial string Text { get; set; } = string.Empty;
+    /// <remarks>
+    /// <para>
+    /// This property provides a convenient string-based accessor for the document text.
+    /// It redirects to <see cref="Document"/>.<see cref="TextDocument.Text"/>.
+    /// </para>
+    /// <para>
+    /// <b>Important:</b> Setting this property replaces the entire document text and
+    /// clears the undo history. For editing operations that should be undoable,
+    /// modify the <see cref="Document"/> directly.
+    /// </para>
+    /// <para>
+    /// <b>Notification Flow:</b> When text changes (either via this setter or through direct
+    /// <see cref="Document"/> manipulation), the <see cref="OnDocumentTextChanged"/> handler
+    /// publishes an <see cref="EditorTextChangedMessage"/> via the document-scoped messenger.
+    /// Subscribers like <see cref="MainWindowViewModel"/> receive this message for live preview,
+    /// dirty tracking, and other text-dependent operations.
+    /// </para>
+    /// <para>
+    /// CRITICAL: Accessing <see cref="TextDocument.Text"/> allocates a new string.
+    /// </para>
+    /// </remarks>
+    public string Text
+    {
+        get => Document.Text;
+        set
+        {
+            if (Document.Text != value)
+            {
+                Document.Text = value;
+                // Document.TextChanged will also fire, which triggers OnDocumentTextChanged
+                // to publish EditorTextChangedMessage for document-scoped subscribers.
+            }
+        }
+    }
 
     /// <summary>
     /// Gets or sets the selection start index in the editor.
@@ -157,9 +230,10 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// Gets or sets a value indicating whether there are operations in the undo history.
     /// </summary>
     /// <remarks>
-    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
-    /// undo manager state. The <see cref="CanExecuteUndo"/> method combines this with
-    /// <see cref="IsToolVisible"/> to determine if the undo command can execute.
+    /// This property is updated automatically by <see cref="OnUndoStackPropertyChanged"/> when the
+    /// <see cref="Document"/>.<see cref="TextDocument.UndoStack"/> state changes.
+    /// The <see cref="CanExecuteUndo"/> method combines this with <see cref="IsToolVisible"/>
+    /// to determine if the undo command can execute.
     /// </remarks>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
@@ -169,9 +243,10 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// Gets or sets a value indicating whether there are operations in the redo history.
     /// </summary>
     /// <remarks>
-    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
-    /// undo manager state. The <see cref="CanExecuteRedo"/> method combines this with
-    /// <see cref="IsToolVisible"/> to determine if the redo command can execute.
+    /// This property is updated automatically by <see cref="OnUndoStackPropertyChanged"/> when the
+    /// <see cref="Document"/>.<see cref="TextDocument.UndoStack"/> state changes.
+    /// The <see cref="CanExecuteRedo"/> method combines this with <see cref="IsToolVisible"/>
+    /// to determine if the redo command can execute.
     /// </remarks>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
@@ -181,12 +256,25 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// Gets or sets a value indicating whether there is content that can be selected.
     /// </summary>
     /// <remarks>
-    /// This property is set by <see cref="Views.UserControls.MermaidEditorView"/> based on the editor's
-    /// document state. The <see cref="CanExecuteSelectAll"/> method combines this with
+    /// <para>
+    /// This property is updated automatically by <see cref="OnDocumentTextChanged"/> when the
+    /// document text changes. The <see cref="CanExecuteSelectAll"/> method combines this with
     /// <see cref="IsToolVisible"/> to determine if the select all command can execute.
+    /// </para>
+    /// <para>
+    /// This property is semantically equivalent to <see cref="HasText"/> (both are true when
+    /// <c>Document.TextLength &gt; 0</c>). The <c>[NotifyCanExecuteChangedFor]</c> attributes
+    /// consolidate all text-presence-dependent command notifications here, eliminating redundant
+    /// manual <c>NotifyCanExecuteChanged()</c> calls in <see cref="OnDocumentTextChanged"/>.
+    /// </para>
     /// </remarks>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SelectAllCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenFindCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindNextCommand))]
+    [NotifyCanExecuteChangedFor(nameof(FindPreviousCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CommentSelectionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UncommentSelectionCommand))]
     public partial bool HasSelectableContent { get; set; }
 
     #endregion Edit State and Clipboard Properties
@@ -335,13 +423,137 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorViewModel"/> class.
     /// </summary>
+    /// <param name="appMessenger">The application-wide messenger for cross-document communication.</param>
+    /// <param name="documentMessenger">The document-scoped messenger for this editor's messages.</param>
     /// <param name="commentingStrategy">The commenting strategy service for comment/uncomment operations.</param>
     /// <param name="logger">The logger instance for this view model.</param>
-    public MermaidEditorViewModel(CommentingStrategy commentingStrategy, ILogger<MermaidEditorViewModel> logger)
+    /// <remarks>
+    /// <para>
+    /// The messengers are injected via keyed DI services:
+    /// <list type="bullet">
+    ///     <item><description><paramref name="appMessenger"/> - keyed by <see cref="MessengerKeys.App"/></description></item>
+    ///     <item><description><paramref name="documentMessenger"/> - keyed by <see cref="MessengerKeys.Document"/></description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// After construction, set <see cref="ObservableRecipient.IsActive"/> = true to activate message
+    /// subscriptions. This is typically done by the owning <see cref="Docking.MermaidEditorToolViewModel"/>.
+    /// </para>
+    /// </remarks>
+    public MermaidEditorViewModel(
+        [FromKeyedServices(MessengerKeys.App)] IMessenger appMessenger,
+        [FromKeyedServices(MessengerKeys.Document)] IMessenger documentMessenger,
+        CommentingStrategy commentingStrategy,
+        ILogger<MermaidEditorViewModel> logger)
+        : base(appMessenger, documentMessenger)
     {
         _commentingStrategy = commentingStrategy;
         _logger = logger;
+
+        // Subscribe to UndoStack property changes for automatic undo/redo state updates.
+        Document.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
+
+        // Subscribe to Document.TextChanged to publish EditorTextChangedMessage.
+        // This decouples the notification from the View layer - the ViewModel handles
+        // Document events directly and broadcasts changes via the document-scoped messenger.
+        Document.TextChanged += OnDocumentTextChanged;
     }
+
+    #region ObservableRecipient Overrides
+
+    /// <summary>
+    /// Called when the recipient is activated to register message handlers.
+    /// </summary>
+    /// <remarks>
+    /// Override this method to register for messages via <see cref="ObservableRecipient.Messenger"/>.
+    /// Currently, this ViewModel publishes messages but doesn't receive any.
+    /// Future MDI scenarios may require receiving messages from other documents.
+    /// </remarks>
+    protected override void OnActivated()
+    {
+        base.OnActivated();
+
+        // Currently this ViewModel only publishes EditorTextChangedMessage.
+        // Add message registrations here if this ViewModel needs to receive messages.
+        _logger.LogDebug("{ViewModelName} activated", nameof(MermaidEditorViewModel));
+    }
+
+    /// <summary>
+    /// Called when the recipient is deactivated to unregister message handlers.
+    /// </summary>
+    /// <remarks>
+    /// The base class automatically unregisters from <see cref="ObservableRecipient.Messenger"/>
+    /// and <see cref="DocumentViewModelBase.AppMessenger"/>.
+    /// </remarks>
+    protected override void OnDeactivated()
+    {
+        _logger.LogDebug("{ViewModelName} deactivated", nameof(MermaidEditorViewModel));
+        base.OnDeactivated();
+    }
+
+    #endregion ObservableRecipient Overrides
+
+    #region Document Event Handlers
+
+    /// <summary>
+    /// Handles property changes from the <see cref="AvaloniaEdit.Document.UndoStack"/>.
+    /// </summary>
+    /// <remarks>
+    /// Updates <see cref="HasUndoHistory"/> and <see cref="HasRedoHistory"/> when the undo stack changes.
+    /// The <c>[NotifyCanExecuteChangedFor]</c> attributes on those properties automatically update command states.
+    /// </remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The property changed event arguments.</param>
+    private void OnUndoStackPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(Document.UndoStack.CanUndo):
+                HasUndoHistory = Document.UndoStack.CanUndo;
+                break;
+
+            case nameof(Document.UndoStack.CanRedo):
+                HasRedoHistory = Document.UndoStack.CanRedo;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Handles the <see cref="TextDocument.TextChanged"/> event from the Document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This handler publishes an <see cref="EditorTextChangedMessage"/> via the document-scoped
+    /// <see cref="ObservableRecipient.Messenger"/> to notify interested parties (like <see cref="MainWindowViewModel"/>)
+    /// that the document content changed.
+    /// </para>
+    /// <para>
+    /// This approach decouples the notification mechanism from the View layer. The ViewModel handles
+    /// the Document event directly and broadcasts the change via messaging, eliminating the need for
+    /// the View to call any notification methods on the ViewModel.
+    /// </para>
+    /// <para>
+    /// The handler updates <see cref="HasSelectableContent"/>, which has <c>[NotifyCanExecuteChangedFor]</c>
+    /// attributes for all text-presence-dependent commands (SelectAll, Find, Comment). This consolidates
+    /// command notifications and eliminates redundant manual <c>NotifyCanExecuteChanged()</c> calls.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event (the TextDocument).</param>
+    /// <param name="e">The event arguments.</param>
+    private void OnDocumentTextChanged(object? sender, EventArgs e)
+    {
+        // Update HasSelectableContent based on document having text.
+        // The [NotifyCanExecuteChangedFor] attributes on this property automatically notify:
+        // SelectAllCommand, OpenFindCommand, FindNextCommand, FindPreviousCommand,
+        // CommentSelectionCommand, and UncommentSelectionCommand.
+        HasSelectableContent = Document.TextLength > 0;
+
+        // Publish the message for decoupled subscribers (e.g., MainWindowViewModel for live preview, dirty tracking).
+        // Uses the document-scoped Messenger (inherited from DocumentViewModelBase via ObservableRecipient).
+        Messenger.Send(new EditorTextChangedMessage(new EditorTextChangeInfo(Document)));
+    }
+
+    #endregion Document Event Handlers
 
     #region Clipboard and Edit Commands
 
@@ -505,4 +717,43 @@ internal sealed partial class MermaidEditorViewModel : ViewModelBase
     }
 
     #endregion Comment/Uncomment Selection Commands
+
+    #region IDisposable
+
+    /// <summary>
+    /// Releases resources used by the <see cref="MermaidEditorViewModel"/> and unsubscribes from event handlers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// In typical usage, the lifetime of a <see cref="MermaidEditorViewModel"/> instance is managed by its owner,
+    /// such as the <see cref="Docking.MermaidEditorToolViewModel"/> or the dependency injection container, which
+    /// is responsible for calling its <see cref="IDisposable.Dispose"/> implementation when the object is no longer needed.
+    /// Callers that explicitly manage the lifetime of a <see cref="MermaidEditorViewModel"/> may call this method
+    /// directly when they are finished with the instance.
+    /// </para>
+    /// <para>
+    /// This method:
+    /// <list type="bullet">
+    ///     <item><description>Deactivates the ViewModel (unregisters from all messengers via <see cref="OnDeactivated"/>)</description></item>
+    ///     <item><description>Unsubscribes from <see cref="TextDocument.TextChanged"/> event</description></item>
+    ///     <item><description>Unsubscribes from <see cref="AvaloniaEdit.Document.UndoStack.PropertyChanged"/> event</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public void Dispose()
+    {
+        if (!_isDisposed)
+        {
+            // Deactivate to unregister from all messengers (handled by base class OnDeactivated)
+            IsActive = false;
+
+            // Unsubscribe from Document events to prevent memory leaks
+            Document.TextChanged -= OnDocumentTextChanged;
+            Document.UndoStack.PropertyChanged -= OnUndoStackPropertyChanged;
+
+            _isDisposed = true;
+        }
+    }
+
+    #endregion IDisposable
 }

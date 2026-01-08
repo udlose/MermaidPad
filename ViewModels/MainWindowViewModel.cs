@@ -25,10 +25,12 @@ using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Dock.Model.Controls;
 using MermaidPad.Extensions;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure;
+using MermaidPad.Infrastructure.Messages;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
@@ -59,7 +61,7 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
+internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<EditorTextChangedMessage>, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
@@ -68,6 +70,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly IDialogFactory _dialogFactory;
     private readonly IFileService _fileService;
     private readonly DockLayoutService _dockLayoutService;
+    private readonly IMessenger _documentMessenger;
     private readonly ILogger<MainWindowViewModel> _logger;
 
     private bool _isDisposed;
@@ -309,21 +312,31 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <param name="dockFactory">The factory for creating the dock layout.</param>
     /// <param name="dockLayoutService">The service for saving and loading dock layout.</param>
+    /// <param name="documentMessenger">The document-scoped messenger for receiving text change notifications.</param>
     /// <param name="services">The service provider for dependency injection.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <remarks>
+    /// <para>
     /// The <paramref name="dockFactory"/> creates the dock layout with <see cref="MermaidEditorToolViewModel"/>
     /// and <see cref="DiagramToolViewModel"/> instances that wrap the underlying editor and diagram ViewModels.
     /// This ensures each window/document has its own independent editor and diagram state.
+    /// </para>
+    /// <para>
+    /// The <paramref name="documentMessenger"/> is keyed by <see cref="MessengerKeys.Document"/> and is used
+    /// to receive <see cref="EditorTextChangedMessage"/> notifications from the editor. This prepares the
+    /// architecture for MDI migration where each document has its own messenger instance.
+    /// </para>
     /// </remarks>
     public MainWindowViewModel(
         DockFactory dockFactory,
         DockLayoutService dockLayoutService,
+        [FromKeyedServices(MessengerKeys.Document)] IMessenger documentMessenger,
         IServiceProvider services,
         ILogger<MainWindowViewModel> logger)
     {
         _dockFactory = dockFactory;
         _dockLayoutService = dockLayoutService;
+        _documentMessenger = documentMessenger;
         _logger = logger;
 
         _settingsService = services.GetRequiredService<SettingsService>();
@@ -344,6 +357,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         RegisterEventHandlers();
 
+        // Register for EditorTextChangedMessage via the document-scoped messenger using IRecipient<T> pattern.
+        // RegisterAll automatically registers handlers for all IRecipient<TMessage> interfaces implemented by this class.
+        // This decouples MainWindowViewModel from knowing how text change notifications work
+        // and prepares for MDI migration where each document has its own messenger.
+        _documentMessenger.RegisterAll(this);
+
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
@@ -361,8 +380,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void InitializeDockLayout()
     {
-        _logger.LogInformation("Initializing dock layout");
-
         // Try to load saved layout, fall back to default if not found or invalid
         IRootDock? savedLayout = _dockLayoutService.Load();
         if (savedLayout is not null)
@@ -416,67 +433,88 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     #region Event Handlers
 
     /// <summary>
-    /// Handles property changes from the Editor ViewModel.
+    /// Receives the <see cref="EditorTextChangedMessage"/> published when editor text changes.
+    /// Implements <see cref="IRecipient{TMessage}.Receive"/> for the standard messaging pattern.
     /// </summary>
-    /// <param name="sender">The source of the event.</param>
-    /// <param name="e">The property changed event arguments.</param>
-    private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <remarks>
+    /// <para>
+    /// The message parameter is intentionally discarded because this handler uses debounced
+    /// rendering that always operates on the latest editor text. When the debounce timer fires,
+    /// we want to render the current <see cref="MermaidEditorViewModel.Text"/>, not the text
+    /// that was present when the original change occurred.
+    /// </para>
+    /// <para>
+    /// While this technically constitutes a "race condition" (the text may change between
+    /// message publish and render), this is the desired behavior for live preview - we always
+    /// want to render the most recent content, not stale intermediate states.
+    /// </para>
+    /// </remarks>
+    /// <param name="message">The message is not used directly; see remarks for rationale.</param>
+    public void Receive(EditorTextChangedMessage message)
     {
-        switch (e.PropertyName)
+        _ = message; // Explicitly discard unused parameter to satisfy static analysis and document intent
+
+        // Forward HasText property changes and notify SaveFileCommand
+        OnPropertyChanged(nameof(EditorHasText));
+        SaveFileCommand.NotifyCanExecuteChanged();
+        SaveFileAsCommand.NotifyCanExecuteChanged();
+
+        // Mark as dirty when text changes (ONLY if we're not loading a file)
+        if (!_isLoadingFile)
         {
-            case nameof(Editor.Text):
-                // Forward HasText property changes and notify SaveFileCommand
-                OnPropertyChanged(nameof(EditorHasText));
-                SaveFileCommand.NotifyCanExecuteChanged();
-                SaveFileAsCommand.NotifyCanExecuteChanged();
+            IsDirty = true;
+        }
 
-                // Mark as dirty when text changes (ONLY if we're not loading a file)
-                if (!_isLoadingFile)
+        // Trigger debounced render if live preview is enabled
+        if (LivePreviewEnabled)
+        {
+            // Defensive: Check if WebView is ready before attempting to render
+            if (!Diagram.IsReady)
+            {
+                // Only warn once to avoid log/error spam on every keystroke
+                if (!_hasWarnedAboutUnreadyWebView)
                 {
-                    IsDirty = true;
+                    _logger.LogWarning("Live preview disabled - WebView is not ready");
+                    Diagram.LastError = "Live preview is initializing. Please wait for the preview to load, or click Render to manually update the diagram.";
+                    _hasWarnedAboutUnreadyWebView = true;
                 }
+                return;
+            }
 
-                // Trigger debounced render if live preview is enabled
-                if (LivePreviewEnabled)
+            _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+            {
+                try
                 {
-                    // Defensive: Check if WebView is ready before attempting to render
-                    if (!Diagram.IsReady)
+                    // Capture the current Editor instance to avoid race conditions where it may become null.
+                    MermaidEditorViewModel? editor = Editor;
+
+                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                    if (editor is null)
                     {
-                        // Only warn once to avoid log/error spam on every keystroke
-                        if (!_hasWarnedAboutUnreadyWebView)
-                        {
-                            _logger.LogWarning("Live preview disabled - WebView is not ready");
-                            Diagram.LastError = "Live preview is initializing. Please wait for the preview to load, or click Render to manually update the diagram.";
-                            _hasWarnedAboutUnreadyWebView = true;
-                        }
                         return;
                     }
 
-                    _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-                    {
-                        try
-                        {
-                            // SafeFireAndForget handles its own context
-                            Diagram.RenderAsync(Editor.Text)
-                                .SafeFireAndForget(
-                                    onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error while rendering diagram text.");
-
-                            // If we hit an exception here, rethrow on the UI thread to avoid silent failures
-                            throw;
-                        }
-                    });
+                    // Intentionally use editor.Text (latest value) rather than captured message data (message.Value.Text).
+                    // For debounced rendering, we always want the most current content to avoid
+                    // rendering stale intermediate states during rapid typing.
+                    Diagram.RenderAsync(editor.Text)
+                        .SafeFireAndForget(
+                            onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error while rendering diagram text.");
 
-                // Update command states - these are UI operations
-                RenderCommand.NotifyCanExecuteChanged();
-                ClearCommand.NotifyCanExecuteChanged();
-                ExportCommand.NotifyCanExecuteChanged();
-                break;
+                    // If we hit an exception here, rethrow on the UI thread to avoid silent failures
+                    throw;
+                }
+            });
         }
+
+        // Update command states - these are UI operations
+        RenderCommand.NotifyCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -1146,9 +1184,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         // Ensure we don't end up with duplicate subscriptions by removing handlers before adding them.
         // Unsubscribing a handler that isn't currently subscribed is safe (no-op in C#).
-        // Subscribe to EditorTool.PropertyChanged to update ClearCommand when IsEditorVisible changes
-        Editor.PropertyChanged -= OnEditorPropertyChanged;
-        Editor.PropertyChanged += OnEditorPropertyChanged;
 
         // Subscribe to Diagram.PropertyChanged to update command states when IsReady changes
         Diagram.PropertyChanged -= OnDiagramPropertyChanged;
@@ -1391,7 +1426,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
 
             // Important: operate only on the TextDocument to ensure undo works correctly.
             // DO NOT set DiagramText or any other editor-related VM properties directly here!
-            // The OnEditorPropertyChanged event handler will take care of updating everything else.
+            // The Receive(EditorTextChangedMessage message) method will take care of updating everything else.
             document.Text = string.Empty;
 
             // NO ConfigureAwait(false) - renderer needs UI context
@@ -1756,27 +1791,37 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Releases resources used by the object and unsubscribes from property change notifications.
     /// </summary>
-    /// <remarks>Do NOT call this method directly. The <see cref="MainWindowViewModel"/> is owned by the dependency injection container and
-    /// its <see cref="IDisposable"/> implementation will be called by the container when the object is no longer needed.
-    /// This method does not dispose of dependencies managed by the dependency injection container.</remarks>
+    /// <remarks>
+    /// <para>
+    /// Do NOT call this method directly. The <see cref="MainWindowViewModel"/> is owned by the dependency
+    /// injection container and its <see cref="IDisposable"/> implementation will be called by the container
+    /// when the object is no longer needed. This method does not dispose of dependencies managed by the
+    /// dependency injection container.
+    /// </para>
+    /// <para>
+    /// This method:
+    /// <list type="bullet">
+    ///     <item><description>Unregisters all message handlers from the document-scoped messenger</description></item>
+    ///     <item><description>Unsubscribes from Editor, Diagram, and EditorTool PropertyChanged events</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
     public void Dispose()
     {
         if (!_isDisposed)
         {
-            // MermaidRenderer is owned by DI container, do not dispose here
+            // Unregister all message handlers from the document-scoped messenger.
+            _documentMessenger.UnregisterAll(this);
+
+            // Unsubscribe from PropertyChanged events
             if (_dockFactory.EditorTool is not null)
             {
-                Editor.PropertyChanged -= OnEditorPropertyChanged;
+                _dockFactory.EditorTool.PropertyChanged -= OnEditorToolPropertyChanged;
             }
 
             if (_dockFactory.DiagramTool is not null)
             {
                 Diagram.PropertyChanged -= OnDiagramPropertyChanged;
-            }
-
-            if (_dockFactory.EditorTool is not null)
-            {
-                _dockFactory.EditorTool.PropertyChanged -= OnEditorToolPropertyChanged;
             }
 
             _isDisposed = true;

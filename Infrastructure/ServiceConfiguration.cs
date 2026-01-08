@@ -21,8 +21,8 @@
 using Dock.Model.Extensions.DependencyInjection;
 using Dock.Serializer;
 using Dock.Settings;
+using MermaidPad.Extensions;
 using MermaidPad.Factories;
-using MermaidPad.Infrastructure.ObjectPooling;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Export;
@@ -67,6 +67,9 @@ public static class ServiceConfiguration
 
         // Add object pooling services
         services.AddObjectPooling();
+
+        // Add messaging services
+        services.AddMessaging();
 
         // Core singletons
         services.AddSingleton<ILoggerFactory>(static _ => new SerilogLoggerFactory(Log.Logger));

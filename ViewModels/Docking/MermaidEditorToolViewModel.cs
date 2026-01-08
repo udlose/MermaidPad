@@ -45,12 +45,14 @@ namespace MermaidPad.ViewModels.Docking;
 /// </para>
 /// </remarks>
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via DockFactory.")]
-internal sealed partial class MermaidEditorToolViewModel : Tool
+internal sealed partial class MermaidEditorToolViewModel : Tool, IDisposable
 {
     /// <summary>
     /// The unique identifier for this tool type, used for layout serialization and restoration.
     /// </summary>
     internal const string ToolId = "MermaidEditorTool";
+
+    private bool _isDisposed;
 
     /// <summary>
     /// Gets the wrapped <see cref="MermaidEditorViewModel"/> that provides editor functionality.
@@ -97,6 +99,10 @@ internal sealed partial class MermaidEditorToolViewModel : Tool
     /// </summary>
     /// <param name="editor">The <see cref="MermaidEditorViewModel"/> to wrap. Cannot be null.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="editor"/> is null.</exception>
+    /// <remarks>
+    /// This constructor activates the editor by setting <see cref="CommunityToolkit.Mvvm.ComponentModel.ObservableRecipient.IsActive"/> = true,
+    /// which triggers <see cref="MermaidEditorViewModel.OnActivated"/> to register message handlers.
+    /// </remarks>
     public MermaidEditorToolViewModel(MermaidEditorViewModel editor)
     {
         ArgumentNullException.ThrowIfNull(editor);
@@ -110,6 +116,10 @@ internal sealed partial class MermaidEditorToolViewModel : Tool
         CanClose = false;
         CanPin = true;
         CanFloat = true;
+
+        // Activate the editor to enable message registration.
+        // This calls OnActivated() which registers for messages via the document-scoped messenger.
+        Editor.IsActive = true;
     }
 
     /// <summary>
@@ -123,9 +133,32 @@ internal sealed partial class MermaidEditorToolViewModel : Tool
     /// </remarks>
     partial void OnIsEditorVisibleChanged(bool value)
     {
+        // Skip propagation if disposed - the tool may receive visibility changes during teardown
+        if (_isDisposed)
+        {
+            return;
+        }
+
         // Propagate visibility state to the wrapped editor ViewModel.
         // The IsToolVisible property has [NotifyCanExecuteChangedFor] attributes for all commands,
         // so this automatically triggers command CanExecute re-evaluation.
         Editor.IsToolVisible = value;
+    }
+
+    /// <summary>
+    /// Releases resources used by the <see cref="MermaidEditorToolViewModel"/> and disposes of the wrapped editor.
+    /// </summary>
+    /// <remarks>
+    /// This method disposes of the wrapped <see cref="MermaidEditorViewModel"/> to ensure proper cleanup
+    /// of event handlers (e.g., the UndoStack.PropertyChanged subscription).
+    /// </remarks>
+    public void Dispose()
+    {
+        if (!_isDisposed)
+        {
+            Editor.IsToolVisible = false;
+            Editor.Dispose();
+            _isDisposed = true;
+        }
     }
 }
