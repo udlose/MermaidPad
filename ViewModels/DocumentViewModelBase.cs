@@ -103,10 +103,16 @@ internal abstract class DocumentViewModelBase : ObservableRecipient
     /// helps prevent memory leaks and unintended message delivery after deactivation.</remarks>
     protected override void OnDeactivated()
     {
-        // ObservableRecipient automatically unregisters from this.Messenger by default
-        // Also detach global subscriptions explicitly:
-        AppMessenger.UnregisterAll(this);
-
-        base.OnDeactivated();
+        try
+        {
+            // ObservableRecipient automatically unregisters from this.Messenger by default
+            // Also detach global subscriptions explicitly:
+            AppMessenger.UnregisterAll(this);
+        }
+        finally
+        {
+            // Ensure base class cleanup occurs even if additional cleanup fails
+            base.OnDeactivated();
+        }
     }
 }
