@@ -471,6 +471,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// </remarks>
     protected override void OnActivated()
     {
+        // Call base first to ensure any base class activation logic occurs
         base.OnActivated();
 
         // Currently this ViewModel only publishes EditorTextChangedMessage.
@@ -487,8 +488,15 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// </remarks>
     protected override void OnDeactivated()
     {
-        _logger.LogDebug("{ViewModelName} deactivated", nameof(MermaidEditorViewModel));
-        base.OnDeactivated();
+        try
+        {
+            _logger.LogDebug("{ViewModelName} deactivated", nameof(MermaidEditorViewModel));
+        }
+        finally
+        {
+            // Ensure base class cleanup occurs even if additional cleanup fails
+            base.OnDeactivated();
+        }
     }
 
     #endregion ObservableRecipient Overrides
