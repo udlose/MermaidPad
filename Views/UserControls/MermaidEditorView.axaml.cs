@@ -171,6 +171,9 @@ public sealed partial class MermaidEditorView : UserControl
     /// <param name="e">The event data associated with the visual tree attachment event.</param>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        // Always call base first to ensure proper attachment
+        base.OnAttachedToVisualTree(e);
+
         try
         {
             // Keep this validation in the try block to ensure base is always called
@@ -212,10 +215,6 @@ public sealed partial class MermaidEditorView : UserControl
 
             _vm = null;
             throw;
-        }
-        finally
-        {
-            base.OnAttachedToVisualTree(e);
         }
     }
 

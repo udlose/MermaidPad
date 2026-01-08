@@ -108,7 +108,10 @@ public partial class MermaidEditorView
     /// correct behavior.</remarks>
     private void InitializeIntellisense()
     {
+        Editor.TextArea.TextEntered -= TextArea_TextEntered;
         Editor.TextArea.TextEntered += TextArea_TextEntered;
+
+        Editor.TextArea.TextEntering -= TextArea_TextEntering;
         Editor.TextArea.TextEntering += TextArea_TextEntering;
         _areIntellisenseHandlersCleanedUp = false;
     }
