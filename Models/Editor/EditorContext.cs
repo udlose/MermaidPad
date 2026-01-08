@@ -33,7 +33,7 @@ namespace MermaidPad.Models.Editor;
 /// Must be greater than or equal to 0.</param>
 /// <param name="SelectionLength">The number of characters selected in the document. Must be greater than or equal to 0.</param>
 /// <param name="CaretOffset">The zero-based index of the caret position within the document. Must be greater than or equal to 0.</param>
-public sealed record EditorContext(
+internal sealed record class EditorContext(
     TextDocument? Document,
     int SelectionStart,
     int SelectionLength,
@@ -43,7 +43,7 @@ public sealed record EditorContext(
     /// Gets a value indicating whether the current object is in a valid state.
     /// </summary>
     /// <remarks>This lets the converter invalidate old contexts without nulls.</remarks>
-    public required bool IsValid { get; init; } = true;
+    internal required bool IsValid { get; init; } = true;
 
     /// <summary>
     /// Gets the currently selected text.
@@ -51,20 +51,20 @@ public sealed record EditorContext(
     /// <remarks>This property is purposely not passed into the constructor because
     /// of the potential race condition; in AvaloniaEdit, these properties are not guaranteed to update atomically.
     /// So we derive this from the <see cref="Document"/>, <see cref="SelectionStart"/>, and <see cref="SelectionLength"/>.</remarks>
-    public string SelectedText { get; init; } = string.Empty;
+    internal string SelectedText { get; init; } = string.Empty;
 
     /// <summary>
     /// Gets whether there is an active selection.
     /// </summary>
-    public bool HasSelection => SelectionLength > 0;
+    internal bool HasSelection => SelectionLength > 0;
 
     /// <summary>
     /// Gets the starting line number of the selection (1-based).
     /// </summary>
-    public int StartLine => Document?.GetLineByOffset(SelectionStart).LineNumber ?? 0;
+    internal int StartLine => Document?.GetLineByOffset(SelectionStart).LineNumber ?? 0;
 
     /// <summary>
     /// Gets the ending line number of the selection (1-based).
     /// </summary>
-    public int EndLine => Document?.GetLineByOffset(SelectionStart + SelectionLength).LineNumber ?? 0;
+    internal int EndLine => Document?.GetLineByOffset(SelectionStart + SelectionLength).LineNumber ?? 0;
 }
