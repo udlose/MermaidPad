@@ -1449,12 +1449,17 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// Initiates the export process by displaying an export dialog to the user and performing the export operation
     /// based on the selected options.
     /// </summary>
-    /// <remarks>This method displays a dialog to the user for configuring export options. If the user
+    /// <remarks>
+    /// <para>This method displays a dialog to the user for configuring export options. If the user
     /// confirms the dialog, the export operation is performed asynchronously with progress feedback. If the user
-    /// cancels the dialog, the method exits without performing the export. <para> The method ensures that all UI
-    /// interactions, such as displaying dialogs, are executed on the UI thread. </para> <para> Any errors encountered
-    /// during the export process are logged and reflected in the <c>LastError</c> property, which can be used to
-    /// display error messages in the UI. </para></remarks>
+    /// cancels the dialog, the method exits without performing the export. The method ensures that all UI
+    /// interactions, such as displaying dialogs, are executed on the UI thread.
+    /// </para>
+    /// <para>
+    /// Any errors encountered during the export process are logged and reflected in the <c>LastError</c> property,
+    /// which can be used to display error messages in the UI.
+    /// </para>
+    /// </remarks>
     /// <returns>A task representing the asynchronous operation.</returns>
     [RelayCommand(CanExecute = nameof(CanExecuteExport))]
     private async Task ExportAsync()
@@ -1478,16 +1483,13 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             };
 
             // NO ConfigureAwait(false) - ShowDialog must run on UI thread
-            await exportDialog.ShowDialog(window);
+            ExportOptions? exportOptions = await exportDialog.ShowDialog<ExportOptions?>(window);
 
             // Check if user cancelled
-            if (exportViewModel.DialogResult != true)
+            if (exportOptions is null)
             {
                 return; // User cancelled
             }
-
-            // Get export options from the view model
-            ExportOptions exportOptions = exportViewModel.GetExportOptions();
 
             // NO ConfigureAwait(false) - may show UI dialogs
             await ExportWithProgressAsync(window, exportOptions);
