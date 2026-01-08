@@ -188,6 +188,7 @@ public sealed partial class MainWindow : Window
     /// <param name="e">The event arguments.</param>
     protected override void OnDataContextChanged(EventArgs e)
     {
+        // Call base implementation first
         base.OnDataContextChanged(e);
 
         if (DataContext is MainWindowViewModel)
