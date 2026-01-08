@@ -103,12 +103,11 @@ public sealed partial class DiagramToolView : UserControl
         }
         else if (DataContext is null)
         {
-            _logger?.LogWarning("{ViewName} DataContext was set to null - this may indicate a dock layout issue", nameof(DiagramToolView));
+            _logger?.LogWarning("{ViewName} DataContext was set to null - this may indicate a dock layout issue, unless the app is shutting down", nameof(DiagramToolView));
         }
         else
         {
-            _logger?.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}",
-                nameof(DiagramToolView), DataContext.GetType().Name);
+            _logger?.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}", nameof(DiagramToolView), DataContext.GetType().Name);
         }
     }
 

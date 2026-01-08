@@ -112,6 +112,7 @@ public sealed partial class MermaidEditorToolView : UserControl
     /// <param name="e">The event arguments containing old and new DataContext values.</param>
     protected override void OnDataContextChanged(EventArgs e)
     {
+        // Call base implementation first
         base.OnDataContextChanged(e);
 
         // Lazy-initialize logger to avoid DI access during construction
@@ -129,13 +130,11 @@ public sealed partial class MermaidEditorToolView : UserControl
         }
         else if (DataContext is null)
         {
-            _logger?.LogWarning("{ViewName} DataContext was set to null - this may indicate a dock layout issue",
-                nameof(MermaidEditorToolView));
+            _logger?.LogWarning("{ViewName} DataContext was set to null - this may indicate a dock layout issue, unless the app is shutting down", nameof(MermaidEditorToolView));
         }
         else
         {
-            _logger?.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}",
-                nameof(MermaidEditorToolView), DataContext.GetType().Name);
+            _logger?.LogWarning("{ViewName} DataContext was set to unexpected type: {Type}", nameof(MermaidEditorToolView), DataContext.GetType().Name);
         }
     }
 
@@ -159,11 +158,31 @@ public sealed partial class MermaidEditorToolView : UserControl
     /// <param name="e">The event arguments containing attachment information.</param>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        base.OnAttachedToVisualTree(e);
-
-        if (DataContext is MermaidEditorToolViewModel toolVm)
+        try
         {
-            toolVm.IsEditorVisible = true;
+            // Always call base first to ensure proper attachment
+            base.OnAttachedToVisualTree(e);
+
+            if (DataContext is MermaidEditorToolViewModel toolVm)
+            {
+                toolVm.IsEditorVisible = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error rebinding {ViewName} on attach.", nameof(MermaidEditorToolView));
+
+            // Best-effort: avoid leaving partially wired state around.
+            try
+            {
+                UnsubscribeAllEventHandlers();
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger?.LogError(cleanupEx, "Error during {ViewName} attach cleanup.", nameof(MermaidEditorToolView));
+            }
+
+            throw;
         }
     }
 
@@ -188,12 +207,18 @@ public sealed partial class MermaidEditorToolView : UserControl
     /// <param name="e">The event arguments containing detachment information.</param>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        if (DataContext is MermaidEditorToolViewModel toolVm)
+        try
         {
-            toolVm.IsEditorVisible = false;
+            if (DataContext is MermaidEditorToolViewModel toolVm)
+            {
+                toolVm.IsEditorVisible = false;
+            }
         }
-
-        base.OnDetachedFromVisualTree(e);
+        finally
+        {
+            // Always call base last to ensure proper detachment
+            base.OnDetachedFromVisualTree(e);
+        }
     }
 
     #endregion Overrides
