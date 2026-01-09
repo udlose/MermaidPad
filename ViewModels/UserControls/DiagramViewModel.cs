@@ -219,7 +219,7 @@ internal sealed partial class DiagramViewModel : ViewModelBase
         try
         {
             // If a newer render request arrived while this one was queued, skip it
-            long latestRequestId = Volatile.Read(ref _renderSequence);
+            long latestRequestId = Interlocked.Read(ref _renderSequence);
             if (requestId != latestRequestId)
             {
                 return;
