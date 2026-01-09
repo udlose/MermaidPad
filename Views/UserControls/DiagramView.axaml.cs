@@ -21,6 +21,7 @@
 using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
@@ -49,6 +50,7 @@ public sealed partial class DiagramView : UserControl
     private readonly ILogger<DiagramView> _logger;
 
     private bool _areAllEventHandlersCleanedUp;
+    private long _viewModelVersion;
 
     /// <summary>
     /// Tracks whether THIS View instance has initialized its WebView.
@@ -102,6 +104,9 @@ public sealed partial class DiagramView : UserControl
 
             _vm = newViewModel;
 
+            // Invalidate any pending async/debounced work targeting the previous VM
+            Interlocked.Increment(ref _viewModelVersion);
+
             // Avoid double-initialization on first load:
             // - When the control is not yet attached, OnAttachedToVisualTree will do the binding.
             // - When the control is already attached (runtime VM swap), bind immediately.
@@ -115,7 +120,14 @@ public sealed partial class DiagramView : UserControl
                 {
                     // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
                     UnsubscribeViewModelEventHandlers(_vm);
+
+                    // Clear the ViewModel reference because binding failed
                     _vm = null;
+
+                    // Invalidate any pending async/debounced work targeting the previous VM,
+                    // including any work that might have been queued during partial wiring
+                    Interlocked.Increment(ref _viewModelVersion);
+
                     throw;
                 }
             }
@@ -160,6 +172,8 @@ public sealed partial class DiagramView : UserControl
             {
                 UnsubscribeViewModelEventHandlers(_vm);
                 _vm = dataContextViewModel;
+
+                Interlocked.Increment(ref _viewModelVersion);
             }
 
             // Always ensure bindings on attach; wiring is idempotent.
@@ -180,6 +194,11 @@ public sealed partial class DiagramView : UserControl
             }
 
             _vm = null;
+            _hasInitializedWebView = false;     // Reset initialization flag on failure
+
+            // Invalidate any pending work that might have been queued
+            Interlocked.Increment(ref _viewModelVersion);
+
             throw;
         }
     }
@@ -204,9 +223,12 @@ public sealed partial class DiagramView : UserControl
             // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
+
+            Interlocked.Increment(ref _viewModelVersion);
         }
         finally
         {
+            // Always call base last to ensure proper detachment
             base.OnDetachedFromVisualTree(e);
         }
     }
@@ -257,34 +279,53 @@ public sealed partial class DiagramView : UserControl
         // For these cases, the caller must explicitly trigger initialization.
         if (_vm.IsReady && !_hasInitializedWebView)
         {
-            _logger.LogInformation("Detected dock state change: ViewModel was ready but this View instance hasn't initialized. " +
-                "Triggering automatic re-initialization.");
-            TriggerReinitialization();
+            _logger.LogInformation("Detected dock state change: ViewModel was ready but this View instance hasn't initialized. Triggering automatic re-initialization.");
+
+            // Capture the VM so the async operation can't accidentally run against a different VM after a swap/detach.
+            DiagramViewModel capturedViewModel = _vm;
+            long capturedVersion = Interlocked.Read(ref _viewModelVersion);
+            TriggerReinitialization(capturedViewModel, capturedVersion);
         }
     }
 
     /// <summary>
     /// Triggers asynchronous re-initialization of the WebView after a dock state change.
     /// </summary>
+    /// <param name="viewModel">The ViewModel instance that requested re-initialization.</param>
+    /// <param name="viewModelVersion">The version of the ViewModel at the time of triggering.</param>
     /// <remarks>
     /// Uses fire-and-forget pattern with proper error handling via SafeFireAndForget.
     /// </remarks>
-    private void TriggerReinitialization()
+    private void TriggerReinitialization(DiagramViewModel viewModel, long viewModelVersion)
     {
-        ReinitializeWebViewAsync()
-            .SafeFireAndForget(onException: ex =>
-                _logger.LogError(ex, "Failed to reinitialize WebView after dock state change"));
+        ReinitializeWebViewAsync(viewModel, viewModelVersion)
+            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to reinitialize WebView after dock state change"));
     }
 
     /// <summary>
     /// Re-initializes the WebView with the last rendered source after a dock state change.
     /// </summary>
+    /// <param name="viewModel">The ViewModel instance that requested re-initialization.</param>
+    /// <param name="viewModelVersion">The version of the ViewModel at the time of triggering.</param>
     /// <returns>A task representing the asynchronous re-initialization operation.</returns>
-    private async Task ReinitializeWebViewAsync()
+    private async Task ReinitializeWebViewAsync(DiagramViewModel viewModel, long viewModelVersion)
     {
-        if (_vm is null)
+        // If we've been hard-cleaned or detached / swapped, do not touch the WebView or the VM.
+        if (_areAllEventHandlersCleanedUp)
         {
-            _logger.LogWarning("Cannot reinitialize: ViewModel is null");
+            _logger.LogDebug("Skipping WebView re-initialization because this view was hard cleaned up.");
+            return;
+        }
+
+        if (!this.IsAttachedToVisualTree())
+        {
+            _logger.LogDebug("Skipping WebView re-initialization because the view is not attached to the visual tree.");
+            return;
+        }
+
+        if (!IsStillValid())
+        {
+            _logger.LogDebug("Skipping WebView re-initialization because the ViewModel changed before reinit executed.");
             return;
         }
 
@@ -296,22 +337,59 @@ public sealed partial class DiagramView : UserControl
             _logger.LogInformation("=== WebView Re-initialization Started (dock state change) ===");
 
             // Re-initialize with the stored source from previous renders
-            await _vm.ReinitializeWithCurrentSourceAsync(Preview);
-            _hasInitializedWebView = true;
+            await viewModel.ReinitializeWithCurrentSourceAsync(Preview);
 
+            // Check again after the await in case the VM swapped while we were running.
+            if (!IsStillValid())
+            {
+                _logger.LogDebug("WebView re-initialization completed, but ViewModel changed during execution; skipping finalization.");
+                return;
+            }
+
+            _hasInitializedWebView = true;
             isSuccess = true;
+
             _logger.LogInformation("=== WebView Re-initialization Completed Successfully ===");
         }
         catch (Exception ex)
         {
             isSuccess = false;
             _logger.LogError(ex, "WebView re-initialization failed");
-            _vm.LastError = $"Failed to reinitialize diagram preview: {ex.Message}";
+
+            if (!IsStillValid())
+            {
+                return;
+            }
+
+            string message = $"Failed to reinitialize diagram preview: {ex.Message}";
+
+            if (Dispatcher.UIThread.CheckAccess())
+            {
+                SetLastErrorIfStillValid();
+            }
+            else
+            {
+                Dispatcher.UIThread.Post(SetLastErrorIfStillValid);
+            }
+
+            void SetLastErrorIfStillValid()
+            {
+                if (IsStillValid())
+                {
+                    viewModel.LastError = message;
+                }
+            }
         }
         finally
         {
             stopwatch.Stop();
             _logger.LogTiming("WebView re-initialization", stopwatch.Elapsed, isSuccess);
+        }
+
+        bool IsStillValid()
+        {
+            long currentVersion = Interlocked.Read(ref _viewModelVersion);
+            return ReferenceEquals(_vm, viewModel) && currentVersion == viewModelVersion;
         }
     }
 
@@ -386,6 +464,7 @@ public sealed partial class DiagramView : UserControl
         {
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
+            Interlocked.Increment(ref _viewModelVersion);
 
             _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(DiagramView));
             _areAllEventHandlersCleanedUp = true;
