@@ -25,10 +25,12 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
+using MermaidPad.Threading;
 using MermaidPad.ViewModels.UserControls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.UserControls;
 
@@ -44,13 +46,14 @@ namespace MermaidPad.Views.UserControls;
 ///     <item><description>Proper event handler cleanup</description></item>
 /// </list>
 /// </remarks>
-public sealed partial class DiagramView : UserControl
+public sealed partial class DiagramView : UserControl, IViewModelVersionSource<DiagramViewModel>
 {
     private DiagramViewModel? _vm;
     private readonly ILogger<DiagramView> _logger;
 
     private bool _areAllEventHandlersCleanedUp;
     private long _viewModelVersion;
+    private readonly ViewModelVersionGuard<DiagramViewModel> _viewModelGuard;
 
     /// <summary>
     /// Tracks whether THIS View instance has initialized its WebView.
@@ -79,6 +82,8 @@ public sealed partial class DiagramView : UserControl
     {
         InitializeComponent();
 
+        _viewModelGuard = new ViewModelVersionGuard<DiagramViewModel>(this);
+
         IServiceProvider sp = App.Services;
         _logger = sp.GetRequiredService<ILogger<DiagramView>>();
     }
@@ -105,7 +110,7 @@ public sealed partial class DiagramView : UserControl
             _vm = newViewModel;
 
             // Invalidate any pending async/debounced work targeting the previous VM
-            Interlocked.Increment(ref _viewModelVersion);
+            AtomicVersion.Increment(ref _viewModelVersion);
 
             // Avoid double-initialization on first load:
             // - When the control is not yet attached, OnAttachedToVisualTree will do the binding.
@@ -126,7 +131,7 @@ public sealed partial class DiagramView : UserControl
 
                     // Invalidate any pending async/debounced work targeting the previous VM,
                     // including any work that might have been queued during partial wiring
-                    Interlocked.Increment(ref _viewModelVersion);
+                    AtomicVersion.Increment(ref _viewModelVersion);
 
                     throw;
                 }
@@ -147,6 +152,7 @@ public sealed partial class DiagramView : UserControl
     /// partially cleaned up, this method ensures that the view model bindings are re-established. If the control has
     /// undergone a full cleanup, no re-binding occurs.</remarks>
     /// <param name="e">The event data associated with the visual tree attachment event.</param>
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "Framework guarantees non-null parameters")]
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         // Always call base first to ensure proper attachment
@@ -171,9 +177,10 @@ public sealed partial class DiagramView : UserControl
             if (!ReferenceEquals(_vm, dataContextViewModel))
             {
                 UnsubscribeViewModelEventHandlers(_vm);
+
                 _vm = dataContextViewModel;
 
-                Interlocked.Increment(ref _viewModelVersion);
+                AtomicVersion.Increment(ref _viewModelVersion);
             }
 
             // Always ensure bindings on attach; wiring is idempotent.
@@ -197,7 +204,7 @@ public sealed partial class DiagramView : UserControl
             _hasInitializedWebView = false;     // Reset initialization flag on failure
 
             // Invalidate any pending work that might have been queued
-            Interlocked.Increment(ref _viewModelVersion);
+            AtomicVersion.Increment(ref _viewModelVersion);
 
             throw;
         }
@@ -222,9 +229,13 @@ public sealed partial class DiagramView : UserControl
 
             // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
             UnsubscribeViewModelEventHandlers(_vm);
+
+            // NOTE: Do NOT call _vm.Dispose() here - the View doesn't own the ViewModel.
+            // The DockFactory owns MermaidEditorToolViewModel, which owns MermaidEditorViewModel.
+            // Disposing here would break the VM during pin/unpin/float operations.
             _vm = null;
 
-            Interlocked.Increment(ref _viewModelVersion);
+            AtomicVersion.Increment(ref _viewModelVersion);
         }
         finally
         {
@@ -263,7 +274,6 @@ public sealed partial class DiagramView : UserControl
         }
 
         // Wire up action delegates
-        _vm.InitializeActionAsync = null; // Clear any existing delegate
         _vm.InitializeActionAsync = InitializeWebViewAsync;
 
         // Trigger re-initialization only when this View instance hasn't initialized its WebView yet
@@ -282,8 +292,11 @@ public sealed partial class DiagramView : UserControl
             _logger.LogInformation("Detected dock state change: ViewModel was ready but this View instance hasn't initialized. Triggering automatic re-initialization.");
 
             // Capture the VM so the async operation can't accidentally run against a different VM after a swap/detach.
-            DiagramViewModel capturedViewModel = _vm;
-            long capturedVersion = Interlocked.Read(ref _viewModelVersion);
+            if (!_viewModelGuard.TryCaptureSnapshot(out DiagramViewModel? capturedViewModel, out long capturedVersion))
+            {
+                return;
+            }
+
             TriggerReinitialization(capturedViewModel, capturedVersion);
         }
     }
@@ -323,7 +336,7 @@ public sealed partial class DiagramView : UserControl
             return;
         }
 
-        if (!IsStillValid())
+        if (!_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
         {
             _logger.LogDebug("Skipping WebView re-initialization because the ViewModel changed before reinit executed.");
             return;
@@ -340,7 +353,7 @@ public sealed partial class DiagramView : UserControl
             await viewModel.ReinitializeWithCurrentSourceAsync(Preview);
 
             // Check again after the await in case the VM swapped while we were running.
-            if (!IsStillValid())
+            if (!_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
             {
                 _logger.LogDebug("WebView re-initialization completed, but ViewModel changed during execution; skipping finalization.");
                 return;
@@ -356,7 +369,7 @@ public sealed partial class DiagramView : UserControl
             isSuccess = false;
             _logger.LogError(ex, "WebView re-initialization failed");
 
-            if (!IsStillValid())
+            if (!_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
             {
                 return;
             }
@@ -374,7 +387,7 @@ public sealed partial class DiagramView : UserControl
 
             void SetLastErrorIfStillValid()
             {
-                if (IsStillValid())
+                if (_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
                 {
                     viewModel.LastError = message;
                 }
@@ -384,12 +397,6 @@ public sealed partial class DiagramView : UserControl
         {
             stopwatch.Stop();
             _logger.LogTiming("WebView re-initialization", stopwatch.Elapsed, isSuccess);
-        }
-
-        bool IsStillValid()
-        {
-            long currentVersion = Interlocked.Read(ref _viewModelVersion);
-            return ReferenceEquals(_vm, viewModel) && currentVersion == viewModelVersion;
         }
     }
 
@@ -464,7 +471,8 @@ public sealed partial class DiagramView : UserControl
         {
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
-            Interlocked.Increment(ref _viewModelVersion);
+
+            AtomicVersion.Increment(ref _viewModelVersion);
 
             _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(DiagramView));
             _areAllEventHandlersCleanedUp = true;
@@ -476,4 +484,20 @@ public sealed partial class DiagramView : UserControl
     }
 
     #endregion Cleanup
+
+    #region IViewModelVersionSource Implementation
+
+    /// <summary>
+    /// Gets the current instance of the diagram view model provided by the source.
+    /// </summary>
+    DiagramViewModel? IViewModelVersionSource<DiagramViewModel>.CurrentViewModel => _vm;
+
+    /// <summary>
+    /// Gets the current version number of the associated DiagramViewModel instance.
+    /// </summary>
+    /// <remarks>The version number is updated atomically and can be used to detect changes to the view model
+    /// for synchronization or caching purposes. This property is thread-safe.</remarks>
+    long IViewModelVersionSource<DiagramViewModel>.CurrentVersion => AtomicVersion.Read(ref _viewModelVersion);
+
+    #endregion IViewModelVersionSource Implementation
 }
