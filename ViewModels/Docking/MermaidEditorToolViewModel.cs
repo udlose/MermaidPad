@@ -84,15 +84,15 @@ internal sealed partial class MermaidEditorToolViewModel : Tool, IDisposable
     /// disabling editor-specific menu items and toolbar buttons when the editor is hidden.
     /// </para>
     /// <para>
-    /// <b>Initialization Note:</b> This property is initialized to <c>true</c> to match the
+    /// <b>Initialization Note:</b> This property is initialized to <c>false</c> to match the
     /// initial value of <see cref="MermaidEditorViewModel.IsToolVisible"/>. This ensures
-    /// consistent state during initialization before the view is attached to the visual tree.
+    /// editor commands are disabled until the view is actually attached to the visual tree.
     /// The view will update this value via <see cref="Views.Docking.MermaidEditorToolView.OnAttachedToVisualTree"/>
     /// and <see cref="Views.Docking.MermaidEditorToolView.OnDetachedFromVisualTree"/>.
     /// </para>
     /// </remarks>
     [ObservableProperty]
-    public partial bool IsEditorVisible { get; set; } = true;
+    public partial bool IsEditorVisible { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorToolViewModel"/> class.
