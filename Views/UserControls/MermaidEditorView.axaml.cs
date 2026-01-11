@@ -32,6 +32,7 @@ using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using MermaidPad.Services.Highlighting;
+using MermaidPad.Threading;
 using MermaidPad.ViewModels.UserControls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -59,7 +60,9 @@ namespace MermaidPad.Views.UserControls;
 #pragma warning disable IDE0078
 [SuppressMessage("Style", "IDE0078:Use pattern matching", Justification = "Performance and code clarity")]
 [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Performance and code clarity")]
-public sealed partial class MermaidEditorView : UserControl
+[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+    Justification = "View does not own disposable MermaidEditorViewModel, DockFactory does.")]
+public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSource<MermaidEditorViewModel>
 {
     private MermaidEditorViewModel? _vm;
     private readonly SyntaxHighlightingService _syntaxHighlightingService;
@@ -70,6 +73,8 @@ public sealed partial class MermaidEditorView : UserControl
     private bool _areAllEventHandlersCleanedUp;
     private bool _suppressEditorStateSync;
     private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
+    private long _viewModelVersion;
+    private readonly ViewModelVersionGuard<MermaidEditorViewModel> _viewModelGuard;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidEditorView"/> class.
@@ -82,6 +87,8 @@ public sealed partial class MermaidEditorView : UserControl
     public MermaidEditorView()
     {
         InitializeComponent();
+
+        _viewModelGuard = new ViewModelVersionGuard<MermaidEditorViewModel>(this);
 
         IServiceProvider sp = App.Services;
         _editorDebouncer = sp.GetRequiredService<IDebounceDispatcher>();
@@ -136,6 +143,9 @@ public sealed partial class MermaidEditorView : UserControl
 
             _vm = newViewModel;
 
+            // Invalidate any pending async/debounced work targeting the previous VM
+            AtomicVersion.Increment(ref _viewModelVersion);
+
             // Avoid double-initialization on first load:
             // - When the control is not yet attached, OnAttachedToVisualTree will do the binding.
             // - When the control is already attached (runtime VM swap), bind immediately.
@@ -149,7 +159,14 @@ public sealed partial class MermaidEditorView : UserControl
                 {
                     // Best-effort cleanup to avoid partially-wired state if SetupViewModelBindings throws
                     UnsubscribeViewModelEventHandlers(_vm);
+
+                    // Clear the ViewModel reference because binding failed
                     _vm = null;
+
+                    // Invalidate any pending async/debounced work targeting the previous VM,
+                    // including any work that might have been queued during partial wiring
+                    AtomicVersion.Increment(ref _viewModelVersion);
+
                     throw;
                 }
             }
@@ -169,6 +186,7 @@ public sealed partial class MermaidEditorView : UserControl
     /// partially cleaned up, this method ensures that the view model bindings are re-established. If the control has
     /// undergone a full cleanup, no re-binding occurs.</remarks>
     /// <param name="e">The event data associated with the visual tree attachment event.</param>
+    [SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "Framework guarantees non-null parameters")]
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         // Always call base first to ensure proper attachment
@@ -194,6 +212,8 @@ public sealed partial class MermaidEditorView : UserControl
             {
                 UnsubscribeViewModelEventHandlers(_vm);
                 _vm = dataContextViewModel;
+
+                AtomicVersion.Increment(ref _viewModelVersion);
             }
 
             // Always "ensure bindings" on attach; wiring is idempotent.
@@ -214,6 +234,10 @@ public sealed partial class MermaidEditorView : UserControl
             }
 
             _vm = null;
+
+            // Invalidate any pending work that might have been queued
+            AtomicVersion.Increment(ref _viewModelVersion);
+
             throw;
         }
     }
@@ -236,11 +260,14 @@ public sealed partial class MermaidEditorView : UserControl
             }
 
             // Clean up ONLY ViewModel event handlers here (for MDI scenarios)
+            UnsubscribeViewModelEventHandlers(_vm);
+
             // NOTE: Do NOT call _vm.Dispose() here - the View doesn't own the ViewModel.
             // The DockFactory owns MermaidEditorToolViewModel, which owns MermaidEditorViewModel.
             // Disposing here would break the VM during pin/unpin/float operations.
-            UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
+
+            AtomicVersion.Increment(ref _viewModelVersion);
         }
         finally
         {
@@ -279,16 +306,19 @@ public sealed partial class MermaidEditorView : UserControl
         // Only check state match if we're using the same document
         if (!isDocumentAttachmentRequired)
         {
-            int viewModelTextLength = _vm.Text.Length;
+            // NOTE: Accessing Editor.Text or _vm.Text allocates a string (AvaloniaEdit API).
+            // Capture ViewModel text once
+            string viewModelText = _vm.Text;
+            int viewModelTextLength = viewModelText.Length;
             int editorTextLength = Editor.Document?.TextLength ?? 0;
 
             if (viewModelTextLength == editorTextLength)
             {
-                // NOTE: Accessing Editor.Text allocates a string (AvaloniaEdit API).
+                // NOTE: Accessing Editor.Text or _vm.Text allocates a string (AvaloniaEdit API).
                 // Only do it when lengths match to minimize allocations.
                 string editorText = Editor.Text;
 
-                if (string.Equals(editorText, _vm.Text, StringComparison.Ordinal) &&
+                if (string.Equals(editorText, viewModelText, StringComparison.Ordinal) &&
                     Editor.SelectionStart == _vm.SelectionStart &&
                     Editor.SelectionLength == _vm.SelectionLength &&
                     Editor.CaretOffset == _vm.CaretOffset)
@@ -496,9 +526,20 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
-        _editorDebouncer.DebounceOnUI("editor-state", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
+        if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
         {
-            if (_vm is null)
+            return;
+        }
+
+        _editorDebouncer.DebounceOnUI(
+            "editor-state",
+            TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds),
+            SyncEditorStateIfStillValid,
+            DispatcherPriority.Background);
+
+        void SyncEditorStateIfStillValid()
+        {
+            if (!_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
             {
                 return;
             }
@@ -517,16 +558,15 @@ public sealed partial class MermaidEditorView : UserControl
                 int validSelectionLength = Math.Max(0, Math.Min(rawSelectionLength, textLength - validSelectionStart));
                 int validCaretOffset = Math.Max(0, Math.Min(rawCaretOffset, textLength));
 
-                _vm.SelectionStart = validSelectionStart;
-                _vm.SelectionLength = validSelectionLength;
-                _vm.CaretOffset = validCaretOffset;
+                capturedViewModel.SelectionStart = validSelectionStart;
+                capturedViewModel.SelectionLength = validSelectionLength;
+                capturedViewModel.CaretOffset = validCaretOffset;
             }
             finally
             {
                 _suppressEditorStateSync = false;
             }
-        },
-        DispatcherPriority.Background);
+        }
     }
 
     /// <summary>
@@ -564,9 +604,15 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
+        if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
+        {
+            return;
+        }
+
         _editorDebouncer.DebounceOnUI("vm-selection", TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultCaretDebounceMilliseconds), () =>
         {
-            if (_vm is null)
+            // we need to make sure the view model hasn't changed between debounce scheduling and execution
+            if (!_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
             {
                 return;
             }
@@ -576,9 +622,9 @@ public sealed partial class MermaidEditorView : UserControl
             {
                 // Validate bounds before setting
                 int textLength = Editor.Document.TextLength;
-                int validSelectionStart = Math.Max(0, Math.Min(_vm.SelectionStart, textLength));
-                int validSelectionLength = Math.Max(0, Math.Min(_vm.SelectionLength, textLength - validSelectionStart));
-                int validCaretOffset = Math.Max(0, Math.Min(_vm.CaretOffset, textLength));
+                int validSelectionStart = Math.Max(0, Math.Min(capturedViewModel.SelectionStart, textLength));
+                int validSelectionLength = Math.Max(0, Math.Min(capturedViewModel.SelectionLength, textLength - validSelectionStart));
+                int validCaretOffset = Math.Max(0, Math.Min(capturedViewModel.CaretOffset, textLength));
 
                 if (Editor.SelectionStart != validSelectionStart ||
                     Editor.SelectionLength != validSelectionLength ||
@@ -703,6 +749,11 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
+        if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
+        {
+            return;
+        }
+
         // Snapshot and capture selection state before any async operations
         int selectionStart = Editor.SelectionStart;
         int selectionLength = Editor.SelectionLength;
@@ -730,7 +781,11 @@ public sealed partial class MermaidEditorView : UserControl
                     _logger.LogInformation("Cut {CharCount} characters to clipboard", selectedText.Length);
 
                     // We just put text on clipboard, so paste *should* be enabled
-                    _vm.HasClipboardContent = true;
+                    // we need to make sure the view model hasn't changed between thread hops
+                    if (_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
+                    {
+                        capturedViewModel.HasClipboardContent = true;
+                    }
                 }
                 else
                 {
@@ -805,13 +860,22 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
+        if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
+        {
+            return;
+        }
+
         try
         {
             await Clipboard.SetTextAsync(selectedText);
             _logger.LogInformation("Copied {CharCount} characters to clipboard", selectedText.Length);
 
             // We just put text on clipboard, so paste *should* be enabled
-            _vm.HasClipboardContent = true;
+            // we need to make sure the view model hasn't changed between thread hops
+            if (_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
+            {
+                capturedViewModel.HasClipboardContent = true;
+            }
         }
         catch (Exception ex)
         {
@@ -913,16 +977,20 @@ public sealed partial class MermaidEditorView : UserControl
     /// <summary>
     /// Asynchronously updates the ViewModel to reflect whether clipboard text is available for pasting.
     /// </summary>
+    /// <param name="viewModel">The ViewModel instance to update.</param>
+    /// <param name="viewModelVersion">The version of the ViewModel at the time of invocation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <remarks>
     /// This method returns early (no-op) if the ViewModel is null, which can occur during
     /// dock state transitions when the View is detached but window activation events still fire.
     /// </remarks>
-    private async Task UpdateCanPasteAsync()
+    private async Task UpdateCanPasteAsync(MermaidEditorViewModel viewModel, long viewModelVersion)
     {
         // During dock state transitions (float, dock, pin), the View may be detached
         // (_vm = null) but window activation events still fire. This is expected, not an error
-        if (_vm is null)
+        // Fast bail-out: if VM already changed, don't do any work
+        // we need to make sure the view model hasn't changed between thread hops
+        if (!_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
         {
             return;
         }
@@ -944,11 +1012,10 @@ public sealed partial class MermaidEditorView : UserControl
         // Marshal back to UI thread to update the ViewModel property
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-#pragma warning disable IDE0031
-            if (_vm is not null)
-#pragma warning restore IDE0031
+            // we need to make sure the view model hasn't changed between thread hops
+            if (_viewModelGuard.IsStillValid(viewModel, viewModelVersion))
             {
-                _vm.HasClipboardContent = canPaste;
+                viewModel.HasClipboardContent = canPaste;
             }
         }, DispatcherPriority.Normal);
     }
@@ -1133,9 +1200,10 @@ public sealed partial class MermaidEditorView : UserControl
 
         // Emulate what AvaloniaEdit.TextEditor.SelectedText does
         string selectedText = string.Empty;
-        if (!Editor.TextArea.Selection.IsEmpty)
+        TextArea textArea = Editor.TextArea;
+        if (!textArea.Selection.IsEmpty)
         {
-            selectedText = Editor.TextArea.Document.GetText(Editor.TextArea.Selection.SurroundingSegment);
+            selectedText = textArea.Document.GetText(textArea.Selection.SurroundingSegment);
         }
 
         return new EditorContext(document, selectionStart, selectionLength, caretOffset)
@@ -1167,36 +1235,49 @@ public sealed partial class MermaidEditorView : UserControl
         bool acquired = false;
         try
         {
-            acquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero);
+            acquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero)
+                .ConfigureAwait(false);
             if (!acquired)
             {
                 return;
             }
 
             // Capture ViewModel reference in case it changes during awaits
-            MermaidEditorViewModel? editorViewModel = _vm;
-            if (editorViewModel is null)
+            if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
             {
                 return;
             }
 
             // Note: Undo/redo state is handled automatically by the ViewModel's OnUndoStackPropertyChanged
             // We only need to update selection-based states and clipboard content here
-            await UpdateContextMenuStateExceptPasteAsync(editorViewModel, CanSelectAllInEditor);
+            await UpdateContextMenuStateExceptPasteAsync(capturedViewModel, CanSelectAllInEditor)
+                .ConfigureAwait(false);
+
+            if (!_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
+            {
+                return;
+            }
 
             string? clipboardText = null;
             try
             {
-                clipboardText = await GetTextFromClipboardAsync();
+                clipboardText = await GetTextFromClipboardAsync()
+                    .ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Clipboard read failed in context menu state check");
             }
 
+            if (!_viewModelGuard.IsStillValid(capturedViewModel, capturedVersion))
+            {
+                return;
+            }
+
             // Capture a simple boolean for the lambda capture instead of the clipboardText variable which could be large
             bool hasClipboardText = !string.IsNullOrEmpty(clipboardText);
-            await UpdateContextMenuStatePasteOnlyAsync(editorViewModel, hasClipboardText);
+            await UpdateContextMenuStatePasteOnlyAsync(capturedViewModel, hasClipboardText)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -1381,9 +1462,14 @@ public sealed partial class MermaidEditorView : UserControl
             return;
         }
 
-        UpdateCanPasteAsync()
-            .SafeFireAndForget(onException: ex =>
-                _logger.LogError(ex, "Failed to update clipboard state on activation"));
+        // Capture ViewModel and version to avoid race conditions
+        if (!_viewModelGuard.TryCaptureSnapshot(out MermaidEditorViewModel? capturedViewModel, out long capturedVersion))
+        {
+            return;
+        }
+
+        UpdateCanPasteAsync(capturedViewModel, capturedVersion)
+            .SafeFireAndForget(onException: ex => _logger.LogError(ex, "Failed to update clipboard state on activation"));
     }
 
     #endregion Public Methods
@@ -1435,6 +1521,8 @@ public sealed partial class MermaidEditorView : UserControl
             UnsubscribeViewModelEventHandlers(_vm);
             _vm = null;
 
+            AtomicVersion.Increment(ref _viewModelVersion);
+
             UnsubscribeIntellisenseEventHandlers();
             ActualThemeVariantChanged -= OnThemeChanged;
 
@@ -1480,4 +1568,20 @@ public sealed partial class MermaidEditorView : UserControl
     }
 
     #endregion Cleanup
+
+    #region IViewModelVersionSource Implementation
+
+    /// <summary>
+    /// Gets the current instance of the MermaidEditorViewModel associated with this version source.
+    /// </summary>
+    MermaidEditorViewModel? IViewModelVersionSource<MermaidEditorViewModel>.CurrentViewModel => _vm;
+
+    /// <summary>
+    /// Gets the current version number of the associated MermaidEditorViewModel instance.
+    /// </summary>
+    /// <remarks>The version number is updated atomically and can be used to detect changes to the view model
+    /// for synchronization or caching purposes. This property is thread-safe.</remarks>
+    long IViewModelVersionSource<MermaidEditorViewModel>.CurrentVersion => AtomicVersion.Read(ref _viewModelVersion);
+
+    #endregion IViewModelVersionSource Implementation
 }
