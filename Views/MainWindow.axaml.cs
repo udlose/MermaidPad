@@ -253,6 +253,10 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            // Persist settings here in OnClosing. Using OnClosed is too late in
+            // the lifecycle because we need to save Layout state before floating windows are destroyed.
+            _vm.Persist();
+
             bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
             if (hasUnsavedChanges)
             {
@@ -274,10 +278,6 @@ public sealed partial class MainWindow : Window
 
                 return;
             }
-
-            // No unsaved changes - proceed with normal close
-            // Persist settings in OnClosing. Using OnClosed is too late in the lifecycle because we need to save Layout state
-            _vm.Persist();
         }
         catch (Exception ex)
         {
