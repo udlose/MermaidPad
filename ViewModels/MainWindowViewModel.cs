@@ -144,7 +144,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </para>
     /// </remarks>
     //TODO - DaveBlack: MDI Migration - Replace with ActiveDocument pattern
-    public bool EditorHasText => _dockFactory.EditorTool?.Editor.HasText ?? false;
+    public bool EditorHasText => Editor.HasText;
 
     /// <summary>
     /// Gets a value indicating whether the editor tool is currently visible.
@@ -285,19 +285,25 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Determines whether the diagram can be rendered based on the current state.
     /// </summary>
-    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null or whitespace; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
+    /// otherwise, <see langword="false"/>.</returns>
     private bool CanExecuteRender() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
 
     /// <summary>
     /// Determines whether the diagram can be cleared based on the current state.
     /// </summary>
-    /// <returns><see langword="true"/> if the WebView is ready, the editor is visible, and the diagram text is not null, empty, or whitespace; otherwise, <see langword="false"/>.</returns>
+    /// <remarks>
+    /// This command doesn't take whitespace-only text into account because clearing the editor of whitespace is a valid operation.
+    /// </remarks>
+    /// <returns><see langword="true"/> if the WebView is ready, the editor is visible, and the diagram text is not null or empty;
+    /// otherwise, <see langword="false"/>.</returns>
     private bool CanExecuteClear() => Diagram.IsReady && IsEditorVisible && EditorHasText;
 
     /// <summary>
     /// Determines whether the export operation can be performed.
     /// </summary>
-    /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace; otherwise, <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
+    /// otherwise, <see langword="false"/>.</returns>
     private bool CanExecuteExport() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
 
     #endregion CanExecute Methods
@@ -578,13 +584,16 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
 
         if (value)
         {
-            if (string.IsNullOrWhiteSpace(Editor.Text))
+            // NOTE: Accessing Editor.Text or _vm.Text allocates a string (AvaloniaEdit API).
+            // Save the editor's text to avoid multiple calls
+            string editorText = Editor.Text;
+            if (string.IsNullOrWhiteSpace(editorText))
             {
                 return;
             }
 
             // SafeFireAndForget handles context, but the error handler updates UI
-            Diagram.RenderAsync(Editor.Text).SafeFireAndForget(onException: ex =>
+            Diagram.RenderAsync(editorText).SafeFireAndForget(onException: ex =>
             {
                 // Even though SafeFireAndForget has a continueOnCapturedContext param, it doesn't guarantee UI thread here
                 Dispatcher.UIThread.Post(() =>
@@ -725,7 +734,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                     // Render the newly loaded content if WebView is ready
                     if (Diagram.IsReady)
                     {
-                        await Diagram.RenderAsync(Editor.Text);
+                        // Use the loaded content directly to avoid redundant Editor.Text access
+                        await Diagram.RenderAsync(content);
                     }
 
                     _logger.LogInformation("Opened file: {FilePath}", filePath);
@@ -1013,7 +1023,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             _isLoadingFile = true;
             try
             {
-                Editor.Text = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+                string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+                Editor.Text = content;
                 CurrentFilePath = filePath;
                 IsDirty = false;
 
@@ -1024,7 +1035,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 // Render the newly loaded content if WebView is ready
                 if (Diagram.IsReady)
                 {
-                    await Diagram.RenderAsync(Editor.Text);
+                    // Use the loaded content directly to avoid redundant Editor.Text access
+                    await Diagram.RenderAsync(content);
                 }
 
                 _logger.LogInformation("Opened recent file: {FilePath}", filePath);
@@ -1114,7 +1126,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             }
 
             // Close any floating windows before resetting the layout
-            // This ensures floating panels are properly closed when the layout is reset
             _dockFactory.CloseAllFloatingWindows(Layout);
 
             // Preserve current editor state before resetting
