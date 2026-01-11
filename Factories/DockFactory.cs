@@ -503,6 +503,102 @@ internal sealed class DockFactory : Factory
         return _rootDock;
     }
 
+    public override void OnDockableActivated(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable activated: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableActivated(dockable);
+    }
+
+    public override void OnDockableClosed(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable closed: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableClosed(dockable);
+    }
+
+    public override void OnDockableDeactivated(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable deactivated: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableDeactivated(dockable);
+    }
+
+    public override void OnDockableDocked(IDockable? dockable, DockOperation operation)
+    {
+        _logger.LogDebug("Dockable docked: {DockableId}, {Title}, Operation: {Operation}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", operation);
+        base.OnDockableDocked(dockable, operation);
+    }
+
+    public override void OnDockableHidden(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable hidden: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableHidden(dockable);
+    }
+
+    public override void OnDockableInit(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable initialized: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableInit(dockable);
+    }
+
+    public override void OnDockableMoved(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable moved: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableMoved(dockable);
+    }
+
+    public override void OnDockablePinned(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable pinned: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockablePinned(dockable);
+    }
+
+    public override void OnDockableRemoved(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable removed: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableRemoved(dockable);
+    }
+
+    public override void OnDockableRestored(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable restored: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableRestored(dockable);
+    }
+
+    public override void OnDockableSwapped(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable swapped: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableSwapped(dockable);
+    }
+
+    public override void OnDockableUndocked(IDockable? dockable, DockOperation operation)
+    {
+        _logger.LogDebug("Dockable undocked: {DockableId}, {Title}, Operation: {Operation}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", operation);
+        base.OnDockableUndocked(dockable, operation);
+    }
+
+    public override void OnDockableUnpinned(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable unpinned: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableUnpinned(dockable);
+    }
+
+    public override void OnDockableAdded(IDockable? dockable)
+    {
+        _logger.LogDebug("Dockable added: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnDockableAdded(dockable);
+    }
+
+    public override void OnActiveDockableChanged(IDockable? dockable)
+    {
+        _logger.LogDebug("Active dockable changed: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnActiveDockableChanged(dockable);
+    }
+
+    public override void OnFocusedDockableChanged(IDockable? dockable)
+    {
+        _logger.LogDebug("Focused dockable changed: {DockableId}, {Title}", dockable?.Id ?? "<null>", dockable?.Title ?? "<null>");
+        base.OnFocusedDockableChanged(dockable);
+    }
+
     /// <summary>
     /// Handles the activation event for a dock window.
     /// </summary>
@@ -585,21 +681,21 @@ internal sealed class DockFactory : Factory
         _logger.LogDebug("");
 
         _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(HostWindows), HostWindows.Count);
-        foreach (var win in HostWindows)
+        foreach (IHostWindow win in HostWindows)
         {
             _logger.LogDebug("HostWindow: Id: {WindowId}, Owner: {OwnerId}, Title: {WindowTitle}, Topmost: {WindowTopmost}, HostWindowState is present: {HostWindowState}",
                 win.Window?.Id, win.Window?.Owner?.Id, win.Window?.Title, win.Window?.Topmost, win.HostWindowState is not null);
         }
 
         _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(PinnedDockableControls), PinnedDockableControls.Count);
-        foreach (var pinnedDockableControl in PinnedDockableControls)
+        foreach (KeyValuePair<IDockable, IDockableControl> pinnedDockableControl in PinnedDockableControls)
         {
             _logger.LogDebug("PinnedDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
                 pinnedDockableControl.Key.Id, pinnedDockableControl.Key.Title, pinnedDockableControl.Value.GetType().Name);
         }
 
         _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(VisibleDockableControls), VisibleDockableControls.Count);
-        foreach (var visibleDockableControl in VisibleDockableControls)
+        foreach (KeyValuePair<IDockable, IDockableControl> visibleDockableControl in VisibleDockableControls)
         {
             _logger.LogDebug("VisibleDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
                 visibleDockableControl.Key.Id, visibleDockableControl.Key.Title, visibleDockableControl.Value.GetType().Name);
@@ -864,9 +960,9 @@ internal sealed class DockFactory : Factory
 
         //TODO - DaveBlack: i think there is already a method somewhere that does this - check Dock.Model.Mvvm.Factory
         // Iterate backwards to safely remove windows while iterating
-        for (var i = HostWindows.Count - 1; i >= 0; i--)
+        for (int i = HostWindows.Count - 1; i >= 0; i--)
         {
-            var hostWindow = HostWindows[i];
+            IHostWindow hostWindow = HostWindows[i];
             try
             {
                 _logger.LogDebug("Closing floating window: {WindowId}", hostWindow.Window?.Id ?? "<null>");
