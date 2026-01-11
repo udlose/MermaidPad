@@ -1791,6 +1791,25 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
+    /// Prepares the application for shutdown by closing all floating windows and resetting the layout.
+    /// </summary>
+    /// <remarks>This method should be called before the application exits to ensure that all floating windows
+    /// are properly closed and the layout is reset. This helps prevent potential data loss or layout inconsistencies on
+    /// the next startup.</remarks>
+    public void PrepareForShutdown()
+    {
+        try
+        {
+            // Close any floating windows before resetting the layout
+            _dockFactory.CloseAllFloatingWindows(Layout);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during {MethodName}", nameof(PrepareForShutdown));
+        }
+    }
+
+    /// <summary>
     /// Releases resources used by the object and unsubscribes from property change notifications.
     /// </summary>
     /// <remarks>
