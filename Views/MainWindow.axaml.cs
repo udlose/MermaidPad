@@ -257,6 +257,9 @@ public sealed partial class MainWindow : Window
             // the lifecycle because we need to save Layout state before floating windows are destroyed.
             _vm.Persist();
 
+            // Notify ViewModel to prepare for shutdown (e.g., close floating windows, stop background tasks, etc.)
+            _vm.PrepareForShutdown();
+
             bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
             if (hasUnsavedChanges)
             {
