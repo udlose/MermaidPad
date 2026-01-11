@@ -147,6 +147,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     public bool EditorHasText => Editor.HasText;
 
     /// <summary>
+    /// Gets a value indicating whether the editor contains any non-whitespace text.
+    /// </summary>
+    /// <remarks>
+    /// This property delegates to <see cref="Editor"/>.HasNonWhitespaceText to maintain a single source of truth.
+    /// It is kept for convenience in command CanExecute logic.
+    /// </remarks>
+    public bool EditorHasNonWhitespaceText => Editor.HasNonWhitespaceText;
+
+    /// <summary>
     /// Gets a value indicating whether the editor tool is currently visible.
     /// </summary>
     /// <remarks>
@@ -257,7 +266,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </summary>
     /// <returns><see langword="true"/> if the WebView is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanExecuteRender() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
+    private bool CanExecuteRender() => Diagram.IsReady && EditorHasNonWhitespaceText;
 
     /// <summary>
     /// Determines whether the diagram can be cleared based on the current state.
@@ -274,7 +283,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </summary>
     /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
-    private bool CanExecuteExport() => Diagram.IsReady && !string.IsNullOrWhiteSpace(Editor.Text);
+    private bool CanExecuteExport() => Diagram.IsReady && EditorHasNonWhitespaceText;
 
     #endregion CanExecute Methods
 
@@ -428,8 +437,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     {
         _ = message; // Explicitly discard unused parameter to satisfy static analysis and document intent
 
-        // Forward HasText property changes and notify SaveFileCommand
+        // Forward HasText, HasNonWhitespaceText property changes and notify SaveFileCommand
         OnPropertyChanged(nameof(EditorHasText));
+        OnPropertyChanged(nameof(EditorHasNonWhitespaceText));
         SaveFileCommand.NotifyCanExecuteChanged();
         SaveFileAsCommand.NotifyCanExecuteChanged();
 
@@ -552,13 +562,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
 
         if (value)
         {
-            // NOTE: Accessing Editor.Text or _vm.Text allocates a string (AvaloniaEdit API).
-            // Save the editor's text to avoid multiple calls
-            string editorText = Editor.Text;
-            if (string.IsNullOrWhiteSpace(editorText))
+            // Avoid allocating Editor.Text just to determine whether we have renderable content
+            if (!EditorHasNonWhitespaceText)
             {
                 return;
             }
+
+            // NOTE: Accessing Editor.Text allocates a string (AvaloniaEdit API).
+            // Capture once for the actual render
+            string editorText = Editor.Text;
 
             // SafeFireAndForget handles context, but the error handler updates UI
             Diagram.RenderAsync(editorText).SafeFireAndForget(onException: ex =>
@@ -865,7 +877,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        if (!IsDirty || string.IsNullOrWhiteSpace(Editor.Text))
+        if (!IsDirty || !EditorHasNonWhitespaceText)
         {
             return Task.FromResult(true); // No unsaved changes, continue
         }
@@ -1122,6 +1134,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             OnPropertyChanged(nameof(Editor));
             OnPropertyChanged(nameof(Diagram));
             OnPropertyChanged(nameof(EditorHasText));
+            OnPropertyChanged(nameof(EditorHasNonWhitespaceText));
             OnPropertyChanged(nameof(IsEditorVisible));
 
             // Reset the warning flag since we have a new Diagram ViewModel

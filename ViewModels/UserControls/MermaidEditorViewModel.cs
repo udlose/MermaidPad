@@ -107,6 +107,21 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     #region Edit State and Clipboard Properties
 
     /// <summary>
+    /// The offset of a non-whitespace character in the document, used as a witness for determining <see cref="HasNonWhitespaceText"/>.
+    /// This is -1 if no non-whitespace character has been found, or if the document is empty or contains only whitespace.
+    /// </summary>
+    /// <remarks>
+    /// This field avoids repeated full-text scans to determine if the document has non-whitespace content.
+    /// </remarks>
+    private int _nonWhitespaceWitnessOffset = -1;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the associated text contains any non-whitespace characters.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasNonWhitespaceText { get; set; }
+
+    /// <summary>
     /// Gets the persistent <see cref="TextDocument"/> that holds the editor content and undo history.
     /// </summary>
     /// <remarks>
@@ -457,6 +472,13 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
         // This decouples the notification from the View layer - the ViewModel handles
         // Document events directly and broadcasts changes via the document-scoped messenger.
         Document.TextChanged += OnDocumentTextChanged;
+
+        // Subscribe to Document.Changed to track non-whitespace text presence
+        // This does not replace TextChanged - both are needed for different purposes
+        Document.Changed += OnDocumentChanged;
+
+        // Ensure HasNonWhitespaceText is correct for the initial document state
+        RecomputeNonWhitespaceByScan();
     }
 
     #region ObservableRecipient Overrides
@@ -559,6 +581,80 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
         // Publish the message for decoupled subscribers (e.g., MainWindowViewModel for live preview, dirty tracking).
         // Uses the document-scoped Messenger (inherited from DocumentViewModelBase via ObservableRecipient).
         Messenger.Send(new EditorTextChangedMessage(new EditorTextChangeInfo(Document)));
+    }
+
+    /// <summary>
+    /// Handles the event that occurs when the document content changes, updating internal state to reflect the presence
+    /// of non-whitespace text.
+    /// </summary>
+    /// <remarks>This method should be called in response to document change events to ensure that the
+    /// internal state accurately tracks whether the document contains any non-whitespace characters.</remarks>
+    /// <param name="sender">The source of the event. This is typically the document that triggered the change.</param>
+    /// <param name="e">An object that contains information about the document change, including the offset, removal length, and
+    /// insertion length.</param>
+    private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)
+    {
+        // Concurrent edits are not allowed by AvaloniaEdit TextDocument, so no capture or synchronization is needed
+        if (Document.TextLength == 0)
+        {
+            _nonWhitespaceWitnessOffset = -1;
+            HasNonWhitespaceText = false;
+            return;
+        }
+
+        // Preserve/adjust an existing witness if it survived the edit
+        if (_nonWhitespaceWitnessOffset >= 0)
+        {
+            int removalStart = e.Offset;
+            int removalEndExclusive = e.Offset + e.RemovalLength;
+
+            if (_nonWhitespaceWitnessOffset < removalStart)
+            {
+                HasNonWhitespaceText = true;
+                return;
+            }
+
+            if (_nonWhitespaceWitnessOffset >= removalEndExclusive)
+            {
+                int delta = e.InsertionLength - e.RemovalLength;
+                int newOffset = _nonWhitespaceWitnessOffset + delta;
+
+                // The entire point of this method is to avoid Document.Text and Document.GetText calls
+                // which allocate strings. So we opt to check the single character at the adjusted offset
+                if (newOffset >= 0 && newOffset < Document.TextLength && !char.IsWhiteSpace(Document.GetCharAt(newOffset)))
+                {
+                    _nonWhitespaceWitnessOffset = newOffset;
+                    HasNonWhitespaceText = true;
+                    return;
+                }
+
+                // Adjusted witness is no longer valid or now points to whitespace.
+                _nonWhitespaceWitnessOffset = -1;
+                RecomputeNonWhitespaceByScan();
+                return;
+            }
+
+            // Witness got deleted
+            _nonWhitespaceWitnessOffset = -1;
+        }
+
+        // No witness: check inserted region first (fast path while typing)
+        int insertionStart = e.Offset;
+        int insertionEndExclusive = e.Offset + e.InsertionLength;
+
+        for (int currentOffset = insertionStart; currentOffset < insertionEndExclusive; currentOffset++)
+        {
+            char character = Document.GetCharAt(currentOffset);
+            if (!char.IsWhiteSpace(character))
+            {
+                _nonWhitespaceWitnessOffset = currentOffset;
+                HasNonWhitespaceText = true;
+                return;
+            }
+        }
+
+        // Fallback scan (rare): e.g., deleted the last non-whitespace character
+        RecomputeNonWhitespaceByScan();
     }
 
     #endregion Document Event Handlers
@@ -726,6 +822,37 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
 
     #endregion Comment/Uncomment Selection Commands
 
+    #region Non-Whitespace Text Tracking
+
+    /// <summary>
+    /// Scans the document to determine whether it contains any non-whitespace characters and updates related state
+    /// accordingly.
+    /// </summary>
+    /// <remarks>This method updates internal fields <see cref="_nonWhitespaceWitnessOffset"/> and <see cref="HasNonWhitespaceText"/>
+    /// to reflect the presence and position of non-whitespace text in the document. It should be called when the document
+    /// content changes and accurate non-whitespace tracking is required.</remarks>
+    private void RecomputeNonWhitespaceByScan()
+    {
+        int length = Document.TextLength;
+        for (int offset = 0; offset < length; offset++)
+        {
+            // The entire point of this method is to avoid Document.Text and Document.GetText calls
+            // which allocate strings. So we opt to check the single character at the given offset
+            char character = Document.GetCharAt(offset);
+            if (!char.IsWhiteSpace(character))
+            {
+                _nonWhitespaceWitnessOffset = offset;
+                HasNonWhitespaceText = true;
+                return;
+            }
+        }
+
+        _nonWhitespaceWitnessOffset = -1;
+        HasNonWhitespaceText = false;
+    }
+
+    #endregion Non-Whitespace Text Tracking
+
     #region IDisposable
 
     /// <summary>
@@ -756,8 +883,9 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
             IsActive = false;
 
             // Unsubscribe from Document events to prevent memory leaks
-            Document.TextChanged -= OnDocumentTextChanged;
             Document.UndoStack.PropertyChanged -= OnUndoStackPropertyChanged;
+            Document.TextChanged -= OnDocumentTextChanged;
+            Document.Changed -= OnDocumentChanged;
 
             _isDisposed = true;
         }
