@@ -100,7 +100,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     [NotifyCanExecuteChangedFor(nameof(FindPreviousCommand))]
     [NotifyCanExecuteChangedFor(nameof(CommentSelectionCommand))]
     [NotifyCanExecuteChangedFor(nameof(UncommentSelectionCommand))]
-    public partial bool IsToolVisible { get; set; } = true;
+    public partial bool IsToolVisible { get; set; }
 
     #endregion Tool Visibility
 
