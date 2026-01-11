@@ -1140,7 +1140,7 @@ MermaidPad uses several open-source projects, including:
 ### Achievements
 ![Achievements](https://embeddables.devactivity.com/personal/udlose/d9b255ef-b846-4b29-8adb-d1458864d87c.svg)
 
-<sup><sub>Check also our [Public Dashboard](https://app.devactivity.com/public/?organizationLogin=udlose) powered by [devActivity](https://devactivity.com/?ref=public_widget)</sub></sup>
+<sup><sub>Check also our [Public Dashboard](https://app.devactivity.com/public/?organizationLogin=udlose&organizationSource=GITHUB&organizationId=398) powered by [devActivity](https://devactivity.com/?ref=public_widget)</sub></sup>
 
 ---
 
