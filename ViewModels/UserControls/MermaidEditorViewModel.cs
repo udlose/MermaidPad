@@ -282,9 +282,9 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     #region Computed Properties
 
     /// <summary>
-    /// Gets a value indicating whether the current text is not null or empty.
+    /// Gets a value indicating whether the document currently contains any text.
     /// </summary>
-    public bool HasText => !string.IsNullOrEmpty(Text);
+    public bool HasText => (Document?.TextLength ?? 0) > 0;
 
     #endregion Computed Properties
 

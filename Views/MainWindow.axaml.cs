@@ -260,7 +260,7 @@ public sealed partial class MainWindow : Window
             // Notify ViewModel to prepare for shutdown (e.g., close floating windows, stop background tasks, etc.)
             _vm.PrepareForShutdown();
 
-            bool hasUnsavedChanges = _vm.IsDirty && !string.IsNullOrWhiteSpace(_vm.Editor.Text);
+            bool hasUnsavedChanges = _vm is { IsDirty: true, EditorHasText: true };
             if (hasUnsavedChanges)
             {
                 // Cancel the close attempt and call base.OnClosing(e) so the Closing event is raised and subscribers
