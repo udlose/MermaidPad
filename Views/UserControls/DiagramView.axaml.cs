@@ -168,6 +168,21 @@ public sealed partial class DiagramView : UserControl, IViewModelVersionSource<D
                 return;
             }
 
+            // NOTE: The DataContext may be null when this view is attached after dock drag-drop operations.
+            // This happens because Dock.Avalonia creates new view instances during layout changes, and the
+            // DataContext binding ({Binding Diagram} from DiagramToolView.axaml) hasn't resolved yet.
+            // 
+            // DO NOT attempt to manually set DataContext here by walking up to MainWindow - this would:
+            // 1. Break MVVM separation (View should not know about MainWindow structure)
+            // 2. Bypass the Dock framework's Context assignment mechanism
+            // 3. Create a different ViewModel instance than what the Dock framework is tracking
+            //
+            // So we ensure the Dock framework properly initializes layouts using factory methods
+            // (CreateRootDock, CreateToolDock, etc.) instead of direct instantiation. This maintains the
+            // Window.Layout <-> RootDock.VisibleDockables synchronization that the framework relies on.
+            //
+            // When DataContext is null here, OnDataContextChanged will be called shortly after with the
+            // correct ViewModel once the binding resolves. The early return below is safe.
             if (DataContext is not DiagramViewModel dataContextViewModel)
             {
                 return;
