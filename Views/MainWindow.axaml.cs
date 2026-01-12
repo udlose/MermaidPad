@@ -216,6 +216,9 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            // Notify ViewModel to prepare for shutdown (e.g., close floating windows, stop background tasks, etc.)
+            _vm.PrepareForShutdown();
+
             UnsubscribeAllEventHandlers();
         }
         finally
@@ -256,9 +259,6 @@ public sealed partial class MainWindow : Window
             // Persist settings here in OnClosing. Using OnClosed is too late in
             // the lifecycle because we need to save Layout state before floating windows are destroyed.
             _vm.Persist();
-
-            // Notify ViewModel to prepare for shutdown (e.g., close floating windows, stop background tasks, etc.)
-            _vm.PrepareForShutdown();
 
             bool hasUnsavedChanges = _vm is { IsDirty: true, EditorHasText: true };
             if (hasUnsavedChanges)
