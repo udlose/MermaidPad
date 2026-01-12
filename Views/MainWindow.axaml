@@ -196,6 +196,7 @@
     <idc:DockControl
       x:Name="DockControl"
       Margin="6,0,6,6"
+      Background="Transparent"
       InitializeFactory="False"
       InitializeLayout="False"
       Layout="{Binding Layout}" />
