@@ -968,12 +968,38 @@ internal sealed class DockFactory : Factory
                 _logger.LogDebug("Closing floating window: {WindowId}", hostWindow.Window?.Id ?? "<null>");
                 if (hostWindow.Window is not null)
                 {
-                    RemoveWindow(hostWindow.Window); // if hostWindow.Window.Owner is IRootDock rootDock, Exit() is called inside RemoveWindow
+                    // If hostWindow.Window.Owner is IRootDock rootDock, Exit() is called inside RemoveWindow
+                    // so there is no need to call rootDock.Exit() here
+                    RemoveWindow(hostWindow.Window);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to close floating window: {WindowId}", hostWindow.Window?.Id ?? "<null>");
+            }
+        }
+
+        // now try to close any remaining windows that might be attached to the layout
+        if (layout.Windows is not null)
+        {
+            // Iterate backwards to safely remove windows while iterating
+            for (int i = layout.Windows.Count - 1; i >= 0; i--)
+            {
+                IDockWindow dockWindow = layout.Windows[i];
+                try
+                {
+                    _logger.LogDebug("Closing floating window from layout: {WindowId}", dockWindow.Id);
+                    if (dockWindow.Host is not null)
+                    {
+                        // If dockWindow.Owner is IRootDock rootDock, Exit() is called inside RemoveWindow
+                        // so there is no need to call rootDock.Exit() here
+                        RemoveWindow(dockWindow);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to close floating window from layout: {WindowId}", dockWindow.Id);
+                }
             }
         }
 
