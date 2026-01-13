@@ -135,6 +135,36 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
     public partial bool LivePreviewEnabled { get; set; }
 
     /// <summary>
+    /// This will get or set the value indicating whether word wrap is enabled in the editor.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool WordWrapEnabled { get; set; }
+
+    /// <summary>
+    /// Called when wordwrapengabled changes; persists the new value to settings.
+    /// </summary>
+    partial void OnWordWrapEnabledChanged(bool value)
+    {
+        _settingsService.Settings.WordWrapEnabled = value;
+        _settingsService.Save();
+    }
+
+    /// <summary>
+    /// This will get or set the value indicating whether a line number is shown in the editor.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowLineNumbers { get; set; }
+
+    /// <summary>
+    /// Called when ShowLineNumbers changes; persists the new value to settings.
+    /// </summary>
+    partial void OnShowLineNumbersChanged(bool value)
+    {
+        _settingsService.Settings.ShowLineNumbers = value;
+        _settingsService.Save();
+    }
+
+    /// <summary>
     /// Gets or sets the current file path being edited.
     /// </summary>
     [ObservableProperty]
@@ -208,6 +238,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IDisposable
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
+        WordWrapEnabled = _settingsService.Settings.WordWrapEnabled;
+        ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
 
         // Subscribe to Editor.PropertyChanged to forward Text/HasText changes
