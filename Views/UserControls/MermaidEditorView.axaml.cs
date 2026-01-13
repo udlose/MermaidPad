@@ -1497,5 +1497,35 @@ public sealed partial class MermaidEditorView : UserControl
         }
     }
 
+    /// <summary>
+    /// Sets whether word wrap is enabled in the editor.
+    /// </summary>
+    /// <param name="enabled"><c>true</c> to enable word wrap; otherwise, <c>false</c>.</param>
+    public void SetWordWrap(bool enabled)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Editor.WordWrap = enabled;
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => Editor.WordWrap = enabled, DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// Sets whether line numbers are shown in the editor.
+    /// </summary>
+    /// <param name="show"><c>true</c> to show line numbers; otherwise, <c>false</c>.</param>
+    public void SetShowLineNumbers(bool show)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Editor.ShowLineNumbers = show;
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => Editor.ShowLineNumbers = show, DispatcherPriority.Normal);
+    }
+
     #endregion Cleanup
 }
