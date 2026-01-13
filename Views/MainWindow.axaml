@@ -99,6 +99,17 @@
           Command="{Binding Editor.UncommentSelectionCommand}"
           Header="_Uncomment Selection"
           InputGesture="Ctrl+Shift+U" />
+        <Separator />
+        <MenuItem Header="Formatting">
+          <MenuItem 
+            Header="Word _Wrap" 
+            IsChecked="{Binding WordWrapEnabled, Mode=TwoWay}" 
+            ToggleType="CheckBox" />
+          <MenuItem 
+            Header="Show _Line Numbers" 
+            IsChecked="{Binding ShowLineNumbers, Mode=TwoWay}" 
+            ToggleType="CheckBox" />
+        </MenuItem>
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
