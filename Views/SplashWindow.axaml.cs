@@ -26,6 +26,7 @@ using Avalonia.Threading;
 using MermaidPad.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views;
@@ -238,7 +239,7 @@ internal sealed partial class SplashWindow : Window
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Error running splash completion action");
+            Log.Fatal(ex, "Error opening main window");
         }
         finally
         {
