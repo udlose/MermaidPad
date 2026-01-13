@@ -390,18 +390,42 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
-    /// Initializes the dock layout, attempting to restore a saved layout first,
-    /// then falling back to the default layout if restoration fails.
+    /// Initializes the dock layout by loading a previously saved layout if available; otherwise, creates and
+    /// initializes a default layout.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method attempts to restore the user's last dock layout, including any associated state
+    /// such as tool visibility or pinned status. If no valid saved layout is found, a default layout is created and
+    /// initialized. This ensures that the dock control is always in a valid state after initialization.
+    /// </para>
+    /// <para>
+    /// This method sets up the docking layout by passing the provided root dock model to the dock
+    /// factory and updates the current layout reference. Ensure that the root dock model is properly configured before
+    /// calling this method.
+    /// </para>
+    /// <para>
+    ///     Per https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-faq.md#focus-management, you should:
+    ///
+    ///     1. Assign the layout to DockControl.Layout BEFORE calling InitLayout()
+    ///     2. Do not overwrite ActiveDockable or DefaultDockable after loading
+    ///
+    /// </para>
+    /// </remarks>
     private void InitializeDockLayout()
     {
         // Try to load saved layout, fall back to default if not found or invalid
         IRootDock? savedLayout = _dockLayoutService.Load();
         if (savedLayout is not null)
         {
-            // Initialize the loaded layout and restore the dock state
-            InitializeDockLayout(savedLayout);
+            // First, restore any additional state (e.g., tool visibility, pinned state) from the saved layout
             _dockLayoutService.RestoreState(savedLayout);
+
+            // Assign the layout to DockControl.Layout before calling InitLayout
+            Layout = savedLayout;
+
+            // Now we can initialize the layout
+            _dockFactory.InitLayout(savedLayout);
 
             _logger.LogInformation("Dock layout restored from saved file");
         }
@@ -409,19 +433,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         {
             CreateAndInitializeDefaultDockLayout();
         }
-    }
-
-    /// <summary>
-    /// Initializes the dock layout using the specified root dock model.
-    /// </summary>
-    /// <remarks>This method sets up the docking layout by passing the provided root dock model to the dock
-    /// factory and updates the current layout reference. Ensure that the root dock model is properly configured before
-    /// calling this method.</remarks>
-    /// <param name="rootDock">The root dock model to use for initializing the layout. Cannot be null.</param>
-    private void InitializeDockLayout(IRootDock rootDock)
-    {
-        _dockFactory.InitLayout(rootDock);
-        Layout = rootDock;
 
         Debug.Assert(_dockFactory.ContextLocator is not null);
         Debug.Assert(_dockFactory.DockableLocator is not null);
@@ -430,14 +441,29 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Initializes the dock layout to its default configuration and captures its initial state for future restoration.
     /// </summary>
-    /// <remarks>This method creates the default dock layout, applies any necessary initialization, and
+    /// <remarks>
+    /// <para>This method creates the default dock layout, applies any necessary initialization, and
     /// records the initial state. It is typically called during application startup or when resetting the layout to
-    /// defaults.</remarks>
+    /// defaults.
+    /// </para>
+    /// <para>
+    ///     Per https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-faq.md#focus-management, you should:
+    ///
+    ///     1. Assign the layout to DockControl.Layout BEFORE calling InitLayout()
+    ///     2. Do not overwrite ActiveDockable or DefaultDockable after loading
+    ///
+    /// </para>
+    /// </remarks>
     private void CreateAndInitializeDefaultDockLayout()
     {
         // Create default layout
         IRootDock defaultLayout = _dockFactory.CreateDefaultLayout();
-        InitializeDockLayout(defaultLayout);
+
+        // Assign the layout to DockControl.Layout before calling InitLayout
+        Layout = defaultLayout;
+
+        // Now we can initialize the layout
+        _dockFactory.InitLayout(defaultLayout);
 
         // Capture initial state for future restoration
         _dockLayoutService.CaptureState(defaultLayout);
@@ -1803,13 +1829,13 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
 
-        // Save dock layout state (synchronous fallback - async save should have happened on deactivation)
+        // Save dock layout state before any floating windows are closed
         if (Layout is not null)
         {
             bool saved = _dockLayoutService.Save(Layout);
             if (!saved)
             {
-                _logger.LogWarning("Failed to save dock layout state during shutdown");
+                _logger.LogWarning("Failed to save dock layout state during {MethodName} method call", nameof(Persist));
             }
         }
     }
