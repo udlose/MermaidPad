@@ -62,8 +62,9 @@ internal static class Program
     private static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure(static () => new App())
             .UsePlatformDetect()
-            .EnableWindowMagnetism()    // enable window magnetism (snap-to-edge) for Dock
-            .UseFloatingDockAdorner()   // enable floating dock adorners for Dock
-            .UseDesktopWebView() // this handles cross-platform WebView support
+            .EnableWindowMagnetism()        // enable window magnetism (snap-to-edge) for Dock
+            .UseOwnerForFloatingWindows()   // make floating windows owned by the main window so they stay in front
+            .UseFloatingDockAdorner()       // enable floating dock adorners for Dock
+            .UseDesktopWebView()            // this handles cross-platform WebView support
             .LogToTrace();
 }
