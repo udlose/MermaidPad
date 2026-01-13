@@ -241,8 +241,8 @@ internal sealed class DockLayoutService
     /// which handles circular references and NaN values correctly.
     /// </para>
     /// <para>
-    /// Before saving, consider calling <see cref="CaptureState"/> to capture the current
-    /// dock state for later restoration.
+    /// Before saving, you must call <see cref="IDockState.Save(IDock)"/> to capture the current
+    /// dock state before serialization.
     /// </para>
     /// </remarks>
     public bool Save(IRootDock? layout)
