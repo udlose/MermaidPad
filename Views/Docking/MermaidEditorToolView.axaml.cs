@@ -158,15 +158,17 @@ public sealed partial class MermaidEditorToolView : UserControl
     /// <param name="e">The event arguments containing attachment information.</param>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        // Always call base first to ensure proper attachment
+        base.OnAttachedToVisualTree(e);
+
         try
         {
-            // Always call base first to ensure proper attachment
-            base.OnAttachedToVisualTree(e);
-
             if (DataContext is MermaidEditorToolViewModel toolVm)
             {
                 toolVm.IsEditorVisible = true;
             }
+
+            _logger?.LogDebug("{ViewName} attached to visual tree.", nameof(MermaidEditorToolView));
         }
         catch (Exception ex)
         {
@@ -213,6 +215,8 @@ public sealed partial class MermaidEditorToolView : UserControl
             {
                 toolVm.IsEditorVisible = false;
             }
+
+            _logger?.LogDebug("{ViewName} detached from visual tree.", nameof(MermaidEditorToolView));
         }
         finally
         {
