@@ -323,6 +323,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     public bool HasRecentFiles => RecentFiles.Count > 0;
 
     /// <summary>
+    /// Gets the factory used to create and manage dockable UI components.
+    /// </summary>
+    public DockFactory DockFactory => _dockFactory;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
     /// <param name="dockFactory">The factory for creating the dock layout.</param>
