@@ -199,6 +199,7 @@
       Background="Transparent"
       InitializeFactory="False"
       InitializeLayout="False"
+      Factory="{Binding DockFactory}"
       Layout="{Binding Layout}" />
   </DockPanel>
 </Window>
