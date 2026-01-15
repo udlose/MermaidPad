@@ -1411,7 +1411,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
     {
         try
         {
-            bool isDarkTheme = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
+            bool isDarkTheme = Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
             _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
         }
         catch (Exception ex)
