@@ -60,6 +60,8 @@ namespace MermaidPad.Factories;
 //TODO - DaveBlack: MDI Migration Note: For MDI scenarios, this factory needs to create separate tool instances for each document, with each document having its own editor and diagram panels
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via DI container.")]
 [SuppressMessage("Maintainability", "S1192: String literals should not be duplicated", Justification = "Logging message template is used")]
+[SuppressMessage("Maintainability", "S3267:Loops should be simplified with LINQ expressions", Justification = "This code is performance-sensitive.")]
+// ReSharper disable MergeIntoPattern
 internal sealed class DockFactory : Factory
 {
     private readonly ILogger<DockFactory> _logger;
@@ -70,11 +72,6 @@ internal sealed class DockFactory : Factory
     private const string MainProportionalDockId = "MainProportionalDock";
     private const string EditorToolDockId = "EditorToolDock";
     private const string DiagramToolDockId = "DiagramToolDock";
-
-    private RootDock? _rootDock;
-    private ProportionalDock? _mainLayout;
-    private ToolDock? _editorToolDock;
-    private ToolDock? _diagramToolDock;
 
     /// <summary>
     /// Gets the editor tool ViewModel, created during layout initialization.
@@ -281,10 +278,7 @@ internal sealed class DockFactory : Factory
     /// The initial proportions are set to 50/50 (equal width for both panels).
     /// </para>
     /// </remarks>
-    public override IRootDock CreateLayout()
-    {
-        return CreateDefaultLayout();
-    }
+    public override IRootDock CreateLayout() => CreateDefaultLayout();
 
     /// <summary>
     /// Initializes the dock layout after creation or deserialization.
@@ -306,6 +300,12 @@ internal sealed class DockFactory : Factory
     {
         _logger.LogInformation("Initializing dock layout");
 
+        // DEBUG: Dump hierarchy BEFORE InitLayout to see what changed
+        //_logger.LogDebug("=== BEFORE base.InitLayout() + FindToolsInLayout - Initial hierarchy ===");
+        //DumpHierarchy(layout, depth: 0);
+        //_logger.LogDebug("=== END hierarchy dump ===");
+        //DumpDockMetadata(rootDock);
+
         // Capture references to existing tools BEFORE base.InitLayout() may replace them.
         // During deserialization, the DockableLocator lambdas may create new tool instances,
         // which would overwrite EditorTool/DiagramTool. We need to dispose the old ones afterward.
@@ -320,58 +320,33 @@ internal sealed class DockFactory : Factory
         // which uses the locators configured above. New tools may be created via DockableLocator.
         base.InitLayout(layout);
 
-        //TODO - DaveBlack: optimize this code to avoid iteration over the layout multiple times
-        _rootDock ??= FindRoot(layout) as RootDock ?? throw new InvalidOperationException($"{nameof(_rootDock)} not found in layout during initialization.");
-        _mainLayout ??= FindDockable(_rootDock, static dockable => dockable.Id == MainProportionalDockId) as ProportionalDock ??
-                        throw new InvalidOperationException($"{nameof(_mainLayout)} not found in layout during initialization.");
-
-        if (_editorToolDock is null)
+        IRootDock? rootDock = layout as IRootDock;
+        if (rootDock is null)
         {
-            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
-            _editorToolDock = FindDockable(_rootDock, static dockable => dockable.Id == EditorToolDockId) as ToolDock;
-            if (_editorToolDock is null)
+            rootDock = FindRoot(layout);
+            if (rootDock is null)
             {
-                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_editorToolDock));
+                _logger.LogError("RootDock not found in layout during initialization.");
+                throw new InvalidOperationException("RootDock not found in layout during initialization.");
             }
-        }
-
-        if (_diagramToolDock is null)
-        {
-            // It's possible that the tool was "floated" in the layout in which case it won't be found and will be recreated by the locator when needed
-            _diagramToolDock = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolDockId) as ToolDock;
-            if (_diagramToolDock is null)
-            {
-                _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(_diagramToolDock));
-            }
-        }
-
-        if (EditorTool is null)
-        {
-            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
-            EditorTool = FindDockable(_rootDock, static dockable => dockable.Id == MermaidEditorToolViewModel.ToolId) as MermaidEditorToolViewModel;
-
-            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
-            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
-            // It will create a new instance via the locator
-            //EditorTool = GetDockable<MermaidEditorToolViewModel>(MermaidEditorToolViewModel.ToolId);
-        }
-
-        if (DiagramTool is null)
-        {
-            // It's possible that the tool was "hidden" in the layout (not visible or pinned), in which case it won't be found and will be recreated by the locator when needed
-            DiagramTool = FindDockable(_rootDock, static dockable => dockable.Id == DiagramToolViewModel.ToolId) as DiagramToolViewModel;
-
-            //TODO - DaveBlack: review whether to use FindDockable or GetDockable here
-            // GetDockable<T> is a helper method defined in Dock.Model.Mvvm.Factory that uses the DockableLocator to create or retrieve the dockable by ID
-            // It will create a new instance via the locator
-            //DiagramTool = GetDockable<DiagramToolViewModel>(DiagramToolViewModel.ToolId);
         }
 
         // After layout initialization, try to find our tools if they were restored from serialization
+        Stopwatch stopwatch = Stopwatch.StartNew();
         if (EditorTool is null || DiagramTool is null)
         {
-            FindToolsInLayout(layout);
+            // We can't use the Find with the following Find method signature:
+            //      Find(Func<IDockable, bool> predicate)
+            //
+            // because it iterates on the DockControl and the DockControl has not yet been
+            // assigned to the Factory at this point. That doesn't happen until the DockControl's
+            // OnAttachedToVisualTree is called, which is well after InitLayout completes.
+            List<IDockable> dockables = FindAllDockables(rootDock, HostWindows).ToList();
+            EditorTool ??= dockables.Find(static dockable => dockable.Id == MermaidEditorToolViewModel.ToolId) as MermaidEditorToolViewModel;
+            DiagramTool ??= dockables.Find(static dockable => dockable.Id == DiagramToolViewModel.ToolId) as DiagramToolViewModel;
         }
+        stopwatch.Stop();
+        _logger.LogTiming(nameof(FindAllDockables), stopwatch.Elapsed, true);
 
         // Dispose stale tools AFTER base initialization completes and new tools are assigned.
         // This prevents race conditions where base.InitLayout() might access null properties.
@@ -399,7 +374,12 @@ internal sealed class DockFactory : Factory
             _logger.LogInformation("{ToolName} not found in layout during initialization. It will be recreated by the locator when needed.", nameof(DiagramTool));
         }
 
-        LogDockMetadata();
+        // DEBUG: Dump hierarchy AFTER InitLayout to see what changed
+        //_logger.LogDebug("=== AFTER base.InitLayout() + FindToolsInLayout - Final hierarchy ===");
+        //DumpHierarchy(layout, depth: 0);
+        //_logger.LogDebug("=== END hierarchy dump ===");
+        //DumpDockMetadata(rootDock);
+
         _logger.LogInformation("Dock layout initialized");
     }
 
@@ -438,69 +418,79 @@ internal sealed class DockFactory : Factory
         EditorTool.Factory = this;
         DiagramTool.Factory = this;
 
+        // IMPORTANT: Use factory methods (CreateToolDock, CreateProportionalDock, CreateRootDock) instead of
+        // direct instantiation (new ToolDock, new ProportionalDock, new RootDock). The factory methods set up
+        // internal relationships (e.g., Window.Layout) that the Dock framework relies on during drag-drop
+        // operations and serialization. Direct instantiation causes Window.Layout to get out of sync with
+        // RootDock.VisibleDockables when dockables are moved, leading to panels disappearing after app restart.
+        // NOTE: There can only be 1 ActiveDockable per ToolDock, so we set it for each tool dock below (except RootDock).
         // Create tool docks with default 35/65 proportions
         //TODO - DaveBlack: change the proportions once I add the new panel for AI
-        _editorToolDock = new ToolDock
-        {
-            Factory = this,
-            Id = EditorToolDockId,
-            Title = "Editor",
-            Proportion = 0.35,
-            ActiveDockable = EditorTool,
-            VisibleDockables = CreateList<IDockable>(EditorTool),
-            CanClose = false,
-            CanPin = true,
-            CanFloat = true
-        };
+        IToolDock editorToolDock = CreateToolDock();
+        editorToolDock.Factory = this;
+        editorToolDock.Id = EditorToolDockId;
+        editorToolDock.Title = "Editor";
+        editorToolDock.Proportion = 0.35;
+        editorToolDock.VisibleDockables = CreateList<IDockable>(EditorTool);
+        editorToolDock.ActiveDockable = EditorTool;
+        editorToolDock.CanClose = false;
+        editorToolDock.CanPin = true;
+        editorToolDock.CanFloat = true;
 
-        _diagramToolDock = new ToolDock
-        {
-            Factory = this,
-            Id = DiagramToolDockId,
-            Title = "Diagram",
-            Proportion = 0.65,
-            ActiveDockable = DiagramTool,
-            VisibleDockables = CreateList<IDockable>(DiagramTool),
-            CanClose = false,
-            CanPin = true,
-            CanFloat = true
-        };
+        IToolDock diagramToolDock = CreateToolDock();
+        diagramToolDock.Factory = this;
+        diagramToolDock.Id = DiagramToolDockId;
+        diagramToolDock.Title = "Diagram";
+        diagramToolDock.Proportion = 0.65;
+        diagramToolDock.VisibleDockables = CreateList<IDockable>(DiagramTool);
+        diagramToolDock.ActiveDockable = DiagramTool;
+        diagramToolDock.CanClose = false;
+        diagramToolDock.CanPin = true;
+        diagramToolDock.CanFloat = true;
 
         // Create a proportional dock to hold both tool docks (horizontal layout)
-        _mainLayout = new ProportionalDock
-        {
-            Factory = this,
-            Id = MainProportionalDockId,
-            Title = "Main",
-            Orientation = Orientation.Horizontal,
-            Proportion = double.NaN,
-            ActiveDockable = null,
-            VisibleDockables = CreateList<IDockable>(
-                _editorToolDock,
-                new ProportionalDockSplitter
-                {
-                    Id = "MainSplitter",
-                    Title = "Splitter"
-                },
-                _diagramToolDock
-            )
-        };
+        IProportionalDockSplitter splitter = CreateProportionalDockSplitter();
+        splitter.Id = "MainSplitter";
+        splitter.Title = "Splitter";
+        splitter.Factory = this;
+        splitter.CanResize = true;
+        splitter.ResizePreview = false;  // when false, show live preview while resizing (versus a drag indicator)
 
-        // Create the root dock
-        _rootDock = new RootDock
-        {
-            Factory = this,
-            Id = RootDockId,
-            Title = "Root",
-            IsCollapsable = false,
-            ActiveDockable = _mainLayout,
-            DefaultDockable = _mainLayout,
-            VisibleDockables = CreateList<IDockable>(_mainLayout)
-        };
+        IProportionalDock mainLayout = CreateProportionalDock();
+        mainLayout.Factory = this;
+        mainLayout.Id = MainProportionalDockId;
+        mainLayout.Title = "Main";
+        mainLayout.Orientation = Orientation.Horizontal;
+        mainLayout.VisibleDockables = CreateList<IDockable>(
+            editorToolDock,
+            splitter,
+            diagramToolDock
+        );
 
-        _logger.LogInformation("Default dock layout created with {EditorProportion}%/{DiagramProportion}% {Orientation} split", _editorToolDock.Proportion * 100, _diagramToolDock.Proportion * 100, _mainLayout.Orientation);
+        // Create the root dock using the factory method
+        // CreateRootDock() is a base class method that properly initializes internal relationships
+        // CreateRootDock() also creates non-null, empty collections for all PinnedDockables (Left, Right, Top, Bottom)
+        IRootDock rootDock = CreateRootDock();
+        rootDock.Factory = this;
+        rootDock.Id = RootDockId;
+        rootDock.Title = "Root";
+        rootDock.IsCollapsable = false;
+        rootDock.VisibleDockables = CreateList<IDockable>(mainLayout);
+        // WARNING: DO NOT set RootDock's DefaultDockable to anything.
+        // Doing so breaks initial display and the drag-drop of dockables between ToolDocks
 
-        return _rootDock;
+        //TODO - DaveBlack: create something to set the active, focused dockable on app startup for default layout settings
+        // we can't do it here because the Owner window isn't assigned to the IDockable yet. We need to figure out
+        // where the best place is to do this after the layout is fully initialized and the DockControl is attached to the visual tree.
+        // We have to make sure it only happens once, not every time the layout is restored.
+        //      1. Set the active and focused dockables to the editor by default
+        //      2. Floating windows should NOT appear behind the main window on startup
+        //SetActiveDockable(EditorTool);
+        //SetFocusedDockable(someRootDock, EditorTool);
+
+        _logger.LogInformation("Default dock layout created with {EditorProportion}%/{DiagramProportion}% {Orientation} split", editorToolDock.Proportion * 100, diagramToolDock.Proportion * 100, mainLayout.Orientation);
+
+        return rootDock;
     }
 
     public override void OnDockableActivated(IDockable? dockable)
@@ -653,125 +643,300 @@ internal sealed class DockFactory : Factory
 
     #endregion Overrides
 
+    ///// <summary>
+    ///// Searches the dock layout hierarchy to find and cache references to the tool ViewModels.
+    ///// </summary>
+    ///// <param name="root">The root dockable to search from.</param>
+    ///// <remarks>
+    ///// <para>
+    ///// This method is called after layout initialization to ensure we have references to the
+    ///// tool ViewModels. It uses an iterative depth-first search with a stack to avoid recursion overhead.
+    ///// </para>
+    ///// <para>
+    ///// The search includes:
+    ///// <list type="bullet">
+    /////     <item><description><c>VisibleDockables</c> - Normal docked panels</description></item>
+    /////     <item><description><c>LeftPinnedDockables</c>, <c>RightPinnedDockables</c>, <c>BottomPinnedDockables</c>, <c>TopPinnedDockables</c>
+    /////     - Auto-hide/pinned panels</description></item>
+    /////     <item><description><c>ActiveDockable</c> - Currently active dockable (may be in a floating window)</description></item>
+    /////     <item><description><c>DefaultDockable</c> - Default dockable (may be in a floating window)</description></item>
+    /////     <item><description><c>FocusedDockable</c> - Currently focused dockable (maybe in a floating window)</description></item>
+    /////     <item><description><c>FocusedDockable.Owner</c> chain - To find floating window containers</description></item>
+    /////     <item><description><c>Window.Layout</c> - Floating window layouts</description></item>
+    /////     <item><description><c>Windows.Layout</c> - All floating windows layouts</description></item>
+    /////     <item><description><c>HostWindows</c> collection - All floating windows managed by the factory</description></item>
+    ///// </list>
+    ///// </para>
+    ///// <para>
+    ///// <b>Floating Window Support:</b> When tools are floated (moved to separate windows), they exist
+    ///// in the <see cref="Factory.HostWindows"/> collection rather than in the main layout hierarchy.
+    ///// This method explicitly searches all floating windows to find tools that were floated before
+    ///// the layout was saved.
+    ///// </para>
+    ///// <para>
+    ///// <b>Performance:</b> Uses iterative traversal with a stack instead of recursion
+    ///// to eliminate method call overhead. Early exit when both tools are found.
+    ///// Uses a HashSet for cycle detection to handle circular references in the dock hierarchy.
+    ///// </para>
+    ///// </remarks>
+    //private HashSet<IDockable> FindToolsInLayout(IDockable? root)
+    //{
+    //    if (root is null)
+    //    {
+    //        return new HashSet<IDockable>();
+    //    }
+
+    //    HashSet<IDockable>? dockables = null;
+    //    Stopwatch stopwatch = Stopwatch.StartNew();
+
+    //    // Use stack-based iteration instead of recursion to avoid stack frame overhead
+    //    // Initial capacity of 16 to account for pinned dockables collections and floating windows
+    //    Stack<IDockable> stack = new Stack<IDockable>(capacity: 16);
+
+    //    // Track visited nodes to prevent infinite loops from circular references
+    //    // The dock hierarchy can have cycles (e.g., Window.Layout referencing back to the same RootDock)
+    //    HashSet<IDockable>? visited = null;
+    //    try
+    //    {
+    //        visited = _hashSetObjectPool.Get();
+
+    //        stack.Push(root);
+
+    //        // Also search all floating windows in the HostWindows collection.
+    //        // When tools are floated, they exist in separate HostWindow containers that may not be
+    //        // reachable from the main layout hierarchy. The HostWindows collection is populated
+    //        // during deserialization when floating windows are restored.
+    //        foreach (IHostWindow hostWindow in HostWindows)
+    //        {
+    //            if (hostWindow.Window?.Layout is not null)
+    //            {
+    //                LogDebugDetail("Pushing HostWindow.Layout: {Type} (Id: {Id})", hostWindow.Window.Layout.GetType().Name, hostWindow.Window.Layout.Id);
+    //                stack.Push(hostWindow.Window.Layout);
+    //            }
+    //        }
+
+    //        while (stack.Count > 0)
+    //        {
+    //            IDockable current = stack.Pop();
+
+    //            // Skip if already visited (cycle detection)
+    //            if (!visited.Add(current))
+    //            {
+    //                continue;
+    //            }
+
+    //            // Log what we're processing for debugging
+    //            LogDebugDetail("{Method} processing: {Type} (Id: {Id})", nameof(FindToolsInLayout), current.GetType().Name, current.Id);
+
+    //            switch (current)
+    //            {
+    //                case MermaidEditorToolViewModel editorTool:
+    //                    EditorTool = editorTool;
+    //                    LogDebugDetail("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(EditorTool), nameof(MermaidEditorToolViewModel));
+    //                    break;
+
+    //                case DiagramToolViewModel diagramTool:
+    //                    DiagramTool = diagramTool;
+    //                    LogDebugDetail("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(DiagramTool), nameof(DiagramToolViewModel));
+    //                    break;
+
+    //                case IRootDock rootDock:
+    //                    // Search pinned dockables collections (auto-hide panels)
+    //                    // These are populated when a tool is pinned to the edge of the window
+    //                    PushDockablesToStack(stack, rootDock.LeftPinnedDockables);
+    //                    PushDockablesToStack(stack, rootDock.RightPinnedDockables);
+    //                    PushDockablesToStack(stack, rootDock.TopPinnedDockables);
+    //                    PushDockablesToStack(stack, rootDock.BottomPinnedDockables);
+
+    //                    // Search hidden dockables
+    //                    PushDockablesToStack(stack, rootDock.HiddenDockables);
+
+    //                    // Search visible dockables
+    //                    PushDockablesToStack(stack, rootDock.VisibleDockables);
+
+    //                    // Search ActiveDockable - may contain floating window content
+    //                    if (rootDock.ActiveDockable is not null && !visited.Contains(rootDock.ActiveDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing ActiveDockable: {Type} (Id: {Id})", rootDock.ActiveDockable.GetType().Name, rootDock.ActiveDockable.Id);
+    //                        stack.Push(rootDock.ActiveDockable);
+    //                    }
+
+    //                    // Search DefaultDockable - may contain floating window content
+    //                    if (rootDock.DefaultDockable is not null && !visited.Contains(rootDock.DefaultDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing DefaultDockable: {Type} (Id: {Id})", rootDock.DefaultDockable.GetType().Name, rootDock.DefaultDockable.Id);
+    //                        stack.Push(rootDock.DefaultDockable);
+    //                    }
+
+    //                    // Search FocusedDockable - may reference a tool in a floating window
+    //                    // IMPORTANT: When a tool is floated, FocusedDockable points to the tool,
+    //                    // and the tool's Owner chain leads to the floating window's RootDock
+    //                    if (rootDock.FocusedDockable is not null && !visited.Contains(rootDock.FocusedDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing FocusedDockable: {Type} (Id: {Id})", rootDock.FocusedDockable.GetType().Name, rootDock.FocusedDockable.Id);
+    //                        stack.Push(rootDock.FocusedDockable);
+
+    //                        // Also traverse the Owner chain of FocusedDockable to find floating windows
+    //                        // The tool's Owner -> ToolDock -> RootDock -> Window structure
+    //                        IDockable? ownerCurrent = rootDock.FocusedDockable.Owner;
+    //                        while (ownerCurrent is not null)
+    //                        {
+    //                            if (!visited.Contains(ownerCurrent))
+    //                            {
+    //                                LogDebugDetail("Pushing FocusedDockable.Owner chain: {Type} (Id: {Id})", ownerCurrent.GetType().Name, ownerCurrent.Id);
+    //                                stack.Push(ownerCurrent);
+    //                            }
+    //                            ownerCurrent = ownerCurrent.Owner;
+    //                        }
+    //                    }
+
+    //                    // Search the Window property - contains floating window layout
+    //                    // The Window has a Layout property which is another RootDock
+    //                    IRootDock? rootDockWindowLayout = rootDock.Window?.Layout;
+    //                    if (rootDockWindowLayout is not null && !visited.Contains(rootDockWindowLayout))
+    //                    {
+    //                        LogDebugDetail("Pushing Window.Layout: {Type} (Id: {Id})", rootDockWindowLayout.GetType().Name, rootDockWindowLayout.Id);
+    //                        stack.Push(rootDockWindowLayout);
+    //                    }
+
+    //                    // Search all dock windows managed by the factory
+    //                    if (rootDock.Windows is not null)
+    //                    {
+    //                        foreach (IDockWindow dockWindow in rootDock.Windows)
+    //                        {
+    //                            if (dockWindow.Layout is not null && !visited.Contains(dockWindow.Layout))
+    //                            {
+    //                                stack.Push(dockWindow.Layout);
+    //                            }
+    //                        }
+    //                    }
+
+    //                    break;
+
+    //                case IDock dock:
+    //                    if (dock.ActiveDockable is not null && !visited.Contains(dock.ActiveDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing IDock.ActiveDockable: {Type} (Id: {Id})", dock.ActiveDockable.GetType().Name, dock.ActiveDockable.Id);
+    //                        stack.Push(dock.ActiveDockable);
+    //                    }
+
+    //                    if (dock.DefaultDockable is not null && !visited.Contains(dock.DefaultDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing IDock.DefaultDockable: {Type} (Id: {Id})", dock.DefaultDockable.GetType().Name, dock.DefaultDockable.Id);
+    //                        stack.Push(dock.DefaultDockable);
+    //                    }
+
+    //                    if (dock.FocusedDockable is not null && !visited.Contains(dock.FocusedDockable))
+    //                    {
+    //                        LogDebugDetail("Pushing IDock.FocusedDockable: {Type} (Id: {Id})", dock.FocusedDockable.GetType().Name, dock.FocusedDockable.Id);
+    //                        stack.Push(dock.FocusedDockable);
+    //                    }
+
+    //                    PushDockablesToStack(stack, dock.VisibleDockables);
+    //                    break;
+    //            }
+
+    //            //// Early exit if both tools found - no need to continue traversal
+    //            //if (EditorTool is not null && DiagramTool is not null)
+    //            //{
+    //            //    dockables = visited.ToHashSet();
+    //            //    return dockables;
+    //            //}
+    //        }
+    //    }
+    //    finally
+    //    {
+    //        if (visited is not null)
+    //        {
+    //            dockables ??= visited.ToHashSet();
+
+
+    //            _hashSetObjectPool.Return(visited);
+    //        }
+
+    //        stopwatch.Stop();
+    //        _logger.LogTiming(nameof(FindToolsInLayout), stopwatch.Elapsed, success: true);
+    //    }
+
+    //    return dockables!;
+    //}
+
+    ///// <summary>
+    ///// Pushes all dockables from a collection onto the search stack.
+    ///// </summary>
+    ///// <param name="stack">The stack to push dockables onto.</param>
+    ///// <param name="dockables">The collection of dockables to push. Can be null.</param>
+    //private static void PushDockablesToStack(Stack<IDockable> stack, IList<IDockable>? dockables)
+    //{
+    //    if (dockables is null)
+    //    {
+    //        return;
+    //    }
+
+    //    foreach (IDockable dockable in dockables)
+    //    {
+    //        stack.Push(dockable);
+    //    }
+    //}
+
     /// <summary>
-    /// Logs detailed metadata about the current state of dockable collections and related UI elements for diagnostic
-    /// purposes.
+    /// Enumerates all dockable elements reachable from the specified root dock and any floating windows.
     /// </summary>
-    /// <remarks>This method outputs debug-level log entries describing the contents and properties of various
-    /// dockable collections, including visible, pinned, hidden, and active dockables, as well as host windows. It is
-    /// intended to assist with troubleshooting and understanding the current layout and state of the docking system.
-    /// Logging is performed at a granular level and may generate a large volume of output. This method does not modify
-    /// any state.</remarks>
-    [SuppressMessage("Maintainability", "S6664: The code block contains too many logging calls", Justification = "Detailed logging for debugging purposes.")]
-    private void LogDockMetadata()
-    {
-        // look thru each collection in the Factory:
-        // - VisibleDockables
-        // - LeftPinnedDockables
-        // - RightPinnedDockables
-        // - TopPinnedDockables
-        // - BottomPinnedDockables
-        // - HiddenDockables
-        // - DefaultDockable
-        // - ActiveDockable
-        // - FocusedDockable
-        // - Window.Layout
-        _logger.LogDebug("");
-        _logger.LogDebug("");
-        _logger.LogDebug("");
-
-        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(HostWindows), HostWindows.Count);
-        foreach (IHostWindow win in HostWindows)
-        {
-            _logger.LogDebug("HostWindow: Id: {WindowId}, Owner: {OwnerId}, Title: {WindowTitle}, Topmost: {WindowTopmost}, HostWindowState is present: {HostWindowState}",
-                win.Window?.Id, win.Window?.Owner?.Id, win.Window?.Title, win.Window?.Topmost, win.HostWindowState is not null);
-        }
-
-        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(PinnedDockableControls), PinnedDockableControls.Count);
-        foreach (KeyValuePair<IDockable, IDockableControl> pinnedDockableControl in PinnedDockableControls)
-        {
-            _logger.LogDebug("PinnedDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
-                pinnedDockableControl.Key.Id, pinnedDockableControl.Key.Title, pinnedDockableControl.Value.GetType().Name);
-        }
-
-        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(VisibleDockableControls), VisibleDockableControls.Count);
-        foreach (KeyValuePair<IDockable, IDockableControl> visibleDockableControl in VisibleDockableControls)
-        {
-            _logger.LogDebug("VisibleDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
-                visibleDockableControl.Key.Id, visibleDockableControl.Key.Title, visibleDockableControl.Value.GetType().Name);
-        }
-
-        RootDock? rootDockX = _rootDock;
-        if (rootDockX is not null)
-        {
-            LogDockable(rootDockX.ActiveDockable, nameof(rootDockX.ActiveDockable));
-            LogDockable(rootDockX.DefaultDockable, nameof(rootDockX.DefaultDockable));
-
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.BottomPinnedDockables), rootDockX.BottomPinnedDockables?.Count);
-            rootDockX.BottomPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.BottomPinnedDockables)));
-
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.TopPinnedDockables), rootDockX.TopPinnedDockables?.Count);
-            rootDockX.TopPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.TopPinnedDockables)));
-
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.RightPinnedDockables), rootDockX.RightPinnedDockables?.Count);
-            rootDockX.RightPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.RightPinnedDockables)));
-
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.LeftPinnedDockables), rootDockX.LeftPinnedDockables?.Count);
-            rootDockX.LeftPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.LeftPinnedDockables)));
-
-            LogDockable(rootDockX.FocusedDockable, nameof(rootDockX.FocusedDockable));
-
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.VisibleDockables), rootDockX.VisibleDockables?.Count);
-            rootDockX.VisibleDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.VisibleDockables)));
-            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDockX.HiddenDockables), rootDockX.HiddenDockables?.Count);
-            rootDockX.HiddenDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDockX.HiddenDockables)));
-
-            _logger.LogDebug("");
-            _logger.LogDebug("");
-            _logger.LogDebug("");
-
-            void LogDockable(IDockable? dockable, string property) =>
-                _logger.LogDebug("DOCK: {Property}: Id: {DockableId}, Title: {DockableTitle}, Type: {Name}", property, dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", dockable?.GetType().Name ?? "<null>");
-        }
-        else
-        {
-            _logger.LogWarning("RootDock is null in LogDockMetadata");
-        }
-    }
-
-    /// <summary>
-    /// Searches the dock layout hierarchy to find and cache references to the tool ViewModels.
-    /// </summary>
-    /// <param name="root">The root dockable to search from.</param>
     /// <remarks>
     /// <para>
-    /// This method is called after layout initialization to ensure we have references to the
-    /// tool ViewModels. It uses an iterative depth-first search with a stack to avoid recursion overhead.
+    /// This method performs a depth-first traversal of the dock hierarchy, including dockables that
+    /// may only be accessible through floating windows. Each dockable is returned only once, even if it is referenced
+    /// multiple times in the hierarchy. Cyclic references in the dock structure are handled safely.
+    /// </para>
+    /// <para>
+    /// This method is called after layout initialization to ensure we have references to the tool ViewModels.
     /// </para>
     /// <para>
     /// The search includes:
     /// <list type="bullet">
     ///     <item><description><c>VisibleDockables</c> - Normal docked panels</description></item>
-    ///     <item><description><c>LeftPinnedDockables</c>, <c>RightPinnedDockables</c>, etc. - Auto-hide/pinned panels</description></item>
+    ///     <item><description><c>LeftPinnedDockables</c>, <c>RightPinnedDockables</c>, <c>BottomPinnedDockables</c>, <c>TopPinnedDockables</c>
+    ///     - Auto-hide/pinned panels</description></item>
+    ///     <item><description><c>ActiveDockable</c> - Currently active dockable (may be in a floating window)</description></item>
+    ///     <item><description><c>DefaultDockable</c> - Default dockable (may be in a floating window)</description></item>
     ///     <item><description><c>FocusedDockable</c> - Currently focused dockable (maybe in a floating window)</description></item>
     ///     <item><description><c>FocusedDockable.Owner</c> chain - To find floating window containers</description></item>
     ///     <item><description><c>Window.Layout</c> - Floating window layouts</description></item>
+    ///     <item><description><c>Windows.Layout</c> - All floating windows layouts</description></item>
+    ///     <item><description><c>HostWindows</c> collection - All floating windows managed by the factory</description></item>
     /// </list>
     /// </para>
     /// <para>
-    /// <b>Performance:</b> Uses iterative traversal with a stack instead of recursion
-    /// to eliminate method call overhead. Early exit when both tools are found.
+    /// <b>Floating Window Support:</b> When tools are floated (moved to separate windows), they exist
+    /// in the <see cref="Factory.HostWindows"/> collection rather than in the main layout hierarchy.
+    /// This method explicitly searches all floating windows to find tools that were floated before
+    /// the layout was saved.
+    /// </para>
+    /// <para>
+    /// <b>Performance:</b> It uses an iterative depth-first search with a stack to avoid recursion overhead.
     /// Uses a HashSet for cycle detection to handle circular references in the dock hierarchy.
     /// </para>
     /// </remarks>
-    private void FindToolsInLayout(IDockable? root)
+    /// <param name="root">The <see cref="IRootDock" /> dock from which to begin the traversal.
+    /// If null, no dockables are returned.</param>
+    /// <param name="hostWindows">A collection of host windows whose layouts may contain additional
+    /// floating dockables to include in the  enumeration.</param>
+    /// <returns>An enumerable collection of all unique dockable elements found in the dock hierarchy
+    /// and floating windows. The collection is empty if no dockables are found.
+    /// The enumeration order is not guaranteed.</returns>
+    private static IEnumerable<IDockable> FindAllDockables(IRootDock? root, IList<IHostWindow> hostWindows)
     {
         if (root is null)
         {
-            return;
+            yield break;
         }
 
-        Stopwatch stopwatch = Stopwatch.StartNew();
+        // NOTE: Always seed the traversal via AddDockable (not stack.Push directly).
+        // AddDockable is responsible for both pushing and marking items as visited,
+        // so everything that ever enters the stack has already been checked against
+        // the visited set. This keeps the DFS invariant simple: no item is ever
+        // pushed twice, including the root, and the main loop never has to re-check
+        // for duplicates when popping.
 
         // Use stack-based iteration instead of recursion to avoid stack frame overhead
         // Initial capacity of 16 to account for pinned dockables collections and floating windows
@@ -779,157 +944,141 @@ internal sealed class DockFactory : Factory
 
         // Track visited nodes to prevent infinite loops from circular references
         // The dock hierarchy can have cycles (e.g., Window.Layout referencing back to the same RootDock)
-        HashSet<IDockable>? visited = null;
-        try
+        // Use ReferenceEquality to ensure we are tracking specific instances, handling cycles correctly
+        HashSet<IDockable> visited = new HashSet<IDockable>(ReferenceEqualityComparer.Instance);
+
+        // Seed the traversal with the root dock
+        AddDockable(root, stack, visited);
+
+        // Search all floating windows in the HostWindows collection.
+        // When tools are floated, they exist in separate HostWindow containers that may not be
+        // reachable from the main layout hierarchy. The HostWindows collection is populated
+        // during deserialization when floating windows are restored.
+        foreach (IHostWindow hostWindow in hostWindows)
         {
-            visited = _hashSetObjectPool.Get();
-
-            stack.Push(root);
-            while (stack.Count > 0)
+            if (hostWindow.Window?.Layout is not null)
             {
-                IDockable current = stack.Pop();
-
-                // Skip if already visited (cycle detection)
-                if (!visited.Add(current))
-                {
-                    continue;
-                }
-
-                // Log what we're processing for debugging
-                _logger.LogDebug("{Method} processing: {Type} (Id: {Id})", nameof(FindToolsInLayout), current.GetType().Name, current.Id);
-
-                switch (current)
-                {
-                    case MermaidEditorToolViewModel editorTool:
-                        EditorTool = editorTool;
-                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(EditorTool), nameof(MermaidEditorToolViewModel));
-                        break;
-
-                    case DiagramToolViewModel diagramTool:
-                        DiagramTool = diagramTool;
-                        _logger.LogDebug("Found ToolName: {ToolName} in layout with ViewModel: {ViewModel}", nameof(DiagramTool), nameof(DiagramToolViewModel));
-                        break;
-
-                    case IRootDock rootDock:
-                        // Search pinned dockables collections (auto-hide panels)
-                        // These are populated when a tool is pinned to the edge of the window
-                        PushDockablesToStack(stack, rootDock.LeftPinnedDockables);
-                        PushDockablesToStack(stack, rootDock.RightPinnedDockables);
-                        PushDockablesToStack(stack, rootDock.TopPinnedDockables);
-                        PushDockablesToStack(stack, rootDock.BottomPinnedDockables);
-
-                        // Search hidden dockables
-                        PushDockablesToStack(stack, rootDock.HiddenDockables);
-
-                        // Search visible dockables
-                        PushDockablesToStack(stack, rootDock.VisibleDockables);
-
-                        // Search DefaultDockable - may contain floating window content
-                        if (rootDock.DefaultDockable is not null && !visited.Contains(rootDock.DefaultDockable))
-                        {
-                            _logger.LogDebug("Pushing DefaultDockable: {Type} (Id: {Id})", rootDock.DefaultDockable.GetType().Name, rootDock.DefaultDockable.Id);
-                            stack.Push(rootDock.DefaultDockable);
-                        }
-
-                        // Search ActiveDockable - may contain floating window content
-                        if (rootDock.ActiveDockable is not null && !visited.Contains(rootDock.ActiveDockable))
-                        {
-                            _logger.LogDebug("Pushing ActiveDockable: {Type} (Id: {Id})", rootDock.ActiveDockable.GetType().Name, rootDock.ActiveDockable.Id);
-                            stack.Push(rootDock.ActiveDockable);
-                        }
-
-                        // Search FocusedDockable - may reference a tool in a floating window
-                        // IMPORTANT: When a tool is floated, FocusedDockable points to the tool,
-                        // and the tool's Owner chain leads to the floating window's RootDock
-                        if (rootDock.FocusedDockable is not null)
-                        {
-                            _logger.LogDebug("Pushing FocusedDockable: {Type} (Id: {Id})", rootDock.FocusedDockable.GetType().Name, rootDock.FocusedDockable.Id);
-                            stack.Push(rootDock.FocusedDockable);
-
-                            // Also traverse the Owner chain of FocusedDockable to find floating windows
-                            // The tool's Owner -> ToolDock -> RootDock -> Window structure
-                            IDockable? ownerCurrent = rootDock.FocusedDockable.Owner;
-                            while (ownerCurrent is not null)
-                            {
-                                if (!visited.Contains(ownerCurrent))
-                                {
-                                    _logger.LogDebug("Pushing FocusedDockable.Owner chain: {Type} (Id: {Id})", ownerCurrent.GetType().Name, ownerCurrent.Id);
-                                    stack.Push(ownerCurrent);
-                                }
-                                ownerCurrent = ownerCurrent.Owner;
-                            }
-                        }
-                        else
-                        {
-                            _logger.LogDebug("FocusedDockable is null for RootDock: {Id}", rootDock.Id);
-                        }
-
-                        // Search the Window property - contains floating window layout
-                        // The Window has a Layout property which is another RootDock
-                        if (rootDock.Window?.Layout is not null)
-                        {
-                            _logger.LogDebug("Pushing Window.Layout: {Type} (Id: {Id})", rootDock.Window.Layout.GetType().Name, rootDock.Window.Layout.Id);
-                            stack.Push(rootDock.Window.Layout);
-                        }
-                        break;
-
-                    case IDock dock:
-                        // Push visible children onto stack for processing
-                        PushDockablesToStack(stack, dock.VisibleDockables);
-
-                        // Search ActiveDockable - may contain tool in floating window
-                        if (dock.ActiveDockable is not null && !visited.Contains(dock.ActiveDockable))
-                        {
-                            _logger.LogDebug("Pushing IDock.ActiveDockable: {Type} (Id: {Id})", dock.ActiveDockable.GetType().Name, dock.ActiveDockable.Id);
-                            stack.Push(dock.ActiveDockable);
-                        }
-                        break;
-                }
-
-                // Early exit if both tools found - no need to continue traversal
-                if (EditorTool is not null && DiagramTool is not null)
-                {
-                    return;
-                }
+                AddDockable(hostWindow.Window.Layout, stack, visited);
             }
         }
-        finally
+
+        while (stack.Count > 0)
         {
-            if (visited is not null)
+            IDockable current = stack.Pop();
+
+            // We already checked 'visited' before pushing, so we can yield immediately
+            yield return current;
+
+            switch (current)
             {
-                _hashSetObjectPool.Return(visited);
+                // Check for IRootDock first, since it is also an IDock
+                case IRootDock rootDock:
+                    AddDockable(rootDock.ActiveDockable, stack, visited, includeOwnerChain: true);
+                    AddDockable(rootDock.DefaultDockable, stack, visited, includeOwnerChain: true);
+                    AddDockable(rootDock.FocusedDockable, stack, visited, includeOwnerChain: true);
+
+                    AddDockables(rootDock.HiddenDockables, stack, visited);
+                    AddDockables(rootDock.LeftPinnedDockables, stack, visited);
+                    AddDockables(rootDock.RightPinnedDockables, stack, visited);
+                    AddDockables(rootDock.TopPinnedDockables, stack, visited);
+                    AddDockables(rootDock.BottomPinnedDockables, stack, visited);
+                    AddDockables(rootDock.VisibleDockables, stack, visited);
+
+                    if (rootDock.Window?.Layout is IDockable winLayout)
+                    {
+                        AddDockable(winLayout, stack, visited);
+                    }
+
+                    if (rootDock.Windows is not null)
+                    {
+                        for (int i = 0; i < rootDock.Windows.Count; i++)
+                        {
+                            IRootDock? dockWindowRootDock = rootDock.Windows[i].Layout;
+                            AddDockable(dockWindowRootDock, stack, visited);
+                        }
+                    }
+
+                    break;
+
+                case IDock dock:
+                    // NOTE: IRootDock is also IDock. The switch ensures root docks are handled in the IRootDock case,
+                    // avoiding double-processing VisibleDockables.
+                    AddDockable(dock.ActiveDockable, stack, visited, includeOwnerChain: true);
+                    AddDockable(dock.DefaultDockable, stack, visited, includeOwnerChain: true);
+                    AddDockable(dock.FocusedDockable, stack, visited, includeOwnerChain: true);
+
+                    AddDockables(dock.VisibleDockables, stack, visited);
+                    break;
             }
-
-            stopwatch.Stop();
-            _logger.LogTiming(nameof(FindToolsInLayout), stopwatch.Elapsed, success: true);
-        }
-
-        // Log warning if tools weren't found
-        if (EditorTool is null)
-        {
-            _logger.LogWarning("{Tool} was not found during layout traversal", nameof(EditorTool));
-        }
-        if (DiagramTool is null)
-        {
-            _logger.LogWarning("{Tool} was not found during layout traversal", nameof(DiagramTool));
         }
     }
 
     /// <summary>
-    /// Pushes all dockables from a collection onto the search stack.
+    /// Adds the specified dockable and, optionally, its owner chain to the stack if they have not already been visited.
     /// </summary>
-    /// <param name="stack">The stack to push dockables onto.</param>
-    /// <param name="dockables">The collection of dockables to push. Can be null.</param>
-    private static void PushDockablesToStack(Stack<IDockable> stack, IList<IDockable>? dockables)
+    /// <remarks>If includeOwnerChain is set to true, the method traverses the Owner property chain of the
+    /// dockable, adding each unvisited owner to the stack. This is useful for scenarios where dockable items may be
+    /// nested or related through ownership, such as in floating window structures.</remarks>
+    /// <param name="dockable">The dockable item to add to the stack. If null, no action is taken.</param>
+    /// <param name="stackOfDockables">The stack to which unvisited dockable items are pushed.</param>
+    /// <param name="visited">A set tracking dockable items that have already been processed.
+    /// Items are only added to the stack if they are not present in this set.</param>
+    /// <param name="includeOwnerChain">true to also add the owner chain of the dockable to the stack; otherwise, false.</param>
+    private static void AddDockable(IDockable? dockable, Stack<IDockable> stackOfDockables,
+        HashSet<IDockable> visited, bool includeOwnerChain = false)
+    {
+        if (dockable is null)
+        {
+            return;
+        }
+
+        // Only push if NOT already visited
+        if (visited.Add(dockable))
+        {
+            stackOfDockables.Push(dockable);
+        }
+
+        if (!includeOwnerChain)
+        {
+            return;
+        }
+
+        // The Dock graph can require following the Owner chain to reach floating-window structures.
+        // We walk the chain regardless of whether 'dockable' was new, because we might have reached
+        // 'dockable' previously without the owner chain (e.g. via VisibleDockables).
+        IDockable? ownerCurrent = dockable.Owner;
+        while (ownerCurrent is not null)
+        {
+            if (visited.Add(ownerCurrent))
+            {
+                stackOfDockables.Push(ownerCurrent);
+            }
+
+            ownerCurrent = ownerCurrent.Owner;
+        }
+    }
+
+    /// <summary>
+    /// Adds dockable items from the specified collection to the stack if they have not already been visited.
+    /// </summary>
+    /// <param name="dockables">The collection of dockable items to process. If null, no items are added.</param>
+    /// <param name="stackOfDockables">The stack to which unvisited dockable items are pushed.</param>
+    /// <param name="visited">A set containing dockable items that have already been processed.
+    /// Items are added to this set as they are pushed onto the stack.</param>
+    private static void AddDockables(IList<IDockable>? dockables, Stack<IDockable> stackOfDockables, HashSet<IDockable> visited)
     {
         if (dockables is null)
         {
             return;
         }
 
-        foreach (IDockable dockable in dockables)
+        for (int i = 0; i < dockables.Count; i++)
         {
-            stack.Push(dockable);
+            IDockable child = dockables[i];
+            if (visited.Add(child))
+            {
+                stackOfDockables.Push(child);
+            }
         }
     }
 
@@ -1032,73 +1181,97 @@ internal sealed class DockFactory : Factory
             return;
         }
 
-        _logger.LogDebug("Showing tool: {ToolId}", tool.Id);
-
         Stopwatch stopwatch = Stopwatch.StartNew();
-
-        //TODO - DaveBlack: review all the commented code below and remove what is not needed anymore
-        //AddDockable(owner, tool);
-        //               FloatDockable(tool);
-        //                InsertDockable(owner, tool, 0);
-
-        // if it was hidden, let's peek it
-        if (IsDockablePinned(tool))
+        try
         {
-            //   PreviewPinnedDockable(tool);
-            //           RestoreDockable(tool);
-
-
-
-
-            UnpinDockable(tool);    // makes it visible if it was pinned (auto-hide)
-        }
-
-
-        //_rootDock.ActiveDockable = tool;
-        //if (_rootDock.ShowWindows.CanExecute(null))
-        //{
-        //    _rootDock.ShowWindows.Execute(null);
-        //}
-
-
-
-
-        //MoveDockable(owner, tool.Owner, tool.OriginalOwner);
-        //            PinDockable(tool);
-        //RestoreDockable(tool);  //  doesn't work
-        //SwapDockable(owner, tool.Owner, tool.OriginalOwner);
-
-        //PreviewPinnedDockable(tool);
-        //if (!IsDockablePinned(tool))
-        //{
-        //    PinDockable(tool);      // makes it visible if it wasn't pinned (auto-hide)
-        //}
-
-
-
-        SetActiveDockable(tool);
-        InitActiveDockable(tool, owner);        // this call also sets the tool as the focused dockable
-        SetFocusedDockable(owner, tool);
-
-        // If the tool is in a floating window, bring that window to front (topmost)
-        // Walk up the ownership chain to find the IRootDock that owns this tool's container
-        IDockable? current = owner;
-        while (current is not null)
-        {
-            //TODO - @Claude: determine how to activate a tabbed/hidden panel and programmatically unhide, pin, and dock it if needed
-
-            if (current is IRootDock rootDock && rootDock.Window?.Host is not null)
+            // If it was pinned, let's peek it
+            // NOTE: checking PinnedDockableControls is equivalent to calling IsDockablePinned
+            // but, we use it because it is faster than calling IsDockablePinned: O(1) vs O(n)
+            if (PinnedDockableControls.ContainsKey(tool))
             {
-                // Found the floating window - set it to the top of the Z-order
-                rootDock.Window.Topmost = true;
-                break;
+                //TODO - DaveBlack: should we unpin or peek?
+                //PreviewPinnedDockable(tool);
+                UnpinDockable(tool);    // makes it visible if it was pinned (auto-hide)
             }
+            else
+            {
+                //TODO - DaveBlack: find a way to do this without using Topmost it seems to mess things up eventually
+                //// Find all floating windows that might contain the tool. If the tool is in a floating window,
+                //// bring that window to front. Otherwise, set Topmost on the main window.
+                //// First reset all Topmost states to false
+                //foreach (IHostWindow hostWindow in HostWindows)
+                //{
+                //    IDockWindow? dockWindow = hostWindow.Window;
+                //    if (dockWindow is not null)
+                //    {
+                //        // reset Topmost state
+                //        dockWindow.Topmost = false;
+                //    }
+                //}
 
-            current = current.Owner;
+                // first check for floating windows
+                foreach (IHostWindow hostWindow in HostWindows)
+                {
+                    IDockWindow? dockWindow = hostWindow.Window;
+                    if (dockWindow is not null)
+                    {
+                        // Check if the tool's owner chain leads to this window
+                        IDockable? current = tool;
+                        while (current is not null)
+                        {
+                            if (current is IRootDock rootDock && rootDock.Window == dockWindow)
+                            {
+                                _logger.LogDebug("Bringing floating window to front for tool: {ToolId}", tool.Id);
+
+                                // Found the floating window that contains the tool
+                                BringToolToFront(rootDock, tool, dockWindow);
+                                return;
+                            }
+
+                            current = current.Owner;
+                        }
+                    }
+                }
+
+                // NOTE: To activate a pinned/hidden panel programmatically:
+                // - If pinned (auto-hide): use UnpinDockable(tool) to restore it to docked state
+                // - If hidden: use RestoreDockable(tool) or re-add via AddDockable()
+                // The framework doesn't expose a single "show" operation because these states are mutually exclusive.
+
+                BringToolToFront(owner, tool);
+            }
         }
+        finally
+        {
+            stopwatch.Stop();
+            _logger.LogTiming(nameof(ShowTool), stopwatch.Elapsed, success: true);
+        }
+    }
 
-        stopwatch.Stop();
-        _logger.LogTiming(nameof(ShowTool), stopwatch.Elapsed, success: true);
+    private void BringToolToFront(IDock owner, IDockable tool, IDockWindow? dockWindow = null)
+    {
+        SetActiveDockable(tool);
+        SetFocusedDockable(owner, tool);
+        //if (dockWindow is null)
+        //{
+        //    // find the dockWindow from the owner chain
+        //    IDockable? current = tool;
+        //    while (current is not null)
+        //    {
+        //        if (current is IRootDock rootDock && rootDock.Window is not null)
+        //        {
+        //            dockWindow = rootDock.Window;
+        //            break;
+        //        }
+        //        current = current.Owner;
+        //    }
+        //}
+
+        //TODO - DaveBlack: find a way to do this without using Topmost it seems to mess things up eventually
+        // bring the floating window to the top of the z-order
+        //dockWindow?.Topmost = true;
+
+        _logger.LogDebug("Showing tool: {ToolId}", tool.Id);
     }
 
     /// <summary>
@@ -1124,5 +1297,138 @@ internal sealed class DockFactory : Factory
         //    disposableDiagramTool.Dispose();
         //    DiagramTool = null;
         //}
+    }
+
+    /// <summary>
+    /// Outputs a debug log of the hierarchy for the specified dockable element and its visible children.
+    /// </summary>
+    /// <remarks>This method is only included in builds where the DEBUG symbol is defined. It recursively logs
+    /// the type, ID, title, and owner information for each dockable element, including visible children and, for root
+    /// docks, the associated window layout if present. Intended for diagnostic and debugging purposes.</remarks>
+    /// <param name="dockable">The root <see cref="IDockable"/> element from which to begin dumping the hierarchy. If null, no output is
+    /// produced.</param>
+    /// <param name="depth">The indentation level to use for the initial element. Must be zero or greater.</param>
+    [Conditional("DOCK_DEBUG")]
+    private void DumpHierarchy(IDockable? dockable, int depth)
+    {
+        while (true)
+        {
+            if (dockable is null)
+            {
+                return;
+            }
+
+            string indent = new string(' ', depth * 2);
+            string ownerInfo = dockable.Owner is not null ? $"Owner.Id={dockable.Owner.Id}" : "Owner=null";
+            _logger.LogDebug("{Indent}[{Type}] Id='{Id}', Title='{Title}', {OwnerInfo}", indent, dockable.GetType().Name, dockable.Id, dockable.Title, ownerInfo);
+
+            // For docks with visible children, recurse
+            if (dockable is IDock { VisibleDockables.Count: > 0 } dock)
+            {
+                foreach (IDockable child in dock.VisibleDockables)
+                {
+                    DumpHierarchy(child, depth + 1);
+                }
+            }
+
+            // For root docks, also dump the Window.Layout if present
+            if (dockable is IRootDock { Window.Layout: not null } rootDock && rootDock.Window.Layout != dockable)
+            {
+                _logger.LogDebug("{Indent}  [Window.Layout]:", indent);
+                dockable = rootDock.Window.Layout;
+                depth += 2;
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    [Conditional("DOCK_DEBUG")]
+    [SuppressMessage("ReSharper", "TemplateIsNotCompileTimeConstantProblem", Justification = "Method is just a pass-thru to Serilog")]
+    [SuppressMessage("Usage", "CA2254:Template should be a static expression", Justification = "Method is just a pass-thru to Serilog")]
+    private void LogDebugDetail(string? message, params object?[] args) => _logger.LogDebug(message, args);
+
+    /// <summary>
+    /// Logs detailed metadata about the current state of dockable collections and related UI elements for diagnostic
+    /// purposes.
+    /// </summary>
+    /// <remarks>This method outputs debug-level log entries describing the contents and properties of various
+    /// dockable collections, including visible, pinned, hidden, and active dockables, as well as host windows. It is
+    /// intended to assist with troubleshooting and understanding the current layout and state of the docking system.
+    /// Logging is performed at a granular level and may generate a large volume of output. This method does not modify
+    /// any state.</remarks>
+    [Conditional("DOCK_DEBUG")]
+    [SuppressMessage("Maintainability", "S6664: The code block contains too many logging calls", Justification = "Detailed logging for debugging purposes.")]
+    private void DumpDockMetadata(IRootDock? rootDock)
+    {
+        // look thru each collection in the Factory:
+        // - HostWindows
+        // - VisibleDockables
+        // - LeftPinnedDockables
+        // - RightPinnedDockables
+        // - TopPinnedDockables
+        // - BottomPinnedDockables
+        // - HiddenDockables
+        // - DefaultDockable
+        // - ActiveDockable
+        // - FocusedDockable
+        // - Window.Layout
+        _logger.LogDebug("");
+        _logger.LogDebug("");
+        _logger.LogDebug("");
+
+        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(HostWindows), HostWindows.Count);
+        foreach (IHostWindow win in HostWindows)
+        {
+            _logger.LogDebug("HostWindow: Id: {WindowId}, Owner: {OwnerId}, Title: {WindowTitle}, Topmost: {WindowTopmost}, HostWindowState is present: {HostWindowState}",
+                win.Window?.Id, win.Window?.Owner?.Id, win.Window?.Title, win.Window?.Topmost, win.HostWindowState is not null);
+        }
+
+        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(PinnedDockableControls), PinnedDockableControls.Count);
+        foreach (KeyValuePair<IDockable, IDockableControl> pinnedDockableControl in PinnedDockableControls)
+        {
+            _logger.LogDebug("PinnedDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
+                pinnedDockableControl.Key.Id, pinnedDockableControl.Key.Title, pinnedDockableControl.Value.GetType().Name);
+        }
+
+        _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(VisibleDockableControls), VisibleDockableControls.Count);
+        foreach (KeyValuePair<IDockable, IDockableControl> visibleDockableControl in VisibleDockableControls)
+        {
+            _logger.LogDebug("VisibleDockableControl: key: {KeyId}, keyTitle: {KeyTitle}, value: {Name}",
+                visibleDockableControl.Key.Id, visibleDockableControl.Key.Title, visibleDockableControl.Value.GetType().Name);
+        }
+
+        if (rootDock is not null)
+        {
+            LogDockable(rootDock.ActiveDockable, nameof(rootDock.ActiveDockable));
+            LogDockable(rootDock.DefaultDockable, nameof(rootDock.DefaultDockable));
+            LogDockable(rootDock.FocusedDockable, nameof(rootDock.FocusedDockable));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.BottomPinnedDockables), rootDock.BottomPinnedDockables?.Count);
+            rootDock.BottomPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.BottomPinnedDockables)));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.TopPinnedDockables), rootDock.TopPinnedDockables?.Count);
+            rootDock.TopPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.TopPinnedDockables)));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.RightPinnedDockables), rootDock.RightPinnedDockables?.Count);
+            rootDock.RightPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.RightPinnedDockables)));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.LeftPinnedDockables), rootDock.LeftPinnedDockables?.Count);
+            rootDock.LeftPinnedDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.LeftPinnedDockables)));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.VisibleDockables), rootDock.VisibleDockables?.Count);
+            rootDock.VisibleDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.VisibleDockables)));
+
+            _logger.LogDebug("Logging {Collection} collections: count: {Count}", nameof(rootDock.HiddenDockables), rootDock.HiddenDockables?.Count);
+            rootDock.HiddenDockables?.ToList().ForEach(d => LogDockable(d, nameof(rootDock.HiddenDockables)));
+
+            _logger.LogDebug("");
+            _logger.LogDebug("");
+            _logger.LogDebug("");
+
+            void LogDockable(IDockable? dockable, string property) =>
+                _logger.LogDebug("DOCK: {Property}: Id: {DockableId}, Title: {DockableTitle}, Type: {Name}", property, dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", dockable?.GetType().Name ?? "<null>");
+        }
     }
 }
