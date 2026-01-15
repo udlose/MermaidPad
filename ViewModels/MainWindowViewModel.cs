@@ -1168,8 +1168,21 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 await ShowErrorMessageAsync("Failed to delete saved layout file. The layout may not reset correctly.");
             }
 
-            // Close any floating windows before resetting the layout
-            _dockFactory.CloseAllFloatingWindows(Layout);
+            // Close existing layout if possible
+            if (Layout is not null)
+            {
+                if (Layout.Close.CanExecute(null))
+                {
+                    Layout.Close.Execute(null);
+                }
+                else
+                {
+                    _logger.LogWarning("Layout.Close command cannot be executed during {MethodName}. Calling {MethodName2}", nameof(PrepareForShutdown), nameof(_dockFactory.CloseAllFloatingWindows));
+
+                    // Close any floating windows before resetting the layout
+                    _dockFactory.CloseAllFloatingWindows(Layout);
+                }
+            }
 
             // Preserve current editor state before resetting
             string currentText = Editor.Text;
@@ -1846,17 +1859,32 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
-    /// Prepares the application for shutdown by closing all floating windows and resetting the layout.
+    /// Performs cleanup operations to prepare the application layout for shutdown, ensuring that all windows and
+    /// resources are properly closed.
     /// </summary>
-    /// <remarks>This method should be called before the application exits to ensure that all floating windows
-    /// are properly closed and the layout is reset. This helps prevent potential data loss or layout inconsistencies on
-    /// the next startup.</remarks>
+    /// <remarks>This method attempts to close the main layout using the associated close command if
+    /// available. If the close command cannot be executed, it closes any floating windows as a fallback via
+    /// <see cref="DockFactory.CloseAllFloatingWindows"/>. This helps prevent resource leaks and ensures a
+    /// consistent shutdown state. It is recommended to call this method before application exit to avoid leaving
+    /// open windows or incomplete layout states.</remarks>
     public void PrepareForShutdown()
     {
         try
         {
-            // Close any floating windows before resetting the layout
-            _dockFactory.CloseAllFloatingWindows(Layout);
+            if (Layout is not null)
+            {
+                if (Layout.Close.CanExecute(null))
+                {
+                    Layout.Close.Execute(null);
+                }
+                else
+                {
+                    _logger.LogWarning("Layout.Close command cannot be executed during {MethodName}. Calling {MethodName2}", nameof(PrepareForShutdown), nameof(_dockFactory.CloseAllFloatingWindows));
+
+                    // Close any floating windows before resetting the layout
+                    _dockFactory.CloseAllFloatingWindows(Layout);
+                }
+            }
         }
         catch (Exception ex)
         {
