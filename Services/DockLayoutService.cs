@@ -255,7 +255,7 @@ internal sealed class DockLayoutService
 
         try
         {
-            _logger.LogInformation("Saving dock layout state (shutdown fallback)");
+            _logger.LogInformation("Saving dock layout state (shutdown)");
 
             string configDir = GetConfigDirectory();
             string fullLayoutPath = Path.GetFullPath(_layoutPath);
