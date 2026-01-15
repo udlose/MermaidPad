@@ -948,10 +948,9 @@ internal sealed class DockFactory : Factory
         Stopwatch stopwatch = Stopwatch.StartNew();
         try
         {
-            // If it was pinned, let's peek it
-            // NOTE: checking PinnedDockableControls is equivalent to calling IsDockablePinned
-            // but, we use it because it is faster than calling IsDockablePinned: O(1) vs O(n)
-            if (PinnedDockableControls.ContainsKey(tool))
+            // NOTE: checking PinnedDockableControls is not reliable. There appear to be times when a tool is pinned,
+            // but it isn't contained in PinnedDockableControls. The correct way is to call IsDockablePinned(tool)
+            if (IsDockablePinned(tool))
             {
                 //TODO - DaveBlack: should we unpin or peek?
                 //PreviewPinnedDockable(tool);
