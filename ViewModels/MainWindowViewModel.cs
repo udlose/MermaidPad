@@ -668,7 +668,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             // getting stuck in InitStateInitializing if the dispatcher task never executes the delegate.
             Task dispatchCompletionObserverTask = initializationDispatchTask.ContinueWith(HandleDiagramInitializationDispatchCompletion,
                 CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnRanToCompletion,
+                TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
 
             dispatchCompletionObserverTask.SafeFireAndForget(onException: ex =>
