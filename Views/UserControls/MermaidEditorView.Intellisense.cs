@@ -195,9 +195,6 @@ public partial class MermaidEditorView
 
         char typedChar = e.Text[0];
 
-#if DEBUG
-        Stopwatch sw = Stopwatch.StartNew();
-#endif
         // Check if we should open the window
         if (!ShouldTriggerCompletion(typedChar))
         {
@@ -205,10 +202,6 @@ public partial class MermaidEditorView
         }
 
         ShowCompletionWindow();
-#if DEBUG
-        sw.Stop();
-        _logger.LogDebug("Intellisense completion triggered in {ElapsedMilliseconds} ms", sw.ElapsedMilliseconds);
-#endif
     }
 
     /// <summary>
@@ -265,10 +258,6 @@ public partial class MermaidEditorView
                 return;
             }
 
-#if DEBUG
-            Stopwatch sw = Stopwatch.StartNew();
-#endif
-
             TextDocument document = Editor.Document;
 
             // Detect current diagram type using DocumentAnalyzer
@@ -299,12 +288,6 @@ public partial class MermaidEditorView
 
             _completionWindow.Show();
             _completionWindow.Closed += CompletionWindow_Closed;
-
-#if DEBUG
-            sw.Stop();
-            _logger.LogDebug("Intellisense completion triggered in {ElapsedMilliseconds} ms (Diagram: {DiagramType})",
-                sw.ElapsedMilliseconds, currentDiagramType);
-#endif
         }
         catch (Exception ex)
         {
