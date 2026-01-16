@@ -956,6 +956,11 @@ internal sealed class DockFactory : Factory
                 //PreviewPinnedDockable(tool);
                 UnpinDockable(tool);    // makes it visible if it was pinned (auto-hide)
             }
+            // if the IDockable is hidden, restore it
+            else if (IsDockableHidden(tool))
+            {
+                RestoreDockable(tool);  // makes it visible if it was hidden
+            }
             else
             {
                 //TODO - DaveBlack: find a way to do this without using Topmost it seems to mess things up eventually
@@ -1009,6 +1014,25 @@ internal sealed class DockFactory : Factory
             stopwatch.Stop();
             _logger.LogTiming(nameof(ShowTool), stopwatch.Elapsed, success: true);
         }
+    }
+
+    /// <summary>
+    /// Determines whether the specified dockable element is currently hidden within its root dock.
+    /// </summary>
+    /// <param name="dockable">The dockable element to check for hidden status. Cannot be null.</param>
+    /// <returns>true if the specified dockable is hidden in its root dock; otherwise, false.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when the <paramref name="dockable"/> is null.</exception>
+    internal bool IsDockableHidden(IDockable dockable)
+    {
+        ArgumentNullException.ThrowIfNull(dockable);
+
+        IRootDock? rootDock = FindRoot(dockable);
+        if (rootDock is null)
+        {
+            return false;
+        }
+
+        return rootDock.HiddenDockables?.Contains(dockable) == true;
     }
 
     /// <summary>
