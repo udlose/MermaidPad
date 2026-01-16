@@ -1229,4 +1229,88 @@ internal sealed class DockFactory : Factory
                 _logger.LogDebug("DOCK: {Property}: Id: {DockableId}, Title: {DockableTitle}, Type: {Name}", property, dockable?.Id ?? "<null>", dockable?.Title ?? "<null>", dockable?.GetType().Name ?? "<null>");
         }
     }
+
+    /// <summary>
+    /// Logs diagnostic information about the current dock layout state for debugging drop target issues.
+    /// Call this when panels are floated to understand why re-docking may not be working.
+    /// </summary>
+    /// <param name="rootDock">The root dock to diagnose. If null, only DockControls are logged.</param>
+    /// <remarks>
+    /// This method helps diagnose why floating panels cannot re-dock by showing:
+    /// <list type="bullet">
+    ///     <item><description>Number of DockControl instances (increases with each floating window)</description></item>
+    ///     <item><description>VisibleDockables hierarchy to identify "empty" containers</description></item>
+    ///     <item><description>Drop-related properties (CanDrop, IsCollapsable, etc.)</description></item>
+    /// </list>
+    /// </remarks>
+    [Conditional("DEBUG")]
+    [SuppressMessage("Maintainability", "S6664: The code block contains too many logging calls", Justification = "Detailed logging for debugging purposes.")]
+    public void LogDropTargetDiagnostics(IRootDock? rootDock)
+    {
+        _logger.LogInformation("=== DROP TARGET DIAGNOSTICS ===");
+        _logger.LogInformation("DockControls.Count: {Count}", DockControls.Count);
+
+        for (int i = 0; i < DockControls.Count; i++)
+        {
+            IDockControl dc = DockControls[i];
+            IRootDock? dcLayout = dc.Layout as IRootDock;
+            _logger.LogInformation("DockControl[{Index}]: Layout.Id={LayoutId}, Layout.CanDrop={CanDrop}, VisibleDockables.Count={Count}",
+                i,
+                dc.Layout?.Id ?? "<null>",
+                dcLayout?.CanDrop,
+                dcLayout?.VisibleDockables?.Count ?? -1);
+        }
+
+        if (rootDock is null)
+        {
+            _logger.LogInformation("RootDock is null");
+            _logger.LogInformation("=== END DIAGNOSTICS ===");
+            return;
+        }
+
+        _logger.LogInformation("Main RootDock.Id: {Id}", rootDock.Id);
+        _logger.LogInformation("Main RootDock.CanDrop: {CanDrop}", rootDock.CanDrop);
+        _logger.LogInformation("Main RootDock.IsCollapsable: {IsCollapsable}", rootDock.IsCollapsable);
+        _logger.LogInformation("Main RootDock.VisibleDockables.Count: {Count}", rootDock.VisibleDockables?.Count ?? 0);
+
+        if (rootDock.VisibleDockables is not null)
+        {
+            for (int i = 0; i < rootDock.VisibleDockables.Count; i++)
+            {
+                IDockable dockable = rootDock.VisibleDockables[i];
+                LogDockableHierarchy(dockable, depth: 1);
+            }
+        }
+
+        _logger.LogInformation("HostWindows.Count: {Count}", HostWindows.Count);
+        for (int i = 0; i < HostWindows.Count; i++)
+        {
+            IHostWindow hostWindow = HostWindows[i];
+            _logger.LogInformation("  HostWindow: Layout.Id={LayoutId}", hostWindow.Window?.Id ?? "<null>");
+        }
+
+        _logger.LogInformation("=== END DIAGNOSTICS ===");
+
+        void LogDockableHierarchy(IDockable dockable, int depth)
+        {
+            string indent = new string(' ', depth * 2);
+            IDock? dock = dockable as IDock;
+
+            _logger.LogInformation("{Indent}- {Type}: Id={Id}, CanDrop={CanDrop}, VisibleDockables.Count={Count}",
+                indent,
+                dockable.GetType().Name,
+                dockable.Id,
+                dock?.CanDrop,
+                dock?.VisibleDockables?.Count ?? -1);
+
+            if (dock?.VisibleDockables is not null)
+            {
+                for (int i = 0; i < dock.VisibleDockables.Count; i++)
+                {
+                    IDockable child = dock.VisibleDockables[i];
+                    LogDockableHierarchy(child, depth + 1);
+                }
+            }
+        }
+    }
 }
