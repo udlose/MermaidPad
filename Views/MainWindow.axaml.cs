@@ -21,6 +21,7 @@
 using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -89,6 +90,9 @@ public sealed partial class MainWindow : Window
         // Store event handlers for proper cleanup
         _activatedHandler = OnActivated;
         Activated += _activatedHandler;
+
+        // Add debug-specific menu items in debug builds. Note that this is conditionally compiled.
+        AddDebugViewMenuItems();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
     }
@@ -586,5 +590,30 @@ public sealed partial class MainWindow : Window
 
             return Dispatcher.UIThread.InvokeAsync(Close).GetTask();
         }
+    }
+
+    /// <summary>
+    /// Adds debug-specific diagnostic menu items to the View menu when running in a debug build.
+    /// </summary>
+    /// <remarks>This method is only included in builds where the DEBUG symbol is defined. It augments the
+    /// View menu with additional options useful for debugging and diagnostics, and has no effect in release
+    /// builds.</remarks>
+    [Conditional("DEBUG")]
+    private void AddDebugViewMenuItems()
+    {
+        MenuItem? viewMenu = this.FindControl<MenuItem>("ViewMenu");
+        if (viewMenu == null)
+        {
+            return;
+        }
+
+        viewMenu.Items.Add(new Separator());
+        MenuItem dumpDockDiagnosticsMenuItem = new MenuItem
+        {
+            Header = "Dump Dock _Diagnostics"
+        };
+
+        dumpDockDiagnosticsMenuItem.Bind(MenuItem.CommandProperty, new Binding("DumpDockDiagnosticsCommand"));
+        viewMenu.Items.Add(dumpDockDiagnosticsMenuItem);
     }
 }
