@@ -23,8 +23,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using CommunityToolkit.Mvvm.Messaging;
 using MermaidPad.Exceptions.Assets;
 using MermaidPad.Extensions;
+using MermaidPad.Infrastructure.Messages;
 using MermaidPad.Threading;
 using MermaidPad.ViewModels.UserControls;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +52,7 @@ public sealed partial class DiagramView : UserControl, IViewModelVersionSource<D
 {
     private DiagramViewModel? _vm;
     private readonly ILogger<DiagramView> _logger;
+    private readonly IMessenger _documentMessenger;
 
     private bool _areAllEventHandlersCleanedUp;
     private long _viewModelVersion;
@@ -86,6 +89,7 @@ public sealed partial class DiagramView : UserControl, IViewModelVersionSource<D
 
         IServiceProvider sp = App.Services;
         _logger = sp.GetRequiredService<ILogger<DiagramView>>();
+        _documentMessenger = sp.GetRequiredKeyedService<IMessenger>(MessengerKeys.Document);
     }
 
     #region Overrides
@@ -291,13 +295,21 @@ public sealed partial class DiagramView : UserControl, IViewModelVersionSource<D
         // Wire up action delegates
         _vm.InitializeActionAsync = InitializeWebViewAsync;
 
+        // Notify subscribers that the DiagramView is ready and InitializeActionAsync is wired up.
+        // RequiresInitialization logic:
+        //  - true: ViewModel.IsReady is false (initial load or Reset Layout) -> MainWindowViewModel should initialize
+        //  - false: ViewModel.IsReady is true (dock state change) -> this View handles re-initialization below
+        bool requiresInitialization = !_vm.IsReady;
+        _documentMessenger.Send(new DiagramViewReadyMessage(new DiagramViewReadyInfo(requiresInitialization)));
+        _logger.LogDebug("Sent {MessageName} with {PropertyName}={Value}", nameof(DiagramViewReadyMessage), nameof(DiagramViewReadyInfo.RequiresInitialization), requiresInitialization);
+
         // Trigger re-initialization only when this View instance hasn't initialized its WebView yet
         // AND the ViewModel is ready. This avoids premature initialization during initial load.
         //
         // Scenarios:
-        //  1. Dock state change (float/dock/pin): ViewModel.IsReady=true (from previous View) → auto-reinitialize
-        //  2. Initial app load: ViewModel.IsReady=false → skip, let MainWindow.OnOpenedAsync() handle it
-        //  3. Reset Layout: ViewModel.IsReady=false (new ViewModel) → skip, MainWindowViewModel.ResetLayoutAsync() handles it
+        //  1. Dock state change (float/dock/pin): ViewModel.IsReady=true (from previous View) -> auto-reinitialize
+        //  2. Initial app load: ViewModel.IsReady=false -> skip, let MainWindow.OnOpenedAsync() handle it
+        //  3. Reset Layout: ViewModel.IsReady=false (new ViewModel) -> skip, MainWindowViewModel.ResetLayoutAsync() handles it
         //
         // The key insight is that dock state changes preserve the ViewModel (IsReady stays true),
         // while Reset Layout and initial load create NEW ViewModels (IsReady starts false).
