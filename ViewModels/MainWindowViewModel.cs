@@ -61,7 +61,7 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<EditorTextChangedMessage>, IDisposable
+internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<EditorTextChangedMessage>, IRecipient<DiagramViewReadyMessage>, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
@@ -87,6 +87,58 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </summary>
     private bool _hasWarnedAboutUnreadyWebView;
 
+    /// <summary>
+    /// Tracks the diagram initialization state using a three-state flag for thread-safe coordination.
+    /// Uses <c>int</c> to enable atomic operations via <see cref="Interlocked"/> methods.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// State values:
+    /// <list type="bullet">
+    ///     <item><description><c>0</c> (Idle): No initialization needed or in progress</description></item>
+    ///     <item><description><c>1</c> (Pending): Waiting for <see cref="DiagramViewReadyMessage"/> to trigger initialization</description></item>
+    ///     <item><description><c>2</c> (Initializing): <see cref="InitializeDiagramAsync"/> is currently running</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// State transitions:
+    /// <list type="bullet">
+    ///     <item><description>Idle -> Pending: <see cref="SetPendingDiagramInitialization"/> called</description></item>
+    ///     <item><description>Pending -> Initializing: <see cref="Receive(DiagramViewReadyMessage)"/> wins the atomic compare-exchange</description></item>
+    ///     <item><description>Initializing -> Idle: <see cref="InitializeDiagramAsync"/> completes (success or failure)</description></item>
+    ///     <item><description>Pending -> Idle: Initialization triggered directly (not via message)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The three-state design prevents a race condition where <see cref="SetPendingDiagramInitialization"/>
+    /// could be called during a slow initialization, causing duplicate initialization when another
+    /// <see cref="DiagramViewReadyMessage"/> arrives.
+    /// </para>
+    /// <para>
+    /// Thread-safety: this field may be read and written from multiple threads (for example, the UI
+    /// thread and background workers) and is mutated exclusively via
+    /// <see cref="System.Threading.Interlocked"/> operations such as
+    /// <see cref="System.Threading.Interlocked.CompareExchange(ref int, int, int)"/>. These atomic
+    /// operations provide the necessary synchronization without using explicit locks.
+    /// </para>
+    /// <para>
+    /// Although the state is conceptually an enumeration of three values, the backing field is an
+    /// <see langword="int"/> because <see cref="System.Threading.Interlocked"/> operates on primitive
+    /// integral types, not directly on enum types. The <c>InitState*</c> constants below document the
+    /// mapping between the numeric values and their logical states.
+    /// </para>
+    /// </remarks>
+    private int _diagramInitializationState;
+
+    /// <summary>No initialization needed or in progress.</summary>
+    private const int InitStateIdle = 0;
+
+    /// <summary>Waiting for <see cref="DiagramViewReadyMessage"/> to trigger initialization.</summary>
+    private const int InitStatePending = 1;
+
+    /// <summary><see cref="InitializeDiagramAsync"/> is currently running.</summary>
+    private const int InitStateInitializing = 2;
+
     #region Dock Layout
 
     /// <summary>
@@ -96,6 +148,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// This field provides access to the underlying tool ViewModels through
     /// <see cref="DockFactory.EditorTool"/> and <see cref="DockFactory.DiagramTool"/>.
     /// </remarks>
+    [SuppressMessage("Style", "IDE0032:Use auto property", Justification = "Field is readonly and initialized via constructor injection.")]
     private readonly DockFactory _dockFactory;
 
     /// <summary>
@@ -565,6 +618,155 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
+    /// Receives the <see cref="DiagramViewReadyMessage"/> published when the DiagramView has attached
+    /// to the visual tree and wired up its <see cref="DiagramViewModel.InitializeActionAsync"/> delegate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This message solves the timing issue where <see cref="Views.MainWindow.OnOpenedAsync"/> or
+    /// <see cref="ResetLayoutAsync"/> attempts to initialize the diagram before the View has attached.
+    /// This happens when the diagram panel starts pinned or in a floating window.
+    /// </para>
+    /// <para>
+    /// The message contains a <see cref="DiagramViewReadyInfo.RequiresInitialization"/> flag:
+    /// <list type="bullet">
+    ///     <item><description><c>true</c>: ViewModel's <see cref="DiagramViewModel.IsReady"/> was false (initial load or Reset Layout) -> we should initialize</description></item>
+    ///     <item><description><c>false</c>: ViewModel's <see cref="DiagramViewModel.IsReady"/> was true (dock state change) -> View handles re-initialization automatically</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="message">The message containing information about the DiagramView's ready state.</param>
+    public void Receive(DiagramViewReadyMessage message)
+    {
+        int currentState = Volatile.Read(ref _diagramInitializationState);
+
+        _logger.LogDebug("Received {MessageName} with {PropertyName}={Value}, {StateField}={StateValue}",
+            nameof(DiagramViewReadyMessage), nameof(DiagramViewReadyInfo.RequiresInitialization), message.Value.RequiresInitialization,
+            nameof(_diagramInitializationState), currentState);
+
+        // Only initialize if:
+        //   1. The message indicates initialization is needed (ViewModel.IsReady was false when View attached)
+        //   2. State is Pending (not Idle or already Initializing)
+        //
+        // Use Interlocked.CompareExchange for atomic transition: Pending -> Initializing
+        // This prevents duplicate initialization if:
+        //   - Multiple DiagramViewReadyMessage messages arrive rapidly
+        //   - SetPendingDiagramInitialization() is called during a slow initialization
+        if (message.Value.RequiresInitialization &&
+            Interlocked.CompareExchange(ref _diagramInitializationState, InitStateInitializing, InitStatePending) == InitStatePending)
+        {
+            _logger.LogInformation("DiagramView is ready and initialization was pending. Triggering diagram initialization...");
+
+            // State transitions back to Idle when initialization completes (success or failure) via InitializeDiagramWithStateTrackingAsync().
+            // NOTE: Because initialization is queued through Dispatcher.UIThread, there is a rare but real case where the dispatcher task
+            // faults/cancels before the delegate executes (e.g., app shutdown). In that case, InitializeDiagramWithStateTrackingAsync() never
+            // runs, so we also observe the dispatcher Task completion and reset the state to Idle if it is still InitStateInitializing.
+            Task initializationDispatchTask = Dispatcher.UIThread.InvokeAsync(InitializeDiagramWithStateTrackingAsync);
+
+            // Observe dispatcher queue failures explicitly.
+            // This continuation is not about the initialization logic itself; it is only a safety net to prevent the state machine from
+            // getting stuck in InitStateInitializing if the dispatcher task never executes the delegate.
+            Task dispatchCompletionObserverTask = initializationDispatchTask.ContinueWith(HandleDiagramInitializationDispatchCompletion,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnRanToCompletion,
+                TaskScheduler.Default);
+
+            dispatchCompletionObserverTask.SafeFireAndForget(onException: ex =>
+                _logger.LogError(ex, "Diagram initialization dispatch completion observer task failed"));
+
+            initializationDispatchTask.SafeFireAndForget(onException: ex =>
+            {
+                _logger.LogError(ex, "Failed to initialize diagram after {MessageType}", nameof(DiagramViewReadyMessage));
+
+                // Provide a message to the user as well, but ensure this handler itself never throws.
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        Diagram.LastError = $"Failed to initialize diagram: {ex.Message}";
+                    }
+                    catch (Exception postException)
+                    {
+                        _logger.LogError(postException, "Failed to update diagram error UI after initialization failure");
+                    }
+                });
+            });
+        }
+    }
+
+    /// <summary>
+    /// Handles completion of the diagram initialization dispatch task, resetting the initialization state if the task
+    /// was canceled or faulted.
+    /// </summary>
+    /// <remarks>This method should be called when the diagram initialization dispatch task completes. If the
+    /// task did not complete successfully, the initialization state is reset to allow for future initialization
+    /// attempts. A warning is logged if the state is reset.</remarks>
+    /// <param name="task">The task representing the diagram initialization dispatch operation. If the task is canceled or faulted, the
+    /// initialization state will be reset.</param>
+    [SuppressMessage("ReSharper", "MergeIntoPattern", Justification = "Clarity of intent.")]
+    private void HandleDiagramInitializationDispatchCompletion(Task task)
+    {
+        try
+        {
+            if (!task.IsCanceled && !task.IsFaulted)
+            {
+                return;
+            }
+
+            int observedState = Interlocked.CompareExchange(ref _diagramInitializationState, InitStateIdle, InitStateInitializing);
+            if (observedState == InitStateInitializing)
+            {
+                _logger.LogWarning("Diagram initialization dispatch did not run (TaskStatus={TaskStatus}); state reset to {State}",
+                    task.Status, nameof(InitStateIdle));
+            }
+        }
+        catch (Exception ex)
+        {
+            // This method is a state-machine safety net; it must never throw.
+            _logger.LogCritical(ex, "Diagram initialization dispatch completion handler failed; state may be inconsistent");
+
+            // Provide a message to the user as well, but ensure this handler itself never throws.
+            try
+            {
+                Dispatcher.UIThread.Post(() => Diagram.LastError = $"Internal error during diagram initialization: {ex.Message}");
+            }
+            catch (Exception uiEx)
+            {
+                _logger.LogError(uiEx, "Failed to dispatch diagram initialization error message to UI thread.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Initializes the diagram and manages state transitions to ensure accurate tracking of the initialization process.
+    /// </summary>
+    /// <remarks>This method resets the diagram initialization state to idle upon completion, unless the state
+    /// has already changed to a different value. This helps prevent overwriting newer state transitions that may have
+    /// occurred during initialization.</remarks>
+    /// <returns>A task that represents the asynchronous initialization operation.</returns>
+    private async Task InitializeDiagramWithStateTrackingAsync()
+    {
+        try
+        {
+            await InitializeDiagramAsync();
+        }
+        finally
+        {
+            // Attempt to transition back to Idle when done, regardless of success/failure.
+            // Only reset if the state is still Initializing to avoid overwriting a newer Pending state.
+            int observedState = Interlocked.CompareExchange(ref _diagramInitializationState, InitStateIdle, InitStateInitializing);
+            if (observedState == InitStateInitializing)
+            {
+                _logger.LogDebug("Diagram initialization complete, state reset to {State}", nameof(InitStateIdle));
+            }
+            else
+            {
+                _logger.LogWarning("Diagram initialization complete; state not reset because current state changed to {StateValue}", observedState);
+            }
+        }
+    }
+
+    /// <summary>
     /// Handles property changes from the Diagram ViewModel.
     /// </summary>
     /// <param name="sender">The source of the event.</param>
@@ -699,6 +901,47 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     {
         string mermaidSource = Editor.Text;
         return Diagram.InitializeAsync(mermaidSource);
+    }
+
+    /// <summary>
+    /// Sets the pending diagram initialization flag to indicate that diagram initialization
+    /// should occur when the <see cref="DiagramViewReadyMessage"/> is received.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Call this method when the DiagramView is not yet attached (e.g., panel is pinned/floating)
+    /// and initialization cannot proceed immediately. When the DiagramView attaches and sends
+    /// <see cref="DiagramViewReadyMessage"/> with <see cref="DiagramViewReadyInfo.RequiresInitialization"/>=true,
+    /// the <see cref="Receive(DiagramViewReadyMessage)"/> handler will trigger initialization.
+    /// </para>
+    /// <para>
+    /// This method only transitions to Pending if the current state is Idle. If initialization
+    /// is already in progress (Initializing state), this call is ignored to prevent the race
+    /// condition where a new pending request could cause duplicate initialization.
+    /// </para>
+    /// <para>
+    /// This method is called from:
+    /// <list type="bullet">
+    ///     <item><description><see cref="Views.MainWindow.OnOpenedAsync"/>: when diagram panel starts pinned/floating</description></item>
+    ///     <item><description><see cref="ResetLayoutAsync"/>: when diagram panel is not visible after layout reset</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public void SetPendingDiagramInitialization()
+    {
+        // Only transition to Pending if currently Idle.
+        // If already Initializing, don't overwrite - the current initialization will complete
+        // and transition back to Idle, at which point a new SetPending call would be needed.
+        int observedState = Interlocked.CompareExchange(ref _diagramInitializationState, InitStatePending, InitStateIdle);
+        if (observedState == InitStateIdle)
+        {
+            _logger.LogDebug("Set {FlagName} to {State} (Pending)", nameof(_diagramInitializationState), InitStatePending);
+        }
+        else
+        {
+            _logger.LogDebug("Ignored {MethodName} call - current state is {CurrentState} (expected {ExpectedState})",
+                nameof(SetPendingDiagramInitialization), observedState, InitStateIdle);
+        }
     }
 
     #endregion Diagram Initialization
@@ -1227,8 +1470,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             }
             else
             {
-                _logger.LogInformation("Skipping diagram initialization after layout reset - panel is not visible (pinned/hidden). " +
-                    $"It will auto-initialize when shown and {nameof(DiagramViewModel.IsReady)} is true.");
+                // DiagramView hasn't attached yet (new layout with pinned/floating diagram panel).
+                // Set the pending flag so Receive(DiagramViewReadyMessage) will trigger initialization
+                // when the View becomes ready.
+                SetPendingDiagramInitialization();
+
+                _logger.LogInformation(
+                    "DiagramView not yet attached after layout reset - panel may be pinned/floating. " +
+                    "Initialization will be triggered when {MessageName} is received.",
+                    nameof(DiagramViewReadyMessage));
             }
 
             _logger.LogInformation("Dock layout reset to default");
