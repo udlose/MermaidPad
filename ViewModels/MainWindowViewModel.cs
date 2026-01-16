@@ -1546,6 +1546,23 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// Logs diagnostic information about the current dock layout state for debugging drop target issues.
+    /// Only available in DEBUG builds.
+    /// </summary>
+    /// <remarks>
+    /// Call this from the View Menu or via a keyboard shortcut (e.g., Ctrl+Shift+D) to dump
+    /// the dock hierarchy state to the log file. Useful when both panels are floated and
+    /// re-docking isn't working.
+    /// </remarks>
+    [RelayCommand]
+    private void DumpDockDiagnostics()
+    {
+        _dockFactory.LogDropTargetDiagnostics(Layout);
+    }
+#endif
+
     #endregion View Menu Commands
 
     #region Help Menu Commands
