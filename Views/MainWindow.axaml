@@ -115,11 +115,12 @@
             ToggleType="CheckBox" />
         </MenuItem>
       </MenuItem>
-      <MenuItem Header="_View">
+      <MenuItem Name="ViewMenu" Header="_View">
         <MenuItem Command="{Binding ShowEditorPanelCommand}" Header="Show _Editor Panel" />
         <MenuItem Command="{Binding ShowDiagramPanelCommand}" Header="Show _Diagram Panel" />
         <Separator />
         <MenuItem Command="{Binding ResetLayoutCommand}" Header="_Reset Layout to Default" />
+        <!--  DEBUG ONLY: Menu item added dynamically. Dump dock diagnostics to log file. Command only exists in DEBUG builds.  -->
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
@@ -197,9 +198,9 @@
       x:Name="DockControl"
       Margin="6,0,6,6"
       Background="Transparent"
+      Factory="{Binding DockFactory}"
       InitializeFactory="False"
       InitializeLayout="False"
-      Factory="{Binding DockFactory}"
       Layout="{Binding Layout}" />
   </DockPanel>
 </Window>
