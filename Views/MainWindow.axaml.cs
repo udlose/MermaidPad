@@ -26,6 +26,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MermaidPad.Extensions;
+using MermaidPad.Infrastructure.Messages;
 using MermaidPad.ViewModels;
 using MermaidPad.Views.Docking;
 using Microsoft.Extensions.DependencyInjection;
@@ -413,8 +414,9 @@ public sealed partial class MainWindow : Window
             // Initialize DiagramView (WebView initialization is now encapsulated there)
             // Note: Only initialize if the DiagramView is attached (i.e., visible in the dock layout).
             // When the diagram panel is pinned/hidden, the View isn't created, so InitializeActionAsync
-            // won't be set. In that case, skip initialization - the DiagramView will auto-initialize
-            // when it becomes visible via its SetupViewModelBindings() → TriggerReinitialization() path.
+            // won't be set. In that case, we set _isPendingDiagramInitialization=true so that when
+            // DiagramView attaches and sends DiagramViewReadyMessage, MainWindowViewModel.Receive()
+            // will trigger initialization.
             if (_vm.Diagram.InitializeActionAsync is not null)
             {
                 _logger.LogInformation($"Initializing {nameof(DiagramToolView)}...");
@@ -436,10 +438,15 @@ public sealed partial class MainWindow : Window
             }
             else
             {
+                // DiagramView hasn't attached yet (pinned/floating layout).
+                // Set the pending flag so MainWindowViewModel.Receive(DiagramViewReadyMessage)
+                // will trigger initialization when the View becomes ready.
+                _vm.SetPendingDiagramInitialization();
+
                 _logger.LogInformation(
-                    "Skipping {DiagramToolView} initialization - panel is not visible (pinned/hidden). " +
-                    "It will auto-initialize when shown.",
-                    nameof(DiagramToolView));
+                    "DiagramView not yet attached - panel may be pinned/floating. " +
+                    "Initialization will be triggered when {MessageName} is received.",
+                    nameof(DiagramViewReadyMessage));
             }
 
             // Step 3: Update command states
