@@ -78,6 +78,11 @@ internal sealed class ConfirmationDialogViewModel : ViewModelBase
 internal enum ConfirmationResult
 {
     /// <summary>
+    /// Indicates that no value is specified.
+    /// </summary>
+    None = 0,
+
+    /// <summary>
     /// User clicked Yes or confirmed the action.
     /// </summary>
     Yes,
