@@ -37,6 +37,17 @@ namespace MermaidPad.Views.Dialogs;
 internal sealed partial class ConfirmationDialog : DialogBase
 {
     /// <summary>
+    /// Tracks whether a dialog result was explicitly set by clicking one of the action buttons.
+    /// </summary>
+    /// <remarks>
+    /// This flag distinguishes between explicit button clicks (Yes/No/Cancel) and the window
+    /// being closed via the title bar X button or other close mechanisms. When <see langword="false"/>,
+    /// the <see cref="OnClosing"/> method will intercept the close and set <see cref="ConfirmationResult.Cancel"/>
+    /// as the result to ensure consistent behavior.
+    /// </remarks>
+    private bool _isResultSet;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ConfirmationDialog"/> class.
     /// </summary>
     /// <remarks>
@@ -49,12 +60,50 @@ internal sealed partial class ConfirmationDialog : DialogBase
     }
 
     /// <summary>
+    /// Handles the window closing event, ensuring that the X button returns <see cref="ConfirmationResult.Cancel"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When a user clicks the title bar X button or uses Alt+F4, this override redirects the close
+    /// request to the Cancel button handler, ensuring consistent result handling. The natural close
+    /// is canceled and replaced with a programmatic close that sets <see cref="ConfirmationResult.Cancel"/>.
+    /// </para>
+    /// <para>
+    /// This pattern reuses existing button logic rather than duplicating the close mechanism.
+    /// </para>
+    /// </remarks>
+    /// <param name="e">Event arguments containing cancellation state and close reason.</param>
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        // If no button was explicitly clicked, redirect to Cancel result
+        if (!_isResultSet)
+        {
+            // Prevent the unhandled close
+            e.Cancel = true;
+
+            // Call base so DialogBase can see the cancellation and clear its pending request
+            base.OnClosing(e);
+
+            // Set flag BEFORE CloseDialog to prevent infinite loop on subsequent OnClosing call
+            _isResultSet = true;
+
+            // Now trigger a proper close with Cancel result (deferred to next dispatcher tick)
+            CloseDialog(ConfirmationResult.Cancel);
+            return;
+        }
+
+        // Allow the close to proceed with the explicitly set result
+        base.OnClosing(e);
+    }
+
+    /// <summary>
     /// Handles the click event for the Yes button and closes the dialog with a <see cref="ConfirmationResult.Yes"/>.
     /// </summary>
     /// <param name="sender">The source of the event. May be <c>null</c> when invoked programmatically.</param>
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnYesClick(object? sender, RoutedEventArgs e)
     {
+        _isResultSet = true;
         CloseDialog(ConfirmationResult.Yes);
     }
 
@@ -65,6 +114,7 @@ internal sealed partial class ConfirmationDialog : DialogBase
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnNoClick(object? sender, RoutedEventArgs e)
     {
+        _isResultSet = true;
         CloseDialog(ConfirmationResult.No);
     }
 
@@ -75,6 +125,7 @@ internal sealed partial class ConfirmationDialog : DialogBase
     /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing event data.</param>
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
+        _isResultSet = true;
         CloseDialog(ConfirmationResult.Cancel);
     }
 }
