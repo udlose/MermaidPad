@@ -24,17 +24,42 @@
     See: https://wieslawsoltes.github.io/Dock/dock-styling.html
   -->
   <Application.Resources>
-    <!--  Background color for dock controls and floating windows  -->
-    <SolidColorBrush x:Key="DockThemeBackgroundBrush" Color="#1E1E1E" />
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <!--  Fallback dictionary if a key isn't found in Light/Dark  -->
+        <ResourceDictionary x:Key="Default">
+          <!--  Background color for dock controls and floating windows  -->
+          <SolidColorBrush x:Key="DockThemeBackgroundBrush" Color="#1E1E1E" />
 
-    <!--  Foreground color for text in dock controls  -->
-    <SolidColorBrush x:Key="DockThemeForegroundBrush" Color="#EEEEEE" />
+          <!--  Foreground color for text in dock controls  -->
+          <SolidColorBrush x:Key="DockThemeForegroundBrush" Color="#EEEEEE" />
 
-    <!--  Accent color for active/selected elements  -->
-    <SolidColorBrush x:Key="DockThemeAccentBrush" Color="#007ACC" />
+          <!--  Accent color for active/selected elements  -->
+          <SolidColorBrush x:Key="DockThemeAccentBrush" Color="#007ACC" />
 
-    <!--  Icon color for ToolChromeControl buttons (minimize/maximize/close)  -->
-    <SolidColorBrush x:Key="DockToolChromeIconBrush" Color="#FFFFFF" />
+          <!--  Icon color for ToolChromeControl buttons (minimize/maximize/close)  -->
+          <SolidColorBrush x:Key="DockToolChromeIconBrush" Color="#FFFFFF" />
+
+          <SolidColorBrush x:Key="DockFloatingWindowBackgroundBrush" Color="#1E1E1E" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="DockThemeBackgroundBrush" Color="#1E1E1E" />
+          <SolidColorBrush x:Key="DockThemeForegroundBrush" Color="#EEEEEE" />
+          <SolidColorBrush x:Key="DockThemeAccentBrush" Color="#296E01" />
+          <SolidColorBrush x:Key="DockToolChromeIconBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="DockFloatingWindowBackgroundBrush" Color="#1E1E1E" />
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="DockThemeBackgroundBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="DockThemeForegroundBrush" Color="#1A1A1A" />
+          <SolidColorBrush x:Key="DockThemeAccentBrush" Color="#003D00" />
+          <SolidColorBrush x:Key="DockToolChromeIconBrush" Color="#1A1A1A" />
+          <SolidColorBrush x:Key="DockFloatingWindowBackgroundBrush" Color="#FFFFFF" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
   </Application.Resources>
 
   <Application.Styles>
@@ -56,7 +81,7 @@
       Without this, floating windows may appear transparent.
     -->
     <Style Selector="idc|HostWindow">
-      <Setter Property="Background" Value="#1E1E1E" />
+      <Setter Property="Background" Value="{DynamicResource DockFloatingWindowBackgroundBrush}" />
       <Setter Property="TransparencyLevelHint" Value="None" />
     </Style>
 
@@ -64,7 +89,7 @@
       Ensure ToolControl has an opaque background in floating windows.
     -->
     <Style Selector="idc|ToolControl">
-      <Setter Property="Background" Value="#1E1E1E" />
+      <Setter Property="Background" Value="{DynamicResource DockFloatingWindowBackgroundBrush}" />
     </Style>
   </Application.Styles>
 </Application>
