@@ -378,6 +378,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Gets the factory used to create and manage dockable UI components.
     /// </summary>
+    [SuppressMessage("ReSharper", "ConvertToAutoPropertyWhenPossible", Justification = "Field is readonly and initialized via constructor injection.")]
     public DockFactory DockFactory => _dockFactory;
 
     /// <summary>
@@ -1418,13 +1419,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 {
                     Layout.Close.Execute(null);
                 }
-                else
-                {
-                    _logger.LogWarning("Layout.Close command cannot be executed during {MethodName}. Calling {MethodName2}", nameof(PrepareForShutdown), nameof(_dockFactory.CloseAllFloatingWindows));
 
-                    // Close any floating windows before resetting the layout
-                    _dockFactory.CloseAllFloatingWindows(Layout);
-                }
+                // For some reason closing the Layout via 'Layout.Close.Execute()'
+                // doesn't close floating windows. So we have to explicitly close them here as well.
+                // Close any floating windows before resetting the layout
+                _dockFactory.CloseAllFloatingWindows(Layout);
             }
 
             // Preserve current editor state before resetting
