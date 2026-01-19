@@ -1440,6 +1440,13 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
 
         void SetFocusToEditor()
         {
+            // Focus this view first, if not already focused
+            if (!IsFocused)
+            {
+                Focus();
+            }
+
+            // Then focus the TextArea specifically
             if (Editor?.TextArea is not null)
             {
                 _suppressEditorStateSync = true;

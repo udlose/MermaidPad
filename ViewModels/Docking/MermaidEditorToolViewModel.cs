@@ -112,13 +112,16 @@ internal sealed partial class MermaidEditorToolViewModel : Tool, IDisposable
         Id = ToolId;
         Title = "Mermaid Editor";
 
-        // Prevent closing but allow other operations
+        // Prevent closing & floating but allow other operations
         CanClose = false;
+        CanDrag = true;
+        CanDrop = true;
         CanPin = true;
-        CanFloat = true;
+        CanFloat = false;
 
         // Activate the editor to enable message registration.
         // This calls OnActivated() which registers for messages via the document-scoped messenger.
+        //TODO - DaveBlack: is defaulting Editor.IsActive to true in MermaidEditorToolView ctor problematic if the editor was hidden/pinned at startup?
         Editor.IsActive = true;
     }
 
