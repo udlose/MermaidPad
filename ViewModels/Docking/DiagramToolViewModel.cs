@@ -74,9 +74,11 @@ internal sealed class DiagramToolViewModel : Tool
         Id = ToolId;
         Title = "Diagram Preview";
 
-        // Prevent closing but allow other operations
+        // Prevent closing & floating but allow other operations
         CanClose = false;
+        CanDrag = true;
+        CanDrop = true;
         CanPin = true;
-        CanFloat = true;
+        CanFloat = false;
     }
 }
