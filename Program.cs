@@ -65,6 +65,10 @@ internal static class Program
             .BringWindowsToFrontOnDrag()    // brings main app and floating windows to front when dragging Dock windows
             .EnableWindowMagnetism()        // enables window magnetism (snap-to-edge) for Dock
             .UseFloatingDockAdorner()       // enables floating dock adorners for Dock
+            .UseOwnerForFloatingWindows()   // makes floating Dock windows owned by main app window
+
+            //TODO - DaveBlack: The 'UsePinnedDockWindow' setting fixes the "air-space/z-index" ordering issue for the WebView control - BUT, it breaks the ability to re-dock the pinned panel.
+            //.UsePinnedDockWindow()          // uses floating windows for pinned Dock windows (pinned windows stay on top of other windows)
             .UseDesktopWebView()            // this handles cross-platform WebView support
             .LogToTrace();
 }
