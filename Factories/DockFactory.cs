@@ -435,7 +435,7 @@ internal sealed class DockFactory : Factory
         editorToolDock.ActiveDockable = EditorTool;
         editorToolDock.CanClose = false;
         editorToolDock.CanPin = true;
-        editorToolDock.CanFloat = true;
+        editorToolDock.CanFloat = false;
 
         IToolDock diagramToolDock = CreateToolDock();
         diagramToolDock.Factory = this;
@@ -446,26 +446,40 @@ internal sealed class DockFactory : Factory
         diagramToolDock.ActiveDockable = DiagramTool;
         diagramToolDock.CanClose = false;
         diagramToolDock.CanPin = true;
-        diagramToolDock.CanFloat = true;
+        diagramToolDock.CanFloat = false;
 
         // Create a proportional dock to hold both tool docks (horizontal layout)
         IProportionalDockSplitter splitter = CreateProportionalDockSplitter();
         splitter.Id = "MainSplitter";
         splitter.Title = "Splitter";
         splitter.Factory = this;
+        splitter.CanClose = false;
+        splitter.CanDrag = false;
+        splitter.IsCollapsable = false;
         splitter.CanResize = true;
+        splitter.CanFloat = false;
         splitter.ResizePreview = false;  // when false, show live preview while resizing (versus a drag indicator)
 
         IProportionalDock mainLayout = CreateProportionalDock();
         mainLayout.Factory = this;
         mainLayout.Id = MainProportionalDockId;
         mainLayout.Title = "Main";
+        mainLayout.CanCloseLastDockable = false;
+        mainLayout.CanClose = false;
+        mainLayout.CanDrag = false;
+        mainLayout.CanDrop = false;
+        mainLayout.CanFloat = false;
+        mainLayout.IsCollapsable = false;       // only when this is false can we re-dock floated tool docks when BOTH are floated
         mainLayout.Orientation = Orientation.Horizontal;
         mainLayout.VisibleDockables = CreateList<IDockable>(
             editorToolDock,
             splitter,
             diagramToolDock
         );
+        mainLayout.EnableGlobalDocking = true; // allow dragging dockables between tool docks (Dock enables this by default)
+        //mainLayout.KeepPinnedDockableVisible = true; // ensure pinned dockables remain visible when other dockables are added/removed
+
+        // https://github.com/wieslawsoltes/Dock/blob/master/docfx/articles/dock-manager-guide.md#dock-target-visibility
 
         // Create the root dock using the factory method
         // CreateRootDock() is a base class method that properly initializes internal relationships
@@ -474,6 +488,11 @@ internal sealed class DockFactory : Factory
         rootDock.Factory = this;
         rootDock.Id = RootDockId;
         rootDock.Title = "Root";
+        rootDock.CanCloseLastDockable = false;
+        rootDock.CanClose = false;
+        rootDock.CanDrag = false;
+        rootDock.CanDrop = false;
+        rootDock.CanFloat = false;
         rootDock.IsCollapsable = false;
         rootDock.VisibleDockables = CreateList<IDockable>(mainLayout);
         // WARNING: DO NOT set RootDock's DefaultDockable to anything.
@@ -1046,6 +1065,7 @@ internal sealed class DockFactory : Factory
     /// <param name="tool">The dockable tool to bring to the front. Cannot be null.</param>
     /// <param name="dockWindow">The optional dock window containing the tool. If null, the method attempts to determine the appropriate window
     /// from the owner chain.</param>
+    [SuppressMessage("Roslynator", "RCS1163:Unused parameter", Justification = "<Pending>")]
     private void BringToolToFront(IDock owner, IDockable tool, IDockWindow? dockWindow = null)
     {
         SetActiveDockable(tool);
