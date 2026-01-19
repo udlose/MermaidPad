@@ -737,8 +737,9 @@ internal sealed class DockFactory : Factory
         // When tools are floated, they exist in separate HostWindow containers that may not be
         // reachable from the main layout hierarchy. The HostWindows collection is populated
         // during deserialization when floating windows are restored.
-        foreach (IHostWindow hostWindow in hostWindows)
+        for (int i = 0; i < hostWindows.Count; i++)
         {
+            IHostWindow hostWindow = hostWindows[i];
             if (hostWindow.Window?.Layout is not null)
             {
                 AddDockable(hostWindow.Window.Layout, stack, visited);
@@ -997,8 +998,9 @@ internal sealed class DockFactory : Factory
                 //}
 
                 // first check for floating windows
-                foreach (IHostWindow hostWindow in HostWindows)
+                for (int i = 0; i < HostWindows.Count; i++)
                 {
+                    IHostWindow hostWindow = HostWindows[i];
                     IDockWindow? dockWindow = hostWindow.Window;
                     if (dockWindow is not null)
                     {
