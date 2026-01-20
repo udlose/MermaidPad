@@ -105,13 +105,13 @@
           InputGesture="Ctrl+Shift+U" />
         <Separator />
         <MenuItem Header="Formatting">
-          <MenuItem 
-            Header="Word _Wrap" 
-            IsChecked="{Binding WordWrapEnabled, Mode=TwoWay}" 
+          <MenuItem
+            Header="Word _Wrap"
+            IsChecked="{Binding Editor.IsWordWrapEnabled, Mode=TwoWay}"
             ToggleType="CheckBox" />
-          <MenuItem 
-            Header="Show _Line Numbers" 
-            IsChecked="{Binding ShowLineNumbers, Mode=TwoWay}" 
+          <MenuItem
+            Header="Show _Line Numbers"
+            IsChecked="{Binding Editor.ShowLineNumbers, Mode=TwoWay}"
             ToggleType="CheckBox" />
         </MenuItem>
       </MenuItem>

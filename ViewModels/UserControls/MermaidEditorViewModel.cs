@@ -18,12 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using MermaidPad.Infrastructure.Messages;
+using MermaidPad.Models;
 using MermaidPad.Models.Editor;
+using MermaidPad.Services;
 using MermaidPad.Services.Editor;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -62,6 +65,7 @@ namespace MermaidPad.ViewModels.UserControls;
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via ViewModelFactory.")]
 internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, IDisposable
 {
+    private readonly SettingsService _settingsService;
     private readonly CommentingStrategy _commentingStrategy;
     private readonly ILogger<MermaidEditorViewModel> _logger;
     private bool _isDisposed;
@@ -107,6 +111,18 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     #region Edit State and Clipboard Properties
 
     /// <summary>
+    /// This will get or set the value indicating whether word wrap is enabled in the editor.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsWordWrapEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether line numbers are displayed in the editor.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowLineNumbers { get; set; }
+
+    /// <summary>
     /// The offset of a non-whitespace character in the document, used as a witness for determining <see cref="HasNonWhitespaceText"/>.
     /// This is -1 if no non-whitespace character has been found, or if the document is empty or contains only whitespace.
     /// </summary>
@@ -147,7 +163,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// writes from multiple threads.
     /// </para>
     /// </remarks>
-    public TextDocument Document { get; } = new TextDocument();
+    public TextDocument Document { get; private set; }
 
     /// <summary>
     /// Gets or sets the current text content in the editor.
@@ -440,6 +456,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// </summary>
     /// <param name="appMessenger">The application-wide messenger for cross-document communication.</param>
     /// <param name="documentMessenger">The document-scoped messenger for this editor's messages.</param>
+    /// <param name="settingsService">The settings service for managing user preferences.</param>
     /// <param name="commentingStrategy">The commenting strategy service for comment/uncomment operations.</param>
     /// <param name="logger">The logger instance for this view model.</param>
     /// <remarks>
@@ -458,12 +475,31 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     public MermaidEditorViewModel(
         [FromKeyedServices(MessengerKeys.App)] IMessenger appMessenger,
         [FromKeyedServices(MessengerKeys.Document)] IMessenger documentMessenger,
+        SettingsService settingsService,
         CommentingStrategy commentingStrategy,
         ILogger<MermaidEditorViewModel> logger)
         : base(appMessenger, documentMessenger)
     {
+        _settingsService = settingsService;
         _commentingStrategy = commentingStrategy;
         _logger = logger;
+
+        // Initialize the persistent TextDocument with the last saved diagram text or sample text
+        string documentText = _settingsService.Settings.LastDiagramText ?? SampleText;
+        // Initialize settings-based properties
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            InitializeEditorSettings();
+            Document = new TextDocument(documentText);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                InitializeEditorSettings();
+                Document = new TextDocument(documentText);
+            }, DispatcherPriority.Normal);
+        }
 
         // Subscribe to UndoStack property changes for automatic undo/redo state updates.
         Document.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
@@ -479,6 +515,22 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
 
         // Ensure HasNonWhitespaceText is correct for the initial document state
         RecomputeNonWhitespaceByScan();
+
+    }
+
+    /// <summary>
+    /// Initializes the editor-related properties with values from the current settings.
+    /// </summary>
+    /// <remarks>This method should be called to synchronize the editor's state with the persisted user or
+    /// application settings. It updates properties such as caret position, word wrap, selection, and line number
+    /// visibility to reflect the latest configuration.</remarks>
+    private void InitializeEditorSettings()
+    {
+        CaretOffset = _settingsService.Settings.EditorCaretOffset;
+        IsWordWrapEnabled = _settingsService.Settings.IsWordWrapEnabled;
+        SelectionLength = _settingsService.Settings.EditorSelectionLength;
+        SelectionStart = _settingsService.Settings.EditorSelectionStart;
+        ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
     }
 
     #region ObservableRecipient Overrides
@@ -852,6 +904,46 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     }
 
     #endregion Non-Whitespace Text Tracking
+
+    /// <summary>
+    /// Copies the current editor state to the specified application settings instance.
+    /// </summary>
+    /// <remarks>This method updates the provided settings object with the current editor state, including
+    /// caret position, selection, word wrap, and other relevant properties. It does not save the settings to disk;
+    /// callers are responsible for persisting the settings after calling this method.</remarks>
+    /// <param name="appSettings">The application settings object to which the editor state will be persisted. Cannot be null.</param>
+    /// <exception cref="ArgumentNullException">Thrown when appSettings is null.</exception>
+    internal void Persist(AppSettings appSettings)
+    {
+        ArgumentNullException.ThrowIfNull(appSettings);
+
+        // Save editor state to settings
+        appSettings.EditorCaretOffset = CaretOffset;
+        appSettings.EditorSelectionLength = SelectionLength;
+        appSettings.EditorSelectionStart = SelectionStart;
+        appSettings.IsWordWrapEnabled = IsWordWrapEnabled;
+        appSettings.LastDiagramText = Document.Text;
+        appSettings.ShowLineNumbers = ShowLineNumbers;
+
+        // Save is done by the caller (e.g., MainWindowViewModel)
+    }
+
+    /// <summary>
+    /// Gets sample Mermaid diagram text.
+    /// </summary>
+    /// <returns>A string containing the sample Mermaid diagram text.</returns>
+    private static string SampleText => """
+---
+config:
+  layout: elk
+---
+graph TD
+  A[Start] --> B{Decision}
+  B -->|Yes| C[Render Diagram]
+  B -->|No| D[Edit Text]
+  C --> E[Done]
+  D --> B
+""";
 
     #region IDisposable
 
