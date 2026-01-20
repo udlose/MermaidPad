@@ -409,8 +409,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         _suppressEditorStateSync = true;
         try
         {
-            // CRITICAL: Attach the ViewModel's Document to the TextEditor
-            // This preserves undo history across view recreation
+            // Attach the ViewModel's Document to the TextEditor. This preserves undo history across view recreation
             if (!ReferenceEquals(Editor.Document, _vm.Document))
             {
                 _logger.LogInformation("Attaching ViewModel's Document to TextEditor (preserves undo history)");
@@ -432,6 +431,8 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
             Editor.Options.HighlightCurrentLine = true;
             Editor.Options.IndentationSize = 2;
             Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(_documentAnalyzer, Editor.Options);
+            Editor.ShowLineNumbers = _vm.ShowLineNumbers;
+            Editor.WordWrap = _vm.IsWordWrapEnabled;
 
             _logger.LogInformation("Editor state set with {CharacterCount} characters, undo available: {CanUndo}", textLength, Editor.CanUndo);
         }
@@ -602,6 +603,14 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         if (IsSelectionOrCaretProperty(e.PropertyName))
         {
             HandleSelectionOrCaretPropertyChanged();
+        }
+        else if (e.PropertyName == nameof(MermaidEditorViewModel.ShowLineNumbers))
+        {
+            Editor.ShowLineNumbers = _vm.ShowLineNumbers;
+        }
+        else if (e.PropertyName == nameof(MermaidEditorViewModel.IsWordWrapEnabled))
+        {
+            Editor.WordWrap = _vm.IsWordWrapEnabled;
         }
     }
 
@@ -1557,36 +1566,6 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         {
             _logger.LogWarning($"{nameof(UnsubscribeAllEventHandlers)} called multiple times; skipping subsequent call");
         }
-    }
-
-    /// <summary>
-    /// Sets whether word wrap is enabled in the editor.
-    /// </summary>
-    /// <param name="enabled"><c>true</c> to enable word wrap; otherwise, <c>false</c>.</param>
-    public void SetWordWrap(bool enabled)
-    {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            Editor.WordWrap = enabled;
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() => Editor.WordWrap = enabled, DispatcherPriority.Normal);
-    }
-
-    /// <summary>
-    /// Sets whether line numbers are shown in the editor.
-    /// </summary>
-    /// <param name="show"><c>true</c> to show line numbers; otherwise, <c>false</c>.</param>
-    public void SetShowLineNumbers(bool show)
-    {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            Editor.ShowLineNumbers = show;
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() => Editor.ShowLineNumbers = show, DispatcherPriority.Normal);
     }
 
     #endregion Cleanup
