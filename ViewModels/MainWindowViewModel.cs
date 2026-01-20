@@ -266,36 +266,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     public partial bool LivePreviewEnabled { get; set; }
 
     /// <summary>
-    /// This will get or set the value indicating whether word wrap is enabled in the editor.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool WordWrapEnabled { get; set; }
-
-    /// <summary>
-    /// Called when wordwrapengabled changes; persists the new value to settings.
-    /// </summary>
-    partial void OnWordWrapEnabledChanged(bool value)
-    {
-        _settingsService.Settings.WordWrapEnabled = value;
-        _settingsService.Save();
-    }
-
-    /// <summary>
-    /// This will get or set the value indicating whether a line number is shown in the editor.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ShowLineNumbers { get; set; }
-
-    /// <summary>
-    /// Called when ShowLineNumbers changes; persists the new value to settings.
-    /// </summary>
-    partial void OnShowLineNumbersChanged(bool value)
-    {
-        _settingsService.Settings.ShowLineNumbers = value;
-        _settingsService.Save();
-    }
-
-    /// <summary>
     /// Gets or sets the current file path being edited.
     /// </summary>
     [ObservableProperty]
@@ -423,12 +393,6 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         // Create the dock layout - this creates the Editor and Diagram tool ViewModels
         InitializeDockLayout();
 
-        // Initialize properties from settings
-        Editor.Text = _settingsService.Settings.LastDiagramText ?? SampleText;
-        Editor.SelectionStart = _settingsService.Settings.EditorSelectionStart;
-        Editor.SelectionLength = _settingsService.Settings.EditorSelectionLength;
-        Editor.CaretOffset = _settingsService.Settings.EditorCaretOffset;
-
         RegisterEventHandlers();
 
         // Register for EditorTextChangedMessage via the document-scoped messenger using IRecipient<T> pattern.
@@ -437,11 +401,10 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         // and prepares for MDI migration where each document has its own messenger.
         _documentMessenger.RegisterAll(this);
 
+        // Initialize properties from settings
         BundledMermaidVersion = _settingsService.Settings.BundledMermaidVersion;
         LatestMermaidVersion = _settingsService.Settings.LatestCheckedMermaidVersion;
         LivePreviewEnabled = _settingsService.Settings.LivePreviewEnabled;
-        WordWrapEnabled = _settingsService.Settings.WordWrapEnabled;
-        ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
         CurrentFilePath = _settingsService.Settings.CurrentFilePath;
 
         UpdateRecentFiles();
@@ -2103,13 +2066,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </remarks>
     public void Persist()
     {
-        _settingsService.Settings.LastDiagramText = Editor.Text;
+        // Persist ViewModel-specific settings to AppSettings
+        Editor.Persist(_settingsService.Settings);
+
         _settingsService.Settings.LivePreviewEnabled = LivePreviewEnabled;
         _settingsService.Settings.BundledMermaidVersion = BundledMermaidVersion;
         _settingsService.Settings.LatestCheckedMermaidVersion = LatestMermaidVersion;
-        _settingsService.Settings.EditorSelectionStart = Editor.SelectionStart;
-        _settingsService.Settings.EditorSelectionLength = Editor.SelectionLength;
-        _settingsService.Settings.EditorCaretOffset = Editor.CaretOffset;
         _settingsService.Settings.CurrentFilePath = CurrentFilePath;
         _settingsService.Save();
 
@@ -2197,21 +2159,4 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             _isDisposed = true;
         }
     }
-
-    /// <summary>
-    /// Gets sample Mermaid diagram text.
-    /// </summary>
-    /// <returns>A string containing the sample Mermaid diagram text.</returns>
-    private static string SampleText => """
----
-config:
-  layout: elk
----
-graph TD
-  A[Start] --> B{Decision}
-  B -->|Yes| C[Render Diagram]
-  B -->|No| D[Edit Text]
-  C --> E[Done]
-  D --> B
-""";
 }

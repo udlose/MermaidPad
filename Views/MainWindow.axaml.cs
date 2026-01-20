@@ -91,33 +91,10 @@ public sealed partial class MainWindow : Window
         _activatedHandler = OnActivated;
         Activated += _activatedHandler;
 
-        // Subscribe to ViewModel property changes for WordWrap and ShowLineNumbers
-        _vm.PropertyChanged += OnMainViewModelPropertyChanged;
-
-        // Apply initial editor settings
-        MermaidEditor.SetWordWrap(_vm.WordWrapEnabled);
-        MermaidEditor.SetShowLineNumbers(_vm.ShowLineNumbers);
-
         // Add debug-specific menu items in debug builds. Note that this is conditionally compiled.
         AddDebugViewMenuItems();
 
         _logger.LogInformation("=== MainWindow Initialization Completed ===");
-    }
-
-    /// <summary>
-    /// Handles property changes from the MainWindowViewModel to apply editor settings.
-    /// </summary>
-    private void OnMainViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(MainWindowViewModel.WordWrapEnabled):
-                MermaidEditor.SetWordWrap(_vm.WordWrapEnabled);
-                break;
-            case nameof(MainWindowViewModel.ShowLineNumbers):
-                MermaidEditor.SetShowLineNumbers(_vm.ShowLineNumbers);
-                break;
-        }
     }
 
     /// <summary>
@@ -560,9 +537,6 @@ public sealed partial class MainWindow : Window
                 Activated -= _activatedHandler;
                 _activatedHandler = null;
             }
-
-            // Unsubscribe from ViewModel property changes
-            _vm.PropertyChanged -= OnMainViewModelPropertyChanged;
 
             _logger.LogInformation("All {ViewName} event handlers unsubscribed successfully", nameof(MainWindow));
 
