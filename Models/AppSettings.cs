@@ -67,12 +67,12 @@ public sealed class AppSettings
     public bool LivePreviewEnabled { get; set; } = true;
 
     /// <summary>
-    /// This indiacates whether word wrap is enabled or not.
+    /// This indicates whether word wrap is enabled or not.
     /// </summary>
     /// <remarks>
     /// Defaults to <c>false</c>.
     /// </remarks>
-    public bool WordWrapEnabled { get; set; } = false;
+    public bool IsWordWrapEnabled { get; set; } = false;
 
     /// <summary>
     /// This indicates whether line numbers are shown in the editor.
