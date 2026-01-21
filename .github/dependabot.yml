@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/dependabot-2.0.json
+
 # To get started with Dependabot version updates, you'll need to specify which
 # package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
@@ -5,17 +7,39 @@
 
 version: 2
 updates:
-  - package-ecosystem: "nuget" # See documentation for possible values
+  # .NET 9 Backend
+  - package-ecosystem: "nuget"
     directory: "/" # Location of package manifests
     target-branch: "develop"
     schedule:
       interval: "weekly"
+      day: "monday"
+    rebase-strategy: "auto" # Critical for the rebase workflow
+    groups:
+      dotnet-dependencies:
+        patterns:
+          - "*" # Bundles all NuGet updates into one PR to reduce noise
 
-  # Enable version updates for GitHub Actions 
-  - package-ecosystem: "github-actions" 
-    # Workflow files stored in the default location of `.github/workflows`
-    # You don't need to specify `/.github/workflows` for `directory`. You can use `directory: "/"`. 
-    directory: "/"
+  # JavaScript/TypeScript Frontend
+  - package-ecosystem: "npm"
+    directory: "/" # package.json is in repo's root
     target-branch: "develop"
     schedule:
       interval: "weekly"
+      day: "monday"
+    rebase-strategy: "auto"
+    groups:
+      frontend-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    # Workflow files stored in the default location of `.github/workflows`
+    # You don't need to specify `/.github/workflows` for `directory`. You can use `directory: "/"`.
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "monthly"
+    rebase-strategy: "auto"
+
