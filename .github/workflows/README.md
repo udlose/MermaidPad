@@ -1,4 +1,4 @@
-﻿# MermaidPad GitHub Workflow Documentation
+# MermaidPad GitHub Workflow Documentation
 
 This directory contains the automated build and release workflows for MermaidPad,
 handling cross-platform compilation, macOS app bundling, and multi-format distribution.
