@@ -53,7 +53,7 @@ jobs:
             > [!Important]
             > Please make sure that any testing included testing of the published app, not just local dev builds.
             >
-            > You can find instructions for building and testing the published app in `README.md#building--publishing`. 
+            > You can find instructions for building and testing the published app in [Building & Publishing](https://github.com/udlose/MermaidPad/blob/main/README.md#building--publishing). 
 
             CI checks will run automatically. If you can, please ensure:
             - The change is covered by tests or manual verification.
