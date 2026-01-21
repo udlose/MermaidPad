@@ -251,9 +251,15 @@ public partial class MermaidEditorView
         HashSet<string> reusableSet = _nodeBufferPool.Get();
         try
         {
+            // Avoid calling Editor.Text here as it allocates a new string each time
+            if (Editor.Document.TextLength == 0)
+            {
+                return;
+            }
+
             // NOTE: Accessing .Text allocates a string. This is unavoidable with standard AvaloniaEdit API.
-            string docText = Editor.Text ?? string.Empty;
-            if (string.IsNullOrEmpty(docText))
+            ReadOnlySpan<char> docTextAsSpan = GetDocumentTextAsSpan(Editor.Text);
+            if (docTextAsSpan.IsEmpty)
             {
                 return;
             }
@@ -272,15 +278,14 @@ public partial class MermaidEditorView
                 IntellisenseKeywords.GetKeywordsForDiagramType(currentDiagramType, currentContext);
 
             // Scan document for user-defined nodes/identifiers
-            IntellisenseScanner scanner = new IntellisenseScanner(
-                docText.AsSpan(), reusableSet, _stringInternPool);
+            IntellisenseScanner scanner = new IntellisenseScanner(docTextAsSpan, reusableSet, _stringInternPool);
             scanner.Scan();
 
             // Setup Window
             _completionWindow = new CompletionWindow(Editor.TextArea)
             {
                 // Find the start of the word at the caret
-                StartOffset = GetWordStartOffset(Editor.CaretOffset, docText)
+                StartOffset = GetWordStartOffset(Editor.CaretOffset, docTextAsSpan)
             };
 
             IList<ICompletionData>? completionData = _completionWindow.CompletionList.CompletionData;
@@ -288,6 +293,17 @@ public partial class MermaidEditorView
 
             _completionWindow.Show();
             _completionWindow.Closed += CompletionWindow_Closed;
+
+            // Local function to get document text as ReadOnlySpan<char> without extra allocations
+            static ReadOnlySpan<char> GetDocumentTextAsSpan(string? text)
+            {
+                if (string.IsNullOrEmpty(text))
+                {
+                    return ReadOnlySpan<char>.Empty;
+                }
+
+                return text.AsSpan();
+            }
         }
         catch (Exception ex)
         {
@@ -356,17 +372,17 @@ public partial class MermaidEditorView
     /// <remarks>Word characters are considered to be letters, digits, or underscores. Separators such as
     /// spaces, brackets, and punctuation mark word boundaries.</remarks>
     /// <param name="caretOffset">The zero-based caret position in the text for which to locate
-    /// the start of the word. Must be between 0 and the length of <paramref name="text"/>.</param>
-    /// <param name="text">The text in which to search for the word start. Cannot be null.</param>
+    /// the start of the word. Must be between 0 and the length of <paramref name="textAsSpan"/>.</param>
+    /// <param name="textAsSpan">The text in which to search for the word start, provided as a read-only character span.</param>
     /// <returns>The zero-based index of the first character of the word at or before the specified
     /// caret position. Returns 0 if the caret is at the start of the text or if no word characters precede the caret.
     /// </returns>
-    private static int GetWordStartOffset(int caretOffset, string text)
+    private static int GetWordStartOffset(int caretOffset, ReadOnlySpan<char> textAsSpan)
     {
         int i = caretOffset - 1;
         while (i >= 0)
         {
-            char c = text[i];
+            char c = textAsSpan[i];
 
             // Stop if we hit a separator (space, symbols, etc.)
             if (!char.IsLetterOrDigit(c) && c != Underscore)

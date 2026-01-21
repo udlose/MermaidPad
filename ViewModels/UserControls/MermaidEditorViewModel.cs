@@ -502,7 +502,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
         }
 
         // Subscribe to UndoStack property changes for automatic undo/redo state updates.
-        Document.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
+        Document!.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
 
         // Subscribe to Document.TextChanged to publish EditorTextChangedMessage.
         // This decouples the notification from the View layer - the ViewModel handles
@@ -515,7 +515,6 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
 
         // Ensure HasNonWhitespaceText is correct for the initial document state
         RecomputeNonWhitespaceByScan();
-
     }
 
     /// <summary>
