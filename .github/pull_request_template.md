@@ -1,4 +1,4 @@
-﻿🎉 Thank you for contributing to MermaidPad! 🚀
+🎉 Thank you for contributing to MermaidPad! 🚀
 
 Please review the checklist to help ensure high-quality submissions.
 
