@@ -1,4 +1,4 @@
-﻿# CONTRIBUTING to MermaidPad
+# CONTRIBUTING to MermaidPad
 
 Thank you for your interest in contributing to **MermaidPad**!
 Your time and effort are valued — and contributors of all experience levels are welcome. 🎉🚀
