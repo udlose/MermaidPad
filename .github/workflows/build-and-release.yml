@@ -18,10 +18,18 @@ on:
         default: false
         type: boolean
 
+permissions:  # added using https://github.com/step-security/secure-repo
+  contents: read
+
 jobs:
   restrict-user:
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Restrict to allowed user
         run: |
           if [ "${{ github.actor }}" != "udlose" ]; then
@@ -36,6 +44,11 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       build_date: ${{ steps.version.outputs.build_date }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Extract version + build date
         id: version
         shell: bash
@@ -88,11 +101,16 @@ jobs:
             extension: ''
 
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
           dotnet-version: '9.0.x'
 
@@ -176,7 +194,7 @@ jobs:
           echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ env.ZIP_NAME }}
           path: ./publish/${{ env.ZIP_NAME }}
@@ -194,33 +212,38 @@ jobs:
       contents: write
 
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       # Download non-macOS build artifacts
       - name: Download non-macOS build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: ./artifacts
 
       # Download macOS .app bundle zip (x64)
       - name: Download macOS .app bundle zip (x64)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-x64.app.zip
           path: ./artifacts-app
 
       # Download macOS .app bundle zip (arm64)
       - name: Download macOS .app bundle zip (arm64)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-osx-arm64.app.zip
           path: ./artifacts-app
           
       # Download macOS universal DMG
       - name: Download macOS universal DMG
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ needs.get-version.outputs.version }}-macos-universal.dmg
           path: ./artifacts-dmg
@@ -236,7 +259,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
         with:
           tag: v${{ needs.get-version.outputs.version }}
           name: MermaidPad v${{ needs.get-version.outputs.version }}
@@ -319,7 +342,7 @@ jobs:
       version: ${{ needs.get-version.outputs.version }}
       rid: ${{ matrix.rid }}
     permissions:
-      contents: write
+      contents: read
 
   # Create Universal DMG for macOS
   create-universal-dmg:
@@ -329,4 +352,4 @@ jobs:
     with:
       version: ${{ needs.get-version.outputs.version }}
     permissions:
-      contents: write
+      contents: read

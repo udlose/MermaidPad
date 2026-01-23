@@ -15,10 +15,18 @@ on:
         required: true
         type: string
 
+permissions:  # added using https://github.com/step-security/secure-repo
+  contents: read
+
 jobs:
   restrict-user:
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Restrict to allowed user
         run: |
           if [ "${{ github.actor }}" != "udlose" ]; then
@@ -36,18 +44,23 @@ jobs:
       DMG_FILENAME: MermaidPad-${{ inputs.version }}-macos-universal.dmg
       DMG_FILEPATH: ./artifacts-dmg/MermaidPad-${{ inputs.version }}-macos-universal.dmg
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       # Download the .app bundle artifacts that were uploaded by macos-bundle.yml
       - name: Download macOS x64 app bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ inputs.version }}-osx-x64.app.zip
           path: ./artifacts/x64-app
 
       - name: Download macOS ARM64 app bundle  
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ inputs.version }}-osx-arm64.app.zip
           path: ./artifacts/arm64-app
@@ -213,7 +226,7 @@ jobs:
 
       # Upload the .dmg file as an artifact
       - name: Upload .dmg artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ env.DMG_FILENAME }}
           path: ${{ env.DMG_FILEPATH }}
