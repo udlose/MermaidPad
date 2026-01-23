@@ -123,6 +123,68 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     public partial bool ShowLineNumbers { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether rectangular selection is enabled in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, users can select text in a rectangular block rather than by lines. This feature
+    /// is commonly used for column editing or selecting text across multiple lines and columns.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool EnableRectangularSelection { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether text drag-and-drop operations are enabled.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, users can drag and drop text within the control or between compatible controls.
+    /// Disabling this property prevents text from being moved or copied via drag-and-drop interactions.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool EnableTextDragDrop { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the cursor is hidden while typing in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, the cursor will automatically be hidden during text input to reduce visual
+    /// distraction. This setting is commonly used in text editors to improve focus while typing.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool HideCursorWhileTyping { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the current line is visually highlighted in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, the current line is highlighted to improve visibility and focus.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool HighlightCurrentLine { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether column rulers are displayed in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, vertical rulers are shown at specified column positions to help with
+    /// alignment and code readability. Defaults to <c>false</c>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool ShowColumnRulers { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether whitespace characters (spaces, tabs) are shown in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, whitespace characters are visually represented in the editor, which can help
+    /// with identifying and fixing formatting issues. Defaults to <c>false</c>.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool ShowSpaces { get; set; }
+
+    /// <summary>
     /// The offset of a non-whitespace character in the document, used as a witness for determining <see cref="HasNonWhitespaceText"/>.
     /// This is -1 if no non-whitespace character has been found, or if the document is empty or contains only whitespace.
     /// </summary>
@@ -526,10 +588,16 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     private void InitializeEditorSettings()
     {
         CaretOffset = _settingsService.Settings.EditorCaretOffset;
+        EnableRectangularSelection = _settingsService.Settings.EnableRectangularSelection;
+        EnableTextDragDrop = _settingsService.Settings.EnableTextDragDrop;
+        HideCursorWhileTyping = _settingsService.Settings.HideCursorWhileTyping;
+        HighlightCurrentLine = _settingsService.Settings.HighlightCurrentLine;
         IsWordWrapEnabled = _settingsService.Settings.IsWordWrapEnabled;
         SelectionLength = _settingsService.Settings.EditorSelectionLength;
         SelectionStart = _settingsService.Settings.EditorSelectionStart;
+        ShowColumnRulers = _settingsService.Settings.ShowColumnRulers;
         ShowLineNumbers = _settingsService.Settings.ShowLineNumbers;
+        ShowSpaces = _settingsService.Settings.ShowSpaces;
     }
 
     #region ObservableRecipient Overrides
@@ -918,11 +986,17 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
 
         // Save editor state to settings
         appSettings.EditorCaretOffset = CaretOffset;
+        appSettings.EnableRectangularSelection = EnableRectangularSelection;
+        appSettings.EnableTextDragDrop = EnableTextDragDrop;
+        appSettings.HideCursorWhileTyping = HideCursorWhileTyping;
+        appSettings.HighlightCurrentLine = HighlightCurrentLine;
         appSettings.EditorSelectionLength = SelectionLength;
         appSettings.EditorSelectionStart = SelectionStart;
         appSettings.IsWordWrapEnabled = IsWordWrapEnabled;
         appSettings.LastDiagramText = Document.Text;
+        appSettings.ShowColumnRulers = ShowColumnRulers;
         appSettings.ShowLineNumbers = ShowLineNumbers;
+        appSettings.ShowSpaces = ShowSpaces;
 
         // Save is done by the caller (e.g., MainWindowViewModel)
     }
