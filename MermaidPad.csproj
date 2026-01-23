@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
@@ -154,8 +154,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include=".github/scripts/codeql-build.ps1" />
         <None Include=".github/workflows/build-and-release.yml" />
-        <None Include=".github/workflows/codeql.yml" />
+        <None Include=".github/workflows/codeql-develop.yml" />
+        <None Include=".github/workflows/codeql-main.yml" />
         <None Include=".github/workflows/enforce-pr-targets.yml" />
         <None Include=".github/workflows/first-interaction.yml" />
         <None Include=".github/workflows/macos-universal-dmg.yml" />
