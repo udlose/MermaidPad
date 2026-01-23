@@ -2034,8 +2034,8 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             _logger.LogError(ex, "Export failed");
 
             // Setting LastError updates UI, must be on UI thread
-            Diagram.LastError = $"Export failed: {ex.Message}";
-            Debug.WriteLine($"Export error: {ex}");
+            string errorMessage = $"Export failed: {ex.Message}";
+            await ShowErrorAsync(errorMessage);
         }
     }
 
@@ -2090,6 +2090,29 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     #endregion Relay Commands
+
+    /// <summary>
+    /// Displays an error message to the user asynchronously and updates the diagram's last error state.
+    /// </summary>
+    /// <remarks>This method ensures that the error message is shown on the UI thread. It also sets the
+    /// diagram's last error to the specified message before displaying it.</remarks>
+    /// <param name="message">The error message to display.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task ShowErrorAsync(string message)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Diagram.LastError = message;
+            await ShowErrorMessageAsync(message);
+            return;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            Diagram.LastError = message;
+            return ShowErrorMessageAsync(message);
+        });
+    }
 
     /// <summary>
     /// Displays a success message dialog with the specified message and a checkmark icon.
