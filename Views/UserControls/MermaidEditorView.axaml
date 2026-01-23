@@ -32,7 +32,6 @@
       FontFamily="Consolas"
       HorizontalScrollBarVisibility="Auto"
       LineNumbersForeground="Lime"
-      ShowLineNumbers="True"
       VerticalScrollBarVisibility="Auto">
       <edit:TextEditor.ContextMenu>
         <ContextMenu Opening="GetContextMenuState">
