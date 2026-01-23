@@ -20,7 +20,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/first-interaction@v3
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/first-interaction@1c4688942c71f71d4f5502a26ea67c331730fa4d # v3.1.0
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           issue_message: |
@@ -39,7 +44,10 @@ jobs:
             - Your CPU Architecture: e.g., x86, x64, ARM, ARM64
             - Screenshots or error output, if available.
 
-            Before you wait for a reply, you may also find helpful details in `CONTRIBUTING.md` and `README.md`.
+            Before you wait for a reply, you may also find helpful details in:
+            - [CONTRIBUTING.md](https://github.com/udlose/MermaidPad/blob/main/CONTRIBUTING.md) and
+            - [README.md](https://github.com/udlose/MermaidPad/blob/main/README.md)
+
             A maintainer will review this soon and may ask for additional information. Thank you - your contribution helps make MermaidPad better!
 
           pr_message: |
@@ -53,7 +61,7 @@ jobs:
             > [!Important]
             > Please make sure that any testing included testing of the published app, not just local dev builds.
             >
-            > You can find instructions for building and testing the published app in `README.md#building--publishing`. 
+            > You can find instructions for building and testing the published app in [Building & Publishing](https://github.com/udlose/MermaidPad/blob/main/README.md#building--publishing).
 
             CI checks will run automatically. If you can, please ensure:
             - The change is covered by tests or manual verification.

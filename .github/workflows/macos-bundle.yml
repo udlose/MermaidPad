@@ -25,10 +25,18 @@ on:
           - osx-x64
           - osx-arm64
 
+permissions:  # added using https://github.com/step-security/secure-repo
+  contents: read
+
 jobs:
   restrict-user:
     runs-on: ubuntu-latest
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Restrict to allowed user
         run: |
           if [ "${{ github.actor }}" != "udlose" ]; then
@@ -42,11 +50,16 @@ jobs:
     permissions:
       contents: write           # To update artifacts and create releases
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Download published artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.zip
           path: ./publish
@@ -123,14 +136,14 @@ jobs:
 
       # # Upload the .app bundle immediately after creation
       # - name: Upload .app bundle artifact
-      #   uses: actions/upload-artifact@v6
+      #   uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts/MermaidPad.app
 
       # # Download the .app bundle artifact for zipping and release
       # - name: Download .app bundle artifact
-      #   uses: actions/download-artifact@v7
+      #   uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
       #   with:
       #     name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app
       #     path: ./artifacts
@@ -167,7 +180,7 @@ jobs:
 
       # Upload the zipped .app bundle as the artifact
       - name: Upload .app bundle zip artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
           path: MermaidPad-${{ inputs.version }}-${{ inputs.rid }}.app.zip
