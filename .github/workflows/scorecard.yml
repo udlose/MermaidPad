@@ -25,8 +25,6 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
-    # `publish_results: true` only works when run from the default branch. conditional can be removed if disabled.
-    if: github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request'
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write
@@ -65,7 +63,9 @@ jobs:
           # For private repositories:
           #   - `publish_results` will always be set to `false`, regardless
           #     of the value entered here.
-          publish_results: true
+          # `publish_results: true` only works when run from the default branch.
+          # note that the 'push' event is restricted to the default branch above with push: branches: [ "main" ]
+          publish_results: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
 
           # (Optional) Uncomment file_mode if you have a .gitattributes with files marked export-ignore
           # file_mode: git
