@@ -1,4 +1,4 @@
-﻿# MermaidPad GitHub Workflow Documentation
+# MermaidPad GitHub Workflow Documentation
 
 This directory contains the automated build and release workflows for MermaidPad,
 handling cross-platform compilation, macOS app bundling, and multi-format distribution.
@@ -7,6 +7,7 @@ handling cross-platform compilation, macOS app bundling, and multi-format distri
 
 ```mermaid
 flowchart TD
+    %% Release Workflows
     A[Tag Push v*] --> B[build-and-release.yml]
     A1[Manual Dispatch] --> B
     
@@ -49,6 +50,39 @@ flowchart TD
     
     Q --> R[Release Published<br/>All artifacts attached]
     
+    %% Security & Quality Workflows
+    S[Push to main] --> T1[codeql-main.yml]
+    S1[PR to main] --> T1
+    S2[PR to develop] --> T2[codeql-develop.yml]
+    
+    T2 --> T2A[Manual Approval Gate]
+    T2A --> T2B[CodeQL Analysis]
+    
+    T1 --> U1[C# Analysis]
+    T1 --> U2[JS/TS Analysis<br/>if assets changed]
+    T1 --> U3[Actions Analysis<br/>if workflows changed]
+    
+    U1 --> V1[Security Results]
+    U2 --> V1
+    U3 --> V1
+    
+    T2B --> V2[Security Results]
+    
+    W[PR opened/edited] --> X[enforce-pr-targets.yml]
+    X --> X1[Validate branch rules]
+    X1 --> X2[Check rebase status]
+    
+    Y[First-time contributor] --> Z[first-interaction.yml]
+    Z --> Z1[Welcome message]
+    Z1 --> Z2[Onboarding guidance]
+    
+    AA[Weekly Schedule] --> AB[scorecard.yml]
+    S --> AB
+    S2 --> AB
+    AB --> AC[OSSF Analysis]
+    AC --> AD[SARIF Upload]
+    AD --> AE[Security Dashboard]
+    
     style A fill:#e1f5fe
     style A1 fill:#e1f5fe
     style B fill:#f3e5f5
@@ -58,6 +92,14 @@ flowchart TD
     style L fill:#e8f5e8
     style Q fill:#f3e5f5
     style R fill:#c8e6c9
+    style T1 fill:#ffebee
+    style T2 fill:#ffebee
+    style X fill:#fff9c4
+    style Z fill:#e0f2f1
+    style AB fill:#fce4ec
+    style V1 fill:#c8e6c9
+    style V2 fill:#c8e6c9
+    style AE fill:#c8e6c9
 ```
 
 ## Workflow Details
@@ -143,6 +185,195 @@ create-dmg \
   --disk-image-size 200 \
   --format UDZO
 ```
+
+## Security & Quality Workflows
+
+### 4. codeql-main.yml (Primary Security Scanning)
+
+**Purpose**: Automated security vulnerability detection for the main branch using GitHub's CodeQL analysis
+
+**Triggers**:
+- **Push to main**: Scans committed code for security vulnerabilities
+- **Pull requests to main**: Prevents vulnerable code from merging
+
+**Multi-Language Analysis**:
+```yaml
+Languages Scanned:
+- C# (always runs - core application code)
+- JavaScript/TypeScript (conditional - only when Assets/**/*.html or Assets/**/*.*js change)
+- GitHub Actions (conditional - only when .github/workflows/**/*.yml or .github/workflows/**/*.yaml change)
+```
+
+**Intelligent Path Detection**:
+The workflow uses `dorny/paths-filter` to detect changed files and only runs language-specific scans when relevant:
+- **C# analysis**: Always runs (core codebase)
+- **JavaScript/TypeScript**: Only if HTML/JS assets modified
+- **Actions**: Only if workflow YAML files modified
+
+**Security Features**:
+- **Harden-Runner**: Audits all outbound network calls to detect supply-chain attacks
+- **Least-Privilege Permissions**: Each job has minimal required permissions
+- **Manual Build Mode**: C# uses custom build script for precise control
+- **Required Check**: Ensures at least one language analysis succeeds before allowing merges
+
+**Process Flow**:
+1. **changes** job detects which files changed
+2. **codeql-csharp** runs CodeQL on C# codebase (always)
+3. **codeql-javascript-typescript** runs if JS/HTML assets changed
+4. **codeql-actions** runs if workflow files changed
+5. **codeql-required** validates that at least one analysis succeeded
+
+### 5. codeql-develop.yml (Development Branch Security Scanning)
+
+**Purpose**: Pre-merge security scanning for pull requests targeting the develop branch with manual approval gate
+
+**Triggers**:
+- **Pull requests to develop**: Scans feature/bugfix branches before merge
+
+**Key Difference from codeql-main.yml**:
+- **Approval Gate**: Requires manual approval via GitHub Environment (`codeql-approval`) before running
+- **Protection Against Malicious PRs**: Prevents arbitrary code execution from untrusted contributors
+- **Same Analysis Pipeline**: Uses identical CodeQL configuration as main branch
+
+**Approval Workflow**:
+```yaml
+PR opened → approval job waits → Maintainer reviews → Manual approval → CodeQL runs
+```
+
+**Why Approval is Required**:
+- Pull requests can contain malicious workflow modifications
+- CodeQL runs custom build commands that could be exploited
+- Approval ensures trusted maintainer review before execution
+
+**Concurrency Control**:
+- Cancels older runs for the same PR when new commits are pushed
+- Ensures only the latest commit is analyzed
+- Saves CI resources and reduces analysis queue time
+
+### 6. enforce-pr-targets.yml (Branch Policy Enforcement)
+
+**Purpose**: Enforces Git branching strategy and prevents invalid pull request directions
+
+**Triggers**:
+- Pull request opened, reopened, synchronized, or edited
+
+**Enforced Rules**:
+
+**Rule 1: Only develop → main is allowed**
+```yaml
+Allowed:   develop → main
+Blocked:   feature-x → main
+Blocked:   bugfix-y → main
+```
+Feature and bugfix branches must merge into develop first, never directly to main.
+
+**Rule 2: Never allow main → develop**
+```yaml
+Blocked:   main → develop
+```
+Prevents accidental reverse merges that would create circular dependencies.
+
+**Rule 3: develop must contain main (rebase required)**
+```yaml
+Before opening PR (develop → main):
+  git checkout develop
+  git fetch origin
+  git rebase origin/main
+```
+Ensures develop is up-to-date with main before merging, preventing integration conflicts.
+
+**Validation Process**:
+1. Checks pull request base and head branches
+2. Validates branch direction against rules
+3. For develop→main PRs, uses `git merge-base --is-ancestor` to verify rebase
+4. Fails fast with actionable error messages if rules violated
+
+**Error Messages**:
+- Clear explanation of what's wrong
+- Exact commands to fix the issue
+- Links to branching strategy documentation
+
+### 7. first-interaction.yml (Community Engagement)
+
+**Purpose**: Welcome first-time contributors and provide helpful onboarding guidance
+
+**Triggers**:
+- **pull_request_target**: When a first-time contributor opens a PR
+- **issues**: When a first-time contributor opens an issue
+
+**Why pull_request_target?**
+- Required to post comments on PRs from forks
+- Runs in the context of the base repository, not the fork
+- Allows writing comments even from untrusted contributors
+
+**Issue Welcome Message Includes**:
+- Gratitude for contribution
+- Required information checklist:
+  - Problem summary
+  - Reproduction steps with sample diagram text
+  - Screenshots
+  - MermaidPad version, OS, CPU architecture
+- Links to CONTRIBUTING.md and README.md
+- Sets expectations for maintainer response time
+
+**Pull Request Welcome Message Includes**:
+- Thanks for the contribution
+- PR description guidelines:
+  - What changed and why
+  - How it was tested (manual or automated)
+  - Documentation/screenshot updates
+- **Critical Testing Reminder**: Test published app, not just local dev builds
+- Link to Building & Publishing section for artifact testing
+- CI expectations (tests, documentation updates)
+
+**Community Building**:
+- Makes new contributors feel valued
+- Reduces back-and-forth by setting clear expectations upfront
+- Improves issue/PR quality through structured guidance
+
+### 8. scorecard.yml (Supply-Chain Security)
+
+**Purpose**: OSSF (Open Source Security Foundation) Scorecard analysis for supply-chain security posture
+
+**Triggers**:
+- **Schedule**: Weekly on Tuesdays at 15:31 UTC (for "Maintained" check freshness)
+- **Push to main**: Analyzes security posture on every main branch update
+- **Pull requests to develop**: Pre-merge security validation
+- **branch_protection_rule**: Validates when branch protection rules change
+
+**What Scorecard Analyzes**:
+- **Branch Protection**: Are main/develop branches protected?
+- **Dependency Updates**: Are dependencies kept current?
+- **Code Review**: Are PRs reviewed before merging?
+- **Signed Commits**: Are commits cryptographically signed?
+- **Vulnerabilities**: Any known CVEs in dependencies?
+- **Dangerous Workflow Patterns**: Risky GitHub Actions configurations?
+- **Token Permissions**: Are workflow permissions least-privilege?
+- **Maintained**: Is the project actively maintained?
+
+**Security Integration**:
+```yaml
+Scorecard → SARIF format → GitHub Code Scanning Dashboard
+```
+- Results uploaded to GitHub Security tab
+- Integrates with Dependabot and CodeQL findings
+- Provides unified security view
+
+**Public Repository Features**:
+- **OpenSSF REST API**: Publishes results for easy consumption
+- **Scorecard Badge**: Allows including security score badge in README
+- **Transparency**: Makes security posture visible to users
+
+**Artifact Retention**:
+- SARIF results stored for 5 days
+- Allows historical comparison of security posture
+- Debugging failed security checks
+
+**Conditional Publishing**:
+```yaml
+publish_results: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+```
+Only publishes when running from main branch (push/schedule), not from PRs.
 
 ## Workflow Integration Benefits
 

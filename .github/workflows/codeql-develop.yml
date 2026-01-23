@@ -1,0 +1,281 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+# Runner size impacts CodeQL analysis time. To learn more, please see:
+#   - https://gh.io/recommended-hardware-resources-for-running-codeql
+#   - https://gh.io/supported-runners-and-hardware-resources
+#   - https://gh.io/using-larger-runners (GitHub.com only)
+# Consider using larger runners or machines with greater resources for possible analysis time improvements.
+
+# CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
+# Use `c-cpp` to analyze code written in C, C++ or both
+# Use 'java-kotlin' to analyze code written in Java, Kotlin or both
+# Use 'javascript-typescript' to analyze code written in JavaScript, TypeScript or both
+# To learn more about changing the languages that are analyzed or customizing the build mode for your analysis,
+# see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning.
+# If you are analyzing a compiled language, you can modify the 'build-mode' for that language to customize how
+# your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
+
+# If you wish to specify custom queries, you can do so here or in a config file.
+# By default, queries listed here will override any specified in a config file.
+# Prefix the list here with "+" to use these queries and those in the config file.
+
+# For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+# queries: security-extended,security-and-quality
+
+# If the analyze step fails for one of the languages you are analyzing with
+# "We were unable to automatically build your code", modify the matrix above
+# to set the build mode to "manual" for that language. Then modify this step
+# to build your code.
+# ℹ️ Command-line programs to run using the OS shell.
+# 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+
+# Workflow hardened by StepSecurity: https://app.stepsecurity.io/secureworkflow
+name: "CodeQL (develop)"
+
+on:
+  pull_request:
+    branches: ["develop"]
+
+# Cancel older runs for the same ref (per PR for pull_request events) so only the latest commit is analyzed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    name: Await CodeQL approval
+    runs-on: ubuntu-latest
+
+    # No token permissions needed for a manual gate job.
+    permissions: {}
+
+    environment: codeql-approval
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Approved
+        run: echo "Approval granted. Starting CodeQL jobs."
+
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    needs: [approval]
+
+    # This job does not need any token permissions.
+    permissions: {}
+
+    outputs:
+      assets_js_changed: ${{ steps.filter.outputs.assets_js_changed }}
+      workflows_yaml_changed: ${{ steps.filter.outputs.workflows_yaml_changed }}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Determine which files changed
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            assets_js_changed:
+              - 'Assets/**/*.html'
+              - 'Assets/**/*.*js'         # Matches *.js and *.mjs (e.g., foo.mjs)
+            workflows_yaml_changed:
+              - '.github/workflows/**/*.yml'
+              - '.github/workflows/**/*.yaml'
+
+  codeql-csharp:
+    name: CodeQL (csharp)
+    runs-on: ubuntu-latest
+    needs: [changes]
+
+    permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
+      actions: read
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      # Add any setup steps before running the `github/codeql-action/init` action.
+      # This includes steps like installing compilers or runtimes (`actions/setup-node`
+      # or others). This is typically only required for manual builds.
+      # - name: Setup runtime (example)
+      #   uses: actions/setup-example@v1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Show dotnet info (for debugging)
+        shell: pwsh
+        run: |
+          dotnet --info
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Show PowerShell version
+        run: pwsh -NoLogo -NoProfile -Command '$PSVersionTable.PSVersion'
+
+      - name: Build (manual)
+        run: pwsh -File "${{ github.workspace }}/.github/scripts/codeql-build.ps1"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          category: "/language:csharp"
+
+  codeql-javascript-typescript:
+    name: CodeQL (javascript-typescript)
+    runs-on: ubuntu-latest
+    needs: [changes]
+
+    if: needs.changes.outputs.assets_js_changed == 'true'
+
+    permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
+      actions: read
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          category: "/language:javascript-typescript"
+
+  codeql-actions:
+    name: CodeQL (actions)
+    runs-on: ubuntu-latest
+    needs: [changes]
+
+    if: needs.changes.outputs.workflows_yaml_changed == 'true'
+
+    permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
+      actions: read
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          languages: actions
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@19b2f06db2b6f5108140aeb04014ef02b648f789 # v4.31.11
+        with:
+          category: "/language:actions"
+
+  codeql-required:
+    name: CodeQL (required)
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - codeql-csharp
+      - codeql-javascript-typescript
+      - codeql-actions
+
+    # Always run so the branch-protection check name is stable.
+    if: always()
+
+    permissions: {}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Assert at least one CodeQL analysis ran and succeeded
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # These are GitHub job result strings: success, failure, cancelled, skipped.
+          CSHARP="${{ needs.codeql-csharp.result }}"
+          JST="${{ needs.codeql-javascript-typescript.result }}"
+          ACTIONS="${{ needs.codeql-actions.result }}"
+
+          echo "CodeQL results:"
+          echo "  csharp: $CSHARP"
+          echo "  javascript-typescript: $JST"
+          echo "  actions: $ACTIONS"
+
+          # Pass if any analysis succeeded.
+          if [ "$CSHARP" = "success" ] || [ "$JST" = "success" ] || [ "$ACTIONS" = "success" ]; then
+            echo "At least one CodeQL analysis succeeded."
+            exit 0
+          fi
+
+          # Defensive: if everything skipped, fail with a clear message.
+          if [ "$CSHARP" = "skipped" ] && [ "$JST" = "skipped" ] && [ "$ACTIONS" = "skipped" ]; then
+            echo "ERROR: All CodeQL jobs were skipped. This should not happen because C# is expected to run unconditionally."
+            exit 1
+          fi
+
+          echo "ERROR: No CodeQL analysis succeeded (at least one failed or was cancelled)."
+          exit 1
