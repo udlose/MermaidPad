@@ -428,10 +428,15 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
 
             // Since this is yaml/diagram text, convert tabs to spaces for correct rendering
             Editor.Options.ConvertTabsToSpaces = true;
-            Editor.Options.HighlightCurrentLine = true;
+            Editor.Options.EnableRectangularSelection = _vm.EnableRectangularSelection;
+            Editor.Options.EnableTextDragDrop = _vm.EnableTextDragDrop;
+            Editor.Options.HideCursorWhileTyping = _vm.HideCursorWhileTyping;
+            Editor.Options.HighlightCurrentLine = _vm.HighlightCurrentLine;
             Editor.Options.IndentationSize = 2;
             Editor.TextArea.IndentationStrategy = new MermaidIndentationStrategy(_documentAnalyzer, Editor.Options);
+            Editor.Options.ShowColumnRulers = _vm.ShowColumnRulers;
             Editor.ShowLineNumbers = _vm.ShowLineNumbers;
+            Editor.Options.ShowSpaces = _vm.ShowSpaces;
             Editor.WordWrap = _vm.IsWordWrapEnabled;
 
             _logger.LogInformation("Editor state set with {CharacterCount} characters, undo available: {CanUndo}", textLength, Editor.CanUndo);
@@ -603,14 +608,35 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         if (IsSelectionOrCaretProperty(e.PropertyName))
         {
             HandleSelectionOrCaretPropertyChanged();
+            return;
         }
-        else if (e.PropertyName == nameof(MermaidEditorViewModel.ShowLineNumbers))
+
+        switch (e.PropertyName)
         {
-            Editor.ShowLineNumbers = _vm.ShowLineNumbers;
-        }
-        else if (e.PropertyName == nameof(MermaidEditorViewModel.IsWordWrapEnabled))
-        {
-            Editor.WordWrap = _vm.IsWordWrapEnabled;
+            case nameof(MermaidEditorViewModel.EnableRectangularSelection):
+                Editor.Options.EnableRectangularSelection = _vm.EnableRectangularSelection;
+                break;
+            case nameof(MermaidEditorViewModel.EnableTextDragDrop):
+                Editor.Options.EnableTextDragDrop = _vm.EnableTextDragDrop;
+                break;
+            case nameof(MermaidEditorViewModel.HideCursorWhileTyping):
+                Editor.Options.HideCursorWhileTyping = _vm.HideCursorWhileTyping;
+                break;
+            case nameof(MermaidEditorViewModel.HighlightCurrentLine):
+                Editor.Options.HighlightCurrentLine = _vm.HighlightCurrentLine;
+                break;
+            case nameof(MermaidEditorViewModel.ShowColumnRulers):
+                Editor.Options.ShowColumnRulers = _vm.ShowColumnRulers;
+                break;
+            case nameof(MermaidEditorViewModel.ShowLineNumbers):
+                Editor.ShowLineNumbers = _vm.ShowLineNumbers;
+                break;
+            case nameof(MermaidEditorViewModel.ShowSpaces):
+                Editor.Options.ShowSpaces = _vm.ShowSpaces;
+                break;
+            case nameof(MermaidEditorViewModel.IsWordWrapEnabled):
+                Editor.WordWrap = _vm.IsWordWrapEnabled;
+                break;
         }
     }
 
