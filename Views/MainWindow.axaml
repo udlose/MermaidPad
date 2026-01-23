@@ -104,14 +104,38 @@
           Header="_Uncomment Selection"
           InputGesture="Ctrl+Shift+U" />
         <Separator />
-        <MenuItem Header="Formatting">
+        <MenuItem Header="Editor Settings">
+          <MenuItem
+            Header="Enable _Rectangular Selection"
+            IsChecked="{Binding Editor.EnableRectangularSelection, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Enable Text _Drag/Drop"
+            IsChecked="{Binding Editor.EnableTextDragDrop, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Hide Cursor While _Typing"
+            IsChecked="{Binding Editor.HideCursorWhileTyping, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Highlight Current _Line"
+            IsChecked="{Binding Editor.HighlightCurrentLine, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Show Column R_ulers"
+            IsChecked="{Binding Editor.ShowColumnRulers, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Show Line _Numbers"
+            IsChecked="{Binding Editor.ShowLineNumbers, Mode=TwoWay}"
+            ToggleType="CheckBox" />
+          <MenuItem
+            Header="Show _Spaces"
+            IsChecked="{Binding Editor.ShowSpaces, Mode=TwoWay}"
+            ToggleType="CheckBox" />
           <MenuItem
             Header="Word _Wrap"
             IsChecked="{Binding Editor.IsWordWrapEnabled, Mode=TwoWay}"
-            ToggleType="CheckBox" />
-          <MenuItem
-            Header="Show _Line Numbers"
-            IsChecked="{Binding Editor.ShowLineNumbers, Mode=TwoWay}"
             ToggleType="CheckBox" />
         </MenuItem>
       </MenuItem>

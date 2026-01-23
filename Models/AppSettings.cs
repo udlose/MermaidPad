@@ -83,17 +83,77 @@ public sealed class AppSettings
     public bool ShowLineNumbers { get; set; } = true;
 
     /// <summary>
-    /// The zero-based start index of the editor selection.
+    /// Gets or sets a value indicating whether rectangular selection is enabled in the editor.
     /// </summary>
+    /// <remarks>
+    /// When enabled, users can select text in a rectangular block rather than by lines. This feature
+    /// is commonly used for column editing or selecting text across multiple lines and columns.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    public bool EnableRectangularSelection { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether text drag-and-drop operations are enabled.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, users can drag and drop text within the control or between compatible controls.
+    /// Disabling this property prevents text from being moved or copied via drag-and-drop interactions.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    public bool EnableTextDragDrop { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the cursor is hidden while typing in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, the cursor will automatically be hidden during text input to reduce visual
+    /// distraction. This setting is commonly used in text editors to improve focus while typing.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    public bool HideCursorWhileTyping { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the current line is visually highlighted in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, the current line is highlighted to improve visibility and focus.
+    /// Defaults to <c>true</c>.
+    /// </remarks>
+    public bool HighlightCurrentLine { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether column rulers are displayed in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, vertical rulers are shown at specified column positions to help with
+    /// alignment and code readability. Defaults to <c>false</c>.
+    /// </remarks>
+    public bool ShowColumnRulers { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether whitespace characters (spaces, tabs) are shown in the editor.
+    /// </summary>
+    /// <remarks>
+    /// When enabled, whitespace characters are visually represented in the editor, which can help
+    /// with identifying and fixing formatting issues. Defaults to <c>false</c>.
+    /// </remarks>
+    public bool ShowSpaces { get; set; }
+
+    /// <summary>
+    /// Gets or sets the zero-based index of the first character in the current text selection within the editor.
+    /// </summary>
+    /// <remarks>If no text is selected, this property typically indicates the position of the caret. Setting
+    /// this property updates the selection start position; ensure the value is within the bounds of the editor's text
+    /// length.</remarks>
     public int EditorSelectionStart { get; set; }
 
     /// <summary>
-    /// The length (in characters) of the editor selection.
+    /// Gets or sets the number of characters currently selected in the editor.
     /// </summary>
     public int EditorSelectionLength { get; set; }
 
     /// <summary>
-    /// The caret offset within the editor document.
+    /// Gets or sets the zero-based offset position of the caret within the editor content.
     /// </summary>
     public int EditorCaretOffset { get; set; }
 
