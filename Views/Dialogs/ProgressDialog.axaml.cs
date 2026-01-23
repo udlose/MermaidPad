@@ -18,14 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Controls;
-
 namespace MermaidPad.Views.Dialogs;
 
 /// <summary>
 /// Progress dialog for showing export progress
 /// </summary>
-public sealed partial class ProgressDialog : Window
+internal sealed partial class ProgressDialog : DialogBase
 {
     public ProgressDialog()
     {
