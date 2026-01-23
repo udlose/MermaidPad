@@ -3,7 +3,7 @@
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
 [![CodeQL](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml)
-[![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
+[![OSSF Scorecard supply-chain security](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml)[![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
 [![Issues](https://img.shields.io/github/issues/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/issues)
