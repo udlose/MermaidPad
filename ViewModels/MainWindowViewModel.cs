@@ -1549,7 +1549,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         try
         {
             // Use ShellExecute to open the directory in the default file explorer
-            Process.Start(new ProcessStartInfo(logDirectory) { UseShellExecute = true });
+            using Process? process = Process.Start(new ProcessStartInfo(logDirectory) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -2024,7 +2024,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
 
         try
         {
-            Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
+            using Process? process = Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
