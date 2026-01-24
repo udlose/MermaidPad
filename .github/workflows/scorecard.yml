@@ -31,8 +31,12 @@ jobs:
       # Needed to publish results and get a badge (see publish_results below).
       id-token: write
       # Uncomment the permissions below if installing in a private repository.
-      # contents: read
-      # actions: read
+      # Recommended reads for private repos to avoid GraphQL/SAST gaps
+      contents: read
+      issues: read
+      pull-requests: read
+      checks: read
+      actions: read
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -54,7 +58,8 @@ jobs:
           # - you want to enable the Branch-Protection check on a *public* repository, or
           # - you are installing Scorecard on a *private* repository
           # To create the PAT, follow the steps in https://github.com/ossf/scorecard-action?tab=readme-ov-file#authentication-with-fine-grained-pat-optional.
-          # repo_token: ${{ secrets.SCORECARD_TOKEN }}
+          # Since we use Classic GitHub Branch Protection Rules, we need to use a fine-grained PAT.
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
           # Public repositories:
           #   - Publish results to OpenSSF REST API for easy access by consumers
