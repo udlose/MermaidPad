@@ -14,6 +14,7 @@
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
 [![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
+[![wakatime](https://wakatime.com/badge/github/udlose/MermaidPad.svg)](https://wakatime.com/badge/github/udlose/MermaidPad)
 
 ---
 
@@ -1085,6 +1086,14 @@ I welcome contributions in many forms: bug reports, documentation improvements, 
 If you’d like to contribute, please see [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines — including coding conventions, branch and PR workflow, testing, and more.  
 
 Also, please review our [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) to understand community expectations.  
+
+---
+
+## Security
+
+If you discover a security vulnerability in MermaidPad, please follow our [Security Policy](SECURITY.md) for responsible disclosure. **Do not** open public issues for security vulnerabilities.
+
+For more details, see [SECURITY.md](SECURITY.md).
 
 ---
 
