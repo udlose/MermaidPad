@@ -36,6 +36,7 @@
 - [JavaScript/HTML Linting (ESLint v9)](#javascripthtml-linting-eslint-v9)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
+- [Security](#security)
 - [License](#license)
 - [Third Party Libraries](#third-party-libraries)
 - [Repo Stats](#repo-stats)
