@@ -1601,36 +1601,58 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Displays an error message dialog to the user asynchronously.
     /// </summary>
-    /// <remarks>If the main application window is not available, the dialog will not be shown. The dialog
-    /// uses a standard error icon and is intended for user-facing error notifications.</remarks>
+    /// <remarks>
+    /// <para>
+    /// This method ensures thread safety by executing all UI operations on the UI thread.
+    /// If already on the UI thread, the operations execute directly. If called from a background
+    /// thread, the operations are marshaled to the UI thread via <see cref="Dispatcher.InvokeAsync(Func{Task})"/>.
+    /// </para>
+    /// <para>
+    /// If the main application window is not available, the dialog will not be shown. The dialog
+    /// uses a standard error icon and is intended for user-facing error notifications.
+    /// </para>
+    /// </remarks>
     /// <param name="message">The error message text to display in the dialog. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous operation of showing the error message dialog.</returns>
-    private async Task ShowErrorMessageAsync(string message)
+    private Task ShowErrorMessageAsync(string message)
     {
-        try
+        // Ensure we're on the UI thread since this method accesses UI elements
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            Window? mainWindow = GetParentWindow();
-            if (mainWindow is null)
-            {
-                return;
-            }
-
-            MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
-            messageViewModel.Title = "Error";
-            messageViewModel.Message = message;
-            messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16"; // Error icon
-            messageViewModel.IconColor = Avalonia.Media.Brushes.Red;
-
-            MessageDialog messageDialog = new MessageDialog
-            {
-                DataContext = messageViewModel
-            };
-
-            await messageDialog.ShowDialog(mainWindow);
+            return ShowErrorMessageCoreAsync(message, _logger, _dialogFactory);
         }
-        catch (Exception ex)
+
+        // Enforce the correct overload resolution for InvokeAsync to avoid ambiguity by casting to Func<Task>
+        return Dispatcher.UIThread.InvokeAsync(
+            (Func<Task>)(() => ShowErrorMessageCoreAsync(message, _logger, _dialogFactory)));
+
+        static async Task ShowErrorMessageCoreAsync(string msg, ILogger logger, IDialogFactory dialogFactory)
         {
-            _logger.LogError(ex, "Failed to show error message");
+            try
+            {
+                Window? mainWindow = GetParentWindow();
+                if (mainWindow is null)
+                {
+                    return;
+                }
+
+                MessageDialogViewModel messageViewModel = dialogFactory.CreateViewModel<MessageDialogViewModel>();
+                messageViewModel.Title = "Error";
+                messageViewModel.Message = msg;
+                messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16"; // Error icon
+                messageViewModel.IconColor = Avalonia.Media.Brushes.Red;
+
+                MessageDialog messageDialog = new MessageDialog
+                {
+                    DataContext = messageViewModel
+                };
+
+                await messageDialog.ShowDialog(mainWindow);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to show error message");
+            }
         }
     }
 
@@ -2065,33 +2087,53 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Displays a success message dialog with the specified message and a checkmark icon.
     /// </summary>
-    /// <remarks>The dialog includes a title, a success message, and a green checkmark icon.  This method must
-    /// be called on the UI thread as it interacts with the user interface.</remarks>
+    /// <remarks>
+    /// <para>
+    /// This method ensures thread safety by executing all UI operations on the UI thread.
+    /// If already on the UI thread, the operations execute directly. If called from a background
+    /// thread, the operations are marshaled to the UI thread via <see cref="Dispatcher.InvokeAsync(Func{Task})"/>.
+    /// </para>
+    /// <para>
+    /// The dialog includes a title, a success message, and a green checkmark icon.
+    /// </para>
+    /// </remarks>
     /// <param name="window">The parent window that owns the dialog. This parameter cannot be <see langword="null"/>.</param>
     /// <param name="message">The message to display in the dialog. This parameter cannot be <see langword="null"/> or empty.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    private async Task ShowSuccessMessageAsync(Window window, string message)
+    private Task ShowSuccessMessageAsync(Window window, string message)
     {
-        try
+        // Ensure we're on the UI thread since this method accesses UI elements
+        if (Dispatcher.UIThread.CheckAccess())
         {
-            MessageDialogViewModel messageViewModel = _dialogFactory.CreateViewModel<MessageDialogViewModel>();
-            messageViewModel.Title = "Export Complete";
-            messageViewModel.Message = message;
-            messageViewModel.IconData = "M9 12l2 2 4-4"; // Checkmark icon path
-            messageViewModel.IconColor = Avalonia.Media.Brushes.Green;
-
-            MessageDialog messageDialog = new MessageDialog
-            {
-                DataContext = messageViewModel
-            };
-
-            // NO ConfigureAwait(false) - ShowDialog needs UI thread
-            await messageDialog.ShowDialog(window);
+            return ShowSuccessMessageCoreAsync(window, message, _logger, _dialogFactory);
         }
-        catch (Exception ex)
+
+        // Enforce the correct overload resolution for InvokeAsync to avoid ambiguity by casting to Func<Task>
+        return Dispatcher.UIThread.InvokeAsync(
+            (Func<Task>)(() => ShowSuccessMessageCoreAsync(window, message, _logger, _dialogFactory)));
+
+        static async Task ShowSuccessMessageCoreAsync(Window window, string message, ILogger logger, IDialogFactory dialogFactory)
         {
-            _logger.LogError(ex, "Failed to show success message");
-            Debug.WriteLine($"Failed to show success message: {ex}");
+            try
+            {
+                MessageDialogViewModel messageViewModel = dialogFactory.CreateViewModel<MessageDialogViewModel>();
+                messageViewModel.Title = "Export Complete";
+                messageViewModel.Message = message;
+                messageViewModel.IconData = "M9 12l2 2 4-4"; // Checkmark icon path
+                messageViewModel.IconColor = Avalonia.Media.Brushes.Green;
+
+                MessageDialog messageDialog = new MessageDialog
+                {
+                    DataContext = messageViewModel
+                };
+
+                // NO ConfigureAwait(false) - ShowDialog needs UI thread
+                await messageDialog.ShowDialog(window);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to show success message");
+            }
         }
     }
 
