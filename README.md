@@ -5,7 +5,7 @@
 [![CodeQL](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml)
 [![OSSF Scorecard supply-chain security](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/udlose/MermaidPad/badge)](https://scorecard.dev/viewer/?uri=github.com/udlose/MermaidPad)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11823/badge)](https://www.bestpractices.dev/projects/11823)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11823/badge?v=1)](https://www.bestpractices.dev/projects/11823)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
 [![Contributors](https://img.shields.io/github/contributors/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/graphs/contributors)
