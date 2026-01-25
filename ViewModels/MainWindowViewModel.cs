@@ -1573,12 +1573,19 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Updates the status text to reflect the currently open file or indicate that no file is open.
     /// </summary>
-    /// <remarks>If a file is open, the status text displays the file name. Otherwise, it shows a default
-    /// message indicating that no file is open.</remarks>
+    /// <remarks>
+    /// <para>
+    /// If a file is open, the status text displays the file name. Otherwise, it shows a default
+    /// message indicating that no file is open.
+    /// </para>
+    /// <para>
+    /// We do not call <see cref="ObservableObject.OnPropertyChanged(string?)"/>
+    /// for <see cref="HasOpenFile"/> here because it is called in <see cref="OnCurrentFilePathChanged(string?)"/>.
+    /// </para>
+    /// </remarks>
     private void UpdateStatusText()
     {
         StatusText = !string.IsNullOrEmpty(CurrentFilePath) ? $"{Path.GetFileName(CurrentFilePath)}" : "No file open";
-        OnPropertyChanged(nameof(HasOpenFile));
     }
 
     /// <summary>
