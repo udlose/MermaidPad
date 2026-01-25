@@ -269,6 +269,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// Gets or sets the current file path being edited.
     /// </summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(OpenFileLocationCommand))]
     public partial string? CurrentFilePath { get; set; }
 
     /// <summary>
@@ -342,6 +343,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <returns><see langword="true"/> if the web view is ready and the diagram text is not null, empty, or whitespace;
     /// otherwise, <see langword="false"/>.</returns>
     private bool CanExecuteExport() => Diagram.IsReady && EditorHasNonWhitespaceText;
+
+    /// <summary>
+    /// Determines whether the open file location command (from filename click on StatusBar) can execute.
+    /// </summary>
+    /// <returns><see langword="true"/> if a file is currently open; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteOpenFileLocation() => HasOpenFile;
 
     #endregion CanExecute Methods
 
@@ -836,6 +843,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         _settingsService.Save();
         UpdateWindowTitle();
         UpdateStatusText();
+        OnPropertyChanged(nameof(HasOpenFile));
     }
 
     /// <summary>
@@ -2003,32 +2011,52 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
-    /// Opens the directory containing the current file in the system's file explorer, if the file path is valid.
+    /// Opens the directory containing the current file in the system's file explorer.
     /// </summary>
-    /// <remarks>If the current file path is null, empty, or the directory does not exist, the operation is
-    /// not performed. Errors encountered while attempting to open the directory are logged but not propagated to the
-    /// caller.</remarks>
-    [RelayCommand]
-    private void OpenFileLocation()
+    /// <remarks>
+    /// <para>
+    /// This method handles both regular file paths and root directory paths (e.g., "C:\file.txt" or "C:\").
+    /// For root directory files, it opens the root directory itself.
+    /// </para>
+    /// <para>
+    /// The operation is cross-platform compatible and uses the system's default file explorer.
+    /// If the directory does not exist or is invalid, an error dialog is displayed to the user.
+    /// </para>
+    /// </remarks>
+    [RelayCommand(CanExecute = nameof(CanExecuteOpenFileLocation))]
+    private async Task OpenFileLocationAsync()
     {
         if (string.IsNullOrWhiteSpace(CurrentFilePath))
         {
             return;
         }
 
+        // Get the directory path, handling both regular paths and root directories
         string? directory = Path.GetDirectoryName(CurrentFilePath);
+
+        // For root directory files (e.g., "C:\file.txt"), GetDirectoryName returns "C:\"
+        // For root directory itself (e.g., "C:\"), GetDirectoryName returns empty string
+        // In the latter case, use GetPathRoot to get "C:\"
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            directory = Path.GetPathRoot(CurrentFilePath);
+        }
+
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
         {
+            await ShowErrorMessageAsync($"Cannot open file location - directory does not exist or is invalid: {CurrentFilePath}");
             return;
         }
 
         try
         {
+            // Use ShellExecute to open the directory of the current file in the default file explorer
             using Process? process = Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open file location: {Directory}", directory);
+            await ShowErrorMessageAsync($"Failed to open file location: {ex.Message}");
         }
     }
 

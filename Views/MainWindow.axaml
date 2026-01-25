@@ -161,14 +161,45 @@
       Margin="5,0,5,5"
       DockPanel.Dock="Bottom">
       <Grid ColumnDefinitions="*,Auto">
-        <!--  Left side  -->
-        <TextBlock
-          Name="StatusTextBlock"
+        <!--  Left side - File status with clickable link when file is open  -->
+        <!--  Single Button with conditional styling: disabled=plain text, enabled=link with underline  -->
+        <Button
           Grid.Column="0"
+          Padding="0"
           HorizontalAlignment="Left"
-          FontWeight="Bold"
-          Text="{Binding StatusText}"
-          TextTrimming="CharacterEllipsis" />
+          Background="Transparent"
+          BorderBrush="{x:Null}"
+          BorderThickness="0"
+          Command="{Binding OpenFileLocationCommand}"
+          ToolTip.Tip="{Binding CurrentFilePath}">
+          <Button.Styles>
+            <!--  When disabled (no file): plain text appearance  -->
+            <Style Selector="Button:disabled">
+              <Setter Property="Cursor" Value="Arrow" />
+            </Style>
+            <!--  When enabled (has file): link appearance  -->
+            <Style Selector="Button:not(:disabled)">
+              <Setter Property="Cursor" Value="Hand" />
+            </Style>
+          </Button.Styles>
+          <!--  Single StatusText binding - styled conditionally based on button state  -->
+          <TextBlock
+            FontWeight="Bold"
+            Text="{Binding StatusText}"
+            TextTrimming="CharacterEllipsis">
+            <TextBlock.Styles>
+              <!--  Default (disabled): gray text, no underline  -->
+              <Style Selector="TextBlock">
+                <Setter Property="Foreground" Value="Gray" />
+              </Style>
+              <!--  When parent button is enabled: link appearance (accent color + underline)  -->
+              <Style Selector="Button:not(:disabled) > TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+                <Setter Property="TextDecorations" Value="Underline" />
+              </Style>
+            </TextBlock.Styles>
+          </TextBlock>
+        </Button>
 
         <!--  Right side  -->
         <StackPanel
@@ -180,50 +211,7 @@
             Margin="5,0,0,0"
             FontWeight="Bold"
             Text="{Binding Source={x:Static local:AppMetadata.FileVersion}, Mode=OneTime}" />
-          <StackPanel
-            Margin="12,0,0,0"
-            VerticalAlignment="Center"
-            Orientation="Horizontal">
-            <Button
-              Background="Transparent"
-              BorderBrush="{x:Null}"
-              BorderThickness="0"
-              Command="{Binding OpenFileLocationCommand}"
-              Cursor="Hand"
-              IsVisible="False"
-              ToolTip.Tip="{Binding CurrentFilePath}">
-              <Button.Content>
-                <TextBlock
-                  Foreground="Gray"
-                  Text="{Binding StatusText}"
-                  TextDecorations="Underline" />
-              </Button.Content>
-              <Button.Styles>
-                <Style Selector="Button">
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding HasOpenFile}" Value="True">
-                      <Setter Property="IsVisible" Value="True" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </Button.Styles>
-            </Button>
-            <TextBlock
-              VerticalAlignment="Center"
-              Foreground="Gray"
-              Text="{Binding StatusText}"
-              ToolTip.Tip="{Binding CurrentFilePath}">
-              <TextBlock.Styles>
-                <Style Selector="TextBlock">
-                  <Style.Triggers>
-                    <DataTrigger Binding="{Binding HasOpenFile}" Value="True">
-                      <Setter Property="IsVisible" Value="False" />
-                    </DataTrigger>
-                  </Style.Triggers>
-                </Style>
-              </TextBlock.Styles>
-            </TextBlock>
-          </StackPanel>
+
         </StackPanel>
       </Grid>
     </DockPanel>
