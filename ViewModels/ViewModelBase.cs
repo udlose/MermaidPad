@@ -200,8 +200,8 @@ internal abstract partial class ViewModelBase : ObservableObject
     /// <remarks>
     /// <para>
     /// Avalonia's <c>InvokeAsync(Func&lt;Task&gt;, DispatcherPriority)</c> overload does not accept a
-    /// <see cref="CancellationToken"/>. If you need dispatcher-level cancellation before the delegate starts,
-    /// use <see cref="InvokeOnUIThreadAsync(Func{CancellationToken, Task}, DispatcherPriority, CancellationToken)"/>.
+    /// <see cref="CancellationToken"/>. Cancellation (if needed) must be cooperative inside the delegate,
+    /// e.g., by capturing and observing a token passed in from the caller.
     /// </para>
     /// </remarks>
     /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
@@ -217,58 +217,9 @@ internal abstract partial class ViewModelBase : ObservableObject
     }
 
     /// <summary>
-    /// Queues the specified asynchronous delegate to start on the UI thread with the given priority and cancellation token,
-    /// and returns a <see cref="Task"/> representing the operation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This overload enables dispatcher-level cancellation (before the delegate starts) while still supporting async code.
-    /// If <paramref name="cancellationToken"/> is canceled before execution begins, the delegate is not invoked.
-    /// </para>
-    /// <para>
-    /// Once execution begins, cancellation is cooperative. Because <paramref name="funcAsync"/> does not accept a token,
-    /// it can only observe <paramref name="cancellationToken"/> if it captures it (e.g., via closure) or otherwise participates
-    /// in cooperative cancellation.
-    /// </para>
-    /// </remarks>
-    /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The priority at which to invoke the function on the UI thread. If not specified,
-    /// the default value of <see cref="DispatcherPriority.Default"/> is used.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.
-    /// If the operation has not started, it will be aborted when the token is canceled. If the operation has started,
-    /// the invoked code can cooperate with the cancellation request. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A <see cref="Task"/> representing the scheduled operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or <paramref name="funcAsync"/> / the returned task cooperatively
-    /// observed cancellation during execution.</exception>
-    protected static Task InvokeOnUIThreadAsync(Func<Task> funcAsync, DispatcherPriority priority, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
-        Task<Task> outerTask = Dispatcher.UIThread
-            .InvokeAsync<Task>(() => funcAsync(), priority, cancellationToken)
-            .GetTask();
-
-        return outerTask.Unwrap();
-    }
-
-    /// <summary>
     /// Queues the specified asynchronous function to start on the UI thread with the given priority
     /// and returns a <see cref="Task{TResult}"/> representing the operation.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Avalonia's <c>InvokeAsync(Func&lt;Task&lt;TResult&gt;&gt;, DispatcherPriority)</c> overload does not accept a
-    /// <see cref="CancellationToken"/>. If you need dispatcher-level cancellation before the delegate starts,
-    /// use <see cref="InvokeOnUIThreadAsync{TResult}(Func{CancellationToken, Task{TResult}}, DispatcherPriority, CancellationToken)"/>.
-    /// </para>
-    /// </remarks>
     /// <typeparam name="TResult">The type of the result produced by the asynchronous function.</typeparam>
     /// <param name="funcAsync">The asynchronous function to execute on the UI thread. Cannot be null.</param>
     /// <param name="priority">The priority at which to invoke the function on the UI thread. If not specified,
@@ -280,91 +231,6 @@ internal abstract partial class ViewModelBase : ObservableObject
         ArgumentNullException.ThrowIfNull(funcAsync);
 
         return Dispatcher.UIThread.InvokeAsync<TResult>(funcAsync, priority);
-    }
-
-    /// <summary>
-    /// Queues the specified asynchronous delegate to start on the UI thread with the given priority and cancellation token,
-    /// and returns a <see cref="Task"/> representing the operation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This overload enables dispatcher-level cancellation (before the delegate starts) while still supporting async code.
-    /// If <paramref name="cancellationToken"/> is canceled before execution begins, the delegate is not invoked.
-    /// </para>
-    /// <para>
-    /// Once execution begins, cancellation is cooperative and must be honored by <paramref name="funcAsync"/>
-    /// (typically by observing <paramref name="cancellationToken"/> and throwing <see cref="OperationCanceledException"/>).
-    /// </para>
-    /// </remarks>
-    /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The priority at which to invoke the function on the UI thread. If not specified,
-    /// the default value of <see cref="DispatcherPriority.Default"/> is used.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.
-    /// If the operation has not started, it will be aborted; if it has started, the invoked code can
-    /// cooperate with the cancellation request. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A <see cref="Task"/> representing the scheduled operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or <paramref name="funcAsync"/> / the returned task cooperatively
-    /// observed cancellation during execution.</exception>
-    protected static Task InvokeOnUIThreadAsync(Func<CancellationToken, Task> funcAsync, DispatcherPriority priority = default,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
-        Task<Task> outerTask = Dispatcher.UIThread
-            .InvokeAsync<Task>(() => funcAsync(cancellationToken), priority, cancellationToken)
-            .GetTask();
-
-        return outerTask.Unwrap();
-    }
-
-    /// <summary>
-    /// Queues the specified asynchronous function to start on the UI thread with the given priority and cancellation token,
-    /// and returns a <see cref="Task{TResult}"/> representing the operation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This overload enables dispatcher-level cancellation (before the delegate starts) while still supporting async code.
-    /// If <paramref name="cancellationToken"/> is canceled before execution begins, the delegate is not invoked.
-    /// </para>
-    /// <para>
-    /// Once execution begins, cancellation is cooperative and must be honored by <paramref name="funcAsync"/>
-    /// (typically by observing <paramref name="cancellationToken"/> and throwing <see cref="OperationCanceledException"/>).
-    /// </para>
-    /// </remarks>
-    /// <typeparam name="TResult">The type of the result produced by the asynchronous function.</typeparam>
-    /// <param name="funcAsync">The asynchronous function to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The priority at which to invoke the function on the UI thread. If not specified,
-    /// the default value of <see cref="DispatcherPriority.Default"/> is used.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.
-    /// If the operation has not started, it will be aborted; if it has started, the invoked code can
-    /// cooperate with the cancellation request. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A <see cref="Task{TResult}"/> representing the scheduled operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or <paramref name="funcAsync"/> / the returned task cooperatively
-    /// observed cancellation during execution.</exception>
-    protected static Task<TResult> InvokeOnUIThreadAsync<TResult>(Func<CancellationToken, Task<TResult>> funcAsync,
-        DispatcherPriority priority = default, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<TResult>(cancellationToken);
-        }
-
-        Task<Task<TResult>> outerTask = Dispatcher.UIThread
-            .InvokeAsync<Task<TResult>>(() => funcAsync(cancellationToken), priority, cancellationToken)
-            .GetTask();
-
-        return outerTask.Unwrap();
     }
 
     #endregion Dispatcher.UIThread.InvokeAsync wrappers (Task-returning)
@@ -444,93 +310,10 @@ internal abstract partial class ViewModelBase : ObservableObject
     }
 
     /// <summary>
-    /// Executes the specified asynchronous delegate on the UI thread with the given priority.
-    /// </summary>
-    /// <remarks>
-    /// <para>If called from the UI thread, the delegate is executed directly; otherwise, it is queued to the UI thread.</para>
-    /// <para>
-    /// This overload does not support dispatcher-level cancellation. If you need dispatcher-level cancellation before the delegate
-    /// starts, use <see cref="RunOnUIThreadAsync(Func{CancellationToken, Task}, DispatcherPriority, CancellationToken)"/>.
-    /// </para>
-    /// </remarks>
-    /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The priority at which to invoke the delegate on the UI thread. The default value is used if not specified.</param>
-    /// <returns>A task that represents the operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    protected static Task RunOnUIThreadAsync(Func<Task> funcAsync, DispatcherPriority priority = default)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (IsOnUIThread)
-        {
-            return funcAsync();
-        }
-
-        return InvokeOnUIThreadAsync(funcAsync, priority);
-    }
-
-    /// <summary>
-    /// Executes the specified asynchronous delegate on the UI thread with the given priority and cancellation token,
-    /// and returns a <see cref="Task"/> representing the operation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// If called from the UI thread, the delegate is invoked immediately and the returned task represents the delegate's
-    /// asynchronous completion.
-    /// </para>
-    /// <para>
-    /// If called from a background thread, the delegate is queued to the UI thread via
-    /// <see cref="InvokeOnUIThreadAsync(Func{Task}, DispatcherPriority, CancellationToken)"/> and the returned task completes
-    /// when the delegate's returned task completes.
-    /// </para>
-    /// <para>
-    /// If <paramref name="cancellationToken"/> is already canceled when this method is called, this method returns a canceled task
-    /// and does not invoke or queue the delegate. <see cref="Task.FromCanceled(CancellationToken)"/> requires an already-canceled token,
-    /// which is why the cancellation check occurs before any dispatching logic.
-    /// </para>
-    /// <para>
-    /// If the delegate is queued, cancellation is dispatcher-level before the queued invocation begins (the queued operation can be
-    /// aborted when canceled), and cooperative after it begins (the invoked code can observe cancellation). If the delegate runs inline
-    /// (already on the UI thread), there is no dispatcher-level cancellation involved; any “during execution” cancellation remains purely
-    /// cooperative inside the delegate (e.g., by capturing and observing <paramref name="cancellationToken"/>).
-    /// </para>
-    /// </remarks>
-    /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The priority at which to invoke the delegate on the UI thread. If not specified,
-    /// the default value of <see cref="DispatcherPriority.Default"/> is used.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation. If the queued operation has not
-    /// started, it can be aborted when the token is canceled; if it has started, the invoked code can cooperate with the cancellation
-    /// request. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>A <see cref="Task"/> representing the operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or the delegate / returned task cooperatively observed cancellation during execution.</exception>
-    protected static Task RunOnUIThreadAsync(Func<Task> funcAsync, DispatcherPriority priority, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
-        if (IsOnUIThread)
-        {
-            return funcAsync();
-        }
-
-        return InvokeOnUIThreadAsync(funcAsync, priority, cancellationToken);
-    }
-
-    /// <summary>
     /// Executes the specified asynchronous function on the UI thread with the given priority.
     /// </summary>
     /// <remarks>
     /// <para>If called from the UI thread, the function is executed directly; otherwise, it is queued to the UI thread.</para>
-    /// <para>
-    /// This overload does not support dispatcher-level cancellation. If you need dispatcher-level cancellation before the delegate
-    /// starts, use <see cref="RunOnUIThreadAsync{TResult}(Func{CancellationToken, Task{TResult}}, DispatcherPriority, CancellationToken)"/>.
-    /// </para>
     /// </remarks>
     /// <typeparam name="TResult">The type of the result returned by the asynchronous function.</typeparam>
     /// <param name="funcAsync">The asynchronous function to execute on the UI thread. Cannot be null.</param>
@@ -550,76 +333,29 @@ internal abstract partial class ViewModelBase : ObservableObject
     }
 
     /// <summary>
-    /// Executes the specified asynchronous delegate on the UI thread with the given priority and cancellation token.
+    /// Executes the specified asynchronous delegate on the UI thread with the given priority.
     /// </summary>
     /// <remarks>
     /// <para>If called from the UI thread, the delegate is executed directly; otherwise, it is queued to the UI thread.</para>
     /// <para>
-    /// If <paramref name="cancellationToken"/> is canceled before the queued invocation begins, the delegate is not invoked.
-    /// Once invoked, cancellation is cooperative and must be honored by the delegate.
+    /// This overload does not support dispatcher-level cancellation. If you need cancellation, it must be cooperative inside
+    /// the delegate (e.g., by capturing and observing a token passed in from the caller).
     /// </para>
     /// </remarks>
     /// <param name="funcAsync">The asynchronous delegate to execute on the UI thread. Cannot be null.</param>
     /// <param name="priority">The priority at which to invoke the delegate on the UI thread. The default value is used if not specified.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation before it begins.</param>
     /// <returns>A task that represents the operation.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or <paramref name="funcAsync"/> / the returned task cooperatively
-    /// observed cancellation during execution.</exception>
-    protected static Task RunOnUIThreadAsync(Func<CancellationToken, Task> funcAsync, DispatcherPriority priority = default,
-        CancellationToken cancellationToken = default)
+    protected static Task RunOnUIThreadAsync(Func<Task> funcAsync, DispatcherPriority priority = default)
     {
         ArgumentNullException.ThrowIfNull(funcAsync);
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled(cancellationToken);
-        }
-
         if (IsOnUIThread)
         {
-            return funcAsync(cancellationToken);
+            return funcAsync();
         }
 
-        return InvokeOnUIThreadAsync(funcAsync, priority, cancellationToken);
-    }
-
-    /// <summary>
-    /// Executes the specified asynchronous function on the UI thread with the given priority and cancellation token.
-    /// </summary>
-    /// <remarks>
-    /// <para>If called from the UI thread, the function is executed directly; otherwise, it is queued to the UI thread.</para>
-    /// <para>
-    /// If <paramref name="cancellationToken"/> is canceled before the queued invocation begins, the delegate is not invoked.
-    /// Once invoked, cancellation is cooperative and must be honored by the delegate.
-    /// </para>
-    /// </remarks>
-    /// <typeparam name="TResult">The type of the result returned by the asynchronous function.</typeparam>
-    /// <param name="funcAsync">The asynchronous function to execute on the UI thread. Cannot be null.</param>
-    /// <param name="priority">The dispatcher priority to use when scheduling the function. If not specified, the default priority is used.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation before it begins.</param>
-    /// <returns>A task that represents the operation.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="funcAsync"/> is <see langword="null"/>.</exception>
-    /// <exception cref="OperationCanceledException">The operation was canceled via the provided
-    /// <paramref name="cancellationToken"/> before execution, or <paramref name="funcAsync"/> / the returned task cooperatively
-    /// observed cancellation during execution.</exception>
-    protected static Task<TResult> RunOnUIThreadAsync<TResult>(Func<CancellationToken, Task<TResult>> funcAsync,
-        DispatcherPriority priority = default, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(funcAsync);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return Task.FromCanceled<TResult>(cancellationToken);
-        }
-
-        if (IsOnUIThread)
-        {
-            return funcAsync(cancellationToken);
-        }
-
-        return InvokeOnUIThreadAsync<TResult>(funcAsync, priority, cancellationToken);
+        return InvokeOnUIThreadAsync(funcAsync, priority);
     }
 
     #endregion RunOnUIThreadAsync (inline if on UI thread, otherwise dispatched)
