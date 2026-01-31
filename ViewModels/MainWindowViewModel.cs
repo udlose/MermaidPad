@@ -31,6 +31,7 @@ using MermaidPad.Extensions;
 using MermaidPad.Factories;
 using MermaidPad.Infrastructure;
 using MermaidPad.Infrastructure.Messages;
+using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
@@ -77,9 +78,15 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     private const string DebounceRenderKey = "render";
 
     /// <summary>
-    /// A value tracking if there is currently a file being loaded.
+    /// A value indicating whether to suppress tracking of unsaved changes.
     /// </summary>
-    private bool _isLoadingFile;
+    /// <remarks>
+    /// When <c>true</c>, the <see cref="Receive(EditorTextChangedMessage)"/> handler will not set
+    /// <see cref="HasUnsavedChanges"/> to <c>true</c>. This prevents the modified file flag from being set during
+    /// file load operations, new file creation, and file close operations where the editor content
+    /// changes but those changes should not be considered "unsaved changes".
+    /// </remarks>
+    private bool _suppressHasUnsavedChangesTracking;
 
     /// <summary>
     /// Tracks if we've already warned the user about WebView being unready during live preview.
@@ -270,6 +277,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenFileLocationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CloseFileCommand))]
     public partial string? CurrentFilePath { get; set; }
 
     /// <summary>
@@ -281,7 +289,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </remarks>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))]
-    public partial bool IsDirty { get; set; }
+    public partial bool HasUnsavedChanges { get; set; }
 
     /// <summary>
     /// Gets the window title including file name and dirty indicator.
@@ -301,10 +309,14 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     public bool HasOpenFile => !string.IsNullOrEmpty(CurrentFilePath);
 
     /// <summary>
-    /// Gets the list of recent files for the menu.
+    /// Gets or sets the list of recent files for the menu.
     /// </summary>
+    /// <remarks>
+    /// Each item contains both the file path and a reference to the open command,
+    /// enabling proper command binding in the menu item DataTemplate.
+    /// </remarks>
     [ObservableProperty]
-    public partial ObservableCollection<string> RecentFiles { get; set; } = new ObservableCollection<string>();
+    public partial ObservableCollection<RecentFileItem> RecentFiles { get; set; } = new ObservableCollection<RecentFileItem>();
 
     #region CanExecute Methods
 
@@ -312,7 +324,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// Determines whether the save file command can execute.
     /// </summary>
     /// <returns><see langword="true"/> if the editor has text and the document has unsaved changes; otherwise, <see langword="false"/>.</returns>
-    private bool CanExecuteSave() => EditorHasText && IsDirty;
+    private bool CanExecuteSave() => EditorHasText && HasUnsavedChanges;
 
     /// <summary>
     /// Determines whether the save file as command can execute.
@@ -349,6 +361,18 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// </summary>
     /// <returns><see langword="true"/> if a file is currently open; otherwise, <see langword="false"/>.</returns>
     private bool CanExecuteOpenFileLocation() => HasOpenFile;
+
+    /// <summary>
+    /// Determines whether the close file command can execute.
+    /// </summary>
+    /// <returns><see langword="true"/> if there is an open file or the editor has text; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteCloseFile() => HasOpenFile || EditorHasText;
+
+    /// <summary>
+    /// Determines whether the clear recent files command can execute.
+    /// </summary>
+    /// <returns><see langword="true"/> if there are recent files to clear; otherwise, <see langword="false"/>.</returns>
+    private bool CanExecuteClearRecentFiles() => HasRecentFiles;
 
     #endregion CanExecute Methods
 
@@ -535,10 +559,10 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         SaveFileCommand.NotifyCanExecuteChanged();
         SaveFileAsCommand.NotifyCanExecuteChanged();
 
-        // Mark as dirty when text changes (ONLY if we're not loading a file)
-        if (!_isLoadingFile)
+        // Mark as dirty when text changes (ONLY if we're not suppressing dirty tracking)
+        if (!_suppressHasUnsavedChangesTracking)
         {
-            IsDirty = true;
+            HasUnsavedChanges = true;
         }
 
         // Trigger debounced render if live preview is enabled
@@ -847,19 +871,19 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     }
 
     /// <summary>
-    /// Handles changes to the dirty state of the object when the value of the IsDirty property changes.
+    /// Handles changes to the dirty state of the object when the value of the <see cref="HasUnsavedChanges"/> property changes.
     /// </summary>
-    /// <remarks>This method is invoked automatically when the IsDirty property changes. Override this partial
+    /// <remarks>This method is invoked automatically when the <see cref="HasUnsavedChanges"/> property changes. Override this partial
     /// method to perform custom actions in response to changes in the dirty state, such as updating UI elements or
     /// enabling save functionality.</remarks>
     /// <param name="value">A value indicating whether the object is now considered dirty. <see langword="true"/> if the object has unsaved
     /// changes; otherwise, <see langword="false"/>.</param>
     [SuppressMessage("ReSharper", "UnusedParameterInPartialMethod", Justification = "Parameter is required for partial method signature.")]
-    partial void OnIsDirtyChanged(bool value)
+    partial void OnHasUnsavedChangesChanged(bool value)
     {
         UpdateWindowTitle();
         // Note: SaveFileCommand.NotifyCanExecuteChanged() is automatically called via
-        // [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))] on the IsDirty property.
+        // [NotifyCanExecuteChangedFor(nameof(SaveFileCommand))] on the HasUnsavedChanges property.
     }
 
     #endregion Event Handlers
@@ -924,6 +948,100 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     #endregion Diagram Initialization
 
     #region File Open/Save
+    /// <summary>
+    /// Creates a new empty file, prompting to save if there are unsaved changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This command clears the current document and creates a fresh editing state.
+    /// If there are unsaved changes, the user is prompted to save before proceeding.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="CloseFileCommand"/>, this command is always available because
+    /// creating a new file is valid even when no file is currently open.
+    /// </para>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. This command wraps the core logic in Dispatcher.UIThread.InvokeAsync()
+    /// to ensure proper context.
+    /// </para>
+    /// </remarks>
+    /// <param name="storageProvider">The storage provider used to save the file if the user chooses to save changes.</param>
+    /// <returns>A task that represents the asynchronous new file operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
+    [RelayCommand]
+    private Task NewFileAsync(IStorageProvider storageProvider)
+    {
+        ArgumentNullException.ThrowIfNull(storageProvider);
+
+        return Dispatcher.UIThread.InvokeAsync(() => NewFileCoreAsync(storageProvider));
+    }
+
+    /// <summary>
+    /// Performs the core logic to create a new file, including prompting for unsaved changes
+    /// and resetting the editor and diagram state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method:
+    /// <list type="number">
+    ///     <item><description>Prompts the user to save if there are unsaved changes</description></item>
+    ///     <item><description>Creates a new empty TextDocument (which clears the undo stack)</description></item>
+    ///     <item><description>Clears the diagram preview</description></item>
+    ///     <item><description>Resets file-related state (CurrentFilePath, IsDirty)</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="storageProvider">The storage provider used if the user chooses to save changes.</param>
+    /// <returns>A task that represents the asynchronous new file operation.</returns>
+    private async Task NewFileCoreAsync(IStorageProvider storageProvider)
+    {
+        // Check for unsaved changes and prompt user
+        if (HasUnsavedChanges && EditorHasNonWhitespaceText)
+        {
+            bool canProceed = await PromptSaveIfDirtyAsync(storageProvider);
+            if (!canProceed)
+            {
+                return; // User cancelled
+            }
+        }
+
+        // Reset file state
+        CurrentFilePath = null;
+        HasUnsavedChanges = false;
+
+        // Suppress dirty tracking while resetting the document
+        // ResetDocument triggers EditorTextChangedMessage which would otherwise set IsDirty = true
+        _suppressHasUnsavedChangesTracking = true;
+        try
+        {
+            // Create a new empty document - this automatically clears the undo stack
+            Editor.ResetDocument(string.Empty);
+
+            // Clear the diagram preview if WebView is ready
+            if (Diagram.IsReady)
+            {
+                await Diagram.RenderAsync(string.Empty);
+            }
+        }
+        finally
+        {
+            _suppressHasUnsavedChangesTracking = false;
+        }
+
+        // Notify property changes for binding updates
+        OnPropertyChanged(nameof(EditorHasText));
+        OnPropertyChanged(nameof(EditorHasNonWhitespaceText));
+
+        // Update command states
+        NewFileCommand.NotifyCanExecuteChanged();
+        CloseFileCommand.NotifyCanExecuteChanged();
+        SaveFileCommand.NotifyCanExecuteChanged();
+        SaveFileAsCommand.NotifyCanExecuteChanged();
+        RenderCommand.NotifyCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
+    }
 
     /// <summary>
     /// Asynchronously opens a file using the specified storage provider.
@@ -974,7 +1092,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         try
         {
             // Check for unsaved changes
-            if (IsDirty)
+            if (HasUnsavedChanges)
             {
                 bool canProceed = await PromptSaveIfDirtyAsync(storageProvider);
                 if (!canProceed)
@@ -986,12 +1104,12 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             (string? filePath, string? content) = await _fileService.OpenFileAsync(storageProvider);
             if (filePath is not null && content is not null)
             {
-                _isLoadingFile = true;
+                _suppressHasUnsavedChangesTracking = true;
                 try
                 {
                     Editor.Text = content;
                     CurrentFilePath = filePath;
-                    IsDirty = false;
+                    HasUnsavedChanges = false;
                     UpdateRecentFiles();
 
                     // Render the newly loaded content if WebView is ready
@@ -1005,7 +1123,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 }
                 finally
                 {
-                    _isLoadingFile = false;
+                    _suppressHasUnsavedChangesTracking = false;
                 }
             }
         }
@@ -1065,7 +1183,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             if (savedPath is not null)
             {
                 CurrentFilePath = savedPath;
-                IsDirty = false;
+                HasUnsavedChanges = false;
                 UpdateRecentFiles();
                 _logger.LogInformation("Saved file: {SavedPath}", savedPath);
             }
@@ -1133,7 +1251,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             if (savedPath is not null)
             {
                 CurrentFilePath = savedPath;
-                IsDirty = false;
+                HasUnsavedChanges = false;
                 UpdateRecentFiles();
                 _logger.LogInformation("Saved file as: {SavedPath}", savedPath);
             }
@@ -1143,6 +1261,103 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             _logger.LogError(ex, "Failed to save file as");
             await ShowErrorMessageAsync("Failed to save file. " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Closes the currently open file, prompting to save if there are unsaved changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This command clears the editor content and diagram preview, resets the current file path,
+    /// and creates a fresh document state. If there are unsaved changes, the user is prompted
+    /// to save before closing.
+    /// </para>
+    /// <para>
+    /// CRITICAL: Avalonia's IStorageProvider file/folder pickers require execution within a valid UI
+    /// SynchronizationContext. This command wraps the core logic in Dispatcher.UIThread.InvokeAsync()
+    /// to ensure proper context, matching the pattern used by OpenFileCommand and SaveFileCommand.
+    /// </para>
+    /// </remarks>
+    /// <param name="storageProvider">The storage provider used to save the file if the user chooses to save changes.</param>
+    /// <returns>A task that represents the asynchronous close operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
+    [RelayCommand(CanExecute = nameof(CanExecuteCloseFile))]
+    private Task CloseFileAsync(IStorageProvider storageProvider)
+    {
+        ArgumentNullException.ThrowIfNull(storageProvider);
+
+        return Dispatcher.UIThread.InvokeAsync(() => CloseFileCoreAsync(storageProvider));
+    }
+
+    /// <summary>
+    /// Performs the core logic to close the current file, including prompting for unsaved changes
+    /// and resetting the editor and diagram state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method:
+    /// <list type="number">
+    ///     <item><description>Prompts the user to save if there are unsaved changes</description></item>
+    ///     <item><description>Creates a new empty TextDocument (which clears the undo stack)</description></item>
+    ///     <item><description>Clears the diagram preview</description></item>
+    ///     <item><description>Resets file-related state (CurrentFilePath, IsDirty)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The undo stack is automatically cleared when a new TextDocument is created via
+    /// <see cref="MermaidEditorViewModel.ResetDocument"/>, which is the expected behavior when closing a file.
+    /// </para>
+    /// </remarks>
+    /// <param name="storageProvider">The storage provider used if the user chooses to save changes.</param>
+    /// <returns>A task that represents the asynchronous close operation.</returns>
+    private async Task CloseFileCoreAsync(IStorageProvider storageProvider)
+    {
+        // Check for unsaved changes and prompt user
+        if (HasUnsavedChanges && EditorHasNonWhitespaceText)
+        {
+            bool canProceed = await PromptSaveIfDirtyAsync(storageProvider);
+            if (!canProceed)
+            {
+                return; // User cancelled
+            }
+        }
+
+        // Reset file state BEFORE clearing editor to ensure proper state during notifications
+        CurrentFilePath = null;
+        HasUnsavedChanges = false;
+
+        // Suppress dirty tracking while resetting the document
+        // ResetDocument triggers EditorTextChangedMessage which would otherwise set IsDirty = true
+        _suppressHasUnsavedChangesTracking = true;
+        try
+        {
+            // Create a new empty document - this automatically clears the undo stack
+            // Use ResetDocument which handles event subscription/unsubscription
+            Editor.ResetDocument(string.Empty);
+
+            // Clear the diagram preview if WebView is ready
+            if (Diagram.IsReady)
+            {
+                // NO ConfigureAwait(false) - Diagram.RenderAsync needs UI context
+                await Diagram.RenderAsync(string.Empty);
+            }
+        }
+        finally
+        {
+            _suppressHasUnsavedChangesTracking = false;
+        }
+
+        // Notify property changes for binding updates
+        OnPropertyChanged(nameof(EditorHasText));
+        OnPropertyChanged(nameof(EditorHasNonWhitespaceText));
+
+        // Update command states
+        CloseFileCommand.NotifyCanExecuteChanged();
+        SaveFileCommand.NotifyCanExecuteChanged();
+        SaveFileAsCommand.NotifyCanExecuteChanged();
+        RenderCommand.NotifyCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
+        ExportCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
@@ -1160,7 +1375,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     {
         ArgumentNullException.ThrowIfNull(storageProvider);
 
-        if (!IsDirty || !EditorHasNonWhitespaceText)
+        if (!HasUnsavedChanges || !EditorHasNonWhitespaceText)
         {
             return Task.FromResult(true); // No unsaved changes, continue
         }
@@ -1248,7 +1463,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
         try
         {
             // Check for unsaved changes
-            if (IsDirty)
+            if (HasUnsavedChanges)
             {
                 Window? mainWindow = GetParentWindow();
                 if (mainWindow?.StorageProvider is null)
@@ -1283,13 +1498,13 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             }
 
             // Read and load the file
-            _isLoadingFile = true;
+            _suppressHasUnsavedChangesTracking = true;
             try
             {
                 string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
                 Editor.Text = content;
                 CurrentFilePath = filePath;
-                IsDirty = false;
+                HasUnsavedChanges = false;
 
                 // Move to top of recent files
                 _fileService.AddToRecentFiles(filePath);
@@ -1306,7 +1521,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             }
             finally
             {
-                _isLoadingFile = false;
+                _suppressHasUnsavedChangesTracking = false;
             }
         }
         catch (Exception ex)
@@ -1322,13 +1537,11 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <remarks>This command removes all entries from the recent files list and updates any associated user
     /// interface elements to reflect the change. Use this method to reset the recent files history, for example, when
     /// privacy is a concern or to start a new session.</remarks>
-    //TODO - DaveBlack - add CanExecute logic here for ClearRecentFiles
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteClearRecentFiles))]
     private void ClearRecentFiles()
     {
         _fileService.ClearRecentFiles();
         UpdateRecentFiles();
-        _logger.LogInformation("Recent files cleared");
     }
 
     /// <summary>
@@ -1342,7 +1555,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             ? Path.GetFileName(CurrentFilePath)
             : "Untitled";
 
-        string dirtyIndicator = IsDirty ? " *" : "";
+        string dirtyIndicator = HasUnsavedChanges ? " *" : "";
         WindowTitle = $"MermaidPad - {fileName}{dirtyIndicator}";
     }
 
@@ -1591,18 +1804,22 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <summary>
     /// Refreshes the list of recent files by retrieving the latest entries from the file service.
     /// </summary>
-    /// <remarks>Raises a property change notification for <c>HasRecentFiles</c> after updating the list. This
-    /// method should be called when the recent files may have changed, such as after opening or closing
-    /// files.</remarks>
+    /// <remarks>
+    /// Creates <see cref="RecentFileItem"/> instances that wrap both the file path and the
+    /// <see cref="OpenRecentFileCommand"/>, enabling proper command binding in the menu template.
+    /// Raises property change notifications for <see cref="HasRecentFiles"/> and notifies
+    /// <see cref="ClearRecentFilesCommand"/> to update its enabled state.
+    /// </remarks>
     private void UpdateRecentFiles()
     {
         RecentFiles.Clear();
         foreach (string filePath in _fileService.GetRecentFiles())
         {
-            RecentFiles.Add(filePath);
+            RecentFiles.Add(new RecentFileItem(filePath, OpenRecentFileCommand));
         }
 
         OnPropertyChanged(nameof(HasRecentFiles));
+        ClearRecentFilesCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
