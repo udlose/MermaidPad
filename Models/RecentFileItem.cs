@@ -46,14 +46,14 @@ internal sealed class RecentFileItem
     /// <summary>
     /// Gets the command to execute when this recent file is selected.
     /// </summary>
-    public IAsyncRelayCommand<string> OpenCommand { get; }
+    public IAsyncRelayCommand<string?> OpenCommand { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RecentFileItem"/> class.
     /// </summary>
     /// <param name="filePath">The full path to the file.</param>
     /// <param name="openCommand">The command to open this file.</param>
-    public RecentFileItem(string filePath, IAsyncRelayCommand<string> openCommand)
+    public RecentFileItem(string filePath, IAsyncRelayCommand<string?> openCommand)
     {
         FilePath = filePath;
         OpenCommand = openCommand;

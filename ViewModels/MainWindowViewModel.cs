@@ -62,7 +62,12 @@ namespace MermaidPad.ViewModels;
 [SuppressMessage("ReSharper", "PropertyCanBeMadeInitOnly.Global", Justification = "ViewModel properties are set during initialization by the MVVM framework.")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
-internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<EditorTextChangedMessage>, IRecipient<DiagramViewReadyMessage>, IDisposable
+internal sealed partial class MainWindowViewModel :
+    ViewModelBase,
+    IRecipient<EditorTextChangedMessage>,
+    IRecipient<DiagramViewReadyMessage>,
+    IRecipient<FileDroppedMessage>,
+    IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly MermaidUpdateService _updateService;
@@ -692,6 +697,53 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 });
             });
         }
+    }
+
+    /// <summary>
+    /// Receives the <see cref="FileDroppedMessage"/> published when a Mermaid file (.mmd) is dropped
+    /// onto the <see cref="Views.UserControls.MermaidEditorView"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This message enables drag-and-drop file opening when files are dropped specifically onto the
+    /// TextEditor control. Files dropped on the WebView control are intercepted by the browser's
+    /// native drag/drop handling and cannot be reliably captured by Avalonia.
+    /// </para>
+    /// <para>
+    /// The handler delegates to <see cref="OpenRecentFileCommand"/> which handles:
+    /// <list type="bullet">
+    ///     <item><description>Unsaved changes prompting</description></item>
+    ///     <item><description>File existence validation</description></item>
+    ///     <item><description>File size validation</description></item>
+    ///     <item><description>Loading and rendering</description></item>
+    ///     <item><description>Recent files list update</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <param name="message">The message containing the file path of the dropped .mmd file.</param>
+    public void Receive(FileDroppedMessage message)
+    {
+        string filePath = message.Value;
+        if (string.IsNullOrEmpty(filePath))
+        {
+            _logger.LogWarning("Received {MessageName} with null or empty file path", nameof(FileDroppedMessage));
+            return;
+        }
+
+        _logger.LogInformation("Received {MessageName}: {FilePath}", nameof(FileDroppedMessage), filePath);
+
+        // Delegate to OpenRecentFileCommand which handles all the file opening logic
+        // including unsaved changes prompting, validation, loading, and rendering
+        // Ensure the messenger handler returns immediately by posting to the UI thread (fire & forget)
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (OpenRecentFileCommand.CanExecute(filePath))
+            {
+                OpenRecentFileCommand.ExecuteAsync(filePath)
+                    .SafeFireAndForget(onException: ex =>
+                        _logger.LogError(ex, "Failed to open dropped file: {FilePath}", filePath));
+            }
+        }, DispatcherPriority.Background);
     }
 
     /// <summary>
@@ -1453,9 +1505,9 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
     /// <returns>A task that represents the asynchronous operation. The task completes when the file has been loaded or if the
     /// operation is cancelled due to validation or user action.</returns>
     [RelayCommand]
-    private async Task OpenRecentFileAsync(string filePath)
+    private async Task OpenRecentFileAsync(string? filePath)
     {
-        if (string.IsNullOrEmpty(filePath))
+        if (string.IsNullOrWhiteSpace(filePath))
         {
             return;
         }
@@ -1478,7 +1530,21 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 }
             }
 
-            if (!File.Exists(filePath))
+            // Runs all file-system checks on a background thread to avoid blocking UI
+            // These checks may involve underlying I/O operations in the OS which can be slow for network drives, etc.
+            (bool exists, bool? isSizeValid) = await Task.Run(() =>
+            {
+                bool fileExists = File.Exists(filePath);
+                if (!fileExists)
+                {
+                    return (exists: false, isSizeValid: null);
+                }
+
+                bool? isValid = _fileService.ValidateFileSize(filePath);
+                return (exists: true, isSizeValid: isValid);
+            }).ConfigureAwait(false);
+
+            if (!exists)
             {
                 await ShowErrorMessageAsync($"File not found: {filePath}");
 
@@ -1489,7 +1555,7 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
                 return;
             }
 
-            if (!_fileService.ValidateFileSize(filePath))
+            if (isSizeValid == false)
             {
                 // ReSharper disable once InconsistentNaming
                 const double maxSizeMB = FileService.MaxFileSizeBytes / FileService.OneMBInBytes;
@@ -1501,23 +1567,29 @@ internal sealed partial class MainWindowViewModel : ViewModelBase, IRecipient<Ed
             _suppressHasUnsavedChangesTracking = true;
             try
             {
-                string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
-                Editor.Text = content;
-                CurrentFilePath = filePath;
-                HasUnsavedChanges = false;
+                string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8)
+                    .ConfigureAwait(false);
 
-                // Move to top of recent files
-                _fileService.AddToRecentFiles(filePath);
-                UpdateRecentFiles();
-
-                // Render the newly loaded content if WebView is ready
-                if (Diagram.IsReady)
+                // Explicitly cast the lambda to Func<Task> to avoid ambiguous overload resolution
+                await Dispatcher.UIThread.InvokeAsync((Func<Task>)(async () =>
                 {
-                    // Use the loaded content directly to avoid redundant Editor.Text access
-                    await Diagram.RenderAsync(content);
-                }
+                    Editor.Text = content;
+                    CurrentFilePath = filePath;
+                    HasUnsavedChanges = false;
 
-                _logger.LogInformation("Opened recent file: {FilePath}", filePath);
+                    // Move to top of recent files
+                    _fileService.AddToRecentFiles(filePath);
+                    UpdateRecentFiles();
+
+                    // Render the newly loaded content if WebView is ready
+                    if (Diagram.IsReady)
+                    {
+                        // Use the loaded content directly to avoid redundant Editor.Text access
+                        await Diagram.RenderAsync(content);
+                    }
+
+                    _logger.LogInformation("Opened recent file: {FilePath}", filePath);
+                }));
             }
             finally
             {

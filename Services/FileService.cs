@@ -365,10 +365,11 @@ internal sealed class FileService : IFileService
                 return true; // New file, no size constraints
             }
 
-            if (fileInfo.Length > MaxFileSizeBytes)
+            long fileLength = fileInfo.Length;
+            if (fileLength > MaxFileSizeBytes)
             {
                 // ReSharper disable once InconsistentNaming
-                double sizeMB = fileInfo.Length / OneMBInBytes;
+                double sizeMB = fileLength / OneMBInBytes;
                 _logger.LogError("File size ({SizeMB:F2} MB) exceeds maximum allowed size ({MaxSizeMB} MB)", sizeMB, MaxFileSizeBytes / OneMBInBytes);
                 return false;
             }
