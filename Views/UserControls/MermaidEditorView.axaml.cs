@@ -613,6 +613,15 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
 
         switch (e.PropertyName)
         {
+            case nameof(MermaidEditorViewModel.Document):
+                // Document was replaced (e.g., File | Close or File | New)
+                // Re-attach the new document to the TextEditor
+                if (!ReferenceEquals(Editor.Document, _vm.Document))
+                {
+                    _logger.LogInformation("ViewModel Document changed - attaching new Document to TextEditor");
+                    Editor.Document = _vm.Document;
+                }
+                break;
             case nameof(MermaidEditorViewModel.EnableRectangularSelection):
                 Editor.Options.EnableRectangularSelection = _vm.EnableRectangularSelection;
                 break;
