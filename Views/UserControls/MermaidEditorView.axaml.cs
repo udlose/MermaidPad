@@ -21,13 +21,18 @@
 using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
+using CommunityToolkit.Mvvm.Messaging;
 using MermaidPad.Extensions;
+using MermaidPad.Infrastructure.Messages;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Editor;
@@ -69,7 +74,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
     private readonly IDebounceDispatcher _editorDebouncer;
     private readonly DocumentAnalyzer _documentAnalyzer;
     private readonly ILogger<MermaidEditorView> _logger;
-
+    private readonly IMessenger _documentMessenger;
     private bool _areAllEventHandlersCleanedUp;
     private bool _suppressEditorStateSync;
     private readonly SemaphoreSlim _contextMenuSemaphore = new SemaphoreSlim(1, 1);
@@ -95,6 +100,22 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         _syntaxHighlightingService = sp.GetRequiredService<SyntaxHighlightingService>();
         _documentAnalyzer = sp.GetRequiredService<DocumentAnalyzer>();
         _logger = sp.GetRequiredService<ILogger<MermaidEditorView>>();
+        _documentMessenger = sp.GetRequiredKeyedService<IMessenger>(MessengerKeys.Document);
+
+        // Register drag and drop handlers for .mmd file opening
+        // Note: This only works for the TextEditor area. Files dropped on the WebView
+        // are intercepted by the browser's native drag/drop handling.
+        AddHandler<DragEventArgs>(
+            DragDrop.DragOverEvent,
+            OnDragOver,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
+
+        AddHandler<DragEventArgs>(
+            DragDrop.DropEvent,
+            OnDrop,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
 
         _logger.LogInformation("=== {ViewName} Initialization Started ===", nameof(MermaidEditorView));
 
@@ -1540,6 +1561,129 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
 
     #endregion Public Methods
 
+    #region Drag and Drop
+
+    /// <summary>
+    /// Handles the DragOver event to provide visual feedback when files are dragged over the editor.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method validates that the dragged data contains files and that at least one file
+    /// has a valid Mermaid extension (.mmd). If valid, the drag effect is set to Copy to indicate
+    /// the drop is allowed. Otherwise, the drag effect is set to None.
+    /// </para>
+    /// <para>
+    /// Only the first valid .mmd file will be opened on drop - multiple file drops are not supported.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The drag event arguments containing the dragged data.</param>
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        // Mark the event as handled first so early returns don't allow other handlers
+        // (or default behavior) to override the drag cursor/effects.
+        e.Handled = true;
+
+        // Default to not allowing the drop
+        e.DragEffects = DragDropEffects.None;
+
+        try
+        {
+            // Get the dragged files
+            IStorageItem[]? items = e.DataTransfer.TryGetFiles();
+            if (items is null)
+            {
+                return;
+            }
+
+            // Check if any file has a valid Mermaid extension (.mmd)
+            bool hasValidFile = items
+                .OfType<IStorageFile>()
+                .Any(static file => IsMermaidFile(file.Name));
+
+            if (hasValidFile)
+            {
+                e.DragEffects = DragDropEffects.Copy;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during drag over validation");
+        }
+    }
+
+    /// <summary>
+    /// Handles the Drop event to open a Mermaid file when dropped onto the editor.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method extracts the first valid .mmd file from the dropped data and sends a
+    /// <see cref="FileDroppedMessage"/> to <see cref="ViewModels.MainWindowViewModel"/> via the
+    /// document-scoped messenger. The MainWindowViewModel handles unsaved changes prompting,
+    /// file validation, and loading.
+    /// </para>
+    /// <para>
+    /// <b>Design Decision:</b> We use messaging rather than direct ViewModel access to maintain
+    /// loose coupling and prepare for MDI migration where each document has its own messenger.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The drag event arguments containing the dropped data.</param>
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        // Mark the event as handled first to prevent further processing
+        e.Handled = true;
+
+        try
+        {
+            // Get the dropped files
+            IStorageItem[]? items = e.DataTransfer.TryGetFiles();
+            if (items is null)
+            {
+                return;
+            }
+
+            // Find the first valid Mermaid file
+            IStorageFile? mermaidFile = items
+                .OfType<IStorageFile>()
+                .FirstOrDefault(static file => IsMermaidFile(file.Name));
+
+            if (mermaidFile is null)
+            {
+                _logger.LogDebug("No valid Mermaid file found in dropped items");
+                return;
+            }
+
+            // Get the local file path
+            string? filePath = mermaidFile.TryGetLocalPath();
+            if (string.IsNullOrEmpty(filePath))
+            {
+                _logger.LogWarning("Could not get local path for dropped file: {FileName}", mermaidFile.Name);
+                return;
+            }
+
+            _logger.LogInformation("File dropped on editor: {FilePath}", filePath);
+
+            // Send message to MainWindowViewModel to handle the file opening
+            // This maintains loose coupling and follows existing messaging patterns
+            _documentMessenger.Send(new FileDroppedMessage(filePath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling file drop on editor");
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a file name has a valid Mermaid file extension (.mmd).
+    /// </summary>
+    /// <param name="fileName">The file name to check (can include path).</param>
+    /// <returns><see langword="true"/> if the file has a .mmd extension; otherwise, <see langword="false"/>.</returns>
+    private static bool IsMermaidFile(string? fileName) =>
+        !string.IsNullOrEmpty(fileName) && Path.GetExtension(fileName).Equals(".mmd", StringComparison.OrdinalIgnoreCase);
+
+    #endregion Drag and Drop
+
     #region Cleanup
 
     /// <summary>
@@ -1588,6 +1732,10 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
             _vm = null;
 
             AtomicVersion.Increment(ref _viewModelVersion);
+
+            // Unsubscribe drag and drop handlers
+            RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
+            RemoveHandler(DragDrop.DropEvent, OnDrop);
 
             UnsubscribeIntellisenseEventHandlers();
             ActualThemeVariantChanged -= OnThemeChanged;
