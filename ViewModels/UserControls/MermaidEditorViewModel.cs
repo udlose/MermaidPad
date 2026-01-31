@@ -204,7 +204,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This document instance is created once and persists across View detach/reattach cycles
+    /// This document instance persists across View detach/reattach cycles
     /// (e.g., when the editor panel is pinned/collapsed, floated, or during layout changes).
     /// The <see cref="Views.UserControls.MermaidEditorView"/> attaches this document to the
     /// <c>TextEditor</c> control instead of using the default document created by the control.
@@ -216,6 +216,11 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     ///     <item><description>Text content stays synchronized</description></item>
     ///     <item><description>Selection and caret state can be restored accurately</description></item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// To reset the document (e.g., when closing a file or creating a new file), use
+    /// <see cref="ResetDocument"/> which properly handles event subscription/unsubscription
+    /// and state updates.
     /// </para>
     /// <para>
     /// Thread-safety: <see cref="TextDocument"/> is not thread-safe. This instance is
@@ -941,7 +946,82 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
 
     #endregion Comment/Uncomment Selection Commands
 
-    #region Non-Whitespace Text Tracking
+    #region Document Management methods
+
+    /// <summary>
+    /// Replaces the current document with a new document, clearing all content and undo history.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method is used when closing a file or creating a new file to reset the editor
+    /// to a clean state. It:
+    /// <list type="bullet">
+    ///     <item><description>Unsubscribes from the old document's events</description></item>
+    ///     <item><description>Creates a new empty <see cref="TextDocument"/></description></item>
+    ///     <item><description>Subscribes to the new document's events</description></item>
+    ///     <item><description>Sets the content (if any), which triggers event handlers naturally</description></item>
+    ///     <item><description>Notifies property changes for bindings</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// By creating an empty document first, subscribing to events, then setting content,
+    /// we ensure <see cref="OnDocumentTextChanged"/> and <see cref="OnDocumentChanged"/> fire
+    /// naturally. This avoids duplicating their logic and ensures future changes to those
+    /// handlers are automatically picked up.
+    /// </para>
+    /// <para>
+    /// Thread-safety: This method must only be called from the UI thread as it modifies
+    /// UI-bound properties and the <see cref="TextDocument"/> which is not thread-safe.
+    /// </para>
+    /// </remarks>
+    /// <param name="content">The initial content for the new document. Defaults to empty string.</param>
+    internal void ResetDocument(string content = "")
+    {
+        // Unsubscribe from old document events to prevent memory leaks
+        // and avoid receiving events from the old document
+        Document.UndoStack.PropertyChanged -= OnUndoStackPropertyChanged;
+        Document.TextChanged -= OnDocumentTextChanged;
+        Document.Changed -= OnDocumentChanged;
+
+        // Create new EMPTY document first, then subscribe to events, then set content.
+        // This ensures OnDocumentTextChanged and OnDocumentChanged fire naturally when
+        // content is set, avoiding duplication of their logic.
+        TextDocument newDocument = new TextDocument();
+
+        // Subscribe to new document events BEFORE setting content
+        newDocument.UndoStack.PropertyChanged += OnUndoStackPropertyChanged;
+        newDocument.TextChanged += OnDocumentTextChanged;
+        newDocument.Changed += OnDocumentChanged;
+
+        // Assign the new document
+        Document = newDocument;
+
+        // Update undo/redo state - new document has no history
+        // (UndoStack.PropertyChanged won't fire for a new empty document)
+        HasUndoHistory = false;
+        HasRedoHistory = false;
+
+        // Notify property changes for bindings so View can attach new document
+        OnPropertyChanged(nameof(Document));
+        OnPropertyChanged(nameof(Text));
+        OnPropertyChanged(nameof(HasText));
+
+        // Now set the content - this will trigger OnDocumentTextChanged and OnDocumentChanged
+        // which handle HasSelectableContent, HasNonWhitespaceText, RecomputeNonWhitespaceByScan,
+        // and publishing EditorTextChangedMessage
+        if (!string.IsNullOrEmpty(content))
+        {
+            Document.Text = content;
+        }
+        else
+        {
+            // For empty content, we still need to trigger the handlers to update state correctly.
+            // OnDocumentTextChanged and OnDocumentChanged both check Document.TextLength,
+            // so we can invoke them directly with appropriate args for the "document is now empty" case.
+            OnDocumentTextChanged(Document, EventArgs.Empty);
+            OnDocumentChanged(Document, new DocumentChangeEventArgs(0, string.Empty, string.Empty));
+        }
+    }
 
     /// <summary>
     /// Scans the document to determine whether it contains any non-whitespace characters and updates related state
@@ -970,7 +1050,7 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
         HasNonWhitespaceText = false;
     }
 
-    #endregion Non-Whitespace Text Tracking
+    #endregion Document Management methods
 
     /// <summary>
     /// Copies the current editor state to the specified application settings instance.

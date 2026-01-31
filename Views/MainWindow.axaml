@@ -5,11 +5,41 @@
   xmlns:idc="clr-namespace:Dock.Avalonia.Controls;assembly=Dock.Avalonia"
   xmlns:local="clr-namespace:MermaidPad"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels"
+  Name="Main"
   Title="{Binding WindowTitle}"
   Width="1200"
   Height="800"
   x:DataType="vm:MainWindowViewModel"
+  DragDrop.AllowDrop="True"
   Icon="/Assets/AppIcon.ico">
+
+  <!--  KeyBindings: Makes keyboard shortcuts actually work (not just display)  -->
+  <!--  InputGesture on MenuItem only shows the shortcut text - it doesn't work!  -->
+  <!--  These KeyBindings register the actual functional keyboard shortcuts.  -->
+  <Window.KeyBindings>
+    <!--  File Menu Shortcuts  -->
+    <KeyBinding
+      Command="{Binding NewFileCommand}"
+      CommandParameter="{Binding #Main.StorageProvider}"
+      Gesture="Ctrl+N" />
+    <KeyBinding
+      Command="{Binding OpenFileCommand}"
+      CommandParameter="{Binding #Main.StorageProvider}"
+      Gesture="Ctrl+O" />
+    <KeyBinding
+      Command="{Binding SaveFileCommand}"
+      CommandParameter="{Binding #Main.StorageProvider}"
+      Gesture="Ctrl+S" />
+    <KeyBinding
+      Command="{Binding SaveFileAsCommand}"
+      CommandParameter="{Binding #Main.StorageProvider}"
+      Gesture="Ctrl+Shift+S" />
+    <KeyBinding
+      Command="{Binding CloseFileCommand}"
+      CommandParameter="{Binding #Main.StorageProvider}"
+      Gesture="Ctrl+W" />
+  </Window.KeyBindings>
+
   <!--
     NOTE: DataTemplates for Dock Tool Views are defined in App.axaml at the Application level.
     This ensures they are available to floating windows (HostWindow) which have a separate visual tree.
@@ -19,36 +49,64 @@
     <!--  Menu Bar  -->
     <Menu DockPanel.Dock="Top">
       <MenuItem Header="_File">
+        <!--  New File  -->
+        <MenuItem
+          Command="{Binding NewFileCommand}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
+          Header="_New"
+          InputGesture="Ctrl+N" />
+        <!--  Open File  -->
         <MenuItem
           Command="{Binding OpenFileCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Open..."
           InputGesture="Ctrl+O" />
+        <!--  Save File  -->
         <MenuItem
           Command="{Binding SaveFileCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="_Save"
           InputGesture="Ctrl+S" />
+        <!--  Save As  -->
         <MenuItem
           Command="{Binding SaveFileAsCommand}"
           CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
           Header="Save _As..."
           InputGesture="Ctrl+Shift+S" />
-        <Separator />
-        <!--        <MenuItem Header="Recent Files" ItemsSource="{Binding RecentFiles}">
-          <MenuItem.ItemTemplate>
-            <DataTemplate x:DataType="x:String">
-              <MenuItem Header="{Binding}"
-                        Command="{ReflectionBinding $parent[TopLevel].DataContext.(vm:MainWindowViewModel.OpenRecentFileCommand), FallbackValue={x:Null}}"
-                        CommandParameter="{Binding}" />
-            </DataTemplate>
-          </MenuItem.ItemTemplate>
-        </MenuItem>
+        <!--  Close File  -->
         <MenuItem
-          Command="{Binding ClearRecentFilesCommand}"
-          Header="Clear Recent Files"
-          IsEnabled="{Binding HasRecentFiles}" />
-        <Separator />-->
+          Command="{Binding CloseFileCommand}"
+          CommandParameter="{Binding StorageProvider, RelativeSource={RelativeSource AncestorType=TopLevel}}"
+          Header="_Close"
+          InputGesture="Ctrl+W" />
+        <Separator />
+        <!--  Recent Files Submenu  -->
+        <!--
+          Uses ItemContainerTheme to properly bind each generated MenuItem to RecentFileItem properties.
+          This solves the Avalonia limitation where nested menu items can't easily bind to parent ViewModel commands.
+          Each RecentFileItem contains: FilePath, FileName, and OpenCommand reference.
+        -->
+        <MenuItem
+          Header="_Recent Files"
+          IsEnabled="{Binding HasRecentFiles}"
+          ItemsSource="{Binding RecentFiles}">
+          <MenuItem.ItemContainerTheme>
+            <ControlTheme BasedOn="{StaticResource {x:Type MenuItem}}" TargetType="MenuItem">
+              <!--
+                Use ReflectionBinding (not compiled binding) because ItemContainerTheme Setters
+                resolve against the item's DataContext (RecentFileItem) at runtime, not the Window's DataType
+              -->
+              <Setter Property="Header" Value="{ReflectionBinding FileName}" />
+              <Setter Property="Command" Value="{ReflectionBinding OpenCommand}" />
+              <Setter Property="CommandParameter" Value="{ReflectionBinding FilePath}" />
+              <Setter Property="ToolTip.Tip" Value="{ReflectionBinding FilePath}" />
+            </ControlTheme>
+          </MenuItem.ItemContainerTheme>
+        </MenuItem>
+        <!--  Clear Recent Files  -->
+        <MenuItem Command="{Binding ClearRecentFilesCommand}" Header="C_lear Recent Files" />
+        <Separator />
+        <!--  Exit  -->
         <MenuItem
           Click="OnExitClick"
           Header="E_xit"

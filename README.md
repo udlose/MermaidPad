@@ -58,7 +58,7 @@ MermaidPad offers a streamlined experience for editing, previewing, and exportin
 
 ## Features
 
-- 24 different chart and diagram types supported (see examples below)
+- 24 different chart and diagram types supported (see [Supported Diagrams & Examples](#supported-diagrams--examples) or the list [here](/Examples)
 - Edit Mermaid markup and preview diagrams in real-time
 - "Live Preview" for instant rendering
 - Includes bundled `mermaid.min.js` and other JavaScript assets for offline use
