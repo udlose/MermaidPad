@@ -22,8 +22,10 @@ using AsyncAwaitBestPractices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MermaidPad.Extensions;
@@ -81,6 +83,18 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        AddHandler<DragEventArgs>(
+            DragDrop.DragOverEvent,
+            OnDragOver,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
+
+        AddHandler<DragEventArgs>(
+            DragDrop.DropEvent,
+            OnDrop,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
 
         IServiceProvider sp = App.Services;
         _vm = sp.GetRequiredService<MainWindowViewModel>();
@@ -242,7 +256,7 @@ public sealed partial class MainWindow : Window
             // the lifecycle because we need to save Layout state before floating windows are destroyed.
             _vm.Persist();
 
-            bool hasUnsavedChanges = _vm is { IsDirty: true, EditorHasText: true };
+            bool hasUnsavedChanges = _vm is { HasUnsavedChanges: true, EditorHasText: true };
             if (hasUnsavedChanges)
             {
                 // Cancel the close attempt and call base.OnClosing(e) so the Closing event is raised and subscribers
@@ -517,6 +531,154 @@ public sealed partial class MainWindow : Window
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
     private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
 
+    #region Drag and Drop
+
+    /// <summary>
+    /// Handles the DragOver event to provide visual feedback when files are dragged over the window.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method validates that the dragged data contains files and that at least one file
+    /// has a valid Mermaid extension (.mmd). If valid, the drag effect is set to Copy to indicate
+    /// the drop is allowed. Otherwise, the drag effect is set to None.
+    /// </para>
+    /// <para>
+    /// Only the first valid .mmd file will be opened on drop - multiple file drops are not supported.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The drag event arguments containing the dragged data.</param>
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        // Mark the event as handled first so early returns don't allow other handlers
+        // (or default behavior) to override the drag cursor/effects.
+        e.Handled = true;
+
+        // Default to not allowing the drop
+        e.DragEffects = DragDropEffects.None;
+
+        try
+        {
+            // Get the dragged files
+            IStorageItem[]? items = e.DataTransfer.TryGetFiles();
+            if (items is null)
+            {
+                return;
+            }
+
+            // Check if any file has a valid Mermaid extension (.mmd)
+            bool hasValidFile = items
+                .OfType<IStorageFile>()
+                .Any(static file => IsMermaidFile(file.Name));
+
+            if (hasValidFile)
+            {
+                e.DragEffects = DragDropEffects.Copy;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error during drag over validation");
+        }
+    }
+
+    /// <summary>
+    /// Handles the Drop event to open a Mermaid file when dropped onto the window.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This method extracts the first valid .mmd file from the dropped data and opens it
+    /// using the existing <see cref="MainWindowViewModel.OpenRecentFileCommand"/>. If there
+    /// are unsaved changes, the user will be prompted to save before opening the new file.
+    /// </para>
+    /// <para>
+    /// The drop operation is performed asynchronously using fire-and-forget pattern with proper exception handling via
+    /// <see cref="AsyncAwaitBestPractices.SafeFireAndForgetExtensions.SafeFireAndForget(Task, Action{Exception}?, bool)"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The drag event arguments containing the dropped data.</param>
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        // Mark the event as handled first to prevent further processing
+        e.Handled = true;
+
+        try
+        {
+            // Get the dropped files
+            IStorageItem[]? items = e.DataTransfer.TryGetFiles();
+            if (items is null)
+            {
+                return;
+            }
+
+            // Find the first valid Mermaid file
+            IStorageFile? mermaidFile = items
+                .OfType<IStorageFile>()
+                .FirstOrDefault(static file => IsMermaidFile(file.Name));
+
+            if (mermaidFile is null)
+            {
+                _logger.LogDebug("No valid Mermaid file found in dropped items");
+                return;
+            }
+
+            // Get the local file path
+            string? filePath = mermaidFile.TryGetLocalPath();
+            if (string.IsNullOrEmpty(filePath))
+            {
+                _logger.LogWarning("Could not get local path for dropped file: {FileName}", mermaidFile.Name);
+                return;
+            }
+
+            _logger.LogInformation("File dropped: {FilePath}", filePath);
+
+            // Open the file using the existing OpenRecentFileCommand
+            // This handles unsaved changes prompting, file validation, and loading
+            OpenDroppedFileAsync(filePath)
+                .SafeFireAndForget(onException: ex =>
+                    _logger.LogError(ex, "Failed to open dropped file: {FilePath}", filePath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling file drop");
+        }
+    }
+
+    /// <summary>
+    /// Opens a file that was dropped onto the window.
+    /// </summary>
+    /// <remarks>
+    /// This method wraps the call to <see cref="MainWindowViewModel.OpenRecentFileCommand"/>
+    /// to ensure proper async handling. The command handles all validation, unsaved changes
+    /// prompting, and file loading.
+    /// </remarks>
+    /// <param name="filePath">The full path to the file to open.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task OpenDroppedFileAsync(string filePath)
+    {
+        // Use the existing OpenRecentFileCommand which handles:
+        // - Unsaved changes prompting
+        // - File existence validation
+        // - File size validation
+        // - Loading and rendering
+        // - Recent files list update
+        if (_vm.OpenRecentFileCommand.CanExecute(filePath))
+        {
+            await _vm.OpenRecentFileCommand.ExecuteAsync(filePath);
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a file name has a valid Mermaid file extension (.mmd).
+    /// </summary>
+    /// <param name="fileName">The file name to check (can include path).</param>
+    /// <returns><see langword="true"/> if the file has a .mmd extension; otherwise, <see langword="false"/>.</returns>
+    private static bool IsMermaidFile(string? fileName) =>
+        !string.IsNullOrEmpty(fileName) && Path.GetExtension(fileName).Equals(".mmd", StringComparison.OrdinalIgnoreCase);
+
+    #endregion Drag and Drop
+
     /// <summary>
     /// Unsubscribes all event handlers that were previously attached to window events.
     /// </summary>
@@ -532,6 +694,10 @@ public sealed partial class MainWindow : Window
         // Prevent double-unsubscribe
         if (!_areAllEventHandlersCleanedUp)
         {
+            // Unsubscribe drag and drop handlers
+            RemoveHandler(DragDrop.DragOverEvent, OnDragOver);
+            RemoveHandler(DragDrop.DropEvent, OnDrop);
+
             if (_activatedHandler is not null)
             {
                 Activated -= _activatedHandler;
