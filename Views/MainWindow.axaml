@@ -10,7 +10,6 @@
   Width="1200"
   Height="800"
   x:DataType="vm:MainWindowViewModel"
-  DragDrop.AllowDrop="True"
   Icon="/Assets/AppIcon.ico">
 
   <!--  KeyBindings: Makes keyboard shortcuts actually work (not just display)  -->
