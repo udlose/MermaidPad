@@ -362,6 +362,13 @@ internal sealed partial class MainWindowViewModel :
     private bool CanExecuteExport() => Diagram.IsReady && EditorHasNonWhitespaceText;
 
     /// <summary>
+    /// Determines whether the open recent file command can execute.
+    /// </summary>
+    /// <param name="filePath">The file path to open.</param>
+    /// <returns><see langword="true"/> if the file path is not null, empty, or whitespace; otherwise <see langword="false"/>.</returns>
+    private static bool CanExecuteOpenRecentFile(string? filePath) => !string.IsNullOrWhiteSpace(filePath);
+
+    /// <summary>
     /// Determines whether the open file location command (from filename click on StatusBar) can execute.
     /// </summary>
     /// <returns><see langword="true"/> if a file is currently open; otherwise, <see langword="false"/>.</returns>
@@ -1504,7 +1511,7 @@ internal sealed partial class MainWindowViewModel :
     /// allowed size.</param>
     /// <returns>A task that represents the asynchronous operation. The task completes when the file has been loaded or if the
     /// operation is cancelled due to validation or user action.</returns>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExecuteOpenRecentFile))]
     private async Task OpenRecentFileAsync(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
@@ -1892,6 +1899,7 @@ internal sealed partial class MainWindowViewModel :
 
         OnPropertyChanged(nameof(HasRecentFiles));
         ClearRecentFilesCommand.NotifyCanExecuteChanged();
+        OpenRecentFileCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
