@@ -1123,7 +1123,7 @@ internal sealed partial class MainWindowViewModel :
     ///     <item><description>Prompts the user to save if there are unsaved changes</description></item>
     ///     <item><description>Creates a new empty TextDocument (which clears the undo stack)</description></item>
     ///     <item><description>Clears the diagram preview</description></item>
-    ///     <item><description>Resets file-related state (CurrentFilePath, IsDirty)</description></item>
+    ///     <item><description>Resets file-related state (CurrentFilePath, HasUnsavedChanges)</description></item>
     /// </list>
     /// </para>
     /// </remarks>
@@ -1146,7 +1146,7 @@ internal sealed partial class MainWindowViewModel :
         HasUnsavedChanges = false;
 
         // Suppress dirty tracking while resetting the document
-        // ResetDocument triggers EditorTextChangedMessage which would otherwise set IsDirty = true
+        // ResetDocument triggers EditorTextChangedMessage which would otherwise set HasUnsavedChanges = true
         _suppressHasUnsavedChangesTracking = true;
         try
         {
@@ -1480,7 +1480,7 @@ internal sealed partial class MainWindowViewModel :
     ///     <item><description>Prompts the user to save if there are unsaved changes</description></item>
     ///     <item><description>Creates a new empty TextDocument (which clears the undo stack)</description></item>
     ///     <item><description>Clears the diagram preview</description></item>
-    ///     <item><description>Resets file-related state (CurrentFilePath, IsDirty)</description></item>
+    ///     <item><description>Resets file-related state (CurrentFilePath, HasUnsavedChanges)</description></item>
     /// </list>
     /// </para>
     /// <para>
@@ -1507,7 +1507,7 @@ internal sealed partial class MainWindowViewModel :
         HasUnsavedChanges = false;
 
         // Suppress dirty tracking while resetting the document
-        // ResetDocument triggers EditorTextChangedMessage which would otherwise set IsDirty = true
+        // ResetDocument triggers EditorTextChangedMessage which would otherwise set HasUnsavedChanges = true
         _suppressHasUnsavedChangesTracking = true;
         try
         {

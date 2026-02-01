@@ -19,6 +19,7 @@
 ---
 
 ## Table of Contents
+
 - [Overview](#overview)
 - [Features](#features)
 - [Supported Diagrams & Examples](#supported-diagrams--examples)
@@ -58,7 +59,7 @@ MermaidPad offers a streamlined experience for editing, previewing, and exportin
 
 ## Features
 
-- 24 different chart and diagram types supported (see [Supported Diagrams & Examples](#supported-diagrams--examples) or the list [here](/Examples)
+- 24 different chart and diagram types supported: see [Supported Diagrams & Examples](#supported-diagrams--examples) or the list [here](/Examples)
 - Edit Mermaid markup and preview diagrams in real-time
 - "Live Preview" for instant rendering
 - Includes bundled `mermaid.min.js` and other JavaScript assets for offline use
@@ -74,15 +75,15 @@ MermaidPad offers a streamlined experience for editing, previewing, and exportin
   - **Linux:** zenity, kdialog, yad, Xdialog, gxmessage, or console fallback
   - **macOS:** NSAlert via native APIs
 - Platform compatibility checks at startup
+
 ---
 
 ## Supported Diagrams & Examples
 
-
 <details>
 <summary>Architecture Diagrams</summary>
 
-```
+```text
 architecture-beta
     group api(cloud)[API]
 
@@ -95,12 +96,13 @@ architecture-beta
     disk1:T -- B:server
     disk2:T -- B:db
 ```
+
 </details>
 
 <details>
 <summary>Block Diagrams</summary>
 
-```
+```text
 block
 columns 1
   db(("DB"))
@@ -116,12 +118,13 @@ columns 1
   C --> D
   style B fill:#969,stroke:#333,stroke-width:4px
 ```
+
 </details>
 
 <details>
 <summary>C4 Diagrams</summary>
 
-```
+```text
 C4Context
     title System Context diagram for Internet Banking System
     Enterprise_Boundary(b0, "BankBoundary0") {
@@ -156,12 +159,13 @@ C4Context
     Rel(SystemAA, SystemC, "Sends e-mails", "SMTP")
     Rel(SystemC, customerA, "Sends e-mails to")
 ```
+
 </details>
 
 <details>
 <summary>Class Diagrams (including v2)</summary>
 
-```
+```text
 classDiagram
     class Animal {
         +String name
@@ -201,7 +205,8 @@ classDiagram
 ```
 
 Class Diagram v2:
-```
+
+```text
 classDiagram-v2
     class Animal {
         +String name
@@ -239,13 +244,14 @@ classDiagram-v2
     }
     Animal <|-- Insect
 ```
-<img width="2319" height="1365" alt="Class Diagram Example" src="https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a" />
+
+<img width="2319" height="1365" alt="Class Diagram Example" src="<https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a"> />
 </details>
 
 <details>
 <summary>Entity Relationship Diagrams</summary>
 
-```
+```text
 erDiagram
     CUSTOMER ||--o{ ORDER : places
     ORDER ||--|{ ORDER_ITEM : contains
@@ -270,12 +276,13 @@ erDiagram
         float price
     }
 ```
+
 </details>
 
 <details>
 <summary>Flowcharts</summary>
 
-```
+```text
 ---
 config:
   layout: elk
@@ -334,12 +341,13 @@ flowchart TD
 
     SDK --> Installer
 ```
+
 </details>
 
 <details>
 <summary>Flowchart-elk</summary>
 
-```
+```text
 flowchart-elk TD
     %% Nodes
     Arcade["<strong>Arcade SDK</strong><br/>(dotnet/arcade)<br/><strong>Not Shippable<br/>Status:✅</strong>"]
@@ -394,12 +402,13 @@ flowchart-elk TD
 
     SDK --> Installer
 ```
+
 </details>
 
 <details>
 <summary>Gantt Charts</summary>
 
-```
+```text
 gantt
     title Project Timeline
     dateFormat  YYYY-MM-DD
@@ -413,13 +422,14 @@ gantt
     Task 5 :2024-01-01, 20d
     Task 6 :after a5, 15d
 ```
-<img width="2318" height="1360" alt="Gantt Chart Example" src="https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390" />
+
+<img width="2318" height="1360" alt="Gantt Chart Example" src="<https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390"> />
 </details>
 
 <details>
 <summary>Git Graphs</summary>
 
-```
+```text
 gitGraph
     commit
     branch develop
@@ -436,12 +446,13 @@ gitGraph
     checkout main
     merge feature
 ```
+
 </details>
 
 <details>
 <summary>Graphs</summary>
 
-```
+```text
 graph TD
     A[Start Build] --> B{runtimeFlavor specified?}
     B -->|No| C[Default to CoreCLR + subset logic]
@@ -457,13 +468,14 @@ graph TD
     I -->|No| M[Build Mono only]
     G --> N[SUCCESS - builds both as needed]
 ```
-<img width="3833" height="2070" alt="Graph Example" src="https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a" />
+
+<img width="3833" height="2070" alt="Graph Example" src="<https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a"> />
 </details>
 
 <details>
 <summary>Kanban Diagrams</summary>
 
-```
+```text
 ---
 config:
   kanban:
@@ -488,12 +500,13 @@ kanban
   id12[Can't reproduce]
     id3[Weird flickering in Firefox]
 ```
+
 </details>
 
 <details>
 <summary>Mindmap Diagrams</summary>
 
-```
+```text
 mindmap
   root((mindmap))
     Origins
@@ -512,12 +525,13 @@ mindmap
       Pen and paper
       Mermaid
 ```
+
 </details>
 
 <details>
 <summary>Packet Diagrams</summary>
 
-```
+```text
 ---
 title: "TCP Packet"
 ---
@@ -540,12 +554,13 @@ packet
 160-191: "(Options and Padding)"
 192-255: "Data (variable length)"
 ```
+
 </details>
 
 <details>
 <summary>Pie Charts</summary>
 
-```
+```text
 pie
     title Browser Usage
     "Chrome": 45
@@ -553,13 +568,14 @@ pie
     "Safari": 15
     "Others": 10
 ```
-<img width="2315" height="1362" alt="Pie Chart Example" src="https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b" />
+
+<img width="2315" height="1362" alt="Pie Chart Example" src="<https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b"> />
 </details>
 
 <details>
 <summary>Quadrant Charts</summary>
 
-```
+```text
 quadrantChart
     title Reach and engagement of campaigns
     x-axis Low Reach --> High Reach
@@ -575,12 +591,13 @@ quadrantChart
     Campaign E: [0.40, 0.34]
     Campaign F: [0.35, 0.78]
 ```
+
 </details>
 
 <details>
 <summary>Radar Charts</summary>
 
-```
+```text
 radar-beta
   title Skill Radar - Dave
   axis csharp["C#"], dotnet[".NET Runtime"], aspnet["ASP.NET Core"], efcore["EF Core"], wpf["WPF"], cve["CVE Analysis"], perf["Performance"], maui[".NET MAUI"]
@@ -592,12 +609,13 @@ radar-beta
   graticule polygon
   ticks 5
 ```
+
 </details>
 
 <details>
 <summary>Requirement Diagrams</summary>
 
-```
+```text
 requirementDiagram
 
     requirement test_req {
@@ -613,12 +631,13 @@ requirementDiagram
 
     test_entity - satisfies -> test_req
 ```
+
 </details>
 
 <details>
 <summary>Sankey Diagrams</summary>
 
-```
+```text
 ---
 config:
   sankey:
@@ -694,12 +713,13 @@ sankey
   Wave,Electricity grid,19.013
   Wind,Electricity grid,289.366
 ```
+
 </details>
 
 <details>
 <summary>Sequence Diagrams</summary>
 
-```
+```text
 sequenceDiagram
     participant Alice
     participant Bob
@@ -712,13 +732,14 @@ sequenceDiagram
     John->>Bob: How about you?
     Bob-->>John: Jolly good!
 ```
-<img width="2317" height="1364" alt="Sequence Diagram Example" src="https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959" />
+
+<img width="2317" height="1364" alt="Sequence Diagram Example" src="<https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959"> />
 </details>
 
 <details>
 <summary>State Diagrams (including v2)</summary>
 
-```
+```text
 stateDiagram
     [*] --> Idle
     Idle --> Processing : start
@@ -729,7 +750,8 @@ stateDiagram
 ```
 
 State Diagram v2:
-```
+
+```text
 stateDiagram-v2
     [*] --> First
 
@@ -754,13 +776,14 @@ stateDiagram-v2
     if_state --> False: if n < 0
     if_state --> True : if n >= 0
 ```
-<img width="2320" height="1361" alt="State Diagram Example" src="https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be" />
+
+<img width="2320" height="1361" alt="State Diagram Example" src="<https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be"> />
 </details>
 
 <details>
 <summary>Timelines</summary>
 
-```
+```text
 %%{init: {"theme":"forest","themeVariables":{"fontSize":"14px"}}}%%
 timeline
     title History of Social Media Platform
@@ -770,12 +793,13 @@ timeline
     2005 : YouTube
     2006 : Twitter
 ```
+
 </details>
 
 <details>
 <summary>Tree Maps</summary>
 
-```
+```text
 treemap
 "Section 1"
     "Leaf 1.1": 12
@@ -785,12 +809,13 @@ treemap
     "Leaf 2.1": 20
     "Leaf 2.2": 25
 ```
+
 </details>
 
 <details>
 <summary>User Journey</summary>
 
-```
+```text
 %%{init: {"theme":"dark","themeVariables":{"fontSize":"14px"}}}%%
 journey
   title CVE Remediation Process
@@ -809,12 +834,13 @@ journey
     Merge into main and tag security release: 4: Release Eng.
 
 ```
+
 </details>
 
 <details>
 <summary>XY Charts</summary>
 
-```
+```text
 xychart
   title "Performance Improvements"
   x-axis ["2020","2021","2022","2023","2024","2025"]
@@ -823,6 +849,7 @@ xychart
   line [300,500,680,760,820,900]
   bar [200,300,400,500,600,700]
 ```
+
 </details>
 
 ---
@@ -842,10 +869,12 @@ xychart
 ### Windows
 
 Download the appropriate version for your processor:
+
 - **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-win-x64.zip`
 - **arm64 (Surface Pro X, etc.):** `MermaidPad-[version]-win-arm64.zip`
 
 **Installation:**
+
 1. Download and extract the appropriate .zip file
 2. Run `MermaidPad.exe`
 
@@ -858,6 +887,7 @@ Download the appropriate version for your processor:
 The Universal DMG is the preferred installation method for macOS users. This single disk image contains optimized binaries for both Intel and Apple Silicon Macs, automatically using the correct architecture for your system.
 
 **Benefits of the Universal DMG:**
+
 - **One file works everywhere**: No need to determine your Mac's architecture
 - **Standard macOS experience**: Familiar drag-and-drop installation to Applications folder
 - **Preserves permissions**: No manual `chmod +x` commands needed
@@ -865,6 +895,7 @@ The Universal DMG is the preferred installation method for macOS users. This sin
 - **Smaller download**: More efficient than downloading separate architecture-specific files
 
 **Installation Steps:**
+
 1. Download `MermaidPad-[version]-universal.dmg` from the [latest release](https://github.com/udlose/MermaidPad/releases/latest)
 2. Double-click the DMG file to mount it
 3. Drag **MermaidPad.app** to the **Applications** folder shortcut
@@ -873,17 +904,20 @@ The Universal DMG is the preferred installation method for macOS users. This sin
 
 **First Launch (Unsigned App):**
 Since the app is not code-signed by Apple, macOS Gatekeeper will prevent normal launching:
+
 1. **Right-click** MermaidPad.app → **"Open"** (don't double-click)
 2. Click **"Open"** when prompted about the unidentified developer
 3. Subsequent launches will work normally with double-click
 
 **Alternative via Terminal:**
+
 ```bash
 # Remove quarantine attribute and launch
 xattr -cr /Applications/MermaidPad.app && open /Applications/MermaidPad.app
 ```
 
 #### Alternative: Homebrew
+
 MermaidPad is also available via a [Homebrew tap](https://github.com/udlose/homebrew-tap) for easy installation and updates:
 
 ```bash
@@ -894,7 +928,9 @@ brew install --cask udlose/tap/mermaidpad
 The Homebrew cask is automatically updated after each release.
 
 #### Advanced Users: Individual Architecture Downloads
+
 Architecture-specific downloads are available for developers and advanced users:
+
 - **Intel x64:** `MermaidPad-[version]-osx-x64.app.zip`
 - **Apple Silicon arm64:** `MermaidPad-[version]-osx-arm64.app.zip`
 
@@ -903,10 +939,12 @@ These require manual unzipping and permission setting (`chmod +x MermaidPad`).
 ### Linux
 
 Download the appropriate version for your processor:
+
 - **x64 (64-bit Intel/AMD):** `MermaidPad-[version]-linux-x64.zip`
 - **arm64:** Not supported (CefGlue limitation - see [here](https://github.com/OutSystems/CefGlue/blob/main/LINUX.md#arm64-issues))
 
 **Installation:**
+
 1. Download and extract the appropriate .zip file
 2. Make executable: `chmod +x MermaidPad`
 3. Run: `./MermaidPad`
@@ -914,6 +952,7 @@ Download the appropriate version for your processor:
 ### Advanced Users / Developers
 
 Individual architecture-specific downloads are also available for all platforms:
+
 - **macOS Intel x64:** `MermaidPad-[version]-osx-x64.zip`
 - **macOS Apple Silicon arm64:** `MermaidPad-[version]-osx-arm64.zip`
 - **macOS App Bundles:** `MermaidPad-[version]-osx-[arch].app.zip`
@@ -927,6 +966,7 @@ These are provided for developers, CI/CD systems, and users who need specific ar
 Visit the [Releases page](https://github.com/udlose/MermaidPad/releases/latest) to download the latest version.
 
 **Recommended Downloads by Platform:**
+
 - **macOS:** `MermaidPad-[version]-universal.dmg` (works on all Macs)
 - **Windows:** `MermaidPad-[version]-win-x64.zip` or `MermaidPad-[version]-win-arm64.zip`
 - **Linux:** `MermaidPad-[version]-linux-x64.zip`
@@ -935,7 +975,7 @@ Visit the [Releases page](https://github.com/udlose/MermaidPad/releases/latest) 
 
 ## Usage
 
-<img width="2318" height="1381" alt="MermaidPad UI" src="https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61" />
+<img width="2318" height="1381" alt="MermaidPad UI" src="<https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61"> />
 
 ---
 
@@ -950,21 +990,25 @@ MermaidPad uses an automated build and release process that creates optimized di
 ---
 
 ## Building & Publishing
+
 ### For maintainers & contributors
 
 This section documents how builds and releases are produced (CI) and how you can produce and test the same published artifacts locally. It is important to test the published artifact (the CI-produced zip/dmg/app) and not rely only on local dev/debug runs.
 
 Source of truth:
+
 - Project-level build settings: `Directory.Build.props` (net9.0, RIDs, publish configuration)
 - Asset integrity: `MermaidPad.Build.targets` generates `Generated/AssetHashes.cs` at build time
 - CI/workflow: `.github/workflows/build-and-release.yml` - uses a matrix to publish and upload artifacts, then creates releases
 
 Key settings
+
 - Target framework: net9.0 (see `Directory.Build.props`)
 - Supported RIDs (publish targets): win-x64; win-arm64; linux-x64; osx-arm64; osx-x64
 - Publishing defaults: framework-dependent, not single-file (`PublishSelfContained=false`, `PublishSingleFile=false`)
 
 CI behavior (summary)
+
 - The GitHub Action `build-and-release.yml`:
   - Extracts version from a tag (`vX.Y.Z`) or manual input
   - Builds a matrix across RIDs: `win-x64`, `win-arm64`, `linux-x64`, `osx-x64`, `osx-arm64`
@@ -975,6 +1019,7 @@ CI behavior (summary)
   - Creates a GitHub release and attaches the artifacts
 
 Local reproducible publish
+
 1. Ensure prerequisites are installed (see Requirements).
 2. Restore:
    `dotnet restore MermaidPad.csproj`
@@ -994,9 +1039,11 @@ Local reproducible publish
      ```
 
 Asset integrity
+
 - `MermaidPad.Build.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets - ensure your publish includes the `Assets/` content unchanged.
 
 Testing published artifacts (do this - do not assume local debug == published)
+
 - Download the artifact produced by CI (Release assets or artifact zip produced by `build-and-release.yml`) or use the zip you created locally.
 - macOS:
   - For universal DMG: mount the `.dmg`, drag the `.app` to `/Applications`, then run via Finder.
@@ -1012,16 +1059,19 @@ Testing published artifacts (do this - do not assume local debug == published)
   - Ensure WebView2 runtime is installed
 
 Why test published artifacts?
+
 - CI publish packs the app with the runtime/config and file layout the user receives (assets, native libs, packaging differences).
 - Local debug builds or F5 runs may differ (different working directory, dev files available, different asset bundling).
 - The project adds asset-hash verification - mismatch in bundled assets will surface only in published artifacts.
 
 Release flow (how CI creates a release)
+
 - Tag `vX.Y.Z` and push, or run the workflow manually via `workflow_dispatch` with `version` input.
 - The workflow runs a build matrix, produces per-RID zips, bundles macOS .app and a universal DMG, then creates a GitHub Release attaching artifacts.
 - Note: The workflow contains a guard that restricts manual runs to the repository owner (`udlose`) - see `restrict-user` job in `.github/workflows/build-and-release.yml`.
 
 Tips for maintainers
+
 - Keep the `Assets/` files in sync with expected hashes or update assets and bump version so `Generated/AssetHashes.cs` is regenerated.
 - When testing fixes that affect packaging or runtime behavior, always validate by installing/running the CI-produced artifact or by reproducing the CI publish + packaging steps locally.
 - If you change publish settings (single-file, self-contained), update `Directory.Build.props` and update CI accordingly.
@@ -1033,15 +1083,18 @@ Tips for maintainers
 MermaidPad ships web assets (e.g., `Assets/index.html`). We use **ESLint v9** with the **flat config** to keep these tidy.
 
 ### Prerequisites
+
 - **Node.js 18+** (Node 20+ recommended)
 
 ### Install (once per clone)
+
 ```bash
 npm init -y
 npm i -D eslint @eslint/js eslint-plugin-html globals
 ```
 
 ### How to run
+
 Run ESLint against the sources only (avoids crawling `bin/` or WebView profiles):
 
 ```bash
@@ -1051,6 +1104,7 @@ npx eslint "Assets/**/*.{html,js,ts}"
 > Windows note: keep the **double quotes** around the glob patterns.
 
 ### Common issues
+
 - **“ESLint couldn't find an eslint.config…”**  
   Ensure `eslint.config.mjs` exists **at repo root** (ESLint v9 uses flat config by default).
 - **“Cannot use import statement outside a module” when loading config**  
@@ -1063,6 +1117,7 @@ npx eslint "Assets/**/*.{html,js,ts}"
   `npx eslint --print-config "Assets/index.html"` shows the merged config; `npx eslint "Assets/**/*.{html,js,ts}" --debug` shows which files are being linted.
 
 ## Roadmap
+
 - ✅ SVG/PNG export (completed)
 - ✅ SHA256 asset integrity verification (completed)
 - ✅ Adaptive ELK layout support (completed)
@@ -1126,19 +1181,23 @@ MermaidPad uses several open-source projects, including:
 ## Repo Stats
 [![Contributors Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/7a25e7e1-4d64-4cd0-9a03-5d3e0dac5f17.svg) ![Commits Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/ec0b195b-facb-4580-8294-38b4b644c00c.svg) ![Issues Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/3f213fc5-a392-4267-b418-16f7368a6109.svg) ![Issues Opened Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/0c5f14c6-0ccf-47c2-af5b-d969cf20a02e.svg) ![Pull Requests Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/5b7eba45-c5cc-4d33-a998-c1617783c44a.svg)](https://app.devactivity.com/public/?organizationLogin=udlose&organizationSource=GITHUB&organizationId=398)
 
+
 ---
 
 ### Top Contributors
+
 ![Top Contributors (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/d4c12db6-74bc-4ce9-8719-ba4f672384a0.svg)
 
 ---
 
 ### Active Challenges
+
 [![Active Challenges](https://embeddables.devactivity.com/personal/udlose/85e48db3-49ac-4359-a360-0b9f640d9896.svg)](https://app.devactivity.com/public/?organizationLogin=udlose#nav-achievements)
 
 ---
 
 ### Achievements
+
 ![Achievements](https://embeddables.devactivity.com/personal/udlose/d9b255ef-b846-4b29-8adb-d1458864d87c.svg)
 
 <sup><sub>Check also our [Public Dashboard](https://app.devactivity.com/public/?organizationLogin=udlose) powered by [devActivity](https://devactivity.com/?ref=public_widget)</sub></sup>
@@ -1154,5 +1213,5 @@ If you find MermaidPad useful, consider supporting development:
 ---
 
 ## Contact
-For questions or feedback, please open an issue or reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions).
 
+For questions or feedback, please open an issue or reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions).
