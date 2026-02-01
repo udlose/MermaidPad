@@ -358,6 +358,42 @@
     }
 
     /* ============================================
+    CANVAS SIZE OVERLAY
+    Displays diagram dimensions (e.g., "1024×768 px") in the lower-left corner.
+    Rendered inside the WebView to avoid native airspace/HWND layering issues
+    where the WebView surface would paint over Avalonia-managed XAML overlays.
+    ============================================ */
+    #canvas-size {
+      position: fixed;
+      bottom: 8px;
+      left: 8px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-family: Consolas, Menlo, Monaco, monospace;
+      font-size: 14px;
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+    }
+
+    #canvas-size.visible {
+      opacity: 1;
+    }
+
+    body.light-theme #canvas-size {
+      background: #4f4f4f;
+      color: #dbdbdb;
+    }
+
+    body.dark-theme #canvas-size {
+      background: #b0b0b0;
+      color: #1f1f1f;
+    }
+
+    /* ============================================
     CLASS-BASED HOVER EFFECTS (for JavaScript-triggered hovers)
     Mirror the :hover rules above for .hover-active class.
 
@@ -700,6 +736,12 @@
           output.innerHTML = '';
           output.appendChild(createErrorElement(message));
         }
+
+        // Hide canvas size overlay on error (no valid diagram)
+        if (typeof globalThis.hideCanvasSizeOverlay === 'function') {
+          globalThis.hideCanvasSizeOverlay();
+        }
+
         if (!suppressHide) {
           try {
             globalThis.hideLoadingIndicator();
@@ -716,10 +758,16 @@
           if (output) {
             output.innerHTML = htmlContent;
           }
+
           // Enhance hover interactivity after SVG is rendered
           if (typeof globalThis.enhanceHoverability === 'function') {
             const hoverActivationDelay = globalThis.elkLayoutAvailable ? 200 : 50; // ms
             setTimeout(() => globalThis.enhanceHoverability(), hoverActivationDelay);
+          }
+
+          // Update canvas size overlay with new diagram dimensions
+          if (typeof globalThis.updateCanvasSizeOverlay === 'function') {
+            globalThis.updateCanvasSizeOverlay();
           }
         } else {
           showError('Invalid diagram content received');
@@ -801,6 +849,12 @@
         if (typeof result.bindFunctions === 'function') {
           result.bindFunctions(output);
         }
+
+        // Update canvas size overlay after successful render
+        if (typeof globalThis.updateCanvasSizeOverlay === 'function') {
+          globalThis.updateCanvasSizeOverlay();
+        }
+
         // Hide loader for normal renders (unless caller suppressed)
         if (!suppressHide) {
           try {
@@ -821,6 +875,11 @@
       const output = document.getElementById('output');
       if (output) {
         output.innerHTML = '';
+      }
+
+      // Hide canvas size overlay when output is cleared
+      if (typeof globalThis.hideCanvasSizeOverlay === 'function') {
+        globalThis.hideCanvasSizeOverlay();
       }
     };
 
@@ -1308,6 +1367,73 @@
       }
     };
 
+    // ==========================================
+    // CANVAS SIZE OVERLAY FUNCTIONS
+    // Updates/hides the HTML overlay element with current diagram dimensions.
+    // Called after each render to keep the displayed size in sync.
+    // Uses getDiagramDimensions() internally to avoid duplicating
+    // dimension extraction logic.
+    // ==========================================
+    globalThis.updateCanvasSizeOverlay = function () {
+      const overlay = document.getElementById('canvas-size');
+      if (!overlay) return;
+
+      try {
+        const json = globalThis.getDiagramDimensions();
+        const dims = JSON.parse(json);
+
+        if (dims.width && dims.height && dims.width > 0 && dims.height > 0) {
+          // Adaptive formatting: show decimals only if the value has a fractional part
+          const formatDimension = (v) => {
+            // Ensure we only format finite, positive values
+            if (!Number.isFinite(v) || v <= 0) {
+              return '';
+            }
+
+            const abs = Math.abs(v);
+
+            // Avoid unreadable strings for extremely large values
+            if (abs >= 1_000_000) {
+              return Math.round(v).toString();
+            }
+
+            // Treat very small positive values as zero to avoid noise
+            if (abs < 0.01) {
+              return '0';
+            }
+
+            // Default behavior: integers without decimal, otherwise one decimal place
+            return Number.isInteger(v) ? v.toString() : v.toFixed(1);
+          };
+          const widthText = formatDimension(dims.width);
+          const heightText = formatDimension(dims.height);
+
+          if (widthText && heightText) {
+            overlay.textContent = `${widthText} \u00D7 ${heightText} px`;
+            overlay.classList.add('visible');
+          } else {
+            overlay.textContent = '';
+            overlay.classList.remove('visible');
+          }
+        } else {
+          overlay.textContent = '';
+          overlay.classList.remove('visible');
+        }
+      } catch (error) {
+        console.error('Error updating canvas size overlay:', error);
+        overlay.textContent = '';
+        overlay.classList.remove('visible');
+      }
+    };
+
+    globalThis.hideCanvasSizeOverlay = function () {
+      const overlay = document.getElementById('canvas-size');
+      if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.textContent = '';
+      }
+    };
+
     (function () {
       // Prevent the WebView from navigating to a file when one is dragged/dropped onto the page.
       // (Prevents the default browser behavior of opening the dropped file.)
@@ -1327,5 +1453,6 @@
     <div id="loading-status">Initializing...</div>
   </div>
   <div id="output"></div>
+  <div id="canvas-size"></div>
 </body>
 </html>

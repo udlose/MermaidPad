@@ -30,6 +30,7 @@
         IsVisible="{Binding LastError, Converter={x:Static ObjectConverters.IsNotNull}}"
         Text="{Binding LastError}"
         TextWrapping="Wrap" />
+
     </Grid>
   </Border>
 </UserControl>

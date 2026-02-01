@@ -25,7 +25,6 @@ using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text.Json;
 
 namespace MermaidPad.ViewModels.UserControls;
@@ -86,6 +85,34 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
     /// </summary>
     [ObservableProperty]
     public partial string? LastError { get; set; }
+
+    /// <summary>
+    /// Gets or sets the width of the currently rendered diagram canvas in pixels.
+    /// </summary>
+    /// <remarks>
+    /// This value is extracted from the SVG viewBox or bounding box after each render.
+    /// A null value indicates no diagram is currently rendered.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCanvasSize))]
+    public partial double? CanvasWidth { get; set; }
+
+    /// <summary>
+    /// Gets or sets the height of the currently rendered diagram canvas in pixels.
+    /// </summary>
+    /// <remarks>
+    /// This value is extracted from the SVG viewBox or bounding box after each render.
+    /// A null value indicates no diagram is currently rendered.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCanvasSize))]
+    public partial double? CanvasHeight { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether valid canvas dimensions are available.
+    /// </summary>
+    public bool HasCanvasSize => CanvasWidth.HasValue && CanvasHeight.HasValue &&
+                                  CanvasWidth.Value > 0 && CanvasHeight.Value > 0;
 
     #endregion State Properties
 
@@ -153,12 +180,36 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
     /// lifecycle. This method remains useful for dock state changes within a single document.
     /// </para>
     /// </remarks>
-    internal void PrepareForReinitialization()
+    internal async Task PrepareForReinitializationAsync()
     {
         //TODO - DaveBlack: MDI Migration Note: for MDI, each document's DiagramViewModel would have its own lifecycle. This method remains useful for dock state changes within a single document.
         _logger.LogInformation("Preparing {ModelName} for re-initialization (dock state change detected)", nameof(DiagramViewModel));
-        IsReady = false;
-        LastError = null;
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            PreparePropertiesForReinitialization();
+            return;
+        }
+
+        // We need to ensure ordering here between the property reset and any subsequent re-initialization logic
+        // that runs after this method completes. Callers rely on PrepareForReinitializationAsync having fully
+        // cleared UI-bound state (IsReady, LastError, CanvasWidth, CanvasHeight) before they continue.
+        // By awaiting the InvokeAsync task (instead of fire-and-forget via Dispatcher.UIThread.Post),
+        // we guarantee that the dispatcher work executes on the UI thread and finishes before this method returns to its caller.
+        await Dispatcher.UIThread
+            .InvokeAsync(PreparePropertiesForReinitialization)
+            .GetTask()
+            .ConfigureAwait(false);
+
+        void PreparePropertiesForReinitialization()
+        {
+            IsReady = false;
+            LastError = null;
+
+            // Clear canvas size since WebView is being re-initialized
+            CanvasWidth = null;
+            CanvasHeight = null;
+        }
     }
 
     /// <summary>
@@ -183,7 +234,7 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
 
         _logger.LogInformation("Re-initializing WebView with stored source ({SourceLength} chars)", _lastRenderedSource.Length);
 
-        PrepareForReinitialization();
+        await PrepareForReinitializationAsync();
         await InitializeWithRenderingAsync(preview, _lastRenderedSource);
     }
 
@@ -196,15 +247,37 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
     /// <remarks>
     /// This method stores the source for potential re-initialization after dock state changes.
     /// </remarks>
-    public Task RenderAsync(string mermaidSource)
+    public async Task RenderAsync(string mermaidSource)
     {
         // Do not check mermaidSource; null, empty and whitespace are valid values because that clears the diagram
 
         // Store source for potential re-initialization after dock state changes
         _lastRenderedSource = mermaidSource;
 
-        long requestId = Interlocked.Increment(ref _renderSequence);
-        return RenderCoreAsync(requestId, mermaidSource);
+        try
+        {
+            long requestId = Interlocked.Increment(ref _renderSequence);
+            bool isRenderSuccess = await RenderCoreAsync(requestId, mermaidSource);
+            if (isRenderSuccess)
+            {
+                // Update canvas size after initial render
+                await UpdateCanvasSizeAsync()
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+        {
+            // Shutdown cancellation; ignore
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during {Method}", nameof(RenderAsync));
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                    LastError = $"Failed to render diagram ({ex.GetType().Name}): {ex.Message}")
+                .GetTask()
+                .ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -215,15 +288,17 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
     /// <param name="requestId">The unique identifier for the render request. Only the most recent request is processed; earlier requests may be
     /// skipped if superseded.</param>
     /// <param name="mermaidSource">The Mermaid diagram source code to render. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous rendering operation.</returns>
-    private async Task RenderCoreAsync(long requestId, string mermaidSource)
+    /// <returns>A task that represents the asynchronous rendering operation, returning true if the render was successful,
+    /// false otherwise.</returns>
+    private async Task<bool> RenderCoreAsync(long requestId, string mermaidSource)
     {
+        bool isRenderSuccess = false;
         bool isAcquired = false;
         try
         {
-        // Serialize WebView access so LivePreview cannot overlap renders
+            // Serialize WebView access so LivePreview cannot overlap renders
             await _renderGate.WaitAsync(_shutdownCts.Token)
-            .ConfigureAwait(false);
+                .ConfigureAwait(false);
 
             isAcquired = true;
 
@@ -231,12 +306,14 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
             long latestRequestId = Interlocked.Read(ref _renderSequence);
             if (requestId != latestRequestId)
             {
-                return;
+                return false;
             }
 
             // MermaidRenderer internally marshals to the UI thread when needed
             await _mermaidRenderer.RenderAsync(mermaidSource)
                 .ConfigureAwait(false);
+
+            isRenderSuccess = true;
         }
         catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
         {
@@ -246,8 +323,11 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
         {
             if (isAcquired)
             {
-            _renderGate.Release();
+                _renderGate.Release();
+            }
         }
+
+        return isRenderSuccess;
     }
 
     /// <summary>
@@ -299,8 +379,17 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
             // Await readiness
             try
             {
-                await _mermaidRenderer.EnsureFirstRenderReadyAsync(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds));
-                await Dispatcher.UIThread.InvokeAsync(() => IsReady = true);
+                await _mermaidRenderer.EnsureFirstRenderReadyAsync(TimeSpan.FromSeconds(WebViewReadyTimeoutSeconds))
+                    .ConfigureAwait(false);
+
+                await Dispatcher.UIThread.InvokeAsync(() => IsReady = true)
+                    .GetTask()
+                    .ConfigureAwait(false);
+
+                // Update canvas size after successful initialization
+                await UpdateCanvasSizeAsync()
+                    .ConfigureAwait(false);
+
                 _logger.LogInformation("WebView readiness observed");
             }
             catch (TimeoutException tex)
@@ -332,6 +421,101 @@ internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
             _logger.LogError(ex, "Error during {Method}", nameof(InitializeWithRenderingAsync));
             throw;
         }
+    }
+
+    /// <summary>
+    /// Updates the canvas size properties by querying the rendered SVG dimensions from the WebView.
+    /// </summary>
+    /// <remarks>
+    /// This method executes JavaScript in the WebView to extract the current SVG dimensions
+    /// from the viewBox or bounding box. It should be called after each successful render
+    /// to keep the displayed dimensions in sync with the actual diagram.
+    /// </remarks>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    internal async Task UpdateCanvasSizeAsync()
+    {
+        try
+        {
+            const string script = "getDiagramDimensions()";
+            string? result = await _mermaidRenderer.ExecuteScriptAsync(script)
+                .ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                await ClearCanvasSizeAsync()
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Parse the JSON result - WebView returns JSON-encoded string
+            // Result format: "{\"width\":1024,\"height\":768}" or with quotes: "\"{\\\"width\\\":...}\""
+            string jsonString = result.Trim();
+
+            // NOTE:
+            // The underlying WebView / ExecuteScriptAsync implementation JSON-serializes the return value
+            // from JavaScript. When the script itself returns a JSON string (e.g. JSON.stringify(...)),
+            // the .NET side receives a JSON *string* that contains JSON text (double-encoded).
+            // In that case, we first deserialize the outer JSON string to retrieve the inner JSON object text.
+            // If the WebView's serialization behavior changes, this unwrapping logic may need to be revisited
+            if (jsonString.StartsWith('"') && jsonString.EndsWith('"'))
+            {
+                jsonString = JsonSerializer.Deserialize<string>(jsonString) ?? string.Empty;
+            }
+
+            // Parse using System.Text.Json
+            using JsonDocument doc = JsonDocument.Parse(jsonString);
+            JsonElement root = doc.RootElement;
+
+            double? width = null;
+            double? height = null;
+
+            if (root.TryGetProperty("width", out JsonElement widthElement) &&
+                widthElement.ValueKind == JsonValueKind.Number)
+            {
+                width = widthElement.GetDouble();
+            }
+
+            if (root.TryGetProperty("height", out JsonElement heightElement) &&
+                heightElement.ValueKind == JsonValueKind.Number)
+            {
+                height = heightElement.GetDouble();
+            }
+
+            // Update on UI thread
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                CanvasWidth = width;
+                CanvasHeight = height;
+            })
+            .GetTask()
+            .ConfigureAwait(false);
+        }
+        catch (JsonException jex)
+        {
+            _logger.LogWarning(jex, "Failed to parse canvas dimensions JSON");
+            await ClearCanvasSizeAsync()
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update canvas size");
+            await ClearCanvasSizeAsync()
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Clears the canvas size properties on the UI thread.
+    /// </summary>
+    private async Task ClearCanvasSizeAsync()
+    {
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            CanvasWidth = null;
+            CanvasHeight = null;
+        })
+        .GetTask()
+        .ConfigureAwait(false);
     }
 
     /// <summary>
