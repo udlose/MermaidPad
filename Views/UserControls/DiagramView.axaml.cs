@@ -48,6 +48,8 @@ namespace MermaidPad.Views.UserControls;
 ///     <item><description>Proper event handler cleanup</description></item>
 /// </list>
 /// </remarks>
+[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+    Justification = "View does not own disposable DiagramViewModel, DockFactory does.")]
 public sealed partial class DiagramView : UserControl, IViewModelVersionSource<DiagramViewModel>
 {
     private DiagramViewModel? _vm;

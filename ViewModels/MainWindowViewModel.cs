@@ -79,8 +79,13 @@ internal sealed partial class MainWindowViewModel :
     private readonly IMessenger _documentMessenger;
     private readonly ILogger<MainWindowViewModel> _logger;
 
-    private bool _isDisposed;
+    private volatile bool _isDisposed;
     private const string DebounceRenderKey = "render";
+
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+        Justification = "Intentionally not disposing _fileOpenGate to avoid ObjectDisposedException in any in-flight/pending WaitAsync callers during shutdown")]
+    private readonly SemaphoreSlim _fileOpenGate = new(initialCount: 1, maxCount: 1);
+    private readonly CancellationTokenSource _shutdownCts = new CancellationTokenSource();
 
     /// <summary>
     /// A value indicating whether to suppress tracking of unsaved changes.
@@ -543,6 +548,8 @@ internal sealed partial class MainWindowViewModel :
 
     #region Event Handlers
 
+    #region Pub/Sub via IMessenger.IRecipient<TMessage> Implementations
+
     /// <summary>
     /// Receives the <see cref="EditorTextChangedMessage"/> published when editor text changes.
     /// Implements <see cref="IRecipient{TMessage}.Receive"/> for the standard messaging pattern.
@@ -563,6 +570,12 @@ internal sealed partial class MainWindowViewModel :
     /// <param name="message">The message is not used directly; see remarks for rationale.</param>
     public void Receive(EditorTextChangedMessage message)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            _editorDebouncer.Cancel(DebounceRenderKey);
+            return;
+        }
+
         _ = message; // Explicitly discard unused parameter to satisfy static analysis and document intent
 
         // Forward HasText, HasNonWhitespaceText property changes and notify SaveFileCommand
@@ -593,34 +606,7 @@ internal sealed partial class MainWindowViewModel :
                 return;
             }
 
-            _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
-            {
-                try
-                {
-                    // Capture the current Editor instance to avoid race conditions where it may become null.
-                    MermaidEditorViewModel? editor = Editor;
-
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
-                    if (editor is null)
-                    {
-                        return;
-                    }
-
-                    // Intentionally use editor.Text (latest value) rather than captured message data (message.Value.Text).
-                    // For debounced rendering, we always want the most current content to avoid
-                    // rendering stale intermediate states during rapid typing.
-                    Diagram.RenderAsync(editor.Text)
-                        .SafeFireAndForget(
-                            onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error while rendering diagram text.");
-
-                    // If we hit an exception here, rethrow on the UI thread to avoid silent failures
-                    throw;
-                }
-            });
+            Debounce();
         }
 
         // Update command states - these are UI operations
@@ -650,6 +636,11 @@ internal sealed partial class MainWindowViewModel :
     /// <param name="message">The message containing information about the DiagramView's ready state.</param>
     public void Receive(DiagramViewReadyMessage message)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         int currentState = Volatile.Read(ref _diagramInitializationState);
 
         _logger.LogDebug("Received {MessageName} with {PropertyName}={Value}, {StateField}={StateValue}",
@@ -673,13 +664,18 @@ internal sealed partial class MainWindowViewModel :
             // NOTE: Because initialization is queued through Dispatcher.UIThread, there is a rare but real case where the dispatcher task
             // faults/cancels before the delegate executes (e.g., app shutdown). In that case, InitializeDiagramWithStateTrackingAsync() never
             // runs, so we also observe the dispatcher Task completion and reset the state to Idle if it is still InitStateInitializing.
-            Task initializationDispatchTask = Dispatcher.UIThread.InvokeAsync(InitializeDiagramWithStateTrackingAsync);
+            Task initializationDispatchTask = Dispatcher.UIThread.InvokeAsync(
+                InitializeDiagramWithStateTrackingAsync,
+                DispatcherPriority.Normal,
+                _shutdownCts.Token)
+                .GetTask();
 
             // Observe dispatcher queue failures explicitly.
-            // This continuation is not about the initialization logic itself; it is only a safety net to prevent the state machine from
+            // This continuation is not about the initialization logic itself; it is only a safety net to prevent the state-machine from
             // getting stuck in InitStateInitializing if the dispatcher task never executes the delegate.
-            Task dispatchCompletionObserverTask = initializationDispatchTask.ContinueWith(HandleDiagramInitializationDispatchCompletion,
-                CancellationToken.None,
+            Task dispatchCompletionObserverTask = initializationDispatchTask.ContinueWith(
+                HandleDiagramInitializationDispatchCompletion,
+                CancellationToken.None,     // No cancellation for the continuation because we always want to observe completion
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
 
@@ -693,6 +689,11 @@ internal sealed partial class MainWindowViewModel :
                 // Provide a message to the user as well, but ensure this handler itself never throws.
                 Dispatcher.UIThread.Post(() =>
                 {
+                    if (_isDisposed || _shutdownCts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     try
                     {
                         Diagram.LastError = $"Failed to initialize diagram: {ex.Message}";
@@ -730,6 +731,11 @@ internal sealed partial class MainWindowViewModel :
     /// <param name="message">The message containing the file path of the dropped .mmd file.</param>
     public void Receive(FileDroppedMessage message)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         string filePath = message.Value;
         if (string.IsNullOrEmpty(filePath))
         {
@@ -744,6 +750,11 @@ internal sealed partial class MainWindowViewModel :
         // Ensure the messenger handler returns immediately by posting to the UI thread (fire & forget)
         Dispatcher.UIThread.Post(() =>
         {
+            if (_isDisposed || _shutdownCts.IsCancellationRequested)
+            {
+                return;
+            }
+
             if (OpenRecentFileCommand.CanExecute(filePath))
             {
                 OpenRecentFileCommand.ExecuteAsync(filePath)
@@ -752,6 +763,8 @@ internal sealed partial class MainWindowViewModel :
             }
         }, DispatcherPriority.Background);
     }
+
+    #endregion Pub/Sub via IMessenger.IRecipient<TMessage> Implementations
 
     /// <summary>
     /// Handles completion of the diagram initialization dispatch task, resetting the initialization state if the task
@@ -805,6 +818,11 @@ internal sealed partial class MainWindowViewModel :
     /// <returns>A task that represents the asynchronous initialization operation.</returns>
     private async Task InitializeDiagramWithStateTrackingAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             await InitializeDiagramAsync();
@@ -878,6 +896,11 @@ internal sealed partial class MainWindowViewModel :
     /// <param name="value">The new value indicating whether live preview is enabled.</param>
     partial void OnLivePreviewEnabledChanged(bool value)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         // If we can't render yet, just return
         if (!Diagram.IsReady)
         {
@@ -947,6 +970,49 @@ internal sealed partial class MainWindowViewModel :
 
     #endregion Event Handlers
 
+    /// <summary>
+    /// Initiates a debounced update of the diagram rendering in response to editor changes.
+    /// </summary>
+    /// <remarks>This method schedules a render operation that is delayed to avoid excessive updates during
+    /// rapid typing. If multiple changes occur within the debounce interval, only the most recent change triggers a
+    /// render. The method does not perform any action if the editor has been disposed or is shutting down.</remarks>
+    private void Debounce()
+    {
+        _editorDebouncer.Debounce(DebounceRenderKey, TimeSpan.FromMilliseconds(DebounceDispatcher.DefaultTextDebounceMilliseconds), () =>
+        {
+            if (_isDisposed || _shutdownCts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            try
+            {
+                // Capture the current Editor instance to avoid race conditions where it may become null.
+                MermaidEditorViewModel? editor = Editor;
+
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+                if (editor is null)
+                {
+                    return;
+                }
+
+                // Intentionally use editor.Text (latest value) rather than captured message data (message.Value.Text).
+                // For debounced rendering, we always want the most current content to avoid
+                // rendering stale intermediate states during rapid typing.
+                Diagram.RenderAsync(editor.Text)
+                    .SafeFireAndForget(
+                        onException: ex => _logger.LogError(ex, "Error while rendering diagram text."));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error while rendering diagram text.");
+
+                // If we hit an exception here, rethrow on the UI thread to avoid silent failures
+                throw;
+            }
+        });
+    }
+
     #region Diagram Initialization
 
     /// <summary>
@@ -959,6 +1025,11 @@ internal sealed partial class MainWindowViewModel :
     /// </remarks>
     public Task InitializeDiagramAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         string mermaidSource = Editor.Text;
         return Diagram.InitializeAsync(mermaidSource);
     }
@@ -1031,6 +1102,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand]
     private Task NewFileAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         ArgumentNullException.ThrowIfNull(storageProvider);
 
         return Dispatcher.UIThread.InvokeAsync(() => NewFileCoreAsync(storageProvider));
@@ -1131,6 +1207,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand]
     private Task OpenFileAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         ArgumentNullException.ThrowIfNull(storageProvider);
 
         return Dispatcher.UIThread.InvokeAsync(() => OpenFileCoreAsync(storageProvider));
@@ -1148,8 +1229,22 @@ internal sealed partial class MainWindowViewModel :
     /// <returns>A task that represents the asynchronous operation of opening the file.</returns>
     private async Task OpenFileCoreAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        bool isAcquired = false;
         try
         {
+            await _fileOpenGate.WaitAsync(_shutdownCts.Token);
+            isAcquired = true;
+
+            if (_isDisposed || _shutdownCts.IsCancellationRequested)
+            {
+                return;
+            }
+
             // Check for unsaved changes
             if (HasUnsavedChanges)
             {
@@ -1186,10 +1281,21 @@ internal sealed partial class MainWindowViewModel :
                 }
             }
         }
+        catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+        {
+            // Shutdown cancellation; ignore.
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open file");
             await ShowErrorMessageAsync("Failed to open file. " + ex.Message);
+        }
+        finally
+        {
+            if (isAcquired)
+            {
+                _fileOpenGate.Release();
+            }
         }
     }
 
@@ -1222,6 +1328,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteSave))]
     private Task SaveFileAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         ArgumentNullException.ThrowIfNull(storageProvider);
 
         return Dispatcher.UIThread.InvokeAsync(() => SaveFileCoreAsync(storageProvider));
@@ -1285,6 +1396,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteSaveAs))]
     private Task SaveFileAsAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         ArgumentNullException.ThrowIfNull(storageProvider);
 
         return Dispatcher.UIThread.InvokeAsync(() => SaveFileAsCoreAsync(storageProvider));
@@ -1343,6 +1459,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteCloseFile))]
     private Task CloseFileAsync(IStorageProvider storageProvider)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         ArgumentNullException.ThrowIfNull(storageProvider);
 
         return Dispatcher.UIThread.InvokeAsync(() => CloseFileCoreAsync(storageProvider));
@@ -1432,23 +1553,48 @@ internal sealed partial class MainWindowViewModel :
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="storageProvider"/> is null.</exception>
     public Task<bool> PromptSaveIfDirtyAsync(IStorageProvider storageProvider)
     {
-        ArgumentNullException.ThrowIfNull(storageProvider);
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.FromResult(false); // shutdown in progress -> treat as "do not proceed"
+        }
 
         if (!HasUnsavedChanges || !EditorHasNonWhitespaceText)
         {
             return Task.FromResult(true); // No unsaved changes, continue
         }
 
-        return Dispatcher.UIThread.InvokeAsync(() => PromptSaveIfDirtyCoreAsync(storageProvider));
+        ArgumentNullException.ThrowIfNull(storageProvider);
+
+        return PromptOnUIThreadAsync();
+
+        async Task<bool> PromptOnUIThreadAsync()
+        {
+            try
+            {
+                return await Dispatcher.UIThread.InvokeAsync(() => PromptSaveIfDirtyCoreAsync(storageProvider));
+            }
+            catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+            {
+                return false;
+            }
+        }
     }
 
     /// <summary>
     /// Displays a confirmation dialog prompting the user to save unsaved changes, and saves the file if the user
     /// chooses to do so.
     /// </summary>
-    /// <remarks>If the main application window is unavailable or an error occurs while displaying the dialog,
+    /// <remarks>
+    /// <para>
+    /// If the main application window is unavailable or an error occurs while displaying the dialog,
     /// the method returns true to allow the operation to continue. The dialog presents options to save, discard, or
-    /// cancel, and saving is performed using the provided storage provider.</remarks>
+    /// cancel, and saving is performed using the provided storage provider.
+    /// </para>
+    /// <para>
+    /// This method is typically used to prompt the user for unsaved changes before navigating away from
+    /// the current document or closing the application.
+    /// </para>
+    /// </remarks>
     /// <param name="storageProvider">The storage provider used to save the file if the user confirms the save operation. Cannot be null.</param>
     /// <returns>true if the user chooses to save or discard changes, or if the dialog cannot be shown; false if the user cancels
     /// the operation.</returns>
@@ -1514,13 +1660,27 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteOpenRecentFile))]
     private async Task OpenRecentFileAsync(string? filePath)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return;
         }
 
+        bool isAcquired = false;
         try
         {
+            await _fileOpenGate.WaitAsync(_shutdownCts.Token);
+            isAcquired = true;
+
+            if (_isDisposed || _shutdownCts.IsCancellationRequested)
+            {
+                return;
+            }
+
             // Check for unsaved changes
             if (HasUnsavedChanges)
             {
@@ -1549,7 +1709,8 @@ internal sealed partial class MainWindowViewModel :
 
                 bool? isValid = _fileService.ValidateFileSize(filePath);
                 return (exists: true, isSizeValid: isValid);
-            }).ConfigureAwait(false);
+            },
+            _shutdownCts.Token).ConfigureAwait(false);
 
             if (!exists)
             {
@@ -1574,12 +1735,17 @@ internal sealed partial class MainWindowViewModel :
             _suppressHasUnsavedChangesTracking = true;
             try
             {
-                string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8)
+                string content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, _shutdownCts.Token)
                     .ConfigureAwait(false);
 
                 // Explicitly cast the lambda to Func<Task> to avoid ambiguous overload resolution
                 await Dispatcher.UIThread.InvokeAsync((Func<Task>)(async () =>
                 {
+                    if (_isDisposed || _shutdownCts.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
                     Editor.Text = content;
                     CurrentFilePath = filePath;
                     HasUnsavedChanges = false;
@@ -1596,24 +1762,36 @@ internal sealed partial class MainWindowViewModel :
                     }
 
                     _logger.LogInformation("Opened recent file: {FilePath}", filePath);
-                }));
+                }), DispatcherPriority.Background, _shutdownCts.Token);
             }
             finally
             {
                 _suppressHasUnsavedChangesTracking = false;
             }
         }
+        catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+        {
+            // Shutdown cancellation; ignore.
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to open recent file: {FilePath}", filePath);
             await ShowErrorMessageAsync($"Failed to open file: {ex.Message}");
+        }
+        finally
+        {
+            if (isAcquired)
+            {
+                _fileOpenGate.Release();
+            }
         }
     }
 
     /// <summary>
     /// Clears the list of recently accessed files from the application's history.
     /// </summary>
-    /// <remarks>This command removes all entries from the recent files list and updates any associated user
+    /// <remarks>
+    /// This command removes all entries from the recent files list and updates any associated user
     /// interface elements to reflect the change. Use this method to reset the recent files history, for example, when
     /// privacy is a concern or to start a new session.</remarks>
     [RelayCommand(CanExecute = nameof(CanExecuteClearRecentFiles))]
@@ -1650,6 +1828,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand]
     private async Task ResetLayoutAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             // Show confirmation dialog
@@ -1917,9 +2100,14 @@ internal sealed partial class MainWindowViewModel :
     /// </para>
     /// </remarks>
     /// <param name="message">The error message text to display in the dialog. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous operation of showing the error message dialog.</returns>
+    /// <returns>A task that represents the asynchronous operation. The task completes when the dialog has been shown.</returns>
     private Task ShowErrorMessageAsync(string message)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         // Ensure we're on the UI thread since this method accesses UI elements
         if (Dispatcher.UIThread.CheckAccess())
         {
@@ -1943,7 +2131,7 @@ internal sealed partial class MainWindowViewModel :
                 MessageDialogViewModel messageViewModel = dialogFactory.CreateViewModel<MessageDialogViewModel>();
                 messageViewModel.Title = "Error";
                 messageViewModel.Message = msg;
-                messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16"; // Error icon
+                messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10H11M11,16V18H13V16H11Z"; // Error icon
                 messageViewModel.IconColor = Avalonia.Media.Brushes.Red;
 
                 MessageDialog messageDialog = new MessageDialog
@@ -1974,6 +2162,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteRender))]
     private async Task RenderAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         Diagram.LastError = null;
 
         // NO ConfigureAwait(false) here - Diagram.RenderAsync needs UI context
@@ -1990,6 +2183,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteClear))]
     private async Task ClearAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         // Display a confirmation dialog before clearing
         try
         {
@@ -2101,6 +2299,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteExport))]
     private async Task ExportAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         try
         {
             Window? window = GetParentWindow();
@@ -2352,6 +2555,11 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand(CanExecute = nameof(CanExecuteOpenFileLocation))]
     private async Task OpenFileLocationAsync()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(CurrentFilePath))
         {
             return;
@@ -2429,6 +2637,11 @@ internal sealed partial class MainWindowViewModel :
     /// <returns>A task representing the asynchronous operation.</returns>
     private Task ShowSuccessMessageAsync(Window window, string message)
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
         // Ensure we're on the UI thread since this method accesses UI elements
         if (Dispatcher.UIThread.CheckAccess())
         {
@@ -2532,6 +2745,17 @@ internal sealed partial class MainWindowViewModel :
     {
         try
         {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            // Cancel any ongoing operations
+            _shutdownCts.Cancel();
+
+            DiagramViewModel? diagramViewModel = _dockFactory.DiagramTool?.Diagram;
+            diagramViewModel?.PrepareForShutdown();
+
             if (Layout is not null)
             {
                 if (Layout.Close.CanExecute(null))
@@ -2552,6 +2776,8 @@ internal sealed partial class MainWindowViewModel :
             _logger.LogError(ex, "Error during {MethodName}", nameof(PrepareForShutdown));
         }
     }
+
+    #region IDisposable
 
     /// <summary>
     /// Releases resources used by the object and unsubscribes from property change notifications.
@@ -2575,6 +2801,12 @@ internal sealed partial class MainWindowViewModel :
     {
         if (!_isDisposed)
         {
+            // To avoid race conditions, cancel any ongoing operations first so that
+            // once _isDisposed = true, all tokens are already canceled
+            _shutdownCts.Cancel();
+
+            _isDisposed = true;
+
             // Unregister all message handlers from the document-scoped messenger.
             _documentMessenger.UnregisterAll(this);
 
@@ -2589,7 +2821,11 @@ internal sealed partial class MainWindowViewModel :
                 Diagram.PropertyChanged -= OnDiagramPropertyChanged;
             }
 
-            _isDisposed = true;
+            // NOTE: Intentionally not disposing _fileOpenGate to avoid ObjectDisposedException
+            // in any in-flight/pending WaitAsync callers during shutdown.
+            _shutdownCts.Dispose();
         }
     }
+
+    #endregion IDisposable
 }
