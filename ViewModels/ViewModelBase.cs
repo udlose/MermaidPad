@@ -23,23 +23,53 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Messaging;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.ViewModels;
 
 /// <summary>
-/// Provides a base class for view models that supports property change notification and common functionality for
-/// Avalonia applications.
+/// Provides a base class for view models that supports common functionality for Avalonia applications.
 /// </summary>
 /// <remarks>
-/// Inherit from this class to implement view models that require observable properties and integration
-/// with Avalonia's application and window lifetime management. This class is intended for use in MVVM architectures
-/// within Avalonia desktop applications.
+/// <para>
+/// Inherit from this class to implement view models that require integration with Avalonia application and window lifetime
+/// management. This class is intended for use in MVVM architectures within Avalonia desktop applications.
+/// </para>
+/// <para>
+/// This class extends <seealso cref="CommunityToolkit.Mvvm.ComponentModel.ObservableRecipient"/> to provide recipient lifecycle
+/// support (activation and deactivation) that can be used by derived view models.
+/// </para>
+/// <para>
+/// Application-scoped messaging support is provided by <seealso cref="AppMessagingViewModelBase"/> and document-scoped messaging
+/// support is provided by <seealso cref="DocumentMessagingViewModelBase"/>.
+/// </para>
 /// </remarks>
 #pragma warning disable IDE0200     // Convert lambda expression to method group
 [SuppressMessage("ReSharper", "RedundantTypeArgumentsOfMethod", Justification = "Enforces consistency and eliminates ambiguity.")]
-internal abstract partial class ViewModelBase : ObservableObject
+internal abstract partial class ViewModelBase : ObservableRecipient
 {
+    /// <summary>
+    /// Initializes a new instance of the ViewModelBase class.
+    /// </summary>
+    /// <remarks>This protected constructor is intended to be called by derived classes when creating a new
+    /// view model instance. It ensures proper initialization of the base class.</remarks>
+    protected ViewModelBase()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ViewModelBase"/> class with the specified document-scoped messenger.
+    /// </summary>
+    /// <param name="documentMessenger">
+    /// The messenger instance used for document-scoped message communication. Cannot be <see langword="null"/>.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="documentMessenger"/> is <see langword="null"/>.</exception>
+    protected ViewModelBase(IMessenger documentMessenger)
+        : base(documentMessenger ?? throw new ArgumentNullException(nameof(documentMessenger)))
+    {
+    }
+
     /// <summary>
     /// Retrieves the main window of the current desktop-style Avalonia application, if available.
     /// </summary>

@@ -47,8 +47,8 @@ namespace MermaidPad.ViewModels.UserControls;
 /// frameworks and are intended to be accessed by the View for UI updates and user interactions.
 /// </para>
 /// <para>
-/// <b>Messaging:</b> This ViewModel inherits from <see cref="DocumentViewModelBase"/> which provides access to
-/// both application-wide (<see cref="DocumentViewModelBase.AppMessenger"/>) and document-scoped
+/// <b>Messaging:</b> This ViewModel inherits from <see cref="DocumentMessagingViewModelBase"/> which provides access to
+/// both application-wide (<see cref="DocumentMessagingViewModelBase.AppMessenger"/>) and document-scoped
 /// (<see cref="ObservableRecipient.Messenger"/>) messengers. Text change notifications are published via the
 /// document-scoped messenger using <see cref="EditorTextChangedMessage"/>.
 /// </para>
@@ -63,7 +63,7 @@ namespace MermaidPad.ViewModels.UserControls;
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via ViewModelFactory.")]
-internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, IDisposable
+internal sealed partial class MermaidEditorViewModel : DocumentMessagingViewModelBase, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly CommentingStrategy _commentingStrategy;
@@ -608,12 +608,17 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     #region ObservableRecipient Overrides
 
     /// <summary>
-    /// Called when the recipient is activated to register message handlers.
+    /// Called when the recipient is activated.
     /// </summary>
     /// <remarks>
-    /// Override this method to register for messages via <see cref="ObservableRecipient.Messenger"/>.
-    /// Currently, this ViewModel publishes messages but doesn't receive any.
-    /// Future MDI scenarios may require receiving messages from other documents.
+    /// <para>
+    /// Message registrations for this view model (if needed) should be performed here using
+    /// <seealso cref="CommunityToolkit.Mvvm.ComponentModel.ObservableRecipient.Messenger"/>.
+    /// </para>
+    /// <para>
+    /// Currently, this view model publishes messages but does not register to receive any.
+    /// Future MDI scenarios may require receiving document-scoped messages from other components.
+    /// </para>
     /// </remarks>
     protected override void OnActivated()
     {
@@ -629,8 +634,11 @@ internal sealed partial class MermaidEditorViewModel : DocumentViewModelBase, ID
     /// Called when the recipient is deactivated to unregister message handlers.
     /// </summary>
     /// <remarks>
-    /// The base class automatically unregisters from <see cref="ObservableRecipient.Messenger"/>
-    /// and <see cref="DocumentViewModelBase.AppMessenger"/>.
+    /// The base classes automatically unregister document-scoped message handlers registered against
+    /// <seealso cref="CommunityToolkit.Mvvm.ComponentModel.ObservableRecipient.Messenger"/> and unregister application-scoped message handlers
+    /// registered against <seealso cref="AppMessagingViewModelBase.AppMessenger"/> by calling
+    /// <seealso cref="CommunityToolkit.Mvvm.Messaging.IMessenger.UnregisterAll(object)"/> during
+    /// <seealso cref="AppMessagingViewModelBase.OnDeactivated"/>.
     /// </remarks>
     protected override void OnDeactivated()
     {
