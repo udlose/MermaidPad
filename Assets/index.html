@@ -808,9 +808,11 @@
       // Reset retry count on successful initialization path
       globalThis.renderRetryCount = 0;
 
-      // Parse front-matter config if present
+      // Parse front-matter config if present for re-initialization
+      // NOTE: We keep the frontmatter in the source and let Mermaid handle it natively.
+      // Mermaid v10.5.0+ supports frontmatter parsing including title rendering.
       const fmRegex = /^---\s*([\s\S]*?)---\s*/;
-      let diagramSource = source;
+      const diagramSource = source; // Pass complete source including frontmatter to Mermaid
       const match = source.match(fmRegex);
 
       if (match) {
@@ -833,8 +835,7 @@
 
             globalThis.mermaid.initialize(configWithTheme);
           }
-          // Remove front-matter from diagram source
-          diagramSource = source.replace(fmRegex, "");
+          // Do NOT remove frontmatter - Mermaid handles it natively including title rendering
         } catch (err) {
           showError(`YAML parse error: ${err.message}`);
           return { success: false, error: `YAML parse error: ${err.message}` };
