@@ -25,6 +25,8 @@ using MermaidPad.Exceptions.Assets;
 using MermaidPad.Services;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Text.Json;
 
 namespace MermaidPad.ViewModels.UserControls;
 
@@ -43,13 +45,16 @@ namespace MermaidPad.ViewModels.UserControls;
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global", Justification = "ViewModel properties are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "ViewModel members are accessed by the view for data binding.")]
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via ViewModelFactory.")]
-internal sealed partial class DiagramViewModel : ViewModelBase
+internal sealed partial class DiagramViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<DiagramViewModel> _logger;
     private readonly MermaidRenderer _mermaidRenderer;
 
-    //TODO - DaveBlack: revisit implementing IDisposable on DiagramViewModel to dispose this SemaphoreSlim once Dock Panels is complete!
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
+        Justification = "Intentionally not disposing _renderGate to avoid ObjectDisposedException in any in-flight/pending WaitAsync callers during shutdown")]
     private readonly SemaphoreSlim _renderGate = new SemaphoreSlim(1, 1);
+    private readonly CancellationTokenSource _shutdownCts = new CancellationTokenSource();
+    private volatile bool _isDisposed;
 
     /// <summary>
     /// Monotonic, atomic render id used for last-write-wins
@@ -213,11 +218,15 @@ internal sealed partial class DiagramViewModel : ViewModelBase
     /// <returns>A task that represents the asynchronous rendering operation.</returns>
     private async Task RenderCoreAsync(long requestId, string mermaidSource)
     {
-        // Serialize WebView access so LivePreview cannot overlap renders
-        await _renderGate.WaitAsync()
-            .ConfigureAwait(false);
+        bool isAcquired = false;
         try
         {
+        // Serialize WebView access so LivePreview cannot overlap renders
+            await _renderGate.WaitAsync(_shutdownCts.Token)
+            .ConfigureAwait(false);
+
+            isAcquired = true;
+
             // If a newer render request arrived while this one was queued, skip it
             long latestRequestId = Interlocked.Read(ref _renderSequence);
             if (requestId != latestRequestId)
@@ -229,8 +238,14 @@ internal sealed partial class DiagramViewModel : ViewModelBase
             await _mermaidRenderer.RenderAsync(mermaidSource)
                 .ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
+        {
+            // Shutdown cancellation; ignore
+        }
         finally
         {
+            if (isAcquired)
+            {
             _renderGate.Release();
         }
     }
@@ -318,4 +333,58 @@ internal sealed partial class DiagramViewModel : ViewModelBase
             throw;
         }
     }
+
+    /// <summary>
+    /// Initiates the shutdown process by signaling cancellation to any ongoing operations.
+    /// </summary>
+    /// <remarks>This method is intended to be called before disposing of the instance to ensure that all
+    /// background operations are notified to stop. Calling this method multiple times has no effect after the first
+    /// invocation.</remarks>
+    internal void PrepareForShutdown()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _shutdownCts.Cancel();
+    }
+
+    #region IDisposable
+
+    /// <summary>
+    /// Releases resources used by the object and unsubscribes from property change notifications.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Do NOT call this method directly. The <see cref="DiagramViewModel"/> is owned by the dependency
+    /// injection container and its <see cref="IDisposable"/> implementation will be called by the container
+    /// when the object is no longer needed. This method does not dispose of dependencies managed by the
+    /// dependency injection container.
+    /// </para>
+    /// <para>
+    /// This method:
+    /// <list type="bullet">
+    ///     <item><description>Unregisters all message handlers from the document-scoped messenger</description></item>
+    ///     <item><description>Unsubscribes from Editor, Diagram, and EditorTool PropertyChanged events</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public void Dispose()
+    {
+        if (!_isDisposed)
+        {
+            // To avoid race conditions, cancel any ongoing operations first so that
+            // once _isDisposed = true, all tokens are already canceled
+            _shutdownCts.Cancel();
+            _shutdownCts.Dispose();
+
+            // NOTE: Intentionally not disposing _renderGate to avoid ObjectDisposedException
+            // in any in-flight/pending WaitAsync callers during shutdown
+
+            _isDisposed = true;
+        }
+    }
+
+    #endregion IDisposable
 }

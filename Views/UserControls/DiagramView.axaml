@@ -18,7 +18,7 @@
     CornerRadius="4">
     <Grid>
       <!--  WebView for rendering Mermaid diagrams  -->
-      <wv:WebView x:Name="Preview" />
+      <wv:WebView x:Name="Preview" DragDrop.AllowDrop="False" />
 
       <!--  Error overlay displayed when LastError is set  -->
       <TextBlock

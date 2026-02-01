@@ -1110,13 +1110,12 @@ internal sealed class DockFactory : Factory
             EditorTool = null;
         }
 
-        // TODO - DiagramTool doesn't implement IDisposable currently, but check for future-proofing
-        //if (DiagramTool is IDisposable disposableDiagramTool)
-        //{
-        //    _logger.LogDebug("Disposing existing {ToolName}", nameof(DiagramTool));
-        //    disposableDiagramTool.Dispose();
-        //    DiagramTool = null;
-        //}
+        if (DiagramTool is IDisposable disposableDiagramTool)
+        {
+            _logger.LogDebug("Disposing existing {ToolName}", nameof(DiagramTool));
+            disposableDiagramTool.Dispose();
+            DiagramTool = null;
+        }
     }
 
     /// <summary>
