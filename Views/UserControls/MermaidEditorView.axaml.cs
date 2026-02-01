@@ -1312,12 +1312,13 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
             return;
         }
 
-        bool acquired = false;
+        bool isAcquired = false;
         try
         {
-            acquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero)
+            // use "try-enter" pattern with semaphore via TimeSpan.Zero to avoid overlapping context menu state updates
+            isAcquired = await _contextMenuSemaphore.WaitAsync(TimeSpan.Zero)
                 .ConfigureAwait(false);
-            if (!acquired)
+            if (!isAcquired)
             {
                 return;
             }
@@ -1365,7 +1366,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         }
         finally
         {
-            if (acquired)
+            if (isAcquired)
             {
                 try
                 {

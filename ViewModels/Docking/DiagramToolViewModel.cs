@@ -44,8 +44,10 @@ namespace MermaidPad.ViewModels.Docking;
 /// </para>
 /// </remarks>
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated via DockFactory.")]
-internal sealed class DiagramToolViewModel : Tool
+internal sealed class DiagramToolViewModel : Tool, IDisposable
 {
+    private bool _isDisposed;
+
     /// <summary>
     /// The unique identifier for this tool type, used for layout serialization and restoration.
     /// </summary>
@@ -80,5 +82,22 @@ internal sealed class DiagramToolViewModel : Tool
         CanDrop = true;
         CanPin = true;
         CanFloat = false;
+    }
+
+    /// <summary>
+    /// Releases resources used by the <see cref="DiagramToolViewModel"/> and disposes of the wrapped <see cref="DiagramViewModel"/>.
+    /// </summary>
+    /// <remarks>
+    /// This method disposes of the wrapped <see cref="DiagramViewModel"/> to ensure proper cleanup
+    /// of event handlers, CancellationTokens, Semaphores, and other resources.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (!_isDisposed)
+        {
+            _isDisposed = true;
+
+            Diagram.Dispose();
+        }
     }
 }
