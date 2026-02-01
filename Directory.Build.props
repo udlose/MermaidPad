@@ -10,6 +10,7 @@
         <PackageId>MermaidPad</PackageId>
         <Product>MermaidPad</Product>
         <RepositoryUrl>https://github.com/udlose/MermaidPad</RepositoryUrl>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
         <!-- Keep git SHA appended to InformationalVersion (Product version in Explorer) -->
         <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
