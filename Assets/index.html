@@ -418,35 +418,35 @@
       };
 
       // Store functions globally for reuse
-     globalThis.getSystemTheme = getSystemTheme;
-     globalThis.applyTheme = applyTheme;
-     globalThis.currentTheme = getSystemTheme();
+      globalThis.getSystemTheme = getSystemTheme;
+      globalThis.applyTheme = applyTheme;
+      globalThis.currentTheme = getSystemTheme();
 
-      //Apply theme immediately and set up the persistent listener
-      const matcher = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
+      //Apply theme immediately and set up the persistent listener
+      const matcher = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
 
-      const applyInitialThemeAndSetupListener = () => {
-        if (document.body) {
-          applyTheme(globalThis.currentTheme);
-        }
+      const applyInitialThemeAndSetupListener = () => {
+        if (document.body) {
+          applyTheme(globalThis.currentTheme);
+        }
 
-        if (matcher) {
-          matcher.addEventListener('change', e => {
-            globalThis.currentTheme = e.matches ? 'dark' : 'default';
-            globalThis.applyTheme(globalThis.currentTheme);
+        if (matcher) {
+          matcher.addEventListener('change', e => {
+            globalThis.currentTheme = e.matches ? 'dark' : 'default';
+            globalThis.applyTheme(globalThis.currentTheme);
 
-            // Note: We don't re-render the mermaid diagram here.
-            // The re-render logic should remain in the subsequent script block
-            // which has access to mermaid.
-          });
-        }
-      };
+            // Note: We don't re-render the mermaid diagram here.
+            // The re-render logic should remain in the subsequent script block
+            // which has access to mermaid.
+          });
+        }
+      };
 
-      if (document.body) {
-        applyInitialThemeAndSetupListener();
-      } else {
-        document.addEventListener('DOMContentLoaded', applyInitialThemeAndSetupListener, { once: true });
-      }
+      if (document.body) {
+        applyInitialThemeAndSetupListener();
+      } else {
+        document.addEventListener('DOMContentLoaded', applyInitialThemeAndSetupListener, { once: true });
+      }
     })();
   </script>
 
@@ -592,24 +592,24 @@
 
     // Setup theme change listener
     document.addEventListener('DOMContentLoaded', () => {
-      // Theme is already applied, but listen for changes
-      if (globalThis.matchMedia) {
-        globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-          globalThis.currentTheme = e.matches ? 'dark' : 'default';
-          globalThis.applyTheme(globalThis.currentTheme);
+      // Theme is already applied, but listen for changes
+      if (globalThis.matchMedia) {
+        globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+          globalThis.currentTheme = e.matches ? 'dark' : 'default';
+          globalThis.applyTheme(globalThis.currentTheme);
 
-          // Re-render if we have content and Mermaid is initialized
-          if (globalThis.lastMermaidSource && globalThis.mermaidInitialized) {
-            // Re-initialize Mermaid with new theme
-            globalThis.mermaid.initialize({
-              startOnLoad: false,
-              theme: globalThis.currentTheme
-            });
-            globalThis.renderMermaid(globalThis.lastMermaidSource);
-          }
-        });
-      }
-    });
+          // Re-render if we have content and Mermaid is initialized
+          if (globalThis.lastMermaidSource && globalThis.mermaidInitialized) {
+            // Re-initialize Mermaid with new theme
+            globalThis.mermaid.initialize({
+              startOnLoad: false,
+              theme: globalThis.currentTheme
+            });
+            globalThis.renderMermaid(globalThis.lastMermaidSource);
+          }
+        });
+      }
+    });
   </script>
   <!-- Render functions in separate script -->
   <script>
@@ -1254,7 +1254,71 @@
       }
     };
 
-    console.debug('Hover enhancement function registered: globalThis.enhanceHoverability');
+    // ==========================================
+    // DIAGRAM DIMENSIONS FUNCTION
+    // Returns the current SVG diagram dimensions for display in the UI
+    // ==========================================
+    globalThis.getDiagramDimensions = function () {
+      try {
+        const svg = document.querySelector('#output svg');
+        if (!svg) {
+          return JSON.stringify({ width: null, height: null });
+        }
+
+        let width, height;
+
+        // Try viewBox first (most reliable for SVG dimensions)
+        const viewBox = svg.getAttribute('viewBox');
+        if (viewBox) {
+          const parts = viewBox.split(/[\s,]+/);
+          if (parts.length >= 4) {
+            width = Number.parseFloat(parts[2]);
+            height = Number.parseFloat(parts[3]);
+          }
+        }
+
+        // Fallback to width/height attributes or bounding box
+        if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) {
+          // Try explicit width/height attributes
+          const widthAttr = svg.getAttribute('width');
+          const heightAttr = svg.getAttribute('height');
+
+          if (widthAttr && heightAttr) {
+            width = Number.parseFloat(widthAttr);
+            height = Number.parseFloat(heightAttr);
+          }
+
+          // Final fallback: bounding box
+          if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) {
+            const bbox = svg.getBoundingClientRect();
+            width = bbox.width || null;
+            height = bbox.height || null;
+          }
+        }
+
+        // Validate we got reasonable dimensions
+        if (!width || !height || width <= 0 || height <= 0) {
+          return JSON.stringify({ width: null, height: null });
+        }
+
+        return JSON.stringify({ width, height });
+      } catch (error) {
+        console.error('Error getting diagram dimensions:', error);
+        return JSON.stringify({ width: null, height: null });
+      }
+    };
+
+    (function () {
+      // Prevent the WebView from navigating to a file when one is dragged/dropped onto the page.
+      // (Prevents the default browser behavior of opening the dropped file.)
+      function cancelExternalFileDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      globalThis.addEventListener("dragover", cancelExternalFileDrop, false);
+      globalThis.addEventListener("drop", cancelExternalFileDrop, false);
+    })();
   </script>
 </head>
 <body>
