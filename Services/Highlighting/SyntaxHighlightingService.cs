@@ -19,9 +19,11 @@
 // SOFTWARE.
 
 using Avalonia.Styling;
+using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.TextMate;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using TextMateSharp.Grammars;
 
@@ -45,7 +47,8 @@ namespace MermaidPad.Services.Highlighting;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SyntaxHighlightingService : IDisposable
+[SuppressMessage("ReSharper", "GCSuppressFinalizeForTypeWithoutDestructor")]
+public sealed class SyntaxHighlightingService : IDisposable, IAsyncDisposable
 {
     private readonly ILogger<SyntaxHighlightingService> _logger;
     private readonly Lock _sync = new Lock();
@@ -120,11 +123,72 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// disposed.</remarks>
     /// <param name="editor">The text editor to which syntax highlighting will be applied. Cannot be null.</param>
     /// <param name="themeName">The theme to use for syntax highlighting. If null, the current Avalonia theme variant is used.</param>
+    /// <param name="cancellationToken">A cancellation token used while dispatching work to the Avalonia UI thread.</param>
     /// <exception cref="ArgumentNullException">Thrown if editor is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the service has not been initialized. Call Initialize before using this method.</exception>
     /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed.</exception>
-    public void ApplyTo(TextEditor editor, ThemeName? themeName = null)
+    public async Task ApplyToAsync(TextEditor editor, ThemeName? themeName = null, CancellationToken cancellationToken = default)
     {
+        // This is a volatile read
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
+        ArgumentNullException.ThrowIfNull(editor);
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ApplyToOnUIThread(editor, themeName);
+            return;
+        }
+
+        Task applyTask = Dispatcher.UIThread.InvokeAsync(() => ApplyToOnUIThread(editor, themeName),
+            DispatcherPriority.Normal,
+            cancellationToken).GetTask();
+
+        await applyTask.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Updates the syntax highlighting theme based on Avalonia's current theme variant.
+    /// </summary>
+    /// <param name="isDarkTheme">True if the current theme is dark, false if light.</param>
+    /// <param name="cancellationToken">A cancellation token used while dispatching work to the Avalonia UI thread.</param>
+    /// <remarks>
+    /// This method is typically called when the application theme changes.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed.</exception>
+    public async Task UpdateThemeForVariantAsync(bool isDarkTheme, CancellationToken cancellationToken = default)
+    {
+        // This is a volatile read
+        ObjectDisposedException.ThrowIf(_isDisposed, this);
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            UpdateThemeForVariantOnUIThread(isDarkTheme);
+            return;
+        }
+
+        Task updateThemeTask = Dispatcher.UIThread.InvokeAsync(
+            () => UpdateThemeForVariantOnUIThread(isDarkTheme),
+            DispatcherPriority.Normal,
+            cancellationToken).GetTask();
+
+        await updateThemeTask.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies Mermaid syntax highlighting to the specified text editor on the UI thread, using the given theme or the
+    /// current application theme if none is specified.
+    /// </summary>
+    /// <remarks>This method must be called on the UI thread. Any existing syntax highlighting installation on
+    /// the editor will be replaced. If the service is disposed concurrently during execution, the method ensures proper
+    /// cleanup and signals disposal by throwing an ObjectDisposedException.</remarks>
+    /// <param name="editor">The text editor control to which syntax highlighting will be applied. Cannot be null.</param>
+    /// <param name="themeName">The theme to use for syntax highlighting. If null, the current application theme is used.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the service has not been initialized before calling this method.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed before or during the operation.</exception>
+    private void ApplyToOnUIThread(TextEditor editor, ThemeName? themeName)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+
         // This is a volatile read
         ObjectDisposedException.ThrowIf(_isDisposed, this);
         ArgumentNullException.ThrowIfNull(editor);
@@ -132,6 +196,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         // Determine theme based on Avalonia's current theme if not specified
         ThemeName effectiveTheme = themeName ?? GetThemeForCurrentVariant();
 
+        TextMate.Installation? currentInstallationSnapshot = null;
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this);
@@ -139,60 +204,97 @@ public sealed class SyntaxHighlightingService : IDisposable
             {
                 throw new InvalidOperationException($"{nameof(SyntaxHighlightingService)} must be initialized before use. Call {nameof(Initialize)} first.");
             }
+
+            // If we already have an installation for this exact editor, DO NOT reinstall.
+            // Reinstalling + disposing the previous installation can break highlighting because AvaloniaEdit.TextMate
+            // may share underlying editor hooks/resources across installation instances for the same editor.
+            //
+            // Instead, update the theme on the existing installation.
+            if (_textMateInstallation is not null && ReferenceEquals(_currentEditor, editor))
+            {
+                currentInstallationSnapshot = _textMateInstallation;
+                _currentTheme = effectiveTheme;
+            }
         }
+
+        // If we have an existing installation, update its theme outside the lock
+        if (currentInstallationSnapshot is not null)
+        {
+            try
+            {
+                MermaidRegistryOptions registryOptions = new MermaidRegistryOptions(effectiveTheme);
+
+                currentInstallationSnapshot.SetTheme(registryOptions.GetTheme(MermaidRegistryOptions.MermaidScopeName));
+                currentInstallationSnapshot.SetGrammar(MermaidRegistryOptions.MermaidScopeName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating syntax highlighting theme");
+                throw;
+            }
+        }
+        else
+        {
+            // Otherwise, this is the first time we're applying to this editor instance: install TextMate once
+            CreateNewTextMateInstallation(editor, effectiveTheme);
+        }
+    }
+
+    /// <summary>
+    /// Initializes and attaches a new TextMate syntax highlighting installation to the specified text editor using the given theme.
+    /// </summary>
+    /// <remarks>This method is intended for use in single-document interface (SDI) scenarios. Attempting to
+    /// attach the service to multiple editors concurrently is not supported and will result in an exception. For
+    /// multi-document interface (MDI) support, the service must be redesigned to track multiple editor
+    /// instances.</remarks>
+    /// <param name="editor">The text editor instance to which the TextMate installation will be applied. Must not already have an active
+    /// installation from this service.</param>
+    /// <param name="effectiveTheme">The theme to use for configuring syntax highlighting in the new TextMate installation.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the service is already attached to a different text editor instance.
+    /// This service supports only a single editor (SDI) configuration.</exception>
+    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed before or during the installation process.</exception>
+    private void CreateNewTextMateInstallation(TextEditor editor, ThemeName effectiveTheme)
+    {
+        TextMate.Installation? newInstallation = null;
 
         try
         {
-            TextMate.Installation? previousInstallation;
-
-            // Create custom registry options with Mermaid grammar
             MermaidRegistryOptions registryOptions = new MermaidRegistryOptions(effectiveTheme);
 
-            // Capture and clear current installation/editor under lock, but do not dispose while holding lock.
-            lock (_sync)
-            {
-                previousInstallation = _textMateInstallation;
-                _textMateInstallation = null;
-                _currentEditor = null;
-            }
-
-            // Dispose previous installation outside the lock to avoid holding the lock during disposal work
-            previousInstallation?.Dispose();
-
-            // Confirm not disposed before proceeding
-            ObjectDisposedException.ThrowIf(_isDisposed, this);
-
             // Install TextMate on the editor (may interact with UI; do it outside locks)
-            TextMate.Installation installation = editor.InstallTextMate(registryOptions);
+            newInstallation = editor.InstallTextMate(registryOptions);
 
             // Set the Mermaid grammar
-            installation.SetGrammar(MermaidRegistryOptions.MermaidScopeName);
+            newInstallation.SetGrammar(MermaidRegistryOptions.MermaidScopeName);
 
-            // Store references for later theme switching under lock
             lock (_sync)
             {
+                //TODO - DaveBlack: For MDI this class will need to be refactored (currently SyntaxHighlightingService is a singleton and supports only a single editor instance)
+                // This makes SDI deterministic and fails loudly in MDI scenarios
+                if (_currentEditor is not null && !ReferenceEquals(_currentEditor, editor))
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(SyntaxHighlightingService)} is a singleton and is already attached to a different {nameof(TextEditor)} instance. " +
+                        "This configuration supports SDI only. For MDI, register per-editor/per-view or redesign the service to track multiple editors.");
+                }
+
                 if (_isDisposed)
                 {
                     // If disposed concurrently, ensure we clean up what we just created
                     // Any exceptions thrown while disposing the new installation are swallowed so they do not mask
                     // the concurrent disposal path. After cleanup, we signal the caller that the service has been
                     // disposed by throwing ObjectDisposedException.
-                    try
-                    {
-                        installation.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        // Swallow to avoid throwing during concurrent disposal cleanup
-                        _logger.LogError(ex, "Error disposing concurrent installation during ApplyTo cleanup");
-                    }
+                    DisposeInstallationSafely(newInstallation, "Error disposing concurrent installation during ApplyTo cleanup");
 
                     throw new ObjectDisposedException(nameof(SyntaxHighlightingService));
                 }
 
-                _textMateInstallation = installation;
+                _textMateInstallation = newInstallation;
                 _currentEditor = editor;
                 _currentTheme = effectiveTheme;
+
+                // Prevent finally from disposing the committed installation
+                newInstallation = null;
             }
         }
         catch (Exception ex)
@@ -200,18 +302,26 @@ public sealed class SyntaxHighlightingService : IDisposable
             _logger.LogError(ex, "Error applying syntax highlighting");
             throw;
         }
+        finally
+        {
+            if (newInstallation is not null)
+            {
+                DisposeInstallationSafely(newInstallation);
+            }
+        }
     }
 
     /// <summary>
-    /// Updates the syntax highlighting theme based on Avalonia's current theme variant.
+    /// Updates the editor's theme to match the specified light or dark variant on the UI thread.
     /// </summary>
-    /// <param name="isDarkTheme">True if the current theme is dark, false if light.</param>
-    /// <remarks>
-    /// This method is typically called when the application theme changes.
-    /// </remarks>
-    /// <exception cref="ObjectDisposedException">Thrown if the service has been disposed.</exception>
-    public void UpdateThemeForVariant(bool isDarkTheme)
+    /// <remarks>This method must be called on the UI thread. If the editor is not available or the requested
+    /// theme is already applied, no action is taken.</remarks>
+    /// <param name="isDarkTheme">A value indicating whether to apply the dark theme variant.
+    /// Pass <see langword="true"/> to apply the dark theme; otherwise, the light theme is applied.</param>
+    private void UpdateThemeForVariantOnUIThread(bool isDarkTheme)
     {
+        Dispatcher.UIThread.VerifyAccess();
+
         // This is a volatile read
         ObjectDisposedException.ThrowIf(_isDisposed, this);
 
@@ -233,7 +343,7 @@ public sealed class SyntaxHighlightingService : IDisposable
         }
 
         // Use existing ChangeTheme that re-validates state under lock and then performs the reapply safely.
-        ChangeTheme(newTheme);
+        ChangeThemeOnUIThread(newTheme);
     }
 
     /// <summary>
@@ -245,16 +355,19 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// The editor's text and cursor position are preserved.
     /// </remarks>
     /// <exception cref="InvalidOperationException">Thrown if no editor has been initialized with syntax highlighting.</exception>
-    private void ChangeTheme(ThemeName themeName)
+    private void ChangeThemeOnUIThread(ThemeName themeName)
     {
+        Dispatcher.UIThread.VerifyAccess();
+
         TextEditor? editorSnapshot;
 
         // Capture required state under lock and validate
         lock (_sync)
         {
-            editorSnapshot = _currentEditor ?? throw new InvalidOperationException($"No editor has been initialized with syntax highlighting. Call {nameof(ApplyTo)} first.");
-            ThemeName currentThemeSnapshot = _currentTheme;
+            editorSnapshot = _currentEditor ??
+                throw new InvalidOperationException($"No editor has been initialized with syntax highlighting. Call {nameof(ApplyToAsync)} first.");
 
+            ThemeName currentThemeSnapshot = _currentTheme;
             if (currentThemeSnapshot == themeName)
             {
                 _logger.LogDebug("Theme is already set to {ThemeName}, skipping theme change", themeName);
@@ -267,8 +380,8 @@ public sealed class SyntaxHighlightingService : IDisposable
         try
         {
             // Re-apply syntax highlighting with new theme using the captured editor.
-            // ApplyTo is thread-safe and does its own synchronization.
-            ApplyTo(editorSnapshot, themeName);
+            // ApplyToOnUIThread is thread-safe and does its own synchronization.
+            ApplyToOnUIThread(editorSnapshot, themeName);
         }
         catch (Exception ex)
         {
@@ -309,7 +422,7 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// <exception cref="FileNotFoundException">Thrown if the grammar resource cannot be found.</exception>
     private static void VerifyGrammarResource()
     {
-        Assembly assembly = Assembly.GetExecutingAssembly();
+        Assembly assembly = typeof(SyntaxHighlightingService).Assembly;
 
         const string grammarResourceName = MermaidRegistryOptions.GrammarResourceName;
         using Stream? stream = assembly.GetManifestResourceStream(grammarResourceName);
@@ -326,35 +439,167 @@ public sealed class SyntaxHighlightingService : IDisposable
     /// <summary>
     /// Releases all resources used by the current instance of the class.
     /// </summary>
-    /// <remarks>This method should NOT be called manually; the lifetime of SyntaxHighlightingService is controlled
+    /// <remarks>
+    /// <para>
+    /// This method should NOT be called manually; the lifetime of SyntaxHighlightingService is controlled
     /// by dependency injection which will call this method automatically when appropriate.
-    /// After calling this method, the instance is in an unusable state and should not be accessed.</remarks>
+    /// After calling this method, the instance is in an unusable state and should not be accessed.
+    /// </para>
+    /// <para>
+    /// Implemented according to: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-both-dispose-and-async-dispose-patterns
+    /// </para>
+    /// </remarks>
     public void Dispose()
     {
-        TextMate.Installation? toDispose;
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
+    /// <summary>
+    /// Asynchronously releases all resources used by the current instance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Call this method to clean up resources when the instance is no longer needed. This method is
+    /// thread-safe and can be called multiple times; subsequent calls after the first have no effect.
+    /// After calling this method, the instance is in an unusable state and should not be accessed.
+    /// </para>
+    /// <para>
+    /// Implemented according to: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-both-dispose-and-async-dispose-patterns
+    /// </para>
+    /// </remarks>
+    /// <returns>A task that represents the asynchronous dispose operation.</returns>
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeAsyncCore().ConfigureAwait(false);
+
+        Dispose(false);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases the unmanaged resources used by the object and, optionally, releases the managed resources.
+    /// </summary>
+    /// <remarks>
+    /// <para>This method is typically called by the public Dispose() method and a finalizer. When
+    /// disposing is true, this method disposes all resources held by managed objects.
+    /// When disposing is false, only unmanaged resources are released. Override this method to
+    /// provide custom disposal logic for derived classes.
+    /// </para>
+    /// <para>
+    /// Implemented according to: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-both-dispose-and-async-dispose-patterns
+    /// </para>
+    /// </remarks>
+    /// <param name="disposing">true to release both managed and unmanaged resources;
+    /// false to release only unmanaged resources.</param>
+    private void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        TextMate.Installation? installationToDispose = TryBeginDispose();
+        if (installationToDispose is null)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            DisposeInstallationSafely(installationToDispose);
+            return;
+        }
+
+        // Dispose() is a synchronous API; we do not block threads here
+        // We schedule disposal on the UI thread as a best-effort fallback
+        Dispatcher.UIThread.Post(state =>
+            {
+                TextMate.Installation installation = (TextMate.Installation)state!;
+                DisposeInstallationSafely(installation);
+            },
+            installationToDispose,
+            DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// Performs the core asynchronous logic for releasing resources used by the installation, ensuring disposal occurs
+    /// on the UI thread if required.
+    /// </summary>
+    /// <remarks>
+    /// <para>This method should be called as part of the asynchronous dispose pattern to ensure that
+    /// resources are released safely, especially when UI thread access is necessary. It is intended to be invoked by
+    /// DisposeAsync implementations and not called directly by user code.
+    /// </para>
+    /// <para>
+    /// Implemented according to: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-both-dispose-and-async-dispose-patterns
+    /// </para>
+    /// </remarks>
+    /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
+    private async ValueTask DisposeAsyncCore()
+    {
+        TextMate.Installation? installationToDispose = TryBeginDispose();
+        if (installationToDispose is null)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            DisposeInstallationSafely(installationToDispose);
+            return;
+        }
+
+        Task disposeTask = Dispatcher.UIThread.InvokeAsync(
+            () => DisposeInstallationSafely(installationToDispose),
+            DispatcherPriority.Normal,
+            CancellationToken.None).GetTask();
+
+        await disposeTask.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Attempts to initiate the disposal process and returns the associated TextMate installation if disposal has not
+    /// already begun.
+    /// </summary>
+    /// <returns>The TextMate installation to be disposed if disposal is initiated; otherwise,
+    /// null if disposal has already started.</returns>
+    private TextMate.Installation? TryBeginDispose()
+    {
         lock (_sync)
         {
             if (_isDisposed)
             {
-                return;
+                return null;
             }
 
             _isDisposed = true;
 
-            toDispose = _textMateInstallation;
+            TextMate.Installation? installationToDispose = _textMateInstallation;
             _textMateInstallation = null;
             _currentEditor = null;
-        }
 
-        // Dispose outside lock to avoid deadlocks or long blocking sections
+            return installationToDispose;
+        }
+    }
+
+    /// <summary>
+    /// Disposes the specified syntax highlighting installation, suppressing any exceptions that occur during disposal.
+    /// </summary>
+    /// <remarks>Any exceptions thrown during disposal are caught and logged. This method is intended to
+    /// ensure that disposal does not interrupt the calling workflow.</remarks>
+    /// <param name="installationToDispose">The installation instance to dispose. Cannot be null.</param>
+    /// <param name="messageOnError">The error message to log in case of disposal failure.</param>
+    private void DisposeInstallationSafely(TextMate.Installation installationToDispose,
+        string messageOnError = "Error disposing syntax highlighting installation")
+    {
         try
         {
-            toDispose?.Dispose();
+            installationToDispose.Dispose();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error disposing syntax highlighting installation");
+            _logger.LogError(ex, "{Message}", messageOnError);
         }
     }
 }
