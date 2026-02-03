@@ -48,7 +48,7 @@ namespace MermaidPad.ViewModels.UserControls;
 /// </para>
 /// <para>
 /// <b>Messaging:</b> This ViewModel inherits from <see cref="DocumentMessagingViewModelBase"/> which provides access to
-/// both application-wide (<see cref="DocumentMessagingViewModelBase.AppMessenger"/>) and document-scoped
+/// both application-wide (<see cref="AppMessagingViewModelBase.AppMessenger"/>) and document-scoped
 /// (<see cref="ObservableRecipient.Messenger"/>) messengers. Text change notifications are published via the
 /// document-scoped messenger using <see cref="EditorTextChangedMessage"/>.
 /// </para>

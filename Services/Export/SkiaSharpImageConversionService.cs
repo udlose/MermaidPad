@@ -355,8 +355,7 @@ internal sealed partial class SkiaSharpImageConversionService : IImageConversion
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("PNG conversion cancelled by user");
-            throw;
+            return Memory<byte>.Empty;
         }
         catch (Exception ex)
         {
@@ -812,9 +811,24 @@ internal sealed partial class SkiaSharpImageConversionService : IImageConversion
 /// time.</remarks>
 public sealed record ImageDimensions
 {
+    /// <summary>
+    /// Gets the width of the object, measured in units appropriate to the context.
+    /// </summary>
     public int Width { get; }
+
+    /// <summary>
+    /// Gets the height of the object, measured in units appropriate to the context.
+    /// </summary>
     public int Height { get; }
+
+    /// <summary>
+    /// Gets the raw size of the content, in bytes.
+    /// </summary>
     public int RawSizeBytes { get; }
+
+    /// <summary>
+    /// Gets the estimated size, in bytes, of the content after compression.
+    /// </summary>
     public double EstimatedCompressedSize { get; }
 
     /// <summary>

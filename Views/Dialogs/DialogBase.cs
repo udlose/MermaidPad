@@ -22,8 +22,9 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Serilog;
 
-namespace MermaidPad.Views.Dialogs;
+using System.ComponentModel;
 
+namespace MermaidPad.Views.Dialogs;
 /// <summary>
 /// Provides a base class for modal dialog windows with common dialog behaviors and lifecycle management.
 /// </summary>
@@ -219,7 +220,7 @@ internal abstract class DialogBase : Window
     /// </summary>
     /// <remarks>
     /// <para>Override this method to perform custom logic when the window is closing. If the closing
-    /// operation is canceled by setting <see cref="WindowClosingEventArgs.Cancel"/> to <see langword="true"/>,
+    /// operation is canceled by setting <see cref="CancelEventArgs.Cancel"/> to <see langword="true"/>,
     /// any pending close requests are cleared.
     /// </para>
     /// <para>

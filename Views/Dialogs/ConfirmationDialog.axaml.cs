@@ -31,7 +31,7 @@ namespace MermaidPad.Views.Dialogs;
 /// This window is intended to be used as a modal confirmation dialog. It provides
 /// three explicit responses through the <see cref="ConfirmationResult"/> enum:
 /// Yes, No and Cancel. The dialog disables resizing and will attempt to center
-/// itself on its <see cref="Window.Owner"/> when opened.
+/// itself on its <see cref="WindowBase.Owner"/> when opened.
 /// </remarks>
 /// <seealso cref="ConfirmationResult"/>
 internal sealed partial class ConfirmationDialog : DialogBase

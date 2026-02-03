@@ -124,7 +124,7 @@ internal sealed class SecurityService
     /// <remarks>This method uses multiple layers of detection to determine if the file is a symbolic link:
     ///     <list type="bullet">
     ///         <item><description>It first checks if the file has the <see cref="FileAttributes.ReparsePoint"/> attribute.</description></item>
-    ///         <item><description>It then checks the <see cref="FileInfo.LinkTarget"/> property, if available.</description></item>
+    ///         <item><description>It then checks the <see cref="FileSystemInfo.LinkTarget"/> property, if available.</description></item>
     ///         <item><description>Finally, it performs a cross-platform path resolution comparison.</description></item>
     ///     </list>
     ///
@@ -133,7 +133,6 @@ internal sealed class SecurityService
     /// <returns><see langword="true"/> if the file is a symbolic link; otherwise, <see langword="false"/>.</returns>
     private bool IsSymbolicLink(FileInfo fileInfo)
     {
-        ArgumentNullException.ThrowIfNull(fileInfo);
         try
         {
             // Layer 1: FileAttributes.ReparsePoint

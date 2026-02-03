@@ -28,12 +28,43 @@ namespace MermaidPad.Services.Export;
 /// completion.</remarks>
 public enum ExportStep
 {
+    /// <summary>
+    /// The export process is initializing resources and preparing required state.
+    /// </summary>
     Initializing,
+
+    /// <summary>
+    /// The SVG output produced by the renderer is being parsed for further processing.
+    /// </summary>
     ParsingSvg,
+
+    /// <summary>
+    /// Measurements and layout calculations (width, height, scaling) are being computed.
+    /// </summary>
     CalculatingDimensions,
+
+    /// <summary>
+    /// The diagram is being rendered (drawing shapes, layout engines running).
+    /// </summary>
     Rendering,
+
+    /// <summary>
+    /// A bitmap or canvas surface is being created to draw the rendered output onto.
+    /// </summary>
     CreatingCanvas,
+
+    /// <summary>
+    /// Any image encoding (for example, encoding to PNG or JPEG formats) is occurring.
+    /// </summary>
     Encoding,
+
+    /// <summary>
+    /// The final image artifact is being constructed and finalized.
+    /// </summary>
     CreatingImage,
+
+    /// <summary>
+    /// The export process has completed successfully (or reached its final state).
+    /// </summary>
     Complete,
 }

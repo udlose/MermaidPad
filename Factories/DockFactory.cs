@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 using Dock.Avalonia.Controls;
+using Dock.Model;
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm;
@@ -27,7 +28,6 @@ using MermaidPad.Extensions;
 using MermaidPad.ViewModels.Docking;
 using MermaidPad.ViewModels.UserControls;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ObjectPool;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
@@ -66,7 +66,6 @@ internal sealed class DockFactory : Factory
 {
     private readonly ILogger<DockFactory> _logger;
     private readonly IViewModelFactory _viewModelFactory;
-    private readonly ObjectPool<HashSet<IDockable>> _hashSetObjectPool;
 
     private const string RootDockId = "RootDock";
     private const string MainProportionalDockId = "MainProportionalDock";
@@ -110,12 +109,10 @@ internal sealed class DockFactory : Factory
     /// </summary>
     /// <param name="logger">The logger instance for this factory.</param>
     /// <param name="viewModelFactory">The factory for creating ViewModel instances.</param>
-    /// <param name="hashSetObjectPool">The object pool for managing <see cref="HashSet{T}"/> instances.</param>
-    public DockFactory(ILogger<DockFactory> logger, IViewModelFactory viewModelFactory, ObjectPool<HashSet<IDockable>> hashSetObjectPool)
+    public DockFactory(ILogger<DockFactory> logger, IViewModelFactory viewModelFactory)
     {
         _logger = logger;
         _viewModelFactory = viewModelFactory;
-        _hashSetObjectPool = hashSetObjectPool;
 
         // Configure locators immediately in constructor so they're available
         // before any deserialization occurs
@@ -286,7 +283,7 @@ internal sealed class DockFactory : Factory
     /// <param name="layout">The layout to initialize.</param>
     /// <remarks>
     /// <para>
-    /// This method calls the base <see cref="Factory.InitLayout(IDockable)"/> which triggers
+    /// This method calls the base <see cref="FactoryBase.InitLayout(IDockable)"/> which triggers
     /// <c>InitDockable</c> for all dockables in the layout. The locators (DockableLocator,
     /// ContextLocator, HostWindowLocator) are configured in the constructor via
     /// <see cref="ConfigureLocators"/> so they are available before any deserialization occurs.
@@ -873,7 +870,7 @@ internal sealed class DockFactory : Factory
     /// <remarks>
     /// <para>
     /// This method walks the dock hierarchy and closes all <see cref="IHostWindow"/> instances
-    /// that are hosting floating dockables. It uses the <see cref="Factory.RemoveWindow"/> method
+    /// that are hosting floating dockables. It uses the <see cref="FactoryBase.RemoveWindow"/> method
     /// from the base class to properly clean up each window.
     /// </para>
     /// <para>
@@ -1042,11 +1039,8 @@ internal sealed class DockFactory : Factory
     /// </summary>
     /// <param name="dockable">The dockable element to check for hidden status. Cannot be null.</param>
     /// <returns>true if the specified dockable is hidden in its root dock; otherwise, false.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when the <paramref name="dockable"/> is null.</exception>
-    internal bool IsDockableHidden(IDockable dockable)
+    private bool IsDockableHidden(IDockable dockable)
     {
-        ArgumentNullException.ThrowIfNull(dockable);
-
         IRootDock? rootDock = FindRoot(dockable);
         if (rootDock is null)
         {
