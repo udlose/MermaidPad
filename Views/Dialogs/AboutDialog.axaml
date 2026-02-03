@@ -1,0 +1,277 @@
+<Window
+  x:Class="MermaidPad.Views.Dialogs.AboutDialog"
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:vm="clr-namespace:MermaidPad.ViewModels.Dialogs"
+  Title="About MermaidPad"
+  Width="600"
+  Height="650"
+  d:DesignHeight="650"
+  d:DesignWidth="600"
+  x:DataType="vm:AboutDialogViewModel"
+  CanResize="False"
+  ShowInTaskbar="False"
+  WindowStartupLocation="CenterOwner"
+  mc:Ignorable="d">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.SectionHeader">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,10,0,5" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <Style Selector="Border.SectionBorder">
+      <Setter Property="BorderBrush" Value="#E0E0E0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10" />
+      <Setter Property="Margin" Value="0,5,0,10" />
+    </Style>
+
+    <!--  Clickable link style  -->
+    <Style Selector="Button.Link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <Style Selector="Button.Link > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="TextDecorations" Value="Underline" />
+    </Style>
+
+    <Style Selector="Button.Link:pointerover > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorSecondary}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto">
+
+    <!--  Header: Logo + App Identity (LINQPad-inspired)  -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+
+      <!--  Logo area: placeholder for MermaidPad logo  -->
+      <Border
+        Grid.Column="0"
+        Width="96"
+        Height="96"
+        Margin="0,0,20,0"
+        VerticalAlignment="Top"
+        CornerRadius="8">
+        <Image
+          Width="96"
+          Height="96"
+          Source="/Assets/AppIcon.ico"
+          Stretch="Uniform" />
+      </Border>
+
+      <!--  App Identity  -->
+      <StackPanel
+        Grid.Column="1"
+        VerticalAlignment="Center"
+        Spacing="4">
+        <TextBlock
+          FontSize="24"
+          FontWeight="Bold"
+          Text="{Binding ProductName}" />
+        <TextBlock
+          Foreground="#888888"
+          Text="{Binding Tagline}"
+          TextWrapping="Wrap" />
+        <TextBlock
+          Margin="0,4,0,0"
+          FontSize="12"
+          Text="{Binding Copyright}" />
+        <TextBlock
+          FontSize="12"
+          Foreground="#888888"
+          Text="{Binding LicenseType}" />
+      </StackPanel>
+    </Grid>
+
+    <!--  Scrollable Content  -->
+    <ScrollViewer
+      Grid.Row="1"
+      Margin="0,10,0,0"
+      HorizontalScrollBarVisibility="Disabled"
+      VerticalScrollBarVisibility="Auto">
+      <StackPanel>
+
+        <!--  Version & Build Info  -->
+        <TextBlock Classes="SectionHeader" Text="Version &amp; Build Info" />
+        <Border Classes="SectionBorder">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto">
+
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              FontWeight="SemiBold"
+              Text="Version:" />
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="1"
+              Text="{Binding InformationalVersion}"
+              TextWrapping="Wrap" />
+
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="File Version:" />
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              Text="{Binding FileVersion}" />
+
+            <TextBlock
+              Grid.Row="2"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="Build Date:" />
+            <TextBlock
+              Grid.Row="2"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              Text="{Binding BuildDate}" />
+
+            <TextBlock
+              Grid.Row="3"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="Commit:" />
+            <TextBlock
+              Grid.Row="3"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              FontFamily="Consolas,Monaco,monospace"
+              Text="{Binding CommitSha}" />
+          </Grid>
+        </Border>
+
+        <!--  Environment Info  -->
+        <TextBlock Classes="SectionHeader" Text="Environment" />
+        <Border Classes="SectionBorder">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto">
+
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="0"
+              FontWeight="SemiBold"
+              Text=".NET Runtime:" />
+            <TextBlock
+              Grid.Row="0"
+              Grid.Column="1"
+              Text="{Binding DotNetVersion}" />
+
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="Avalonia UI:" />
+            <TextBlock
+              Grid.Row="1"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              Text="{Binding AvaloniaVersion}" />
+
+            <TextBlock
+              Grid.Row="2"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="OS:" />
+            <TextBlock
+              Grid.Row="2"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              Text="{Binding OsDescription}"
+              TextWrapping="Wrap" />
+
+            <TextBlock
+              Grid.Row="3"
+              Grid.Column="0"
+              Margin="0,4,0,0"
+              FontWeight="SemiBold"
+              Text="Architecture:" />
+            <TextBlock
+              Grid.Row="3"
+              Grid.Column="1"
+              Margin="0,4,0,0"
+              Text="{Binding ProcessArchitecture}" />
+          </Grid>
+        </Border>
+
+        <!--  Links  -->
+        <TextBlock Classes="SectionHeader" Text="Links" />
+        <Border Classes="SectionBorder">
+          <ItemsControl ItemsSource="{Binding Links}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button
+                  Margin="0,2"
+                  Classes="Link"
+                  Click="OnLinkClick"
+                  Tag="{ReflectionBinding Url}">
+                  <TextBlock Text="{ReflectionBinding Label}" />
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Border>
+
+        <!--  Third-Party Libraries  -->
+        <TextBlock Classes="SectionHeader" Text="Third-Party Libraries" />
+        <Border Classes="SectionBorder">
+          <StackPanel Spacing="2">
+            <TextBlock
+              Margin="0,0,0,8"
+              Foreground="#888888"
+              Text="MermaidPad uses the following open-source projects:" />
+            <ItemsControl ItemsSource="{Binding ThirdPartyLibraries}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Margin="0,3" Orientation="Horizontal">
+                    <Button
+                      Classes="Link"
+                      Click="OnLinkClick"
+                      Tag="{ReflectionBinding Url}">
+                      <TextBlock FontWeight="SemiBold" Text="{ReflectionBinding Name}" />
+                    </Button>
+                    <TextBlock
+                      Margin="6,0,0,0"
+                      Foreground="#888888"
+                      Text="{ReflectionBinding Description, StringFormat='- {0}'}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!--  Close Button  -->
+    <StackPanel
+      Grid.Row="2"
+      Margin="0,10,0,0"
+      HorizontalAlignment="Right"
+      Orientation="Horizontal">
+      <Button
+        Width="100"
+        Click="OnCloseClick"
+        Content="Close"
+        IsDefault="True"
+        IsCancel="True" />
+    </StackPanel>
+  </Grid>
+</Window>

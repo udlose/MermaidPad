@@ -2026,13 +2026,23 @@ internal sealed partial class MainWindowViewModel :
     [RelayCommand]
     private void ViewLogs()
     {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
         //TODO refactor this path construction into a common utility method
         string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MermaidPad");
 
         try
         {
             // Use ShellExecute to open the directory in the default file explorer
-            using Process? process = Process.Start(new ProcessStartInfo(logDirectory) { UseShellExecute = true });
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = logDirectory,
+                UseShellExecute = true
+            };
+            using Process? process = Process.Start(startInfo);
         }
         catch (Exception ex)
         {
@@ -2040,6 +2050,45 @@ internal sealed partial class MainWindowViewModel :
 
             ShowErrorMessageAsync("Failed to open log directory. " + ex.Message)
                 .SafeFireAndForget(onException: logEx => _logger.LogError(logEx, "Failed to show error message dialog."));
+        }
+    }
+
+    /// <summary>
+    /// Displays the About dialog containing application information, version details,
+    /// environment info, links, and third-party library attributions.
+    /// </summary>
+    /// <remarks>
+    /// This command creates a new <see cref="Dialogs.AboutDialogViewModel"/> via the dialog factory
+    /// and displays it as a modal dialog. The dialog is read-only and requires no special cleanup.
+    /// </remarks>
+    [RelayCommand]
+    private async Task ShowAboutAsync()
+    {
+        if (_isDisposed || _shutdownCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            Window? mainWindow = GetParentWindow();
+            if (mainWindow is null)
+            {
+                return;
+            }
+
+            AboutDialogViewModel aboutViewModel = _dialogFactory.CreateViewModel<AboutDialogViewModel>();
+            AboutDialog aboutDialog = new AboutDialog
+            {
+                DataContext = aboutViewModel
+            };
+
+            // NO ConfigureAwait(false) - ShowDialog needs UI thread
+            await aboutDialog.ShowDialog(mainWindow);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show About dialog");
         }
     }
 
