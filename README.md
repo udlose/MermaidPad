@@ -1,4 +1,7 @@
-# MermaidPad
+<h1>
+  <img src="Assets/SplashScreen.png" alt="MermaidPad" width="72" style="vertical-align: middle;" />
+  MermaidPad
+</h1>
 
 [![Release](https://img.shields.io/github/v/release/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/releases/latest)
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)

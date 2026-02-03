@@ -250,50 +250,6 @@ internal sealed partial class DocumentAnalyzer
         return _cachedFrontmatterEndLine;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    ///// <summary>
-    ///// Determines whether the document contains a valid frontmatter section with both opening and closing delimiters.
-    ///// </summary>
-    ///// <remarks>
-    ///// A document has frontmatter only if both the opening <c>---</c> and closing <c>---</c> delimiters
-    ///// are present. An unclosed frontmatter section (only opening delimiter) does not count as valid frontmatter.
-    ///// </remarks>
-    ///// <param name="document">The text document to analyze. Cannot be null.</param>
-    ///// <returns><see langword="true"/> if the document has properly delimited frontmatter; otherwise, <see langword="false"/>.</returns>
-    ///// <exception cref="ArgumentNullException">Thrown if <paramref name="document"/> is null.</exception>
-    //internal bool HasFrontmatter(TextDocument document)
-    //{
-    //    ArgumentNullException.ThrowIfNull(document);
-
-    //    UpdateFrontmatterCache(document);
-    //    return _cachedFrontmatterStartLine > 0 && _cachedFrontmatterEndLine > 0;
-    //}
-
-
-
-
-
-
-
-
-
-
-
-
-
     #endregion Frontmatter internal API
 
     #region Diagram type internal API
@@ -669,7 +625,7 @@ internal sealed partial class DocumentAnalyzer
     /// <returns>Normalized line text.</returns>
     private static string GetNormalizedDeclarationText(TextDocument document, DocumentLine line)
     {
-        //TODO - this method allocates at least 3 different times:
+        //TODO - DaveBlack: this method allocates at least 3 different times:
         // 1. call to GetText
         // 2. Trim() creates a new string if there is leading/trailing whitespace
         // 3. Regex.Replace creates a new string if there is internal whitespace to collapse
