@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using TextMateSharp.Grammars;
@@ -43,7 +44,9 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
     internal const string GrammarResourceName = "MermaidPad.Resources.Grammars.mermaid.tmLanguage.json";
 
     private readonly IRawTheme _theme;
-    private readonly Lazy<IRawGrammar> _mermaidGrammar;
+    private static readonly Lazy<IRawGrammar> _mermaidGrammar = new Lazy<IRawGrammar>(LoadMermaidGrammar);
+    private static readonly ConcurrentDictionary<ThemeName, Lazy<IRawTheme>> _themeCache =
+        new ConcurrentDictionary<ThemeName, Lazy<IRawTheme>>();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MermaidRegistryOptions"/> class.
@@ -51,8 +54,8 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
     /// <param name="themeName">The TextMate theme to use for syntax highlighting.</param>
     public MermaidRegistryOptions(ThemeName themeName)
     {
-        _theme = LoadTheme(themeName);
-        _mermaidGrammar = new Lazy<IRawGrammar>(LoadMermaidGrammar);
+        Lazy<IRawTheme> themeLazy = _themeCache.GetOrAdd(themeName, CreateThemeLazy);
+        _theme = themeLazy.Value;
     }
 
     /// <summary>
@@ -88,10 +91,7 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
     /// </summary>
     /// <param name="isDarkTheme">Whether the current theme is dark.</param>
     /// <returns>The appropriate theme name for the current theme variant.</returns>
-    public static ThemeName GetDefaultThemeName(bool isDarkTheme)
-    {
-        return isDarkTheme ? ThemeName.DarkPlus : ThemeName.Light;
-    }
+    public static ThemeName GetDefaultThemeName(bool isDarkTheme) => isDarkTheme ? ThemeName.DarkPlus : ThemeName.Light;
 
     /// <summary>
     /// Returns the default theme used by the application.
@@ -107,25 +107,22 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
     /// <exception cref="InvalidOperationException">Thrown if the grammar cannot be parsed.</exception>
     private static IRawGrammar LoadMermaidGrammar()
     {
-        Assembly assembly = Assembly.GetExecutingAssembly();
+        Assembly assembly = typeof(MermaidRegistryOptions).Assembly;
 
         using Stream stream = assembly.GetManifestResourceStream(GrammarResourceName)
             ?? throw new FileNotFoundException(
                 $"Mermaid grammar resource not found. Expected resource: {GrammarResourceName}. Ensure the file is marked as EmbeddedResource in the project file.");
 
-        using StreamReader reader = new StreamReader(stream);
-        string grammarJson = reader.ReadToEnd();
-
         try
         {
-            byte[] grammarAsBytes = Encoding.UTF8.GetBytes(grammarJson);
-            using MemoryStream themeStream = new MemoryStream(grammarAsBytes);
-            using StreamReader themeReader = new StreamReader(themeStream);
-            return GrammarReader.ReadGrammarSync(themeReader);
+            using StreamReader reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return GrammarReader.ReadGrammarSync(reader);
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to parse Mermaid grammar. The grammar file may be corrupted or invalid. Error: {ex.Message}", ex);
+            throw new InvalidOperationException(
+                $"Failed to parse Mermaid grammar. The grammar file may be corrupted or invalid. Error: {ex.Message}",
+                ex);
         }
     }
 
@@ -150,18 +147,23 @@ public sealed class MermaidRegistryOptions : IRegistryOptions
             using Stream stream = assembly.GetManifestResourceStream(resourceName)
                 ?? throw new FileNotFoundException($"Theme resource not found: {resourceName}");
 
-            using StreamReader reader = new StreamReader(stream);
-            string themeJson = reader.ReadToEnd();
-
-            using MemoryStream themeStream = new MemoryStream(Encoding.UTF8.GetBytes(themeJson));
-            using StreamReader themeReader = new StreamReader(themeStream);
-            return ThemeReader.ReadThemeSync(themeReader);
+            using StreamReader reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            return ThemeReader.ReadThemeSync(reader);
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Failed to load TextMate theme '{themeName}'. Error: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// Creates a lazily initialized theme instance for the specified theme name.
+    /// </summary>
+    /// <param name="themeName">The name of the theme to be loaded when the value is accessed.</param>
+    /// <returns>A <see cref="Lazy{IRawTheme}"/> that loads the theme associated with <paramref name="themeName"/> when its value
+    /// is first accessed.</returns>
+    private static Lazy<IRawTheme> CreateThemeLazy(ThemeName themeName)
+        => new Lazy<IRawTheme>(() => LoadTheme(themeName));
 
     /// <summary>
     /// Retrieves the file name of the JSON theme file corresponding to the specified theme.

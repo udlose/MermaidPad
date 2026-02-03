@@ -124,7 +124,8 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
         try
         {
             // Initialize syntax highlighting
-            InitializeSyntaxHighlighting();
+            InitializeSyntaxHighlightingAsync()
+                .SafeFireAndForget(onException: ex => _logger.LogWarning(ex, "Failed to initialize syntax highlighting"));
 
             // Initialize intellisense
             InitializeIntellisense();
@@ -243,7 +244,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
                 return;
             }
 
-            // If the VM changed (or we cleared it during detach), unwind old wiring and adopt the new VM reference.
+            // If the VM changed (or we cleared it during detach), unwind old wiring and adopt the new VM reference
             if (!ReferenceEquals(_vm, dataContextViewModel))
             {
                 UnsubscribeViewModelEventHandlers(_vm);
@@ -252,7 +253,7 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
                 AtomicVersion.Increment(ref _viewModelVersion);
             }
 
-            // Always "ensure bindings" on attach; wiring is idempotent.
+            // Always "ensure bindings" on attach; wiring is idempotent
             SetupViewModelBindings();
         }
         catch (Exception ex)
@@ -1451,14 +1452,21 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
     #region Syntax Highlighting
 
     /// <summary>
-    /// Initializes syntax highlighting for the text editor.
+    /// Initializes syntax highlighting for the editor asynchronously.
     /// </summary>
-    private void InitializeSyntaxHighlighting()
+    /// <remarks>
+    /// This method applies syntax highlighting to the editor and logs the result. If initialization
+    /// fails, a warning is logged and the editor may not display syntax highlighting as expected.
+    /// </remarks>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.
+    /// Default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>A task that represents the asynchronous initialization operation.</returns>
+    private async Task InitializeSyntaxHighlightingAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             _syntaxHighlightingService.Initialize();
-            _syntaxHighlightingService.ApplyTo(Editor);
+            await _syntaxHighlightingService.ApplyToAsync(Editor, themeName: null, cancellationToken: cancellationToken);
             _logger.LogInformation("Syntax highlighting initialized successfully");
         }
         catch (Exception ex)
@@ -1472,13 +1480,28 @@ public sealed partial class MermaidEditorView : UserControl, IViewModelVersionSo
     /// </summary>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>
+    /// <remarks>
+    /// This handler is intentionally declared as <c>async void</c>.
+    /// <para>
+    /// In C#, <c>async void</c> should generally be avoided because callers cannot await it and exceptions cannot be
+    /// observed via a returned <see cref="Task"/>. The primary exception is top-level event handlers, where the event
+    /// delegate signature requires <c>void</c>.
+    /// </para>
+    /// <para>
+    /// We use <c>async</c> here so we can <c>await</c> the asynchronous theme-update operation and keep the UI thread
+    /// responsive during theme transitions. Exceptions are handled inside this method via the enclosing <c>try/catch</c>
+    /// and logged, since there is no caller to observe faults.
+    /// </para>
+    /// </remarks>
     [SuppressMessage("ReSharper", "UnusedParameter.Local", Justification = "Event handler signature requires these parameters")]
-    private void OnThemeChanged(object? sender, EventArgs e)
+    [SuppressMessage("ReSharper", "AsyncVoidEventHandlerMethod", Justification = "This is an event handler, so async void is appropriate here.")]
+    [SuppressMessage("Usage", "VSTHRD100:Avoid async void methods", Justification = "This is an event handler, so async void is appropriate here.")]
+    private async void OnThemeChanged(object? sender, EventArgs e)
     {
         try
         {
             bool isDarkTheme = Application.Current?.ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark;
-            _syntaxHighlightingService.UpdateThemeForVariant(isDarkTheme);
+            await _syntaxHighlightingService.UpdateThemeForVariantAsync(isDarkTheme);
         }
         catch (Exception ex)
         {
