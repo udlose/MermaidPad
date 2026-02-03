@@ -52,7 +52,7 @@ namespace MermaidPad;
 public sealed partial class App : Application, IDisposable
 {
     private const int StringBuilderInitialCapacity = 512;
-    public static IServiceProvider Services { get; private set; } = null!;
+    internal static IServiceProvider Services { get; private set; } = null!;
     private static readonly string[] _newlineCharacters = ["\r\n", "\r", "\n"];
 
     private IClassicDesktopStyleApplicationLifetime? _desktopLifetime;
@@ -1069,7 +1069,7 @@ public sealed partial class App : Application, IDisposable
     /// Releases all resources used by the current instance of the class.
     /// </summary>
     /// <remarks>Call this method when you are finished using the object to free unmanaged resources and
-    /// perform other cleanup operations. After calling <see cref="Dispose"/>, the object should not be used.</remarks>
+    /// perform other cleanup operations. After calling <see cref="Dispose()"/>, the object should not be used.</remarks>
     [SuppressMessage("ReSharper", "GCSuppressFinalizeForTypeWithoutDestructor", Justification = "No unmanaged resources to finalize.")]
     public void Dispose()
     {
