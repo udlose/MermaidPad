@@ -269,13 +269,11 @@ public sealed class SyntaxHighlightingService : IDisposable, IAsyncDisposable
 
             lock (_sync)
             {
-                //TODO - DaveBlack: For MDI this class will need to be refactored (currently SyntaxHighlightingService is a singleton and supports only a single editor instance)
-                // This makes SDI deterministic and fails loudly in MDI scenarios
-                if (_currentEditor is not null && !ReferenceEquals(_currentEditor, editor))
+                // When the TextEditor is re-created from a Docking operation (pin/unpin), we will be creating a new installation
+                if (_currentEditor is not null && !ReferenceEquals(_currentEditor, editor) && _textMateInstallation is not null)
                 {
-                    throw new InvalidOperationException(
-                        $"{nameof(SyntaxHighlightingService)} is a singleton and is already attached to a different {nameof(TextEditor)} instance. " +
-                        "This configuration supports SDI only. For MDI, register per-editor/per-view or redesign the service to track multiple editors.");
+                    // Dispose the _textMateInstallation
+                    DisposeInstallationSafely(_textMateInstallation);
                 }
 
                 if (_isDisposed)
