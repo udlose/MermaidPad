@@ -205,6 +205,8 @@
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Command="{Binding ViewLogsCommand}" Header="View _Logs" />
+        <Separator />
+        <MenuItem Command="{Binding ShowAboutCommand}" Header="_About MermaidPad" />
       </MenuItem>
     </Menu>
 

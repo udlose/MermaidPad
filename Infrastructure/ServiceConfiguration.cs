@@ -193,6 +193,7 @@ public static class ServiceConfiguration
         services.AddTransient<ProgressDialogViewModel>();
         services.AddTransient<MessageDialogViewModel>();
         services.AddTransient<ConfirmationDialogViewModel>();
+        services.AddTransient<AboutDialogViewModel>();
     }
 
     /// <summary>

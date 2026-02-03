@@ -145,12 +145,16 @@
     </ItemGroup>
 
     <ItemGroup>
-        <AdditionalFiles Remove="Dialogs/MessageDialog.axaml" />
-        <AdditionalFiles Remove="Dialogs/ExportDialog.axaml" />
-        <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/AboutDialog.axaml" />
         <AdditionalFiles Remove="Views/Dialogs/ConfirmationDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/ExportDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/MessageDialog.axaml" />
+        <AdditionalFiles Remove="Views/Dialogs/ProgressDialog.axaml" />
+        <AdditionalFiles Remove="Views/Docking/DiagramToolView.axaml" />
+        <AdditionalFiles Remove="Views/Docking/MermaidEditorToolView.axaml" />
         <AdditionalFiles Remove="Views/UserControls/DiagramView.axaml" />
         <AdditionalFiles Remove="Views/UserControls/MermaidEditorView.axaml" />
+        <AdditionalFiles Remove="Views/MainWindow.axaml" />
         <AdditionalFiles Remove="Views/SplashWindow.axaml" />
     </ItemGroup>
 
@@ -183,22 +187,34 @@
         <None Include="Assets/AppIcon.icns" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
-        <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
-            <SubType>Designer</SubType>
-        </AvaloniaXaml>
-        <AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
-            <SubType>Designer</SubType>
-        </AvaloniaXaml>
-        <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
+        <AvaloniaXaml Update="Views/Dialogs/AboutDialog.axaml">
             <SubType>Designer</SubType>
         </AvaloniaXaml>
         <AvaloniaXaml Update="Views/Dialogs/ConfirmationDialog.axaml">
             <SubType>Designer</SubType>
         </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/ExportDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/MessageDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Dialogs/ProgressDialog.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Docking/DiagramToolView.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/Docking/MermaidEditorToolView.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>        
         <AvaloniaXaml Update="Views/UserControls/DiagramView.axaml">
             <SubType>Designer</SubType>
         </AvaloniaXaml>
         <AvaloniaXaml Update="Views/UserControls/MermaidEditorView.axaml">
+            <SubType>Designer</SubType>
+        </AvaloniaXaml>
+        <AvaloniaXaml Update="Views/MainWindow.axaml">
             <SubType>Designer</SubType>
         </AvaloniaXaml>
         <AvaloniaXaml Update="Views/SplashWindow.axaml">
