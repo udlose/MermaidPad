@@ -109,7 +109,7 @@ internal sealed class SettingsService
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
-                Debug.WriteLine("Settings file name validation failed on load.");
+                _logger?.LogError("Settings file name validation failed on load.");
                 return new AppSettings();
             }
 
@@ -219,14 +219,14 @@ internal sealed class SettingsService
 
             if (!fullSettingsPath.StartsWith(fullConfigDir, StringComparison.OrdinalIgnoreCase))
             {
-                Debug.WriteLine("Settings path validation failed on save.");
+                _logger?.LogError("Settings path validation failed on save.");
                 return;
             }
 
             // Additional validation: ensure the file name is exactly "settings.json"
             if (Path.GetFileName(fullSettingsPath) != SettingsFileName)
             {
-                Debug.WriteLine("Settings file name validation failed on save.");
+                _logger?.LogError("Settings file name validation failed on save.");
                 return;
             }
 
