@@ -95,7 +95,7 @@ public static class AppMetadata
     /// Gets the descriptive tagline for the product, used for display in user interfaces and metadata.
     /// </summary>
     public static string Tagline =>
-        Comments ?? Title ?? "MermaidPad - a live Mermaid diagram editor with preview and export.";
+        Comments ?? "MermaidPad - a live Mermaid diagram editor with preview and export.";
 
     /// <summary>
     /// Gets the title of the assembly, as specified by the <see cref="AssemblyTitleAttribute"/>.
