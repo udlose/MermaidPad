@@ -1,4 +1,4 @@
-﻿// eslint.config.mjs
+// eslint.config.mjs
 import js from '@eslint/js';
 import html from 'eslint-plugin-html';
 import globals from 'globals';

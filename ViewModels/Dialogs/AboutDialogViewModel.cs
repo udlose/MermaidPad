@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 using Serilog;
-using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
@@ -144,12 +143,13 @@ internal sealed class AboutDialogViewModel : ViewModelBase
     /// <summary>
     /// Gets the collection of About dialog links (GitHub, Issues, Discussions).
     /// </summary>
-    public FrozenSet<AboutLink> Links { get; } = new AboutLink[]
-    {
-        new("GitHub Homepage", GitHubBaseUrl),
+    public List<AboutLink> Links { get; } =
+    [
+        new("MermaidPad Homepage", GitHubBaseUrl),
         new("Report an Issue", $"{GitHubBaseUrl}/issues"),
         new("Discussions", $"{GitHubBaseUrl}/discussions"),
-    }.ToFrozenSet();
+        new("MermaidPad on gitter/matrix", $"https://matrix.to/#/#mermaidpad:matrix.org")
+    ];
 
     #endregion Links
 
@@ -158,23 +158,27 @@ internal sealed class AboutDialogViewModel : ViewModelBase
     /// <summary>
     /// Gets the collection of third-party libraries used by MermaidPad.
     /// </summary>
-    public FrozenSet<ThirdPartyLibrary> ThirdPartyLibraries { get; } = new ThirdPartyLibrary[]
-    {
-        new ThirdPartyLibrary("Microsoft .NET", "Cross-platform application framework", "https://dotnet.microsoft.com"),
-        new ThirdPartyLibrary("Avalonia UI", "Cross-platform desktop UI framework", "https://avaloniaui.net"),
-        new ThirdPartyLibrary("MermaidJS", "Diagram rendering engine", "https://mermaid.js.org"),
-        new ThirdPartyLibrary("js-yaml", "YAML parsing for frontmatter support", "https://github.com/nodeca/js-yaml"),
-        new ThirdPartyLibrary("panzoom", "Zoom and pan interactions", "https://github.com/anvaka/panzoom"),
-        new ThirdPartyLibrary("@mermaid-js/layout-elk", "ELK layout algorithm support", "https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-elk"),
-        new ThirdPartyLibrary("TextMateSharp", "Syntax highlighting in AvaloniaEdit", "https://github.com/nicknamenamenick/TextMateSharp"),
-        new ThirdPartyLibrary("vscode-mermaid-syntax-highlight", "Mermaid diagram syntax definition", "https://github.com/bpruitt-goddard/vscode-mermaid-syntax-highlight"),
-        new ThirdPartyLibrary("AvaloniaEdit", "Text editor component", "https://github.com/AvaloniaUI/AvaloniaEdit"),
+    public List<ThirdPartyLibrary> ThirdPartyLibraries { get; } =
+    [
+        new ThirdPartyLibrary("Microsoft .NET", "Cross-platform application framework", "https://github.com/dotnet"),
+        new ThirdPartyLibrary("AsyncAwaitBestPractices", "Async/await helpers", "https://github.com/brminnick/AsyncAwaitBestPractices"),
+        new ThirdPartyLibrary("Avalonia UI", "Cross-platform desktop UI framework", "https://github.com/AvaloniaUI/Avalonia"),
+        new ThirdPartyLibrary("Avalonia.AvaloniaEdit", "Text Editor component", "https://github.com/AvaloniaUI/AvaloniaEdit"),
         new ThirdPartyLibrary("CommunityToolkit.Mvvm", "MVVM patterns and source generators", "https://github.com/CommunityToolkit/dotnet"),
-        new ThirdPartyLibrary("Serilog", "Structured logging framework", "https://serilog.net"),
-        new ThirdPartyLibrary("SkiaSharp", "2D graphics and PNG export conversion", "https://github.com/nicknamenamenick/SkiaSharp"),
         new ThirdPartyLibrary("Dock.Avalonia", "Dockable panel layout system", "https://github.com/wieslawsoltes/Dock"),
-        new ThirdPartyLibrary("AsyncAwaitBestPractices", "Async/await helpers and SafeFireAndForget", "https://github.com/brminnick/AsyncAwaitBestPractices"),
-    }.ToFrozenSet();
+        new ThirdPartyLibrary("JetBrains Resharper Annotations", "C# code analysis tooling", "https://github.com/JetBrains/JetBrains.Annotations"),
+        new ThirdPartyLibrary("mermaid-js", "Diagram rendering engine", "https://github.com/mermaid-js/mermaid"),
+        new ThirdPartyLibrary("mermaid-js/layout-elk", "ELK layout algorithm support", "https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-elk"),
+        new ThirdPartyLibrary("mermaid-js/layout-tidy-tree", "Bidirectional Tidy Tree layout algorithm support", "https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid-layout-tidy-tree"),
+        new ThirdPartyLibrary("panzoom", "Zoom and pan interactions", "https://github.com/timmywil/panzoom"),
+        new ThirdPartyLibrary("Roslynator","C# code analysis tooling", "https://github.com/dotnet/roslynator"),
+        new ThirdPartyLibrary("Serilog", "Structured logging framework", "https://github.com/serilog/serilog"),
+        new ThirdPartyLibrary("SkiaSharp", "2D graphics and PNG export conversion", "https://github.com/nicknamenamenick/SkiaSharp"),
+        new ThirdPartyLibrary("SVG.Skia", "SVG rendering engine", "https://github.com/wieslawsoltes/Svg.Skia"),
+        new ThirdPartyLibrary("TextMateSharp", "Syntax highlighting in AvaloniaEdit", "https://github.com/danipen/TextMateSharp"),
+        new ThirdPartyLibrary("vscode-mermaid-syntax-highlight", "Mermaid diagram syntax definition", "https://github.com/bpruitt-goddard/vscode-mermaid-syntax-highlight"),
+        new ThirdPartyLibrary("Webview.Avalonia","Cross-platform browser engine","https://github.com/MicroSugarDeveloperOrg/Webviews.Avalonia"),
+    ];
 
     #endregion Third-Party Libraries
 

@@ -6,13 +6,14 @@
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels.Dialogs"
   Title="About MermaidPad"
-  Width="600"
-  Height="650"
+  MaxWidth="600"
+  MaxHeight="600"
   d:DesignHeight="650"
   d:DesignWidth="600"
   x:DataType="vm:AboutDialogViewModel"
   CanResize="False"
   ShowInTaskbar="False"
+  SizeToContent="WidthAndHeight"
   WindowStartupLocation="CenterOwner"
   mc:Ignorable="d">
 
@@ -27,8 +28,8 @@
       <Setter Property="BorderBrush" Value="#E0E0E0" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="4" />
-      <Setter Property="Padding" Value="10" />
-      <Setter Property="Margin" Value="0,5,0,10" />
+      <Setter Property="Padding" Value="5" />
+      <Setter Property="Margin" Value="0,2,0,6" />
     </Style>
 
     <!--  Clickable link style  -->
@@ -47,9 +48,15 @@
     <Style Selector="Button.Link:pointerover > TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorSecondary}" />
     </Style>
+
+    <Style Selector="Grid.OptionRow">
+      <Setter Property="Margin" Value="0,5" />
+      <!--      <Setter Property="Background" Value="#19191b" />-->
+    </Style>
+
   </Window.Styles>
 
-  <Grid Margin="20" RowDefinitions="Auto,*,Auto">
+  <Grid Margin="5" RowDefinitions="Auto,*,Auto">
 
     <!--  Header: Logo + App Identity (LINQPad-inspired)  -->
     <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
@@ -96,15 +103,18 @@
     <!--  Scrollable Content  -->
     <ScrollViewer
       Grid.Row="1"
-      Margin="0,10,0,0"
+      Margin="0,5,0,0"
+      Padding="5,0,0,0"
       HorizontalScrollBarVisibility="Disabled"
       VerticalScrollBarVisibility="Auto">
-      <StackPanel>
-
+      <StackPanel Margin="0,0,20,0">
         <!--  Version & Build Info  -->
         <TextBlock Classes="SectionHeader" Text="Version &amp; Build Info" />
         <Border Classes="SectionBorder">
-          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <Grid
+            Classes="OptionRow"
+            ColumnDefinitions="100,*"
+            RowDefinitions="Auto,Auto,Auto,Auto">
 
             <TextBlock
               Grid.Row="0"
@@ -159,7 +169,10 @@
         <!--  Environment Info  -->
         <TextBlock Classes="SectionHeader" Text="Environment" />
         <Border Classes="SectionBorder">
-          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <Grid
+            Classes="OptionRow"
+            ColumnDefinitions="100,*"
+            RowDefinitions="Auto,Auto,Auto,Auto">
 
             <TextBlock
               Grid.Row="0"
@@ -249,7 +262,8 @@
                     <TextBlock
                       Margin="6,0,0,0"
                       Foreground="#888888"
-                      Text="{ReflectionBinding Description, StringFormat='- {0}'}" />
+                      Text="{ReflectionBinding Description,
+                                               StringFormat='- {0}'}" />
                   </StackPanel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -264,14 +278,14 @@
     <StackPanel
       Grid.Row="2"
       Margin="0,10,0,0"
-      HorizontalAlignment="Right"
+      HorizontalAlignment="Center"
       Orientation="Horizontal">
       <Button
         Width="100"
         Click="OnCloseClick"
         Content="Close"
-        IsDefault="True"
-        IsCancel="True" />
+        IsCancel="True"
+        IsDefault="True" />
     </StackPanel>
   </Grid>
 </Window>

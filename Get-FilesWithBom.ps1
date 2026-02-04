@@ -7,6 +7,10 @@ Lists files that start with a Unicode byte order mark (BOM).
 Recursively scans files under a root folder and returns objects for files that
 start with a known BOM (UTF-8 / UTF-16 LE+BE / UTF-32 LE+BE). [web:120]
 
+Certain directories are intentionally excluded from scanning, along with all
+their subfolders and files, to avoid build outputs, IDE metadata, and dependency
+trees (for example: .git, bin, obj, node_modules).
+
 .PARAMETER Root
 Root directory to scan. Defaults to current directory.
 
@@ -14,7 +18,7 @@ Root directory to scan. Defaults to current directory.
 One or more wildcard patterns passed to Get-ChildItem -Include (for example: *.cs, *.md). [web:119]
 
 .EXAMPLE
-Get-FilesWithBom -Root . -Include @("*.cs","*.csproj","*.sln") | Sort-Object Bom, Path
+Get-FilesWithBom -Root . -Include @("*.cs","*.csproj","*.html","*.*js","*.sln","*.md","*.yml") | Sort-Object Bom, Path
 
 Lists BOM-bearing files in typical .NET source formats.
 
@@ -26,7 +30,36 @@ Finds BOMs across the entire repo (can be slower on large repos).
 #>
     param(
         [string] $Root = ".",
-        [string[]] $Include = @("*")
+        [string[]] $Include = @(
+            "*.axaml",
+            "*.cs",
+            "*.csproj",
+            "*.*config",
+            "*.*settings",
+            "*.gitignore",
+            "*.html",
+            "*.ic*",
+            "*.*js*",
+            "*.manifest",
+            "*.*md",
+            "*.plist",
+            "*.png",
+            "*.props",
+            "*.ps1",
+            "*.sln*",
+            "*.targets",
+            "*.txt",
+            "*.yaml",
+            "*.yml") #@("*")
+    )
+
+    $excludedDirectories = @(
+        '.git',
+        '.vs',
+        '.vscode',
+        'bin',
+        'obj',
+        'node_modules'
     )
 
     $boms = @(
@@ -39,6 +72,12 @@ Finds BOMs across the entire repo (can be slower on large repos).
 
     foreach ($pattern in $Include) {
         Get-ChildItem -Path $Root -Recurse -File -Include $pattern -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            $fullPath = $_.FullName
+            -not ($excludedDirectories | Where-Object {
+                $fullPath -match "(^|[\\/])$([regex]::Escape($_))([\\/]|$)"
+            })
+        } |
         ForEach-Object {
             $path = $_.FullName
 
@@ -78,6 +117,9 @@ each file with those first 3 bytes removed, leaving the rest of the file intact.
 This function intentionally removes only UTF-8 BOMs; UTF-16/UTF-32 BOM files are
 reported by Get-FilesWithBom but not modified. [web:120]
 
+Directory exclusions applied by Get-FilesWithBom (for example: .git, bin, obj,
+node_modules) also apply here, since this function operates on its results.
+
 The function supports -WhatIf (dry run) and -Confirm via SupportsShouldProcess. [web:99]
 
 .PARAMETER Root
@@ -92,13 +134,13 @@ Writes a table of targeted UTF-8 BOM files to the host, and performs edits unles
 
 .EXAMPLE
 # Dry run: list what would change (no writes)
-Remove-Utf8BomRecursively -Root . -Include @("*.cs","*.csproj","*.sln","*.md","*.yml") -WhatIf
+Remove-Utf8BomRecursively -Root . -Include @("*.cs","*.csproj","*.html","*.*js","*.sln","*.md","*.yml") -WhatIf
 
 Shows the files that would be rewritten and prints "What if:" messages. [web:99]
 
 .EXAMPLE
 # Real run: remove UTF-8 BOMs
-Remove-Utf8BomRecursively -Root . -Include @("*.cs","*.csproj","*.sln","*.md","*.yml")
+Remove-Utf8BomRecursively -Root . -Include @("*.cs","*.csproj","*.html","*.*js","*.sln","*.md","*.yml")
 
 Afterwards, review changes with git diff and commit the normalization.
 
@@ -106,12 +148,32 @@ Afterwards, review changes with git diff and commit the normalization.
 # Get full help (after dot-sourcing or importing the script/module)
 Get-Help Remove-Utf8BomRecursively -Full
 
-Displays this documentation in the standard Get-Help format. [web:120]
+Displays this documentation in the standard Get-Help format
 #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param(
         [string] $Root = ".",
-        [string[]] $Include = @("*.cs")
+        [string[]] $Include = @(
+            "*.axaml",
+            "*.cs",
+            "*.csproj",
+            "*.*config",
+            "*.*settings",
+            "*.gitignore",
+            "*.html",
+            "*.ic*",
+            "*.*js*",
+            "*.manifest",
+            "*.*md",
+            "*.plist",
+            "*.png",
+            "*.props",
+            "*.ps1",
+            "*.sln*",
+            "*.targets",
+            "*.txt",
+            "*.yaml",
+            "*.yml") #@("*")
     )
 
     $utf8BomFiles =

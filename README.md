@@ -7,7 +7,7 @@
 [![Build and Release](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/build-and-release.yml)
 [![CodeQL](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/codeql-main.yml)
 [![OSSF Scorecard supply-chain security](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml/badge.svg)](https://github.com/udlose/MermaidPad/actions/workflows/scorecard.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/udlose/MermaidPad/badge)](https://scorecard.dev/viewer/?uri=github.com/udlose/MermaidPad)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/udlose/MermaidPad/badge?style=flat-square)](https://scorecard.dev/viewer/?uri=github.com/udlose/MermaidPad)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11823/badge?v=1)](https://www.bestpractices.dev/projects/11823)
 [![Stars](https://img.shields.io/github/stars/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/stargazers)
 [![Forks](https://img.shields.io/github/forks/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/network/members)
@@ -17,7 +17,12 @@
 [![Top Language](https://img.shields.io/github/languages/top/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad)
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
 [![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
-[![wakatime](https://wakatime.com/badge/github/udlose/MermaidPad.svg)](https://wakatime.com/badge/github/udlose/MermaidPad)
+[![wakatime](https://wakatime.com/badge/github/udlose/MermaidPad.svg?style=flat-square)](https://wakatime.com/badge/github/udlose/MermaidPad)
+![Endpoint Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Floc-counter.onrender.com%2F%3Frepo%3Dudlose%2FMermaidPad%26branch%3Ddevelop&label=lines%20of%20code&color=orange)
+
+<!--[![Lines of Code](https://img.shields.io/tokei/lines/github/udlose/MermaidPad?style=flat-square)]-->
+<!--[![Codacy Badge](https://app.codacy.com/project/badge/Grade/3f4e1f3f3b6e4e2fa6f3e4e2fa6f3e4e2)](https://www.codacy.com/gh/udlose/MermaidPad/dashboard?utm_source=github.com&utm_medium=referral&utm_content=udlose/MermaidPad&utm_campaign=Badge_Grade)-->
+[![Chat on Gitter](https://img.shields.io/gitter/room/matrix/MermaidPad?style=flat-square)](https://matrix.to/#/#mermaidpad:matrix.org)
 
 ---
 
@@ -1216,4 +1221,8 @@ If you find MermaidPad useful, consider supporting development:
 
 ## Contact
 
-For questions or feedback, please open an issue or reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions).
+For questions or feedback, you can:
+
+- open an issue on [GitHub Issues](https://github.com/udlose/MermaidPad/issues)
+- reach out via [GitHub Discussions](https://github.com/udlose/MermaidPad/discussions)
+- connect on [![gitter](https://img.shields.io/gitter/room/matrix/MermaidPad?style=flat-square)](https://matrix.to/#/#mermaidpad:matrix.org)
