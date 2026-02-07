@@ -140,6 +140,29 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Initializes a new instance of the ExportDialogViewModel class for use at design time.
+    /// </summary>
+    /// <remarks>This constructor is intended solely for design-time support in visual designers. At runtime,
+    /// dependencies will not be initialized and functionality will be limited. For normal operation, use the
+    /// constructor that accepts parameters.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called outside of design mode.
+    /// Use the constructor with parameters for runtime usage.</exception>
+    public ExportDialogViewModel()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("For runtime usage, use the constructor that accepts the required dependencies: " +
+                $"(for example via {nameof(IDialogFactory)} or dependency injection).");
+        }
+
+        // only used for designer, dependencies will be null and functionality will be limited
+        _logger = null!;
+        _dialogFactory = null!;
+        AvailableFormats = new ObservableCollection<ExportFormatItem>();
+        AvailableDpiValues = new ObservableCollection<int>();
+    }
+
+    /// <summary>
     /// Initializes a new instance of the ExportDialogViewModel class with the specified image conversion and export
     /// services.
     /// </summary>

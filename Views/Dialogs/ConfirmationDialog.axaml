@@ -12,6 +12,10 @@
   SizeToContent="Height"
   WindowStartupLocation="CenterOwner">
 
+  <Design.DataContext>
+    <vm:ConfirmationDialogViewModel Title="[Design] Are you really sure?" Message="Sample message for design-time preview." />
+  </Design.DataContext>
+
   <DockPanel Margin="20">
     <StackPanel
       Margin="0,20,0,0"

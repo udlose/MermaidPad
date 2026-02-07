@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.ViewModels.Dialogs.Configs;
@@ -42,6 +43,28 @@ namespace MermaidPad.Views.Dialogs;
 [SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated by DI through IDialogFactory and ActivatorUtilities.CreateInstance.")]
 internal sealed partial class MessageDialog : DialogBase
 {
+    /// <summary>
+    /// Initializes a new instance of the MessageDialog class. This constructor is intended for use by the designer or
+    /// serialization tools only.
+    /// </summary>
+    /// <remarks>To create a MessageDialog at runtime, use the IDialogFactory to ensure proper initialization
+    /// with the required view model and configuration. Direct instantiation outside of design mode is not supported and
+    /// will result in an exception.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called at runtime instead of through the IDialogFactory with a
+    /// <see cref="MessageDialogViewModel"/>. Use the constructor with parameters for runtime usage.</exception>
+    public MessageDialog()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("The parameterless constructor is for design-time use only. " +
+                $"{nameof(MessageDialog)} must be instantiated with a {nameof(MessageDialogViewModel)} and {nameof(MessageDialogConfig)} through the IDialogFactory.");
+        }
+
+        // only initialize the component in design mode to avoid issues with missing
+        // dependencies at runtime when this constructor is not intended to be used
+        InitializeComponent();
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MessageDialog"/> class with the specified
     /// ViewModel and configuration.

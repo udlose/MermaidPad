@@ -58,6 +58,29 @@ internal sealed partial class ConfirmationDialog : DialogBase
     private bool _isResultSet;
 
     /// <summary>
+    /// Initializes a new instance of the ConfirmationDialog class. This constructor is intended for use by the designer or
+    /// serialization tools only.
+    /// </summary>
+    /// <remarks>To create a ConfirmationDialog at runtime, use the IDialogFactory to ensure proper initialization
+    /// with the required view model and configuration. Direct instantiation outside of design mode is not supported and
+    /// will result in an exception.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called at runtime instead of through the IDialogFactory with a
+    /// <see cref="ConfirmationDialogViewModel"/>. Use the constructor with parameters for runtime usage.</exception>
+    [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "Used by the designer and ActivatorUtilities.CreateInstance for design-time support.")]
+    public ConfirmationDialog()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("The parameterless constructor is for design-time use only. " +
+                $"{nameof(ConfirmationDialog)} must be instantiated with a {nameof(ConfirmationDialogViewModel)} and {nameof(ConfirmationDialogConfig)} through the IDialogFactory.");
+        }
+
+        // only initialize the component in design mode to avoid issues with missing
+        // dependencies at runtime when this constructor is not intended to be used
+        InitializeComponent();
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ConfirmationDialog"/> class with the specified
     /// ViewModel and configuration.
     /// </summary>

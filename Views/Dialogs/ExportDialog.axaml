@@ -43,6 +43,10 @@
     </Style>
   </Window.Styles>
 
+  <Design.DataContext>
+    <vm:ExportDialogViewModel />
+  </Design.DataContext>
+
   <Grid Margin="5" RowDefinitions="Auto,*,Auto">
 
     <!--  Header  -->

@@ -49,6 +49,30 @@ internal sealed partial class AboutDialog : DialogBase
     private readonly ILogger<AboutDialog> _logger;
 
     /// <summary>
+    /// Initializes a new instance of the AboutDialog class. This constructor is intended for use by the designer or
+    /// serialization tools only.
+    /// </summary>
+    /// <remarks>To create an AboutDialog at runtime, use the IDialogFactory to ensure proper initialization
+    /// with the required view model and configuration. Direct instantiation outside of design mode is not supported and
+    /// will result in an exception.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called at runtime instead of through the IDialogFactory with a
+    /// <see cref="AboutDialogViewModel"/>. Use the constructor with parameters for runtime usage.</exception>
+    public AboutDialog()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("The parameterless constructor is for design-time use only. " +
+                $"{nameof(AboutDialog)} must be instantiated with a {nameof(AboutDialogViewModel)} through the IDialogFactory.");
+        }
+
+        _logger = null!; // this is just to satisfy the compiler
+
+        // only initialize the component in design mode to avoid issues with missing
+        // dependencies at runtime when this constructor is not intended to be used
+        InitializeComponent();
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AboutDialog"/> class with dependencies
     /// resolved from DI via <see cref="IDialogFactory"/>.
     /// </summary>

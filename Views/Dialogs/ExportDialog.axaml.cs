@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Controls;
 using MermaidPad.Factories;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
@@ -45,6 +46,28 @@ namespace MermaidPad.Views.Dialogs;
 internal sealed partial class ExportDialog : DialogBase
 {
     private ExportDialogViewModel? _currentViewModel;
+
+    /// <summary>
+    /// Initializes a new instance of the ExportDialog class. This constructor is intended for use by the designer or
+    /// serialization tools only.
+    /// </summary>
+    /// <remarks>To create an ExportDialog at runtime, use the IDialogFactory to ensure proper initialization
+    /// with the required view model and configuration. Direct instantiation outside of design mode is not supported and
+    /// will result in an exception.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called at runtime instead of through the IDialogFactory with a
+    /// <see cref="ExportDialogViewModel"/>. Use the constructor with parameters for runtime usage.</exception>
+    public ExportDialog()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("The parameterless constructor is for design-time use only. " +
+                $"{nameof(ExportDialog)} must be instantiated with a {nameof(ExportDialogViewModel)} through the IDialogFactory.");
+        }
+
+        // only initialize the component in design mode to avoid issues with missing
+        // dependencies at runtime when this constructor is not intended to be used
+        InitializeComponent();
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ExportDialog"/> class with the specified ViewModel.
