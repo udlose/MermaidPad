@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using AsyncAwaitBestPractices;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -53,6 +54,8 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
 {
     private const string LoadingMessage = "Loading...";
     private static readonly string[] _fileSizes = ["B", "KB", "MB", "GB", "TB"];
+    private static readonly ReadOnlyCollection<int> _availableDPIOptions = new List<int> { 72, 150, 300, 600 }.AsReadOnly();
+
     private readonly ILogger<ExportDialogViewModel> _logger;
     private readonly IImageConversionService? _imageConversionService;
     private readonly ExportService? _exportService;
@@ -188,24 +191,27 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
         SelectedFormat = AvailableFormats[0];
 
         // Initialize available DPI values
-#pragma warning disable IDE0028
-        AvailableDpiValues = new ObservableCollection<int> { 72, 150, 300, 600 };
-#pragma warning restore IDE0028
+        AvailableDpiValues = new ObservableCollection<int>(_availableDPIOptions);
 
         // Load actual SVG dimensions asynchronously
-        _ = LoadActualSvgDimensionsAsync();
+        LoadActualSvgDimensionsAsync()
+            .SafeFireAndForget(
+                onException: ex => _logger.LogError(ex, "Error loading SVG dimensions"),
+                continueOnCapturedContext: true);
     }
 
     /// <summary>
-    /// Creates and returns an ExportOptions object that reflects the current export settings.
+    /// Creates and returns an <see cref="ExportOptions"/> object that reflects the current export settings.
     /// </summary>
     /// <remarks>The returned ExportOptions object includes only the options relevant to the selected export
     /// format. For example, PngOptions is populated only if a PNG export is selected, and SvgOptions is populated only
     /// if an SVG export is selected.</remarks>
-    /// <returns>An ExportOptions instance containing the current file path, format, and any applicable PNG or SVG export
+    /// <returns>An <see cref="ExportOptions"/> instance containing the current file path, format, and any applicable PNG or SVG export
     /// options.</returns>
     internal ExportOptions GetExportOptions()
     {
+        const string whiteBackgroundHex = "#FFFFFF";
+        string? backgroundColor = UseWhiteBackground ? whiteBackgroundHex : null;
         return new ExportOptions
         {
             FilePath = FullFilePath,
@@ -214,7 +220,7 @@ internal sealed partial class ExportDialogViewModel : ViewModelBase
             {
                 Dpi = SelectedDpi,
                 ScaleFactor = ScaleFactor,
-                BackgroundColor = UseWhiteBackground ? "#FFFFFF" : null,
+                BackgroundColor = backgroundColor,
                 Quality = Quality,
                 AntiAlias = AntiAlias,
                 MaxWidth = MaxWidth,
