@@ -25,6 +25,10 @@
     </Style>
   </Window.Styles>
 
+  <Design.DataContext>
+    <vm:ProgressDialogViewModel />
+  </Design.DataContext>
+
   <Border
     Background="White"
     BorderBrush="#D0D0D0"

@@ -17,6 +17,10 @@
   WindowStartupLocation="CenterOwner"
   mc:Ignorable="d">
 
+  <Design.DataContext>
+    <vm:AboutDialogViewModel />
+  </Design.DataContext>
+
   <Window.Styles>
     <Style Selector="TextBlock.SectionHeader">
       <Setter Property="FontWeight" Value="Bold" />

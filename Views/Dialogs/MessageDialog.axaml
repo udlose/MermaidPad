@@ -1,15 +1,20 @@
-<Window xmlns="https://github.com/avaloniaui"
+<Window
+  x:Class="MermaidPad.Views.Dialogs.MessageDialog"
+  xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:vm="clr-namespace:MermaidPad.ViewModels.Dialogs"
   Title="{Binding Title}"
   Width="400"
   MinHeight="150"
-  x:Class="MermaidPad.Views.Dialogs.MessageDialog"
   x:DataType="vm:MessageDialogViewModel"
   CanResize="False"
   ShowInTaskbar="False"
   SizeToContent="Height"
   WindowStartupLocation="CenterOwner">
+
+  <Design.DataContext>
+    <vm:MessageDialogViewModel Title="[Design] Export Complete" Message="Sample message for design-time preview." />
+  </Design.DataContext>
 
   <DockPanel Margin="20">
     <StackPanel

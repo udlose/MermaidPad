@@ -25,6 +25,7 @@ using Serilog;
 using System.ComponentModel;
 
 namespace MermaidPad.Views.Dialogs;
+
 /// <summary>
 /// Provides a base class for modal dialog windows with common dialog behaviors and lifecycle management.
 /// </summary>
@@ -55,6 +56,14 @@ internal abstract class DialogBase : Window
 
     protected DialogBase()
     {
+        // The XAML previewer has no running dispatcher — skip runtime
+        // lifecycle management in design mode to avoid "Invalid Markup" errors.
+        if (Design.IsDesignMode)
+        {
+            _dispatcher = null!;
+            return;
+        }
+
         CanResize = false;
 
         _dispatcher = Dispatcher.UIThread;

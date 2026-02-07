@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 using Avalonia;
-using MermaidPad.Factories;
+using Avalonia.Controls;
 using MermaidPad.ViewModels.Dialogs;
 using MermaidPad.ViewModels.Dialogs.Configs;
 using System.Diagnostics.CodeAnalysis;
@@ -56,6 +56,32 @@ internal sealed partial class ProgressDialog : DialogBase
     /// the need to cast <see cref="StyledElement.DataContext"/>.
     /// </remarks>
     public ProgressDialogViewModel ViewModel { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the ProgressDialog class. This constructor is intended for use by the designer or
+    /// serialization tools only.
+    /// </summary>
+    /// <remarks>To create a ProgressDialog at runtime, use the IDialogFactory to ensure proper initialization
+    /// with the required view model and configuration. Direct instantiation outside of design mode is not supported and
+    /// will result in an exception.</remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the constructor is called at runtime instead of through the IDialogFactory with a
+    /// <see cref="ProgressDialogViewModel"/>. Use the constructor with parameters for runtime usage.</exception>
+    [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "Used by the designer and ActivatorUtilities.CreateInstance for design-time support.")]
+    public ProgressDialog()
+    {
+        if (!Design.IsDesignMode)
+        {
+            throw new InvalidOperationException("The parameterless constructor is for design-time use only. " +
+                $"{nameof(ProgressDialog)} must be instantiated with a {nameof(ProgressDialogViewModel)} and {nameof(ProgressDialogConfig)} through the IDialogFactory.");
+        }
+
+        ViewModel = new ProgressDialogViewModel(); // this is just to satisfy the compiler and provide design-time data context
+        DataContext = ViewModel;
+
+        // only initialize the component in design mode to avoid issues with missing
+        // dependencies at runtime when this constructor is not intended to be used
+        InitializeComponent();
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ProgressDialog"/> class with the specified
