@@ -21,6 +21,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Dialogs.Configs;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
@@ -28,12 +30,20 @@ namespace MermaidPad.Views.Dialogs;
 /// A confirmation dialog window that exposes Yes, No and Cancel actions.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This window is intended to be used as a modal confirmation dialog. It provides
 /// three explicit responses through the <see cref="ConfirmationResult"/> enum:
 /// Yes, No and Cancel. The dialog disables resizing and will attempt to center
 /// itself on its <see cref="WindowBase.Owner"/> when opened.
+/// </para>
+/// <para>
+/// Created through <see cref="MermaidPad.Factories.IDialogFactory"/> which uses
+/// <c>ActivatorUtilities.CreateInstance</c> to resolve constructor dependencies from DI
+/// and pass the <see cref="ConfirmationDialogConfig"/> as an additional parameter.
+/// </para>
 /// </remarks>
 /// <seealso cref="ConfirmationResult"/>
+[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated by DI through IDialogFactory and ActivatorUtilities.CreateInstance.")]
 internal sealed partial class ConfirmationDialog : DialogBase
 {
     /// <summary>
@@ -48,15 +58,42 @@ internal sealed partial class ConfirmationDialog : DialogBase
     private bool _isResultSet;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ConfirmationDialog"/> class.
+    /// Initializes a new instance of the <see cref="ConfirmationDialog"/> class with the specified
+    /// ViewModel and configuration.
     /// </summary>
+    /// <param name="viewModel">The ViewModel resolved from DI. Cannot be null.</param>
+    /// <param name="config">The configuration specifying title, message, icon, button text, and visibility.</param>
     /// <remarks>
-    /// Calls <see cref="InitializeComponent"/> to load the XAML-defined UI and
-    /// disables window resizing by setting <see cref="Window.CanResize"/> to false.
+    /// <para>
+    /// Both parameters are resolved by <c>ActivatorUtilities.CreateInstance</c>:
+    /// <list type="bullet">
+    ///     <item><description><paramref name="viewModel"/> is resolved from the DI container (registered as transient).</description></item>
+    ///     <item><description><paramref name="config"/> is passed as an additional parameter by the caller via
+    ///     <see cref="MermaidPad.Factories.IDialogFactory.CreateDialog{T, TConfig}(TConfig)"/>.</description></item>
+    /// </list>
+    /// </para>
     /// </remarks>
-    public ConfirmationDialog()
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="viewModel"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="config"/> is null.</exception>
+    [SuppressMessage("ReSharper", "UnusedMember.Global", Justification = "Used by the DI container through IDialogFactory and ActivatorUtilities.CreateInstance.")]
+    public ConfirmationDialog(ConfirmationDialogViewModel viewModel, ConfirmationDialogConfig config)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(config);
+
         InitializeComponent();
+
+        // Apply configuration to the ViewModel
+        viewModel.Title = config.Title;
+        viewModel.Message = config.Message;
+        viewModel.IconData = config.IconData;
+        viewModel.IconColor = config.IconColor;
+        viewModel.ShowCancelButton = config.ShowCancelButton;
+        viewModel.YesButtonText = config.YesButtonText;
+        viewModel.NoButtonText = config.NoButtonText;
+        viewModel.CancelButtonText = config.CancelButtonText;
+
+        DataContext = viewModel;
     }
 
     /// <summary>

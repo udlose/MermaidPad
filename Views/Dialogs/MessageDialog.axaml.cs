@@ -18,59 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Avalonia.Interactivity;
+using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Dialogs.Configs;
+using System.Diagnostics.CodeAnalysis;
+
 namespace MermaidPad.Views.Dialogs;
 
-//internal partial class MessageDialog : DialogBase
-//{
-//    public MessageDialog()
-//    {
-//        InitializeComponent();
-//    }
-
-//    private void OnOkClick(object? sender, RoutedEventArgs e)
-//    {
-//        CloseDialog(true);
-//    }
-
-//    public static Task ShowErrorAsync(Window parent, string title, string message)
-//    {
-//        MessageDialog dialog = new MessageDialog
-//        {
-//            DataContext = new MessageDialogViewModel
-//            {
-//                Title = title,
-//                Message = message,
-//                IconData = "M12,2 C17.53,2 22,6.47 22,12 C22,17.53 17.53,22 12,22 C6.47,22 2,17.53 2,12 C2,6.47 6.47,2 12,2 M15.59,7 L12,10.59 L8.41,7 L7,8.41 L10.59,12 L7,15.59 L8.41,17 L12,13.41 L15.59,17 L17,15.59 L13.41,12 L17,8.41 L15.59,7 Z",
-//                IconColor = Brushes.Red
-//            }
-//        };
-//        return dialog.ShowDialog(parent);
-//    }
-
-//    public static Task ShowSuccessAsync(Window parent, string title, string message)
-//    {
-//        MessageDialog dialog = new MessageDialog
-//        {
-//            DataContext = new MessageDialogViewModel
-//            {
-//                Title = title,
-//                Message = message,
-//                IconData = "M12,2 C17.52,2 22,6.48 22,12 C22,17.52 17.52,22 12,22 C6.48,22 2,17.52 2,12 C2,6.48 6.48,2 12,2 M9,16.17 L4.83,12 L3.41,13.41 L9,19 L21,7 L19.59,5.59 L9,16.17 Z",
-//                IconColor = Brushes.Green
-//            }
-//        };
-//        return dialog.ShowDialog(parent);
-//    }
-//}
-
+/// <summary>
+/// A modal message dialog that displays an icon, title, and message with an OK button.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This dialog is created through <see cref="MermaidPad.Factories.IDialogFactory"/> which uses
+/// <c>ActivatorUtilities.CreateInstance</c> to resolve constructor dependencies from DI
+/// and pass the <see cref="MessageDialogConfig"/> as an additional parameter.
+/// </para>
+/// <para>
+/// The dialog is read-only and requires no subscriptions, event handler cleanup,
+/// or <see cref="IDisposable"/> implementation.
+/// </para>
+/// </remarks>
+[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated by DI through IDialogFactory and ActivatorUtilities.CreateInstance.")]
 internal sealed partial class MessageDialog : DialogBase
 {
-    public MessageDialog()
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MessageDialog"/> class with the specified
+    /// ViewModel and configuration.
+    /// </summary>
+    /// <param name="viewModel">The ViewModel resolved from DI. Cannot be null.</param>
+    /// <param name="config">The configuration specifying title, message, and icon properties.</param>
+    /// <remarks>
+    /// <para>
+    /// Both parameters are resolved by <c>ActivatorUtilities.CreateInstance</c>:
+    /// <list type="bullet">
+    ///     <item><description><paramref name="viewModel"/> is resolved from the DI container (registered as transient).</description></item>
+    ///     <item><description><paramref name="config"/> is passed as an additional parameter by the caller via
+    ///     <see cref="MermaidPad.Factories.IDialogFactory.CreateDialog{T, TConfig}(TConfig)"/>.</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="viewModel"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="config"/> is null.</exception>
+    public MessageDialog(MessageDialogViewModel viewModel, MessageDialogConfig config)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(config);
+
         InitializeComponent();
+
+        // Apply configuration to the ViewModel
+        viewModel.Title = config.Title;
+        viewModel.Message = config.Message;
+        viewModel.IconData = config.IconData;
+        viewModel.IconColor = config.IconColor;
+
+        DataContext = viewModel;
     }
 
-    private void OnOkClick(object sender, Avalonia.Interactivity.RoutedEventArgs e)
+    /// <summary>
+    /// Handles the OK button click by closing the dialog with a <see langword="true"/> result.
+    /// </summary>
+    /// <param name="sender">The source of the event.</param>
+    /// <param name="e">The event data.</param>
+    private void OnOkClick(object? sender, RoutedEventArgs e)
     {
         CloseDialog(true);
     }

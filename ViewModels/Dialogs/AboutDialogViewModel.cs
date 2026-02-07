@@ -148,7 +148,7 @@ internal sealed class AboutDialogViewModel : ViewModelBase
         new("MermaidPad Homepage", GitHubBaseUrl),
         new("Report an Issue", $"{GitHubBaseUrl}/issues"),
         new("Discussions", $"{GitHubBaseUrl}/discussions"),
-        new("MermaidPad on gitter/matrix", $"https://matrix.to/#/#mermaidpad:matrix.org")
+        new("MermaidPad on gitter/matrix", "https://matrix.to/#/#mermaidpad:matrix.org")
     ];
 
     #endregion Links

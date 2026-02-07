@@ -27,3 +27,4 @@ and exporting Mermaid diagrams.
 - Expect consistency in guidance; if recommending a pattern (Post vs InvokeAsync), explain trade-offs and context (UI responsiveness vs ordering/backpressure), and avoid contradicting without clarifying assumptions.
 - When making requested changes, only perform minimal diffs scoped to the requested area; do not modify unrelated code.
 - Avoid providing responses in git patch diff format; provide full blocks/snippets instead.
+- Unit tests are not used in this project.

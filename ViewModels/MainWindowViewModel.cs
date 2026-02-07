@@ -29,13 +29,13 @@ using CommunityToolkit.Mvvm.Messaging;
 using Dock.Model.Controls;
 using MermaidPad.Extensions;
 using MermaidPad.Factories;
-using MermaidPad.Infrastructure;
 using MermaidPad.Infrastructure.Messages;
 using MermaidPad.Models;
 using MermaidPad.Models.Editor;
 using MermaidPad.Services;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
+using MermaidPad.ViewModels.Dialogs.Configs;
 using MermaidPad.ViewModels.Docking;
 using MermaidPad.ViewModels.UserControls;
 using MermaidPad.Views.Dialogs;
@@ -1608,18 +1608,20 @@ internal sealed partial class MainWindowViewModel :
                 return true;
             }
 
-            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
-            confirmViewModel.ShowCancelButton = true;
-            confirmViewModel.Title = "Unsaved Changes";
-
             string fileName = !string.IsNullOrEmpty(CurrentFilePath)
                 ? Path.GetFileName(CurrentFilePath)
                 : "Untitled";
-            confirmViewModel.Message = $"Do you want to save changes to {fileName}?";
-            confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
-            confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
 
-            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+            ConfirmationDialog confirmDialog = _dialogFactory.CreateDialog<ConfirmationDialog, ConfirmationDialogConfig>(
+                new ConfirmationDialogConfig
+                {
+                    Title = "Unsaved Changes",
+                    Message = $"Do you want to save changes to {fileName}?",
+                    IconData = DialogIconGeometries.GetGeometry(DialogIcon.Warning),
+                    IconColor = Avalonia.Media.Brushes.Orange,
+                    ShowCancelButton = true
+                });
+
             ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
             switch (result)
             {
@@ -1842,16 +1844,16 @@ internal sealed partial class MainWindowViewModel :
                 return;
             }
 
-            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
-            confirmViewModel.ShowCancelButton = false;
-            confirmViewModel.Title = "Reset Layout?";
-            confirmViewModel.Message = "Are you sure you want to reset the layout to default? This will restore the original panel positions and sizes.";
-            confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
-            confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
+            ConfirmationDialog confirmDialog = _dialogFactory.CreateDialog<ConfirmationDialog, ConfirmationDialogConfig>(
+                new ConfirmationDialogConfig
+                {
+                    Title = "Reset Layout?",
+                    Message = "Are you sure you want to reset the layout to default? This will restore the original dock panel positions and sizes.",
+                    IconData = DialogIconGeometries.GetGeometry(DialogIcon.Warning),
+                    IconColor = Avalonia.Media.Brushes.Orange
+                });
 
-            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
             ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
-
             if (result != ConfirmationResult.Yes)
             {
                 return;
@@ -2077,11 +2079,7 @@ internal sealed partial class MainWindowViewModel :
                 return;
             }
 
-            AboutDialogViewModel aboutViewModel = _dialogFactory.CreateViewModel<AboutDialogViewModel>();
-            AboutDialog aboutDialog = new AboutDialog
-            {
-                DataContext = aboutViewModel
-            };
+            AboutDialog aboutDialog = _dialogFactory.CreateDialog<AboutDialog>();
 
             // NO ConfigureAwait(false) - ShowDialog needs UI thread
             await aboutDialog.ShowDialog(mainWindow);
@@ -2177,16 +2175,14 @@ internal sealed partial class MainWindowViewModel :
                     return;
                 }
 
-                MessageDialogViewModel messageViewModel = dialogFactory.CreateViewModel<MessageDialogViewModel>();
-                messageViewModel.Title = "Error";
-                messageViewModel.Message = msg;
-                messageViewModel.IconData = "M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10H11M11,16V18H13V16H11Z"; // Error icon
-                messageViewModel.IconColor = Avalonia.Media.Brushes.Red;
-
-                MessageDialog messageDialog = new MessageDialog
-                {
-                    DataContext = messageViewModel
-                };
+                MessageDialog messageDialog = dialogFactory.CreateDialog<MessageDialog, MessageDialogConfig>(
+                    new MessageDialogConfig
+                    {
+                        Title = "Error",
+                        Message = msg,
+                        IconData = DialogIconGeometries.GetGeometry(DialogIcon.Error),
+                        IconColor = Avalonia.Media.Brushes.Red
+                    });
 
                 await messageDialog.ShowDialog(mainWindow);
             }
@@ -2246,13 +2242,15 @@ internal sealed partial class MainWindowViewModel :
                 return;
             }
 
-            ConfirmationDialogViewModel confirmViewModel = _dialogFactory.CreateViewModel<ConfirmationDialogViewModel>();
-            confirmViewModel.ShowCancelButton = false;
-            confirmViewModel.Title = "Clear Editor?";
-            confirmViewModel.Message = "Are you sure you want to clear the source code and diagram? To undo your changes, click Edit, then Undo.";
-            confirmViewModel.IconData = "M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7V13H13V7H11M11,15V17H13V15H11Z"; // Warning icon
-            confirmViewModel.IconColor = Avalonia.Media.Brushes.Orange;
-            ConfirmationDialog confirmDialog = new ConfirmationDialog { DataContext = confirmViewModel };
+            ConfirmationDialog confirmDialog = _dialogFactory.CreateDialog<ConfirmationDialog, ConfirmationDialogConfig>(
+                new ConfirmationDialogConfig
+                {
+                    Title = "Clear Editor?",
+                    Message = "Are you sure you want to clear the source code and diagram? To undo your changes, click Edit, then Undo.",
+                    IconData = DialogIconGeometries.GetGeometry(DialogIcon.Warning),
+                    IconColor = Avalonia.Media.Brushes.Orange
+                });
+
             ConfirmationResult result = await confirmDialog.ShowDialog<ConfirmationResult>(mainWindow);
             if (result == ConfirmationResult.Yes)
             {
@@ -2362,14 +2360,8 @@ internal sealed partial class MainWindowViewModel :
                 return;
             }
 
-            // Create the export dialog and its view model using DI
-            ExportDialogViewModel exportViewModel = _dialogFactory.CreateViewModel<ExportDialogViewModel>();
-
-            // Create the dialog with the storage provider
-            ExportDialog exportDialog = new ExportDialog
-            {
-                DataContext = exportViewModel
-            };
+            // Create the export dialog with all dependencies resolved via DI
+            ExportDialog exportDialog = _dialogFactory.CreateDialog<ExportDialog>();
 
             // NO ConfigureAwait(false) - ShowDialog must run on UI thread
             ExportOptions? exportOptions = await exportDialog.ShowDialog<ExportOptions?>(window);
@@ -2411,15 +2403,16 @@ internal sealed partial class MainWindowViewModel :
         {
             if (options is { ShowProgress: true, Format: ExportFormat.PNG })
             {
-                // Create progress dialog using DI
-                ProgressDialogViewModel progressViewModel = _dialogFactory.CreateViewModel<ProgressDialogViewModel>();
-                progressViewModel.Title = "Exporting PNG";
-                progressViewModel.StatusMessage = "Preparing export...";
+                // Create progress dialog with all dependencies resolved via DI
+                ProgressDialog progressDialog = _dialogFactory.CreateDialog<ProgressDialog, ProgressDialogConfig>(
+                    new ProgressDialogConfig
+                    {
+                        Title = "Exporting PNG",
+                        StatusMessage = "Preparing export..."
+                    });
 
-                ProgressDialog progressDialog = new ProgressDialog
-                {
-                    DataContext = progressViewModel
-                };
+                // Access the strongly-typed ViewModel from the dialog for progress reporting
+                ProgressDialogViewModel progressViewModel = progressDialog.ViewModel;
 
                 // Set up cancellation
                 using CancellationTokenSource cts = new CancellationTokenSource();
@@ -2705,16 +2698,14 @@ internal sealed partial class MainWindowViewModel :
         {
             try
             {
-                MessageDialogViewModel messageViewModel = dialogFactory.CreateViewModel<MessageDialogViewModel>();
-                messageViewModel.Title = "Export Complete";
-                messageViewModel.Message = message;
-                messageViewModel.IconData = "M9 12l2 2 4-4"; // Checkmark icon path
-                messageViewModel.IconColor = Avalonia.Media.Brushes.Green;
-
-                MessageDialog messageDialog = new MessageDialog
-                {
-                    DataContext = messageViewModel
-                };
+                MessageDialog messageDialog = dialogFactory.CreateDialog<MessageDialog, MessageDialogConfig>(
+                    new MessageDialogConfig
+                    {
+                        Title = "Export Complete",
+                        Message = message,
+                        IconData = DialogIconGeometries.GetGeometry(DialogIcon.Success),
+                        IconColor = Avalonia.Media.Brushes.Green
+                    });
 
                 // NO ConfigureAwait(false) - ShowDialog needs UI thread
                 await messageDialog.ShowDialog(window);

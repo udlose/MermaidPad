@@ -30,11 +30,23 @@ namespace MermaidPad.ViewModels.Dialogs;
 /// dialog content.</remarks>
 internal sealed class MessageDialogViewModel : ViewModelBase
 {
+    /// <summary>
+    /// Gets or sets the title associated with the object.
+    /// </summary>
     public string Title { get; set; } = "";
 
+    /// <summary>
+    /// Gets or sets the message text associated with this instance.
+    /// </summary>
     public string Message { get; set; } = "";
 
-    public string IconData { get; set; } = "";
+    /// <summary>
+    /// Gets or sets the <see cref="StreamGeometry"/> data used to render the icon.
+    /// </summary>
+    public StreamGeometry? IconData { get; set; }
 
+    /// <summary>
+    /// Gets or sets the brush used to color the icon.
+    /// </summary>
     public IBrush IconColor { get; set; } = Brushes.Gray;
 }

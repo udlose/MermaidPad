@@ -42,9 +42,9 @@ internal sealed class ConfirmationDialogViewModel : ViewModelBase
     public string Message { get; set; } = "";
 
     /// <summary>
-    /// Gets or sets the icon path data for SVG rendering.
+    /// Gets or sets the <see cref="StreamGeometry"/> data used to render the icon.
     /// </summary>
-    public string IconData { get; set; } = "";
+    public StreamGeometry? IconData { get; set; }
 
     /// <summary>
     /// Gets or sets the icon color brush.

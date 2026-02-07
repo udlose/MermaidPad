@@ -18,30 +18,64 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using MermaidPad.Factories;
 using MermaidPad.Services.Export;
 using MermaidPad.ViewModels.Dialogs;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
 /// <summary>
-/// Represents a dialog window that facilitates exporting data using options provided by an associated view model.
+/// A modal dialog for configuring export options (format, DPI, scale, etc.).
 /// </summary>
-/// <remarks>The dialog interacts with an instance of <see cref="ExportDialogViewModel"/> as its data context. It
-/// monitors changes to the view model's export result and closes itself when an export operation is completed or
-/// canceled. This class is intended for internal use within the application and is not thread-safe.</remarks>
+/// <remarks>
+/// <para>
+/// Created through <see cref="IDialogFactory"/> which uses
+/// <c>ActivatorUtilities.CreateInstance</c> to resolve the <see cref="ExportDialogViewModel"/>
+/// from DI. No additional config object is needed because the ViewModel is self-configuring.
+/// </para>
+/// <para>
+/// The dialog closes itself when the ViewModel's <see cref="ExportDialogViewModel.DialogResult"/>
+/// property is set, either returning the <see cref="ExportOptions"/> or <see langword="null"/>
+/// for cancellation.
+/// </para>
+/// </remarks>
+[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated by DI through IDialogFactory and ActivatorUtilities.CreateInstance.")]
 internal sealed partial class ExportDialog : DialogBase
 {
     private ExportDialogViewModel? _currentViewModel;
 
     /// <summary>
-    /// Initializes a new instance of the ExportDialog class.
+    /// Initializes a new instance of the <see cref="ExportDialog"/> class with the specified ViewModel.
     /// </summary>
-    /// <remarks>Use this constructor to create and display an export dialog for user interaction. The dialog
-    /// is initialized and ready for use after construction.</remarks>
-    public ExportDialog()
+    /// <param name="viewModel">The ViewModel resolved from DI with all services injected.</param>
+    /// <remarks>
+    /// <para>
+    /// The ViewModel is resolved by <c>ActivatorUtilities.CreateInstance</c> from the DI container
+    /// when <see cref="IDialogFactory.CreateDialog{T}()"/> is called.
+    /// </para>
+    /// <para>
+    /// The ViewModel reference is stored explicitly rather than relying on the
+    /// <see cref="OnDataContextChanged"/> side-effect to populate <c>_currentViewModel</c>.
+    /// The <see cref="AttachToViewModel"/> call subscribes to <c>PropertyChanged</c> for
+    /// dialog result handling. Note: <see cref="OnDataContextChanged"/> will also fire when
+    /// <c>DataContext</c> is set, but <see cref="AttachToViewModel"/> is idempotent
+    /// (it unsubscribes before subscribing).
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="viewModel"/> is null.</exception>
+    public ExportDialog(ExportDialogViewModel viewModel)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+
         InitializeComponent();
+
+        // Explicitly attach to the ViewModel for PropertyChanged subscription.
+        // This is more robust than relying on OnDataContextChanged firing during construction.
+        AttachToViewModel(viewModel);
+
+        DataContext = viewModel;
     }
 
     /// <summary>
@@ -87,9 +121,11 @@ internal sealed partial class ExportDialog : DialogBase
     /// <summary>
     /// Associates the specified view model with the dialog and subscribes to its property change notifications.
     /// </summary>
-    /// <remarks>This method enables the dialog to respond to changes in the provided view model by
-    /// subscribing to its PropertyChanged event. Ensure that the view model remains valid for the lifetime of the
-    /// dialog to avoid unexpected behavior.</remarks>
+    /// <remarks>
+    /// This method is idempotent — it unsubscribes before subscribing to prevent duplicate handlers.
+    /// This is important because it may be called both from the constructor and from
+    /// <see cref="OnDataContextChanged"/>.
+    /// </remarks>
     /// <param name="viewModel">The view model to attach to the dialog. Cannot be null.</param>
     private void AttachToViewModel(ExportDialogViewModel viewModel)
     {

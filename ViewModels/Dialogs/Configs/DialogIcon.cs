@@ -18,47 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-using Avalonia.Controls;
-using MermaidPad.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
-
-namespace MermaidPad.Infrastructure;
+namespace MermaidPad.ViewModels.Dialogs.Configs;
 
 /// <summary>
-/// Factory for creating dialogs with proper dependency injection
+/// Specifies the icon type to display in a dialog, indicating the nature of the message such as success, error,
+/// warning, or information. Default is <see cref="None"/> which indicates no icon should be displayed.
 /// </summary>
-internal interface IDialogFactory
+/// <remarks>Use this enumeration to select an appropriate icon for dialog boxes based on the context of the
+/// message. The values represent common dialog states and help users quickly identify the purpose or severity of the
+/// dialog.</remarks>
+internal enum DialogIcon
 {
-    /// <summary>
-    /// Creates a dialog window with DI support
-    /// </summary>
-    T CreateDialog<T>() where T : Window;
-
-    /// <summary>
-    /// Creates a view model with DI support
-    /// </summary>
-    TViewModel CreateViewModel<TViewModel>() where TViewModel : ViewModelBase;
-}
-
-/// <summary>
-/// Implementation of dialog factory using the service provider
-/// </summary>
-internal sealed class DialogFactory : IDialogFactory
-{
-    private readonly IServiceProvider _serviceProvider;
-
-    public DialogFactory(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
-
-    public T CreateDialog<T>() where T : Window
-    {
-        return ActivatorUtilities.CreateInstance<T>(_serviceProvider);
-    }
-
-    public TViewModel CreateViewModel<TViewModel>() where TViewModel : ViewModelBase
-    {
-        return _serviceProvider.GetRequiredService<TViewModel>();
-    }
+    None = 0,   // uninitialized/default value
+    Success,
+    SuccessCircled,
+    Error,
+    Warning,
+    Information
 }

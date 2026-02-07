@@ -20,9 +20,10 @@
 
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MermaidPad.Factories;
 using MermaidPad.ViewModels.Dialogs;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MermaidPad.Views.Dialogs;
 
@@ -31,22 +32,43 @@ namespace MermaidPad.Views.Dialogs;
 /// version details, environment info, links, and third-party library attributions.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This dialog is read-only and requires no subscriptions, event handlers cleanup,
-/// or IDisposable implementation. It follows the same pattern as <see cref="MessageDialog"/>.
+/// or <see cref="IDisposable"/> implementation. It follows the same pattern as <see cref="MessageDialog"/>.
+/// </para>
+/// <para>
+/// Created through <see cref="IDialogFactory"/> which uses
+/// <c>ActivatorUtilities.CreateInstance</c> to resolve all constructor dependencies from DI.
+/// No additional config object is needed because <see cref="AboutDialogViewModel"/> is entirely
+/// self-contained (populated from <c>AppMetadata</c> at construction time).
+/// </para>
 /// </remarks>
+[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global", Justification = "Instantiated by DI through IDialogFactory and ActivatorUtilities.CreateInstance.")]
 internal sealed partial class AboutDialog : DialogBase
 {
     private readonly ILogger<AboutDialog> _logger;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="AboutDialog"/> class.
+    /// Initializes a new instance of the <see cref="AboutDialog"/> class with dependencies
+    /// resolved from DI via <see cref="IDialogFactory"/>.
     /// </summary>
-    public AboutDialog()
+    /// <param name="viewModel">The ViewModel resolved from DI, pre-populated with app metadata.</param>
+    /// <param name="logger">The logger instance for this dialog.</param>
+    /// <remarks>
+    /// Both parameters are resolved by <c>ActivatorUtilities.CreateInstance</c> from the DI container.
+    /// This eliminates the previous dependency on the static <c>App.Services</c> service locator.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="viewModel"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="logger"/> is null.</exception>
+    public AboutDialog(AboutDialogViewModel viewModel, ILogger<AboutDialog> logger)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(logger);
+
         InitializeComponent();
 
-        IServiceProvider sp = App.Services;
-        _logger = sp.GetRequiredService<ILogger<AboutDialog>>();
+        _logger = logger;
+        DataContext = viewModel;
     }
 
     /// <summary>

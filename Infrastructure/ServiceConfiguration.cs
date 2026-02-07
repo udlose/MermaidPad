@@ -189,11 +189,19 @@ public static class ServiceConfiguration
         services.AddTransient<DiagramToolViewModel>();
 
         // Dialog ViewModels: transient (one per dialog instance)
+        // These are resolved by ActivatorUtilities when IDialogFactory.CreateDialog<T>()
+        // creates the dialog window. The Dialog constructor accepts its ViewModel via DI,
+        // and optionally a config object passed as an additional parameter.
         services.AddTransient<ExportDialogViewModel>();
         services.AddTransient<ProgressDialogViewModel>();
         services.AddTransient<MessageDialogViewModel>();
         services.AddTransient<ConfirmationDialogViewModel>();
         services.AddTransient<AboutDialogViewModel>();
+
+        // IMPORTANT: Dialog Views (Windows) are not registered in DI.
+        // They are created by IDialogFactory.CreateDialog<T>() using ActivatorUtilities,
+        // which resolves ViewModels and loggers from the DI container, and accepts config
+        // objects via additional constructor parameters (these are typically not registered in DI).
     }
 
     /// <summary>
