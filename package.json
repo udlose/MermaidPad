@@ -22,7 +22,7 @@
   },
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.13.0"
   },
   "packageManager": "npm@11.9.0",
   "homepage": "https://github.com/udlose/MermaidPad#readme",

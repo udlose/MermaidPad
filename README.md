@@ -1091,7 +1091,7 @@ MermaidPad ships web assets (e.g., `Assets/index.html`). We use **ESLint v10** w
 
 ### Prerequisites
 
-- **Node.js 22+**
+- **Node.js 22.13+**
 
 ### Install (once per clone)
 
