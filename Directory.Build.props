@@ -39,9 +39,8 @@
             No additional publish configuration is needed in this file.
         -->
         <!-- Embed build target RID as compile-time constant for platform compatibility checking -->
-        <DefineConstants Condition="'$(RuntimeIdentifier)' != ''">
-            $(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace("-", "_").ToUpperInvariant())
-        </DefineConstants>
+        <!-- Keep this DefineConstants on the same line to avoid introducing unnecessary whitespace into the /define -->
+        <DefineConstants Condition="'$(RuntimeIdentifier)' != ''">$(DefineConstants);BUILT_FOR_$(RuntimeIdentifier.Replace('-', '_').ToUpperInvariant())</DefineConstants>
     </PropertyGroup>
 
     <!-- CI-stamped metadata (only present when the workflow passes these properties) -->
