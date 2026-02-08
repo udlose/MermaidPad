@@ -252,7 +252,7 @@ classDiagram-v2
     Animal <|-- Insect
 ```
 
-<img width="2319" height="1365" alt="Class Diagram Example" src="<https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a"> />
+![Class Diagram Example](https://github.com/user-attachments/assets/51c8a3e2-d48f-4090-959c-90cc7537bf2a){width=600}
 </details>
 
 <details>
@@ -430,7 +430,7 @@ gantt
     Task 6 :after a5, 15d
 ```
 
-<img width="2318" height="1360" alt="Gantt Chart Example" src="<https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390"> />
+![Gantt Chart Example](https://github.com/user-attachments/assets/8b3179ea-e73c-4877-9284-e0b33f9f9390){width=600}
 </details>
 
 <details>
@@ -476,7 +476,7 @@ graph TD
     G --> N[SUCCESS - builds both as needed]
 ```
 
-<img width="3833" height="2070" alt="Graph Example" src="<https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a"> />
+![Graph Example](https://github.com/user-attachments/assets/75df1b41-f573-4a99-acfc-72ee978af17a){width=600}
 </details>
 
 <details>
@@ -576,7 +576,7 @@ pie
     "Others": 10
 ```
 
-<img width="2315" height="1362" alt="Pie Chart Example" src="<https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b"> />
+![Pie Chart Example](https://github.com/user-attachments/assets/3f7a7c94-6ce9-4954-a4de-bdc061027a2b){width=600}
 </details>
 
 <details>
@@ -740,7 +740,7 @@ sequenceDiagram
     Bob-->>John: Jolly good!
 ```
 
-<img width="2317" height="1364" alt="Sequence Diagram Example" src="<https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959"> />
+![Sequence Diagram Example](https://github.com/user-attachments/assets/4a263479-4d43-41c3-a86d-c7e3263d7959){width=600}
 </details>
 
 <details>
@@ -784,7 +784,7 @@ stateDiagram-v2
     if_state --> True : if n >= 0
 ```
 
-<img width="2320" height="1361" alt="State Diagram Example" src="<https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be"> />
+![State Diagram Example](https://github.com/user-attachments/assets/9c7bf077-9272-4a34-89b4-f0572e5168be){width=600}
 </details>
 
 <details>
@@ -982,7 +982,7 @@ Visit the [Releases page](https://github.com/udlose/MermaidPad/releases/latest) 
 
 ## Usage
 
-<img width="2318" height="1381" alt="MermaidPad UI" src="<https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61"> />
+![MermaidPad UI](https://github.com/user-attachments/assets/bba73b63-e908-493e-829c-99a74adeba61){width=600}
 
 ---
 
