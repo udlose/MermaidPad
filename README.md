@@ -1000,18 +1000,20 @@ MermaidPad uses an automated build and release process that creates optimized di
 
 ### For maintainers & contributors
 
-This section documents how builds and releases are produced (CI) and how you can produce and test the same published artifacts locally. It is important to test the published artifact (the CI-produced zip/dmg/app) and not rely only on local dev/debug runs.
+This section documents how builds and releases are produced in CI and how you can produce and test
+the same published artifacts locally. It is important to test the published artifact
+(the CI-produced zip/dmg/app) and not rely only on local dev/debug runs.
 
 Source of truth:
 
-- Project-level build settings: `Directory.Build.props` (net9.0, RIDs, publish configuration)
+- Project-level build settings: `Directory.Build.props` (net9.0, supported RIDs, publish configuration)
 - Asset integrity: `MermaidPad.Build.targets` generates `Generated/AssetHashes.cs` at build time
-- CI/workflow: `.github/workflows/build-and-release.yml` - uses a matrix to publish and upload artifacts, then creates releases
+- CI/workflow: `.github/workflows/build-and-release.yml` runs a publish matrix over supported RIDs, uploads artifacts, then creates releases
 
 Key settings
 
 - Target framework: net9.0 (see `Directory.Build.props`)
-- Supported RIDs (publish targets): win-x64; win-arm64; linux-x64; osx-arm64; osx-x64
+- Supported RIDs (publish targets): `win-x64`, `win-arm64`, `linux-x64`, `osx-arm64`, `osx-x64`
 - Publishing defaults: framework-dependent, not single-file (`PublishSelfContained=false`, `PublishSingleFile=false`)
 
 CI behavior (summary)
@@ -1019,37 +1021,70 @@ CI behavior (summary)
 - The GitHub Action `build-and-release.yml`:
   - Extracts version from a tag (`vX.Y.Z`) or manual input
   - Builds a matrix across RIDs: `win-x64`, `win-arm64`, `linux-x64`, `osx-x64`, `osx-arm64`
-  - Runs `dotnet restore` and `dotnet publish` for each RID:
-    `dotnet publish MermaidPad.csproj -c Release -r <RID> -o ./publish -p:Version=<version> -p:AssemblyVersion=<version> -p:FileVersion=<version>`
-  - Prepares artifacts and uploads zip files named: `MermaidPad-<version>-<rid>.zip`
-  - Bundles macOS .app for each arch and creates a universal DMG via additional workflows
+  - Runs `dotnet restore` and `dotnet publish` for each RID
+  - Produces per-RID artifacts named like: `MermaidPad-<version>-<configuration>-<rid>.zip`
+  - Bundles macOS `.app` for each arch and creates a universal DMG via additional workflows
   - Creates a GitHub release and attaches the artifacts
 
-Local reproducible publish
+Local reproducible publish (recommended: use the scripts)
+
+There are two build scripts in the repo root that build, publish and (optionally) zip artifacts.
+You can use these to quickly produce outputs for testing.
+
+- `build.ps1` for PowerShell (Windows/macOS/Linux)
+- `build.sh` for Bash (Linux/macOS, or Windows via Git Bash/MSYS2)
+
+Defaults
+
+- Default configuration for the local scripts is `Debug` (fast iteration). CI builds use `Release`, so use `Release` when you want true CI parity; note that `Debug` artifacts can differ in size and runtime behavior from CI `Release` artifacts.
+- Default version is `1.0.0-localdev` (matches `Directory.Build.props`)
+
+Common commands
+
+- Publish Debug for the current machine/RID (and zip):
+  - PowerShell: `./build.ps1`
+  - Bash: `./build.sh`
+- Publish Release (and zip):
+  - PowerShell: `./build.ps1 -Configuration Release`
+  - Bash: `./build.sh -c Release`
+- Clean previous artifacts before building:
+  - PowerShell: `./build.ps1 -Clean`
+  - Bash: `./build.sh -x` (or `./build.sh --clean`)
+- Skip zip creation (useful for rapid iteration):
+  - PowerShell: `./build.ps1 -SkipZip`
+  - Bash: `./build.sh --skip-zip`
+
+What the scripts do (high level)
+
+- Detect OS/arch and derive a Runtime Identifier (RID) from the supported set
+- Run `dotnet restore` then `dotnet publish -c <Configuration> -r <RID> -o <publishDir>` and stamp metadata properties (`Version`, `MermaidPadBuildDate`, `MermaidPadCommitSha`)
+- Create a zip artifact named `MermaidPad-<version>-<configuration>-<rid>.zip` unless zip creation is skipped
+
+Local reproducible publish (manual, if you need it)
 
 1. Ensure prerequisites are installed (see Requirements).
 2. Restore:
    `dotnet restore MermaidPad.csproj`
-3. Publish for a specific RID (replace `<rid>` and `<version>`):
-   - Example (Linux x64):
-     `dotnet publish MermaidPad.csproj -c Release -r linux-x64 -o ./publish -p:Version=1.2.3 -p:AssemblyVersion=1.2.3 -p:FileVersion=1.2.3`
+3. Publish for a specific RID (replace `<rid>`, `<version>`, `<configuration>`):
+   - Example (Linux x64, Release):
+     `dotnet publish MermaidPad.csproj -c Release -r linux-x64 -o ./publish -p:Version=1.2.3`
    - RIDs available: `win-x64`, `win-arm64`, `linux-x64`, `osx-x64`, `osx-arm64`
 4. Package the publish folder the same way CI does:
    - macOS/Linux:
      ```bash
      chmod +x ./publish/MermaidPad
-     zip -r "MermaidPad-1.2.3-linux-x64.zip" ./publish/* -x "*.DS_Store*"
+     zip -r "MermaidPad-1.2.3-Release-linux-x64.zip" ./publish/* -x "*.DS_Store*"
      ```
    - Windows (PowerShell):
      ```powershell
-     Compress-Archive -Path .\publish\* -DestinationPath "MermaidPad-1.2.3-win-x64.zip"
+     Compress-Archive -Path .\publish\* -DestinationPath "MermaidPad-1.2.3-Release-win-x64.zip"
      ```
 
 Asset integrity
 
-- `MermaidPad.Build.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets - ensure your publish includes the `Assets/` content unchanged.
+- `MermaidPad.Build.targets` runs a `GenerateAssetHashes` target (BeforeBuild) which computes SHA256 hashes for embedded web assets and writes `Generated/AssetHashes.cs`. This file is used at runtime to verify the bundled assets; ensure your publish includes the `Assets/` content unchanged.
 
-Testing published artifacts (do this - do not assume local debug == published)
+Testing published artifacts (do this — do not assume local debug == published)
 
 - Download the artifact produced by CI (Release assets or artifact zip produced by `build-and-release.yml`) or use the zip you created locally.
 - macOS:
@@ -1069,13 +1104,13 @@ Why test published artifacts?
 
 - CI publish packs the app with the runtime/config and file layout the user receives (assets, native libs, packaging differences).
 - Local debug builds or F5 runs may differ (different working directory, dev files available, different asset bundling).
-- The project adds asset-hash verification - mismatch in bundled assets will surface only in published artifacts.
+- The project adds asset-hash verification; mismatch in bundled assets will surface only in published artifacts.
 
 Release flow (how CI creates a release)
 
 - Tag `vX.Y.Z` and push, or run the workflow manually via `workflow_dispatch` with `version` input.
-- The workflow runs a build matrix, produces per-RID zips, bundles macOS .app and a universal DMG, then creates a GitHub Release attaching artifacts.
-- Note: The workflow contains a guard that restricts manual runs to the repository owner (`udlose`) - see `restrict-user` job in `.github/workflows/build-and-release.yml`.
+- The workflow runs a build matrix, produces per-RID zips, bundles macOS `.app` and a universal DMG, then creates a GitHub Release attaching artifacts.
+- Note: The workflow contains a guard that restricts manual runs to the repository owner (`udlose`) — see `restrict-user` job in `.github/workflows/build-and-release.yml`.
 
 Tips for maintainers
 
