@@ -41,7 +41,7 @@
 - [Usage](#usage)
 - [Distribution & Build Process](#distribution--build-process)
 - [Building & Publishing](#building--publishing)
-- [JavaScript/HTML Linting (ESLint v9)](#javascripthtml-linting-eslint-v9)
+- [JavaScript/HTML Linting (ESLint v10)](#javascripthtml-linting-eslint-v10)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [Security](#security)
@@ -1085,13 +1085,13 @@ Tips for maintainers
 
 ---
 
-## JavaScript/HTML Linting (ESLint v9)
+## JavaScript/HTML Linting (ESLint v10)
 
-MermaidPad ships web assets (e.g., `Assets/index.html`). We use **ESLint v9** with the **flat config** to keep these tidy.
+MermaidPad ships web assets (e.g., `Assets/index.html`). We use **ESLint v10** with the **flat config** to keep these tidy.
 
 ### Prerequisites
 
-- **Node.js 18+** (Node 20+ recommended)
+- **Node.js 22+**
 
 ### Install (once per clone)
 
@@ -1113,7 +1113,7 @@ npx eslint "Assets/**/*.{html,js,ts}"
 ### Common issues
 
 - **“ESLint couldn't find an eslint.config…”**  
-  Ensure `eslint.config.mjs` exists **at repo root** (ESLint v9 uses flat config by default).
+  Ensure `eslint.config.mjs` exists **at repo root** (ESLint v10 uses flat config by default).
 - **“Cannot use import statement outside a module” when loading config**  
   Use `eslint.config.mjs` (ESM). Alternatively, set `"type": "module"` in `package.json`-but that affects all `.js` files in the package.
 - **ESLint is linting build output/WebView2 files**  

@@ -41,7 +41,7 @@ MermaidPad requires:
 
 * **.NET 9 SDK**
 * **Avalonia** as the UI framework
-* **ESLint 9+** for validating embedded JavaScript assets (when applicable)
+* **ESLint 10+** for validating embedded JavaScript assets (when applicable)
 
 No Node.js runtime is required unless you are modifying JavaScript packages that themselves require it.
 
@@ -55,7 +55,7 @@ To keep history clean and conflict-free:
 2. Use **git rebase** instead of merge when updating your branch
 3. All pull requests must target **develop**
 
-```
+```text
 main → stable releases  
 develop → active development  
 feature/* → individual contribution work
@@ -83,16 +83,18 @@ Prefer async I/O and background work to avoid blocking the UI.
 
 Instead, use MVVM bindings and commands to keep UI logic in ViewModels. This project
 uses the MVVM pattern extensively via:
-- [Microsoft's CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/)
-- [Avalonia's Data Binding](https://docs.avaloniaui.net/docs/concepts/the-mvvm-pattern/avalonia-ui-and-mvvm)
+
+* [Microsoft's CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/)
+* [Avalonia's Data Binding](https://docs.avaloniaui.net/docs/concepts/the-mvvm-pattern/avalonia-ui-and-mvvm)
 
 There should be very few cases where code-behind is necessary. If you find yourself needing to add code-behind logic,
 please reach out in the Issue you are working on - or start a Discussion first to ensure it aligns with project conventions.
 
 There are plenty of examples in the codebase demonstrating proper MVVM usage. It uses DataBinding with `RelayCommand`.
 Here are some places in the code to look at:
-- [`Views/MainWindow.axaml`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/Views/MainWindow.axaml#L34)
-- [`ViewModels/MainWindowViewModel.cs`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/ViewModels/MainWindowViewModel.cs#L341-L347)
+
+* [`Views/MainWindow.axaml`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/Views/MainWindow.axaml#L34)
+* [`ViewModels/MainWindowViewModel.cs`](https://github.com/udlose/MermaidPad/blob/fcc94d6a388e4fb60c4a031e6be6b2c0e7cea8b7/ViewModels/MainWindowViewModel.cs#L341-L347)
 
 ---
 
@@ -161,7 +163,7 @@ If your modification triggers new Roslyn warnings, address them before opening t
 
 ### ✔ If you modified JavaScript, run ESLint
 
-ESLint v9+ should report zero errors or warnings.
+ESLint v10+ should report zero errors or warnings.
 
 ### ✔ Confirm builds succeed in both Debug and Release
 
@@ -193,16 +195,20 @@ The issue templates in `.github/ISSUE_TEMPLATE/` will guide you.
 # Commit Messages
 
 > [!IMPORTANT]
+
 > - Every commit message should reference the Issue it relates to.
+>
 > - Avoid vague messages like "Fix bug" or "Update code".
 
 Clear commit messages help maintain a readable history.
 
 You can do either of the following:
-- Use AI generated commit messages based on your changes
-- or follow this pattern:
 
-  ```
+* Use AI generated commit messages based on your changes
+
+* or follow this pattern:
+
+  ```text
   Short summary of the change
 
   Issue #<issue-number>
@@ -218,6 +224,7 @@ Examples:
 * `Fix: handle large mermaid diagrams without UI freeze. Resolves Issue #123`
 * `Refactor: consolidate Linux clipboard integration. Resolves Issue #456`
 * `Feature: improved tab persistence across sessions. Resolves Issue #789`
+
 ---
 
 # Code of Conduct
@@ -233,4 +240,3 @@ Your contributions — small or large — help improve MermaidPad for everyone.
 Thank you again for helping make the project better! 🙌
 
 ---
-
