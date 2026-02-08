@@ -18,7 +18,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/commits/main)
 [![License](https://img.shields.io/github/license/udlose/MermaidPad?style=flat-square)](https://github.com/udlose/MermaidPad/blob/main/LICENSE.TXT)
 [![wakatime](https://wakatime.com/badge/github/udlose/MermaidPad.svg?style=flat-square)](https://wakatime.com/badge/github/udlose/MermaidPad)
-![Endpoint Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Floc-counter.onrender.com%2F%3Frepo%3Dudlose%2FMermaidPad%26branch%3Ddevelop&label=lines%20of%20code&color=orange)
+![Endpoint Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Floc-counter.onrender.com%2F%3Frepo%3Dudlose%2FMermaidPad%26branch%3Ddevelop&label=lines%20of%20code&color=orange&cacheSeconds=86400)
 
 <!--[![Lines of Code](https://img.shields.io/tokei/lines/github/udlose/MermaidPad?style=flat-square)]-->
 <!--[![Codacy Badge](https://app.codacy.com/project/badge/Grade/3f4e1f3f3b6e4e2fa6f3e4e2fa6f3e4e2)](https://www.codacy.com/gh/udlose/MermaidPad/dashboard?utm_source=github.com&utm_medium=referral&utm_content=udlose/MermaidPad&utm_campaign=Badge_Grade)-->
