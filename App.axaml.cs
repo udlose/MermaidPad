@@ -27,8 +27,12 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using AvaloniaWebView;
+// Only include Dock developer tools in debug builds. MermaidPad.csproj conditionally includes
+// the AvaloniaUI.DiagnosticsSupport and Dock.Avalonia.Diagnostics packages reference based on DEBUG symbol
+#if DEBUG
 using Dock.Avalonia.Diagnostics;
 using Dock.Avalonia.Diagnostics.Controls;
+#endif
 using MermaidPad.Infrastructure;
 using MermaidPad.Models;
 using MermaidPad.ViewModels;
@@ -76,10 +80,12 @@ public sealed partial class App : Application, IDisposable
     private int _errorDialogPumpScheduled;
     private int _shutdownRequested;
 
+#if DEBUG
     // Developer Tools
     private IAsyncDisposable? _avaloniaDevToolsDisposable;
     private IDisposable? _dockDebugDisposable;
     private IDisposable? _dockDebugOverlayDisposable;
+#endif
 
     /// <summary>
     /// Initializes the component and loads its associated XAML content.
@@ -91,11 +97,14 @@ public sealed partial class App : Application, IDisposable
     {
         AvaloniaXamlLoader.Load(this);
 
+#if DEBUG
         AttachAvaloniaDeveloperTools();
+#endif
     }
 
     #region Developer Tools methods
 
+#if DEBUG
     /// <summary>
     /// Attaches the Avalonia developer tools to the current window for debugging purposes in debug builds.
     /// </summary>
@@ -127,7 +136,6 @@ public sealed partial class App : Application, IDisposable
     /// </para>
     /// </remarks>
     /// <param name="mainWindow">The main application window to which the Dock developer tools will be attached. Cannot be null.</param>
-    [Conditional("DEBUG")]
     private void AttachDockDeveloperTools(MainWindow mainWindow)
     {
         Debug.Assert(mainWindow is not null, "MainWindow cannot be null when attaching Dock developer tools.");
@@ -146,7 +154,6 @@ public sealed partial class App : Application, IDisposable
     /// </summary>
     /// <remarks>This method is only invoked when the application is compiled in debug mode. Disposal is
     /// performed synchronously to ensure that all resources are released before continuing execution.</remarks>
-    [Conditional("DEBUG")]
     [SuppressMessage("Usage", "VSTHRD002:Avoid problematic synchronous waits", Justification = "Disposal must be synchronous in this context.")]
     private void DisposeDeveloperTools()
     {
@@ -157,6 +164,7 @@ public sealed partial class App : Application, IDisposable
 
         Log.Debug("Avalonia and Dock developer tools disposed");
     }
+#endif
 
     #endregion Developer Tools methods
 
@@ -255,7 +263,9 @@ public sealed partial class App : Application, IDisposable
         mainWindow.Show();
         mainWindow.Focus();
 
+#if DEBUG
         AttachDockDeveloperTools(mainWindow);
+#endif
 
         _desktopLifetime.MainWindow = mainWindow;
     }
@@ -1101,8 +1111,10 @@ public sealed partial class App : Application, IDisposable
                 UnregisterGlobalExceptionHandlers();
                 UnregisterDesktopLifetimeEvents();
 
+#if DEBUG
                 // Dispose developer tools if enabled (DEBUG only: conditionally-compiled)
                 DisposeDeveloperTools();
+#endif
 
                 // Dispose managed services since we built and managed the ServiceProvider ourselves (async-aware)
                 if (Services is IAsyncDisposable asyncDisposableServices)
