@@ -22,14 +22,14 @@
   },
   "private": true,
   "engines": {
-    "node": ">=18"
+    "node": ">=22.0.0"
   },
-  "packageManager": "npm@11.6.0",
+  "packageManager": "npm@11.9.0",
   "homepage": "https://github.com/udlose/MermaidPad#readme",
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "eslint": "^9.39.2",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
     "eslint-plugin-html": "^8.1.4",
-    "globals": "^17.1.0"
+    "globals": "^17.3.0"
   }
 }
