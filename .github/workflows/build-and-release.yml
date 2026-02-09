@@ -112,7 +112,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore dependencies
         run: dotnet restore MermaidPad.csproj
@@ -274,7 +274,7 @@ jobs:
             ## MermaidPad v${{ needs.get-version.outputs.version }}
 
             ### Requirements
-            - .NET 9 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/9.0))
+            - .NET 10 Runtime ([Download here](https://dotnet.microsoft.com/download/dotnet/10.0))
             - Windows: WebView2 Runtime ([Download here](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
             - Linux: libwebkit2gtk-4.0-37+ (for WebKit support)
             - macOS: WebKit (included on macOS by default - [Download](https://webkit.org/downloads/))

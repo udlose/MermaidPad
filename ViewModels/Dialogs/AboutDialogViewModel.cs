@@ -117,7 +117,7 @@ internal sealed class AboutDialogViewModel : ViewModelBase
     #region Environment Info
 
     /// <summary>
-    /// Gets the .NET runtime version string (e.g., "9.0.1").
+    /// Gets the .NET runtime version string (e.g., "10.0.1").
     /// </summary>
     public string DotNetVersion { get; } = Environment.Version.ToString();
 

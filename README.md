@@ -58,7 +58,7 @@
 
 ## Overview
 
-**MermaidPad** is a cross-platform Mermaid chart editor built with .NET 9 and Avalonia.
+**MermaidPad** is a cross-platform Mermaid chart editor built with .NET 10 and Avalonia.
 It leverages [MermaidJS](https://mermaid.js.org/) for rendering diagrams and supports Windows, Linux, and macOS (x64/arm64).
 MermaidPad offers a streamlined experience for editing, previewing, and exporting Mermaid diagrams.
 
@@ -863,7 +863,7 @@ xychart
 
 ## Requirements
 
-- **.NET 9 (or greater) Runtime**: ([Download](https://dotnet.microsoft.com/download/dotnet))
+- **.NET 10 (or greater) Runtime**: ([Download](https://dotnet.microsoft.com/download/dotnet))
 - **Windows:** WebView2 Runtime ([Download](https://developer.microsoft.com/en-us/microsoft-edge/webview2/?form=MA13LH#download))
 - **Linux:** `libwebkit2gtk-4.0-37+` (for WebKit support)
   - For graphical dialogs: zenity, kdialog, yad, Xdialog, or gxmessage
@@ -1006,13 +1006,13 @@ the same published artifacts locally. It is important to test the published arti
 
 Source of truth:
 
-- Project-level build settings: `Directory.Build.props` (net9.0, supported RIDs, publish configuration)
+- Project-level build settings: `Directory.Build.props` (net10.0, supported RIDs, publish configuration)
 - Asset integrity: `MermaidPad.Build.targets` generates `Generated/AssetHashes.cs` at build time
 - CI/workflow: `.github/workflows/build-and-release.yml` runs a publish matrix over supported RIDs, uploads artifacts, then creates releases
 
 Key settings
 
-- Target framework: net9.0 (see `Directory.Build.props`)
+- Target framework: net10.0 (see `Directory.Build.props`)
 - Supported RIDs (publish targets): `win-x64`, `win-arm64`, `linux-x64`, `osx-arm64`, `osx-x64`
 - Publishing defaults: framework-dependent, not single-file (`PublishSelfContained=false`, `PublishSingleFile=false`)
 
@@ -1160,14 +1160,14 @@ npx eslint "Assets/**/*.{html,js,ts}"
 
 ## Roadmap
 
-- ✅ SVG/PNG export (completed)
-- ✅ SHA256 asset integrity verification (completed)
-- ✅ Adaptive ELK layout support (completed)
-- ✅ Highlight connectors on hover (completed)
-- ✅ Performance optimizations (completed)
-- ✅ Syntax highlighting (completed)
-- ✅ Smart Indenting for Mermaid Markdown (completed) [#230](https://github.com/udlose/MermaidPad/issues/230)
-- 🚀 Dockable panels for editor/preview (coming soon) [#207](https://github.com/udlose/MermaidPad/issues/207)
+- ✅ SVG/PNG export
+- ✅ SHA256 asset integrity verification
+- ✅ Adaptive ELK layout support
+- ✅ Highlight connectors on hover
+- ✅ Performance optimizations
+- ✅ Syntax highlighting
+- ✅ Smart Indenting for Mermaid Markdown
+- ✅ Dockable panels for editor/preview
 - 🚀 Theming for Editor and Application (coming soon) [#187](https://github.com/udlose/MermaidPad/issues/187)
 - 🚀 Editor Formatting and Folding (coming soon) [#264](https://github.com/udlose/MermaidPad/issues/264),[#265](https://github.com/udlose/MermaidPad/issues/265)
 - 🚀 Support for [ZenUML diagrams](https://mermaid.js.org/syntax/zenuml.html) (coming soon) [#259](https://github.com/udlose/MermaidPad/issues/259)
@@ -1221,8 +1221,8 @@ MermaidPad uses several open-source projects, including:
 ---
 
 ## Repo Stats
-[![Contributors Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/7a25e7e1-4d64-4cd0-9a03-5d3e0dac5f17.svg) ![Commits Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/ec0b195b-facb-4580-8294-38b4b644c00c.svg) ![Issues Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/3f213fc5-a392-4267-b418-16f7368a6109.svg) ![Issues Opened Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/0c5f14c6-0ccf-47c2-af5b-d969cf20a02e.svg) ![Pull Requests Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/5b7eba45-c5cc-4d33-a998-c1617783c44a.svg)](https://app.devactivity.com/public/?organizationLogin=udlose&organizationSource=GITHUB&organizationId=398)
 
+[![Contributors Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/7a25e7e1-4d64-4cd0-9a03-5d3e0dac5f17.svg) ![Commits Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/ec0b195b-facb-4580-8294-38b4b644c00c.svg) ![Issues Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/3f213fc5-a392-4267-b418-16f7368a6109.svg) ![Issues Opened Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/0c5f14c6-0ccf-47c2-af5b-d969cf20a02e.svg) ![Pull Requests Closed Count (Last 730 days)](https://embeddables.devactivity.com/personal/udlose/5b7eba45-c5cc-4d33-a998-c1617783c44a.svg)](https://app.devactivity.com/public/?organizationLogin=udlose&organizationSource=GITHUB&organizationId=398)
 
 ---
 

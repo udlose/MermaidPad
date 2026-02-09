@@ -1,6 +1,6 @@
 # MermaidPad
 
-MermaidPad is a cross-platform Mermaid chart editor built with .NET 9 and Avalonia.
+MermaidPad is a cross-platform Mermaid chart editor built with .NET 10 and Avalonia.
 It leverages MermaidJS for rendering diagrams and supports Windows, Linux, and
 macOS (x64/arm64). MermaidPad offers a streamlined experience for editing, previewing,
 and exporting Mermaid diagrams.
