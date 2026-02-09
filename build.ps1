@@ -81,6 +81,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+[bool]$script:IsWindowsOs = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+    [System.Runtime.InteropServices.OSPlatform]::Windows
+)
+
 #region Helper Functions
 
 function Write-Step {
@@ -214,6 +218,106 @@ function Get-GitCommitSha {
     return "local-build"
 }
 
+function Validate-BuildPaths {
+    <#
+    .SYNOPSIS
+        Validates that the Version and OutputDirectory parameters do not contain invalid characters or patterns.
+    #>
+    param(
+        [string]$Version,
+        [string]$OutputDirectory
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        throw "Version cannot be null, empty, or whitespace."
+    }
+    if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+        throw "OutputDirectory cannot be null, empty, or whitespace."
+    }
+
+    [string]$invalidVersionPattern = '[\\/]|:|(\.\.)'
+    [string]$invalidOutputDirectoryPattern = '(\.\.)'
+    if ($Version -match $invalidVersionPattern) {
+        throw "Invalid Version value '$Version'. Version must not contain '/', '\', ':', or '..'."
+    }
+    if ($OutputDirectory -match $invalidOutputDirectoryPattern) {
+        throw "Invalid OutputDirectory value '$OutputDirectory'. OutputDirectory must not contain '..'."
+    }
+}
+
+function Get-BuildArtifactPaths {
+    <#
+    .SYNOPSIS
+        Computes and validates the paths for build artifacts based on input parameters.
+        Ensures that all computed paths are under the specified output directory to prevent accidental file system modifications.
+    #>
+    param(
+        [string]$Version,
+        [string]$Configuration,
+        [string]$rid,
+        [string]$OutputDirectory
+    )
+
+    # Validate that configuration and RID are safe to use as path components
+    $invalidFileNameChars = [System.IO.Path]::GetInvalidFileNameChars()
+    foreach ($item in @(
+        @{ Name = 'Configuration'; Value = $Configuration },
+        @{ Name = 'rid';           Value = $rid }
+    )) {
+        $name = $item.Name
+        $value = [string]$item.Value
+
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw "$name cannot be null, empty, or whitespace."
+        }
+
+        if ($value -match '[\\/]' -or $value -like '*..*') {
+            throw "$name value '$value' contains invalid path segments or separators."
+        }
+
+        if ($value.IndexOfAny($invalidFileNameChars) -ne -1) {
+            throw "$name value '$value' contains invalid file name characters."
+        }
+    }
+    Validate-BuildPaths -Version $Version -OutputDirectory $OutputDirectory
+
+    [string]$publishDir = Join-Path -Path $OutputDirectory -ChildPath "MermaidPad-$Version-$Configuration-$rid"
+    $publishDir = [System.IO.Path]::GetFullPath($publishDir)
+
+    # Normalize and validate that publishDir is under OutputDirectory using an OS-appropriate comparison
+    [string]$resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
+    [char]$directorySeparator = [System.IO.Path]::DirectorySeparatorChar
+    if (-not $resolvedOutputDirectory.EndsWith([string]$directorySeparator)) {
+        $resolvedOutputDirectory += $directorySeparator
+    }
+
+    if ($script:IsWindowsOs) {
+        $comparison = [System.StringComparison]::OrdinalIgnoreCase
+    }
+    else {
+        $comparison = [System.StringComparison]::Ordinal
+    }
+
+    if (-not $publishDir.StartsWith($resolvedOutputDirectory, $comparison)) {
+        throw "Resolved publish directory '$publishDir' is not under the output directory '$resolvedOutputDirectory'."
+    }
+
+    [string]$zipName = "MermaidPad-$Version-$Configuration-$rid.zip"
+    [string]$zipPath = Join-Path -Path $OutputDirectory -ChildPath $zipName
+    $zipPath = [System.IO.Path]::GetFullPath($zipPath)
+
+    # Defense-in-depth: Ensure $zipPath is under $OutputDirectory
+    if (-not $zipPath.StartsWith($resolvedOutputDirectory, $comparison)) {
+        throw "Resolved zip path '$zipPath' is not under the output directory '$resolvedOutputDirectory'."
+    }
+
+    return @{
+        PublishDir = $publishDir
+        ZipName    = $zipName
+        ZipPath    = $zipPath
+    }
+}
+
 #endregion
 
 #region Main Script
@@ -231,7 +335,7 @@ try {
     }
 
     [string]$projectFile = Join-Path -Path $scriptDir -ChildPath "MermaidPad.csproj"
-    if (-not (Test-Path -Path $projectFile)) {
+    if (-not (Test-Path -LiteralPath $projectFile)) {
         throw "Project file not found: $projectFile. Ensure this script is in the repository root."
     }
 
@@ -261,67 +365,6 @@ try {
     Write-Info "Commit SHA:     $commitSha"
 
     # Step 4: Clean if requested
-    function Validate-BuildPaths {
-        param(
-            [string]$Version,
-            [string]$OutputDirectory
-        )
-        [string]$invalidVersionPattern = '[\\/]|:|(\.\.)'
-        [string]$invalidOutputDirectoryPattern = '(\.\.)'
-        if ($Version -match $invalidVersionPattern) {
-            throw "Invalid Version value '$Version'. Version must not contain '/', '\', ':', or '..'."
-        }
-        if ($OutputDirectory -match $invalidOutputDirectoryPattern) {
-            throw "Invalid OutputDirectory value '$OutputDirectory'. OutputDirectory must not contain '..'."
-        }
-    }
-
-    function Get-BuildArtifactPaths {
-        param(
-            [string]$Version,
-            [string]$Configuration,
-            [string]$rid,
-            [string]$OutputDirectory
-        )
-        Validate-BuildPaths -Version $Version -OutputDirectory $OutputDirectory
-
-        [string]$publishDir = Join-Path -Path $OutputDirectory -ChildPath "MermaidPad-$Version-$Configuration-$rid"
-        $publishDir = [System.IO.Path]::GetFullPath($publishDir)
-
-        # Normalize and validate that publishDir is under OutputDirectory using an OS-appropriate comparison
-        [string]$resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
-        $directorySeparator = [System.IO.Path]::DirectorySeparatorChar
-        if (-not $resolvedOutputDirectory.EndsWith([string]$directorySeparator)) {
-            $resolvedOutputDirectory += $directorySeparator
-        }
-
-        if ($IsWindows) {
-            $comparison = [System.StringComparison]::OrdinalIgnoreCase
-        }
-        else {
-            $comparison = [System.StringComparison]::Ordinal
-        }
-
-        if (-not $publishDir.StartsWith($resolvedOutputDirectory, $comparison)) {
-            throw "Resolved publish directory '$publishDir' is not under the output directory '$OutputDirectory'."
-        }
-
-        [string]$zipName = "MermaidPad-$Version-$Configuration-$rid.zip"
-        [string]$zipPath = Join-Path -Path $OutputDirectory -ChildPath $zipName
-        $zipPath = [System.IO.Path]::GetFullPath($zipPath)
-
-        # Defense-in-depth: Ensure $zipPath is under $OutputDirectory
-        if (-not $zipPath.StartsWith($resolvedOutputDirectory, $comparison)) {
-            throw "Resolved zip path '$zipPath' is not under the output directory '$OutputDirectory'."
-        }
-
-        return @{
-            PublishDir = $publishDir
-            ZipName    = $zipName
-            ZipPath    = $zipPath
-        }
-    }
-
     $artifactPaths = Get-BuildArtifactPaths -Version $Version -Configuration $Configuration -rid $rid -OutputDirectory $OutputDirectory
     [string]$publishDir = $artifactPaths.PublishDir
     [string]$zipName = $artifactPaths.ZipName
@@ -330,13 +373,13 @@ try {
     if ($Clean) {
         Write-Step "Cleaning Previous Artifacts"
 
-        if (Test-Path -Path $publishDir) {
-            Remove-Item -Path $publishDir -Recurse -Force
+        if (Test-Path -LiteralPath $publishDir) {
+            Remove-Item -LiteralPath $publishDir -Recurse -Force
             Write-Success "Removed: $publishDir"
         }
 
-        if (Test-Path -Path $zipPath) {
-            Remove-Item -Path $zipPath -Force
+        if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
             Write-Success "Removed: $zipPath"
         }
 
@@ -344,13 +387,13 @@ try {
         [string]$binDir = Join-Path -Path $scriptDir -ChildPath "bin"
         [string]$objDir = Join-Path -Path $scriptDir -ChildPath "obj"
 
-        if (Test-Path -Path $binDir) {
-            Remove-Item -Path $binDir -Recurse -Force
+        if (Test-Path -LiteralPath $binDir) {
+            Remove-Item -LiteralPath $binDir -Recurse -Force
             Write-Success "Removed: bin/"
         }
 
-        if (Test-Path -Path $objDir) {
-            Remove-Item -Path $objDir -Recurse -Force
+        if (Test-Path -LiteralPath $objDir) {
+            Remove-Item -LiteralPath $objDir -Recurse -Force
             Write-Success "Removed: obj/"
         }
     }
@@ -369,8 +412,8 @@ try {
     Write-Step "Publishing Application"
 
     # Ensure output directory exists
-    if (-not (Test-Path -Path $OutputDirectory)) {
-        New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $OutputDirectory)) {
+        New-Item -LiteralPath $OutputDirectory -ItemType Directory -Force | Out-Null
     }
 
     [string[]]$publishArgs = @(
@@ -400,8 +443,8 @@ try {
         # No need to re-validate $Version or $OutputDirectory here
 
         # Remove existing zip if present
-        if (Test-Path -Path $zipPath) {
-            Remove-Item -Path $zipPath -Force
+        if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
         }
 
         # Create zip from publish directory contents
