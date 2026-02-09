@@ -50,7 +50,7 @@
     Repository: https://github.com/udlose/MermaidPad
 
     Prerequisites:
-    - .NET 9.0 SDK or later
+    - .NET 10.0 SDK or later
     - PowerShell 7.0 or later (recommended) or Windows PowerShell 5.1
 
     This script is designed for local development and testing.
@@ -178,7 +178,7 @@ function Test-DotNetSdk {
 
         Write-Verbose "Detected .NET SDK version: $dotnetVersion"
 
-        # Parse major version - handle preview versions like "9.0.100-preview.1"
+        # Parse major version - handle preview versions like "10.0.100-preview.1"
         [string]$majorVersionString = $dotnetVersion.Split('.')[0]
         [int]$majorVersion = 0
 
@@ -186,8 +186,8 @@ function Test-DotNetSdk {
             throw "Unable to parse .NET SDK version from 'dotnet --version' output: '$dotnetVersion'"
         }
 
-        if ($majorVersion -lt 9) {
-            throw ".NET 9.0 SDK or later is required. Found: $dotnetVersion"
+        if ($majorVersion -lt 10) {
+            throw ".NET 10.0 SDK or later is required. Found: $dotnetVersion"
         }
 
         Write-Success ".NET SDK $dotnetVersion detected"
@@ -195,7 +195,7 @@ function Test-DotNetSdk {
     catch {
         Write-ErrorMessage "Failed to detect .NET SDK: $_"
         Write-Host ""
-        Write-Host "Please install the .NET 9.0 SDK from: https://dotnet.microsoft.com/download/dotnet/9.0" -ForegroundColor Yellow
+        Write-Host "Please install the .NET 10.0 SDK from: https://dotnet.microsoft.com/download/dotnet/10.0" -ForegroundColor Yellow
         throw
     }
 }

@@ -41,7 +41,7 @@
 # Cleans previous artifacts and builds with version 1.2.3 using Release configuration.
 #
 # PREREQUISITES
-# - .NET 9.0 SDK or later
+# - .NET 10.0 SDK or later
 # - Bash 4.0 or later
 # - zip utility (for creating artifacts)
 #
@@ -216,8 +216,8 @@ check_dotnet_sdk() {
   if ! command -v dotnet &>/dev/null; then
     print_error ".NET SDK not found"
     echo ""
-    echo "Please install the .NET 9.0 SDK from:"
-    echo "  https://dotnet.microsoft.com/download/dotnet/9.0"
+    echo "Please install the .NET 10.0 SDK from:"
+    echo "  https://dotnet.microsoft.com/download/dotnet/10.0"
     exit 1
   fi
 
@@ -229,19 +229,19 @@ check_dotnet_sdk() {
 
   print_verbose "Detected .NET SDK version: $version"
 
-  # Extract major version (handle formats like "9.0.100" or "9.0.100-preview.1")
+  # Extract major version (handle formats like "10.0.100" or "10.0.100-preview.1")
   local major_version=""
   major_version="$(echo "$version" | cut -d'.' -f1)"
 
   if [[ ! "$major_version" =~ ^[0-9]+$ ]]; then
     print_error "Unable to parse .NET SDK version: $version"
     echo ""
-    echo "Please ensure that the .NET 9.0 SDK is installed and that 'dotnet --version' returns a valid version string."
+    echo "Please ensure that the .NET 10.0 SDK is installed and that 'dotnet --version' returns a valid version string."
     exit 1
   fi
 
-  if [[ "$major_version" -lt 9 ]]; then
-    print_error ".NET 9.0 SDK or later is required. Found: $version"
+  if [[ "$major_version" -lt 10 ]]; then
+    print_error ".NET 10.0 SDK or later is required. Found: $version"
     exit 1
   fi
 

@@ -7,7 +7,7 @@ This document outlines how to contribute effectively and consistently.
 
 ---
 
-# 📌 Table of Contents
+## 📌 Table of Contents
 
 * [Getting Started](#getting-started)
 * [Development Environment](#development-environment)
@@ -23,7 +23,7 @@ This document outlines how to contribute effectively and consistently.
 
 ---
 
-# Getting Started
+## Getting Started
 
 Before working on the project:
 
@@ -35,11 +35,11 @@ If you’re unsure where to start, feel free to open a Discussion — we’re fr
 
 ---
 
-# Development Environment
+## Development Environment
 
 MermaidPad requires:
 
-* **.NET 9 SDK**
+* **.NET 10 SDK**
 * **Avalonia** as the UI framework
 * **ESLint 10+** for validating embedded JavaScript assets (when applicable)
 
@@ -47,7 +47,7 @@ No Node.js runtime is required unless you are modifying JavaScript packages that
 
 ---
 
-# Branching & Workflow
+## Branching & Workflow
 
 To keep history clean and conflict-free:
 
@@ -64,7 +64,7 @@ bugfix/* → individual contribution work
 
 ---
 
-# Coding Guidelines
+## Coding Guidelines
 
 ### ✔ Follow existing patterns
 
@@ -98,7 +98,7 @@ Here are some places in the code to look at:
 
 ---
 
-# Cross-Platform Responsibility
+## Cross-Platform Responsibility
 
 MermaidPad runs on **Windows, macOS, and Linux**.
 Avoid using OS-specific APIs directly in application code.
@@ -115,7 +115,7 @@ This keeps platform differences contained and prevents regressions.
 
 ---
 
-# Async & UI Thread Expectations
+## Async & UI Thread Expectations
 
 This is important:
 
@@ -131,7 +131,7 @@ If you’re unsure, search the codebase for existing async patterns and match th
 
 ---
 
-# Testing Requirements
+## Testing Requirements
 
 All changes must be tested using both:
 
@@ -149,7 +149,7 @@ Additionally:
 
 ---
 
-# Pull Requests
+## Pull Requests
 
 Before submitting a PR:
 
@@ -177,7 +177,7 @@ Visual changes are much easier to evaluate when screenshots are provided.
 
 ---
 
-# Issue Reporting
+## Issue Reporting
 
 When reporting an issue:
 
@@ -192,7 +192,7 @@ The issue templates in `.github/ISSUE_TEMPLATE/` will guide you.
 
 ---
 
-# Commit Messages
+## Commit Messages
 
 > [!IMPORTANT]
 
@@ -227,14 +227,14 @@ Examples:
 
 ---
 
-# Code of Conduct
+## Code of Conduct
 
 Be kind, be respectful, and act professionally.
 We’re building a community together — empathy and clarity matter. See the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details.
 
 ---
 
-# Thank You
+## Thank You
 
 Your contributions — small or large — help improve MermaidPad for everyone.
 Thank you again for helping make the project better! 🙌
