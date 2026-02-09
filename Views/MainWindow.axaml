@@ -37,6 +37,9 @@
       Command="{Binding CloseFileCommand}"
       CommandParameter="{Binding #Main.StorageProvider}"
       Gesture="Ctrl+W" />
+    <KeyBinding Command="{Binding RenderCommand}" Gesture="Ctrl+R" />
+    <KeyBinding Command="{Binding ClearCommand}" Gesture="Ctrl+Shift+L" />
+    <KeyBinding Command="{Binding ExportCommand}" Gesture="Ctrl+E" />
   </Window.KeyBindings>
 
   <!--
@@ -217,18 +220,17 @@
       Orientation="Horizontal"
       Spacing="6">
       <Button
-        Width="90"
         Command="{Binding RenderCommand}"
         Content="Render"
-        ToolTip.Tip="Render Diagram" />
+        ToolTip.Tip="Render Diagram - Ctrl+R" />
       <Button
         Command="{Binding ClearCommand}"
         Content="Clear"
-        ToolTip.Tip="Clear All (Source + Diagram)" />
+        ToolTip.Tip="Clear Source and Diagram - Ctrl+Shift+L" />
       <Button
         Command="{Binding ExportCommand}"
         Content="Export"
-        ToolTip.Tip="Export Diagram" />
+        ToolTip.Tip="Export Diagram - Ctrl+E" />
       <CheckBox
         Margin="12,0,0,0"
         Content="Live Preview:"
