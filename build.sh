@@ -126,11 +126,13 @@ print_verbose() {
 }
 
 show_help() {
-  # Extract and display the header comment as help text
-  sed -n '/^# SYNOPSIS/,/^# =\+$/p' "$0" \
-    | grep -v '^# =\+$' \
-    | sed 's/^# //g' \
-    | sed 's/^#//g'
+  awk '
+    NR==1 && $0 ~ /^#!/ { next }
+    $0 ~ /^#/ { sub(/^# ?/, "", $0); print; next }
+    /^[[:space:]]*$/ { next } # skip blank lines
+    # Only exit on the first non-comment, non-blank line
+    { exit }
+  ' "$0"
   exit 0
 }
 
@@ -509,9 +511,35 @@ main() {
     local path="$1"
 
     if command -v realpath >/dev/null 2>&1; then
-      realpath "$path"
-      return
+      # Prefer realpath modes that tolerate missing targets when available.
+      # GNU coreutils supports: realpath -m <path>
+      if realpath -m "/" >/dev/null 2>&1; then
+        realpath -m "$path"
+        return
+      fi
+
+      # Fallback: resolve the parent directory (must exist), then append the leaf.
+      local parent_dir=""
+      local name=""
+      local parent_resolved=""
+
+      parent_dir="$(dirname "$path")"
+      name="$(basename "$path")"
+
+      if parent_resolved="$(realpath "$parent_dir" 2>/dev/null)"; then
+        # Avoid double slashes, but keep root as "/"
+        # Special case: if name is "/" or empty, just return "/"
+        if [[ "$name" == "/" || -z "$name" ]]; then
+          printf '/\n'
+        elif [[ "$parent_resolved" == "/" ]]; then
+          printf '/%s\n' "$name"
+        else
+          printf '%s/%s\n' "$parent_resolved" "$name"
+        fi
+        return
+      fi
     fi
+
 
     if command -v python3 >/dev/null 2>&1; then
       python3 - "$path" <<'PY'
@@ -540,15 +568,24 @@ PY
   # Ensure OUTPUT_DIR exists and normalize it
   mkdir -p "$OUTPUT_DIR"
   OUTPUT_DIR="$(resolve_path "$OUTPUT_DIR")"
-  local publish_dir zip_name zip_path
-  OUTPUT_DIR_WITH_SLASH="$OUTPUT_DIR/"
-  publish_dir="$OUTPUT_DIR/MermaidPad-$VERSION-$CONFIGURATION-$rid"
-  zip_name="MermaidPad-$VERSION-$CONFIGURATION-$rid.zip"
-  zip_path="$OUTPUT_DIR/$zip_name"
 
-  # Ensure publish_dir and zip_path are under OUTPUT_DIR (enforce path-separator boundary)
+  # Normalize OUTPUT_DIR_WITH_SLASH to avoid double slashes (e.g., when OUTPUT_DIR is "/")
+  local OUTPUT_DIR_WITH_SLASH
+  if [[ "$OUTPUT_DIR" == "/" ]]; then
+    OUTPUT_DIR_WITH_SLASH="/"
+  else
+    OUTPUT_DIR_WITH_SLASH="${OUTPUT_DIR}/"
+  fi
+  local publish_dir="${OUTPUT_DIR}/MermaidPad-${VERSION}-${CONFIGURATION}-${rid}"
+  local zip_name="MermaidPad-${VERSION}-${CONFIGURATION}-${rid}.zip"
+  local zip_path="${OUTPUT_DIR}/${zip_name}"
+
+  local publish_dir_resolved
+  local zip_path_resolved
   publish_dir_resolved="$(resolve_path "$publish_dir")"
   zip_path_resolved="$(resolve_path "$zip_path")"
+
+  # Ensure publish_dir and zip_path are under OUTPUT_DIR (enforce path-separator boundary)
   if [[ "$publish_dir_resolved" != "$OUTPUT_DIR_WITH_SLASH"* ]] || [[ "$zip_path_resolved" != "$OUTPUT_DIR_WITH_SLASH"* ]]; then
     print_error "Resolved artifact paths escape the intended output directory."
     exit 1
