@@ -388,13 +388,25 @@ try {
         [string]$objDir = Join-Path -Path $scriptDir -ChildPath "obj"
 
         if (Test-Path -LiteralPath $binDir) {
-            Remove-Item -LiteralPath $binDir -Recurse -Force
-            Write-Success "Removed: bin/"
+            try {
+                Remove-Item -LiteralPath $binDir -Recurse -Force -ErrorAction Stop
+                Write-Success "Removed: bin/"
+            }
+            catch {
+                Write-ErrorMessage "Failed to remove bin/. A process is likely holding files open. Close MermaidPad, dotnet.exe, or any WebView2/msedgewebview2 processes, then retry. Details: $($_.Exception.Message)"
+                throw
+            }
         }
 
         if (Test-Path -LiteralPath $objDir) {
-            Remove-Item -LiteralPath $objDir -Recurse -Force
-            Write-Success "Removed: obj/"
+            try {
+                Remove-Item -LiteralPath $objDir -Recurse -Force -ErrorAction Stop
+                Write-Success "Removed: obj/"
+            }
+            catch {
+                Write-ErrorMessage "Failed to remove obj/. A process is likely holding files open. Close MermaidPad, dotnet.exe, or any WebView2/msedgewebview2 processes, then retry. Details: $($_.Exception.Message)"
+                throw
+            }
         }
     }
 
@@ -413,7 +425,7 @@ try {
 
     # Ensure output directory exists
     if (-not (Test-Path -LiteralPath $OutputDirectory)) {
-        New-Item -LiteralPath $OutputDirectory -ItemType Directory -Force | Out-Null
+        New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
     }
 
     [string[]]$publishArgs = @(
