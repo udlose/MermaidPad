@@ -307,7 +307,7 @@ internal sealed class DockFactory : Factory
         // During deserialization, the DockableLocator lambdas may create new tool instances,
         // which would overwrite EditorTool/DiagramTool. We need to dispose the old ones afterward.
         MermaidEditorToolViewModel? previousEditorTool = EditorTool;
-        _ = DiagramTool; // Capture for future IDisposable implementation (currently unused)
+        DiagramToolViewModel? previousDiagramTool = DiagramTool;
 
         // https://github.com/wieslawsoltes/Dock/blob/master/docs/dock-advanced.md?plain=1#L21-L36 says: to configure locators here BUT this method is called AFTER deserialization
         //TODO - DaveBlack: review whether locators need to be re-configured here
@@ -329,7 +329,6 @@ internal sealed class DockFactory : Factory
         }
 
         // After layout initialization, try to find our tools if they were restored from serialization
-        Stopwatch stopwatch = Stopwatch.StartNew();
         if (EditorTool is null || DiagramTool is null)
         {
             // We can't use the Find with the following Find method signature:
@@ -342,24 +341,40 @@ internal sealed class DockFactory : Factory
             EditorTool ??= dockables.Find(static dockable => dockable.Id == MermaidEditorToolViewModel.ToolId) as MermaidEditorToolViewModel;
             DiagramTool ??= dockables.Find(static dockable => dockable.Id == DiagramToolViewModel.ToolId) as DiagramToolViewModel;
         }
-        stopwatch.Stop();
-        _logger.LogTiming(nameof(FindAllDockables), stopwatch.Elapsed, true);
 
         // Dispose stale tools AFTER base initialization completes and new tools are assigned.
         // This prevents race conditions where base.InitLayout() might access null properties.
         // Only dispose if the tool was actually replaced (reference changed).
+        string toolId = "", toolTypeName = "";
         if (previousEditorTool is not null && !ReferenceEquals(previousEditorTool, EditorTool))
         {
-            _logger.LogDebug("Disposing stale {ToolName} after layout reinitialization", nameof(EditorTool));
-            previousEditorTool.Dispose();
+            try
+            {
+                toolId = previousEditorTool.Id;
+                toolTypeName = previousEditorTool.GetType().FullName ?? "<unknown type>";
+                previousEditorTool.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing previous editor tool ViewModel {ToolType} with Id {ToolId} during layout initialization.",
+                    toolTypeName, toolId);
+            }
         }
 
-        // DiagramTool doesn't implement IDisposable yet, but ready for future
-        // if (previousDiagramTool is IDisposable disposableDiagram && !ReferenceEquals(previousDiagramTool, DiagramTool))
-        // {
-        //     _logger.LogDebug("Disposing stale {ToolName} after layout reinitialization", nameof(DiagramTool));
-        //     disposableDiagram.Dispose();
-        // }
+        if (previousDiagramTool is not null && !ReferenceEquals(previousDiagramTool, DiagramTool))
+        {
+            try
+            {
+                toolId = previousDiagramTool.Id;
+                toolTypeName = previousDiagramTool.GetType().FullName ?? "<unknown type>";
+                previousDiagramTool.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing previous diagram tool ViewModel {ToolType} with Id {ToolId} during layout initialization.",
+                    toolTypeName, toolId);
+            }
+        }
 
         if (EditorTool is null)
         {
