@@ -30,7 +30,7 @@
         <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.4.1" />
-        <PackageReference Include="Dock.Avalonia" Version="11.3.11.7" />
+        <PackageReference Include="Dock.Avalonia" Version="11.3.11.22" />
         <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.11.7" />
         <PackageReference Include="Dock.Model.Extensions.DependencyInjection" Version="11.3.9" />
         <PackageReference Include="Dock.Model.Mvvm" Version="11.3.11.7" />
@@ -76,7 +76,7 @@
     <!-- Only include Avalonia.Diagnostics and Dock.Avalonia.Diagnostics in Debug builds -->
     <ItemGroup Condition="'$(Configuration)' == 'Debug'">
         <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.1.1" />
-        <PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.11.7" />
+        <PackageReference Include="Dock.Avalonia.Diagnostics" Version="11.3.11.22" />
     </ItemGroup>
 
     <ItemGroup>
