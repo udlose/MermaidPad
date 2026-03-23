@@ -30,8 +30,8 @@
         <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
         <PackageReference Include="AvaloniaEdit.TextMate" Version="11.4.1" />
-        <PackageReference Include="Dock.Avalonia" Version="11.3.11.7" />
-        <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.11.7" />
+        <PackageReference Include="Dock.Avalonia" Version="11.3.11.22" />
+        <PackageReference Include="Dock.Avalonia.Themes.Fluent" Version="11.3.11.22" />
         <PackageReference Include="Dock.Model.Extensions.DependencyInjection" Version="11.3.9" />
         <PackageReference Include="Dock.Model.Mvvm" Version="11.3.11.7" />
         <PackageReference Include="Dock.Serializer.Newtonsoft" Version="11.3.11.7" />
