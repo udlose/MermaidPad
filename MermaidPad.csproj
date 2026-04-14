@@ -228,6 +228,7 @@
         <!-- No need to explicitly include generated asset hash file in compilation -->
         <!-- Doing so will cause NETSDK1022 Duplicate compile items error -->
         <!--<Compile Include="Generated/AssetHashes.cs" Condition="Exists('Generated/AssetHashes.cs')" />-->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
 
         <None Update="LICENSE.TXT">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
