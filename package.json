@@ -28,8 +28,8 @@
   "homepage": "https://github.com/udlose/MermaidPad#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.0.0",
-    "eslint-plugin-html": "^8.1.4",
-    "globals": "^17.3.0"
+    "eslint": "^10.13.0",
+    "eslint-plugin-html": "^8.2.1",
+    "globals": "^17.13.0"
   }
 }
